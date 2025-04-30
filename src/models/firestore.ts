@@ -6,9 +6,13 @@ import { Timestamp } from "firebase/firestore";
 export type ResidenciaId = string;
 export type ComedorId = string;
 export type TiempoComidaId = string;
-export type AlternativaTiempoComidaId = string; // New ID type
+export type AlternativaTiempoComidaId = string;
 export type UserId = string;
-export type ComentarioId = string; // New ID type
+export type ComentarioId = string;
+
+// --- Added Types ---
+export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
+export type TipoAccesoAlternativa = 'abierto' | 'autorizado' | 'cerrado'; // Access levels
 
 // --- Interfaces ---
 
@@ -21,23 +25,43 @@ export interface UserProfile {
   isAdmin?: boolean;
 }
 
-// Define the structure for daily meal request submission cut-off times
 export interface MealRequestSubmissionTimes {
-  lunes?: Timestamp;   // Use Firestore Timestamp
-  martes?: Timestamp;
-  miercoles?: Timestamp;
-  jueves?: Timestamp;
-  viernes?: Timestamp;
-  sabado?: Timestamp;
-  domingo?: Timestamp;
+  lunes?: string;
+  martes?: string;
+  miercoles?: string;
+  jueves?: string;
+  viernes?: string;
+  sabado?: string;
+  domingo?: string;
 }
 
-export interface Residencia {
-  id: ResidenciaId;
-  nombre: string;
-  direccion?: string;
-  mealRequestSubmissionTimes: MealRequestSubmissionTimes;
+// --- UPDATED TiempoComida Interface ---
+export interface TiempoComida {
+  id: TiempoComidaId;
+  nombre: string; // e.g., "Desayuno", "Almuerzo", "Cena"
+  residenciaId: ResidenciaId;
+  orden: number; // Order in which to display/process this meal time
+  diasDisponibles: DayOfWeekKey[]; // Specifies on which days it's available
 }
+// --- END UPDATED TiempoComida Interface ---
+
+
+// --- UPDATED AlternativaTiempoComida Interface ---
+export interface AlternativaTiempoComida {
+  id: AlternativaTiempoComidaId;
+  nombre: string;
+  tipo: 'comedor' | 'paraLlevar'; // Specifies where the meal is consumed
+  tipoAcceso: TipoAccesoAlternativa; // Specifies who can choose it
+  // diasDisponibles moved to TiempoComida
+  ventanaInicio: string;
+  iniciaDiaAnterior?: boolean;
+  ventanaFin: string;
+  terminaDiaSiguiente?: boolean;
+  tiempoComidaId: TiempoComidaId; // Link to the parent TiempoComida
+  residenciaId: ResidenciaId; // Link back to the Residencia
+  comedorId?: ComedorId; // Optional: Link to a specific Comedor (especially if tipo is 'comedor')
+}
+// --- END UPDATED AlternativaTiempoComida Interface ---
 
 export interface Comedor {
   id: ComedorId;
@@ -46,61 +70,45 @@ export interface Comedor {
   descripcion?: string;
 }
 
-// Represents a general meal category (e.g., Breakfast, Lunch, Dinner)
-export interface TiempoComida {
-  id: TiempoComidaId;
-  nombre: string; // e.g., "Desayuno", "Almuerzo", "Cena"
-  residenciaId: ResidenciaId;
+export interface Residencia {
+  id: ResidenciaId;
+  nombre: string;
+  direccion?: string;
+  mealRequestSubmissionTimes: MealRequestSubmissionTimes;
+  // Optional fields to hold related data (when fetched/mocked)
+  tiemposComida?: TiempoComida[];
+  alternativas?: AlternativaTiempoComida[];
+  comedores?: Comedor[];
 }
 
-// Represents a specific option within a TiempoComida (e.g., Early Breakfast, Takeaway Lunch)
-export interface AlternativaTiempoComida {
-  id: AlternativaTiempoComidaId;
-  nombre: string; // e.g., "Desayuno Temprano", "Almuerzo para Llevar"
-  tipo: 'comedor' | 'paraLlevar';
-  ventanaInicio: string; // Time string (e.g., "07:00", "13:00")
-  ventanaFin: string; // Time string (e.g., "08:00", "14:00")
-  tiempoComidaId: TiempoComidaId; // Link to the parent TiempoComida
-  residenciaId: ResidenciaId; // Link back to the Residencia
-  // Optional: Add details like location within the Comedor if needed
-  // ubicacionEspecifica?: string;
-}
 
 export interface Eleccion {
   id: string;
   usuarioId: UserId;
   residenciaId: ResidenciaId;
-  fecha: Timestamp; // Date of the meal
-  tiempoComidaId: TiempoComidaId; // Link to the general meal category
-  alternativaTiempoComidaId: AlternativaTiempoComidaId; // Link to the specific alternative chosen
-  solicitado: boolean; // True if requested, false if declined
-  asistencia?: boolean; // Optional: Track attendance for 'comedor' type
-  fechaSolicitud: Timestamp; // When the choice was made
+  fecha: Timestamp;
+  tiempoComidaId: TiempoComidaId;
+  alternativaTiempoComidaId: AlternativaTiempoComidaId;
+  solicitado: boolean;
+  // estadoAutorizacion?: 'pendiente' | 'aprobado' | 'rechazado';
+  asistencia?: boolean;
+  fechaSolicitud: Timestamp;
 }
 
-
-// Aggregated counts for a specific *general* meal time on a specific date
-// Counts can be refined later if needed per alternative
 export interface MealCount {
-    id: string; // Composite ID like YYYY-MM-DD_TiempoComidaId
+    id: string;
     residenciaId: ResidenciaId;
-    tiempoComidaId: TiempoComidaId; // Counts remain at the general meal level for now
+    tiempoComidaId: TiempoComidaId;
     fecha: Timestamp;
     totalSolicitado: number;
-    // Optional: Track counts per alternative if needed later
-    // countsPorAlternativa?: { [key: AlternativaTiempoComidaId]: number };
 }
 
-// Represents a comment or feedback submitted by a resident
 export interface Comentario {
-  id: ComentarioId; // Firestore auto-generated ID
-  usuarioId: UserId; // Who sent it
-  residenciaId: ResidenciaId; // Which residence it pertains to
-  texto: string; // The content of the comment
-  fechaEnvio: Timestamp; // When it was sent
-  leido: boolean; // Has an admin read it?
-  archivado: boolean; // Has it been archived?
-  // Optional: Add fields for admin responses if needed
-  // respuestaAdmin?: string;
-  // fechaRespuesta?: Timestamp;
+  id: ComentarioId;
+  usuarioId: UserId;
+  residenciaId: ResidenciaId;
+  texto: string;
+  fechaEnvio: Timestamp;
+  leido: boolean;
+  archivado: boolean;
 }

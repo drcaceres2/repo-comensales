@@ -6,6 +6,7 @@
   # Use https://search.nixos.org/packages to find packages
   packages = [
     pkgs.nodejs_20
+    pkgs.jdk # Added Java Development Kit
   ];
   # Sets environment variables in the workspace
   env = {};

@@ -8,15 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
-// Import db directly from the new firebase config file
-import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { Residencia, MealRequestSubmissionTimes } from '@/models/firestore';
+// Keep all models, as the list view might eventually show more details
+import { Residencia, MealRequestSubmissionTimes, TiempoComida, AlternativaTiempoComida, Comedor } from '@/models/firestore';
+import { X, PlusCircle } from 'lucide-react'; // Keep icons
+import { useRouter } from 'next/navigation'; // <<< Import useRouter
 
-// db is already initialized and imported from @/lib/firebase
+// Define DayOfWeekKey directly here for the submission times form
+type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
 
-const daysOfWeek = [
+const daysOfWeek: { label: string; value: DayOfWeekKey }[] = [
   { label: 'Monday', value: 'lunes' },
   { label: 'Tuesday', value: 'martes' },
   { label: 'Wednesday', value: 'miercoles' },
@@ -26,157 +27,330 @@ const daysOfWeek = [
   { label: 'Sunday', value: 'domingo' },
 ] as const;
 
-type DayOfWeekKey = typeof daysOfWeek[number]['value'];
+
+// --- MOCK DATA (Simplified Guaymura) ---
+const mockGuaymuraResidence: Residencia = {
+    id: 'mock-guaymura-id',
+    nombre: 'Guaymura',
+    mealRequestSubmissionTimes: {
+        lunes: '09:15', martes: '09:15', miercoles: '09:15',
+        jueves: '09:15', viernes: '09:15', sabado: '09:30', domingo: '10:00',
+    },
+    // Example of associated Comedor data (just names for mock)
+    comedores: [{ id: 'comedor-1', residenciaId: 'mock-guaymura-id', nombre: 'Comedor Principal' }]
+};
+// ---------------
 
 export default function ResidenciaAdminPage() {
+  const router = useRouter(); // <<< Get router instance
   const [isClient, setIsClient] = useState(false);
-  const [residenceName, setResidenceName] = useState('');
-  const [requestTimes, setRequestTimes] = useState<Partial<Record<DayOfWeekKey, string>>>({});
-  const [isCreating, setIsCreating] = useState(false);
   const { toast } = useToast();
+
+  // --- State for New Residence Form ---
+  const [newResidenceName, setNewResidenceName] = useState('');
+  const [newSubmissionTimes, setNewSubmissionTimes] = useState<Partial<Record<DayOfWeekKey, string>>>({});
+  const [newComedores, setNewComedores] = useState<string[]>([]); // List of comedor names
+  const [currentComedorName, setCurrentComedorName] = useState(''); // Input for adding comedor
+  const [isProcessing, setIsProcessing] = useState(false); // For submission lock
+
+  // --- State for Existing Residences List ---
+  const [residences, setResidences] = useState<Residencia[]>([]);
+  const [isLoadingResidences, setIsLoadingResidences] = useState(true); // Start true
+  const [errorResidences, setErrorResidences] = useState<string | null>(null);
 
   useEffect(() => {
     setIsClient(true);
+    fetchResidences();
   }, []);
 
-  const handleTimeChange = (day: DayOfWeekKey, value: string) => {
-    setRequestTimes(prev => ({ ...prev, [day]: value }));
+  // --- fetchResidences (using Mock Data) ---
+  const fetchResidences = async () => {
+    setIsLoadingResidences(true);
+    setErrorResidences(null);
+    console.log("Fetching mock residences...");
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      const fetchedResidences: Residencia[] = [mockGuaymuraResidence];
+      setResidences(fetchedResidences);
+      console.log("Mock residences set:", fetchedResidences);
+    } catch (error) {
+      const errorMessage = `Failed to fetch residences. ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error("Error fetching residences: ", error);
+      setErrorResidences(errorMessage);
+      toast({ title: "Error", description: "Could not fetch residences.", variant: "destructive" });
+    } finally {
+      setIsLoadingResidences(false);
+    }
   };
 
+  // --- Handlers for New Residence Form ---
+  const handleTimeChange = (day: DayOfWeekKey, value: string) => {
+      setNewSubmissionTimes(prev => ({ ...prev, [day]: value }));
+  };
+
+  const handleAddComedor = () => {
+      const trimmedName = currentComedorName.trim();
+      if (!trimmedName) return;
+      if (newComedores.some(name => name.toLowerCase() === trimmedName.toLowerCase())) {
+          toast({ title: "Warning", description: `Dining hall "${trimmedName}" already added.`, variant: "destructive"});
+          return;
+      }
+      setNewComedores(prev => [...prev, trimmedName]);
+      setCurrentComedorName(''); // Clear input
+      toast({ title: "Success", description: `Added dining hall: "${trimmedName}"`});
+  };
+
+  const handleRemoveComedor = (nameToRemove: string) => {
+      setNewComedores(prev => prev.filter(name => name !== nameToRemove));
+      toast({ title: "Removed", description: `Removed dining hall: "${nameToRemove}"`});
+  };
+
+  // --- Create Residence Handler (Simulated) ---
   const handleCreateResidence = async () => {
-    if (!residenceName.trim()) {
+    // Validation
+    if (!newResidenceName.trim()) {
       toast({ title: "Error", description: "Residence name cannot be empty.", variant: "destructive" });
       return;
     }
-    if (Object.keys(requestTimes).length === 0) {
-      toast({ title: "Error", description: "Please set at least one meal request submission time.", variant: "destructive" });
-      return;
+    const validTimes = Object.values(newSubmissionTimes).filter(time => time && /^\d{2}:\d{2}$/.test(time));
+    if (validTimes.length === 0) {
+        toast({ title: "Error", description: "Please set at least one valid meal request submission time (HH:MM).", variant: "destructive" });
+        return;
     }
+     if (newComedores.length === 0) {
+         toast({ title: "Error", description: "Please add at least one dining hall.", variant: "destructive" });
+         return;
+     }
 
-    setIsCreating(true);
+    setIsProcessing(true);
+    console.log("Simulating BASIC residence creation...");
+    console.log("Name:", newResidenceName);
+    console.log("Submission Times:", newSubmissionTimes);
+    console.log("Comedores:", newComedores);
+
+    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
 
     try {
-      const submissionTimes: Partial<MealRequestSubmissionTimes> = {};
-      for (const day in requestTimes) {
-        if (requestTimes[day as DayOfWeekKey]) {
-          const dateTimeString = requestTimes[day as DayOfWeekKey];
-          if (dateTimeString) {
-            const date = new Date(dateTimeString);
-            if (!isNaN(date.getTime())) {
-              submissionTimes[day as DayOfWeekKey] = Timestamp.fromDate(date);
-            } else {
-              console.warn(`Invalid date-time format for ${day}: ${dateTimeString}`);
-              toast({ title: "Warning", description: `Invalid date-time format for ${day}: ${dateTimeString}. Skipping this day.`, variant: "destructive" });
-            }
-          }
-        }
-      }
+        const finalTimes: MealRequestSubmissionTimes = {};
+         for (const day in newSubmissionTimes) {
+             const timeString = newSubmissionTimes[day as DayOfWeekKey];
+             if (timeString && /^\d{2}:\d{2}$/.test(timeString)) {
+                 finalTimes[day as DayOfWeekKey] = timeString;
+             }
+         }
 
-      if (Object.keys(submissionTimes).length === 0 && Object.keys(requestTimes).some(k => requestTimes[k as DayOfWeekKey])) {
-        toast({ title: "Error", description: "No valid submission times could be processed. Please check the date/time format.", variant: "destructive" });
-        setIsCreating(false);
-        return;
-      }
+        const mockNewId = `mock-${newResidenceName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
 
-      const newResidenceData: Omit<Residencia, 'id'> = {
-        nombre: residenceName.trim(),
-        mealRequestSubmissionTimes: submissionTimes as MealRequestSubmissionTimes,
-      };
+        // Create mock Comedor objects from names for the mock Residencia
+        const mockComedores: Comedor[] = newComedores.map((name, index) => ({
+            id: `mock-comedor-${index}-${Date.now()}`,
+            nombre: name,
+            residenciaId: mockNewId // Link back to the new mock residence
+        }));
 
-      // Use the imported db directly
-      const docRef = await addDoc(collection(db, "residencias"), newResidenceData);
+        const newMockResidence: Residencia = {
+            id: mockNewId,
+            nombre: newResidenceName.trim(),
+            mealRequestSubmissionTimes: finalTimes,
+            comedores: mockComedores, // Add the list of mock comedores
+            // tiemposComida and alternativas will be managed elsewhere
+        };
 
-      toast({ title: "Success", description: `Residence "${residenceName}" created successfully with ID: ${docRef.id}` });
-      setResidenceName('');
-      setRequestTimes({});
+        toast({ title: "Success (Mock)", description: `Basic Residence "${newResidenceName}" created successfully.` });
+
+        // Add to local state for immediate UI update in the 'list' tab
+        setResidences(prev => [...prev, newMockResidence]);
+
+        // Reset form state
+        setNewResidenceName('');
+        setNewSubmissionTimes({});
+        setNewComedores([]);
+        setCurrentComedorName('');
+
+        console.log("Mock residence created:", newMockResidence);
+        // Optionally switch to the 'list' tab after creation
 
     } catch (error) {
-      console.error("Error creating residence: ", error);
-      toast({ title: "Error", description: `Failed to create residence. ${error instanceof Error ? error.message : 'Unknown error'}`, variant: "destructive" });
+        const errorMessage = `Failed to create residence. ${error instanceof Error ? error.message : 'Unknown error'}`;
+        console.error("Error creating residence: ", error);
+        toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
-      setIsCreating(false);
+        setIsProcessing(false);
     }
   };
 
+  // Helper function to format submission times for display in the list
+  const formatSubmissionTimes = (times: MealRequestSubmissionTimes | undefined): string => {
+    if (!times || Object.keys(times).length === 0) return 'Not set';
+    const orderedDays = daysOfWeek.map(d => d.value);
+    return orderedDays
+        .filter(day => times[day])
+        .map(day => `${day.charAt(0).toUpperCase() + day.slice(1)}: ${times[day]}`)
+        .join(', ');
+  };
+
+  // Helper function to format comedor names for display in the list
+  const formatComedores = (comedores: Comedor[] | undefined): string => {
+      if (!comedores || comedores.length === 0) return 'None';
+      return comedores.map(c => c.nombre).join(', ');
+  }
+
+  // --- Render Logic ---
   return (
-    <div className="container mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold">Manage Residences</h1>
-      <Tabs defaultValue="create" className="w-full">
-        <TabsList>
-          <TabsTrigger value="create">Create Residence</TabsTrigger>
-          <TabsTrigger value="list">Existing Residences</TabsTrigger>
-        </TabsList>
-        <TabsContent value="create">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create New Residence</CardTitle>
-              <CardDescription>Enter the details for the new residence.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!isClient ? (
+     <div className="container mx-auto p-4 space-y-6">
+       <h1 className="text-2xl font-bold">Manage Residences</h1>
+       <Tabs defaultValue="list" className="w-full"> {/* Default to list */}
+         <TabsList>
+           <TabsTrigger value="create">Create New Residence</TabsTrigger>
+           <TabsTrigger value="list">Existing Residences</TabsTrigger>
+         </TabsList>
+
+         {/* --- CREATE TAB (Simplified) --- */}
+         <TabsContent value="create">
+           <Card>
+             <CardHeader>
+               <CardTitle>Create New Residence</CardTitle>
+               <CardDescription>Enter the basic details for the new residence.</CardDescription>
+             </CardHeader>
+             <CardContent className="space-y-6">
+                {!isClient ? ( <Skeleton className="h-64 w-full" /> ) : (
                 <>
-                  <Skeleton className="h-10 w-1/3" />
-                  <Skeleton className="h-6 w-1/4" />
-                  <Skeleton className="h-6 w-1/3" />
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                    {[...Array(7)].map((_, i) => <Skeleton key={i} className="h-16" />)}
-                  </div>
-                  <Skeleton className="h-10 w-24" />
-                </>
-              ) : (
-                <>
+                  {/* Residence Name */}
                   <div className="space-y-2">
                     <Label htmlFor="residence-name">Residence Name</Label>
                     <Input
                       id="residence-name"
                       placeholder="e.g., Residencia Central"
-                      value={residenceName}
-                      onChange={(e) => setResidenceName(e.target.value)}
-                      disabled={isCreating}
+                      value={newResidenceName}
+                      onChange={(e) => setNewResidenceName(e.target.value)}
+                      disabled={isProcessing}
                     />
                   </div>
+
+                  {/* Meal Request Submission Times */}
                   <div className="space-y-2">
                     <Label>Meal Request Submission Times</Label>
-                    <CardDescription>Set the deadline date and time for each day when meal requests must be submitted.</CardDescription>
+                    <CardDescription>Set the deadline time (HH:MM) for each day.</CardDescription>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {daysOfWeek.map(day => (
                         <div key={day.value} className="grid gap-2">
                           <Label htmlFor={`time-${day.value}`}>{day.label}</Label>
                           <Input
                             id={`time-${day.value}`}
-                            type="datetime-local"
-                            value={requestTimes[day.value] || ''}
+                            type="time"
+                            value={newSubmissionTimes[day.value] || ''}
                             onChange={(e) => handleTimeChange(day.value, e.target.value)}
-                            disabled={isCreating}
+                            disabled={isProcessing}
+                            step="900" // 15 minutes
                           />
                         </div>
                       ))}
                     </div>
                   </div>
-                  <Button onClick={handleCreateResidence} disabled={isCreating}>
-                    {isCreating ? 'Creating...' : 'Create Residence'}
-                  </Button>
+
+                  {/* Dining Halls (Comedores) */}
+                  <div className="space-y-4">
+                    <Label>Dining Halls (Comedores)</Label>
+                    <CardDescription>Add the names of the dining halls available at this residence.</CardDescription>
+                    {/* Input to add new */}
+                    <div className="flex items-center space-x-2">
+                        <div className="grid flex-1 gap-2">
+                            <Label htmlFor="new-comedor-name" className="sr-only">New Dining Hall Name</Label>
+                            <Input
+                                id="new-comedor-name"
+                                placeholder="e.g., Comedor Principal"
+                                value={currentComedorName}
+                                onChange={(e) => setCurrentComedorName(e.target.value)}
+                                disabled={isProcessing}
+                            />
+                        </div>
+                        <Button type="button" size="sm" onClick={handleAddComedor} disabled={isProcessing || !currentComedorName.trim()}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add Hall
+                        </Button>
+                    </div>
+                    {/* List of added halls */}
+                    {newComedores.length > 0 && (
+                        <div className="space-y-2 pt-2">
+                             <Label className="text-xs font-medium text-muted-foreground">Added Halls:</Label>
+                             <ul className="space-y-1">
+                                 {newComedores.map((name) => (
+                                     <li key={name} className="flex items-center justify-between p-1.5 border rounded-md bg-secondary/30 text-sm">
+                                         <span>{name}</span>
+                                         <Button
+                                             variant="ghost"
+                                             size="icon"
+                                             className="h-5 w-5"
+                                             onClick={() => handleRemoveComedor(name)}
+                                             disabled={isProcessing}
+                                             aria-label={`Remove ${name}`}
+                                         >
+                                             <X className="h-3 w-3" />
+                                         </Button>
+                                     </li>
+                                 ))}
+                             </ul>
+                        </div>
+                    )}
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="pt-4">
+                      <Button onClick={handleCreateResidence} disabled={isProcessing}>
+                        {isProcessing ? 'Creating...' : 'Create Basic Residence'}
+                      </Button>
+                  </div>
                 </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="list">
-          <Card>
-            <CardHeader>
-              <CardTitle>Existing Residences</CardTitle>
-              <CardDescription>View and manage existing residences and their related settings.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!isClient ? (
-                <Skeleton className="h-6 w-1/2" />
-              ) : (
-                <p>List of existing residences and management options will go here. (Implementation needed)</p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
+                )}
+             </CardContent>
+           </Card>
+         </TabsContent>
+
+         {/* --- LIST TAB --- */}
+         <TabsContent value="list">
+            <Card>
+                <CardHeader>
+                  <CardTitle>Existing Residences</CardTitle>
+                  <CardDescription>View existing residences and manage their meal schedules.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingResidences ? (
+                    <div className="space-y-2"> 
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                    </div>
+                  ) : errorResidences ? (
+                    <p className="text-red-600">{errorResidences}</p>
+                  ) : !residences || residences.length === 0 ? (
+                    <p>No residences found. Create one using the 'Create New Residence' tab.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {residences.map((res) => (
+                        <li key={res.id} className="border p-4 rounded-md shadow-sm space-y-2">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="font-semibold text-lg">{res.nombre}</p>
+                                    <p className="text-sm text-muted-foreground">ID: {res.id}</p>
+                                </div>
+                                {/* --- UPDATED Button --- */}
+                                <Button 
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => router.push(`/admin/residencia/${res.id}/horarios`)} // <<< Use router.push
+                                >
+                                    Manage Schedule
+                                </Button>
+                                {/* --- END UPDATED Button --- */}
+                            </div>
+                            <p className="text-sm"><span className="font-medium">Submission Times:</span> {formatSubmissionTimes(res.mealRequestSubmissionTimes)}</p>
+                            <p className="text-sm"><span className="font-medium">Dining Halls:</span> {formatComedores(res.comedores)}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+            </Card>
+         </TabsContent>
+       </Tabs>
+     </div>
+   );
 }
