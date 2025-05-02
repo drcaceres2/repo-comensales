@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 // Keep all models, as the list view might eventually show more details
-import { Residencia, MealRequestSubmissionTimes, TiempoComida, AlternativaTiempoComida, Comedor } from '@/models/firestore';
+import { Residencia, HorarioSolicitudComida, TiempoComida, AlternativaTiempoComida, Comedor } from '@/models/firestore';
 import { X, PlusCircle } from 'lucide-react'; // Keep icons
 import { useRouter } from 'next/navigation'; // <<< Import useRouter
 
@@ -30,16 +30,21 @@ const daysOfWeek: { label: string; value: DayOfWeekKey }[] = [
 
 // --- MOCK DATA (Simplified Guaymura) ---
 const mockGuaymuraResidence: Residencia = {
-    id: 'mock-guaymura-id',
+    id: 'res-guaymura',
     nombre: 'Guaymura',
-    mealRequestSubmissionTimes: {
-        lunes: '09:15', martes: '09:15', miercoles: '09:15',
-        jueves: '09:15', viernes: '09:15', sabado: '09:30', domingo: '10:00',
-    },
+    horariosSolicitudComida: [
+      { id: 'lunes-horario', residenciaId: 'res-guaymura', nombre: 'lunes', horaLimite: '09:15', diasAntelacion: 0},
+      { id: 'martes-horario', residenciaId: 'res-guaymura', nombre: 'martes', horaLimite: '09:15', diasAntelacion: 0},
+      { id: 'miercoles-horario', residenciaId: 'res-guaymura', nombre: 'miercoles', horaLimite: '09:15', diasAntelacion: 0},
+      { id: 'jueves-horario', residenciaId: 'res-guaymura', nombre: 'jueves', horaLimite: '09:15', diasAntelacion: 0},
+      { id: 'viernes-horario', residenciaId: 'res-guaymura', nombre: 'viernes', horaLimite: '09:15', diasAntelacion: 0},
+      { id: 'sabado-horario', residenciaId: 'res-guaymura', nombre: 'sabado', horaLimite: '09:30', diasAntelacion: 0},
+      { id: 'domingo-horario', residenciaId: 'res-guaymura', nombre: 'domingo', horaLimite: '10:00', diasAntelacion: 0},
+    ],
     // Example of associated Comedor data (just names for mock)
-    comedores: [{ id: 'comedor-1', residenciaId: 'mock-guaymura-id', nombre: 'Comedor Principal' }]
+    comedores: [{ id: 'comedor-1', residenciaId: 'res-guaymura', nombre: 'Comedor Principal' }]
 };
-// ---------------
+// --------------
 
 export default function ResidenciaAdminPage() {
   const router = useRouter(); // <<< Get router instance
@@ -48,6 +53,7 @@ export default function ResidenciaAdminPage() {
 
   // --- State for New Residence Form ---
   const [newResidenceName, setNewResidenceName] = useState('');
+  // Keep this simple state for form inputs, convert on submission
   const [newSubmissionTimes, setNewSubmissionTimes] = useState<Partial<Record<DayOfWeekKey, string>>>({});
   const [newComedores, setNewComedores] = useState<string[]>([]); // List of comedor names
   const [currentComedorName, setCurrentComedorName] = useState(''); // Input for adding comedor
@@ -84,6 +90,7 @@ export default function ResidenciaAdminPage() {
   };
 
   // --- Handlers for New Residence Form ---
+  // No change needed here, handles simple key-value state
   const handleTimeChange = (day: DayOfWeekKey, value: string) => {
       setNewSubmissionTimes(prev => ({ ...prev, [day]: value }));
   };
@@ -112,7 +119,8 @@ export default function ResidenciaAdminPage() {
       toast({ title: "Error", description: "Residence name cannot be empty.", variant: "destructive" });
       return;
     }
-    const validTimes = Object.values(newSubmissionTimes).filter(time => time && /^\d{2}:\d{2}$/.test(time));
+    // Validate against the simple time string map
+    const validTimes = Object.entries(newSubmissionTimes).filter(([_, time]) => time && /^\d{2}:\d{2}$/.test(time));
     if (validTimes.length === 0) {
         toast({ title: "Error", description: "Please set at least one valid meal request submission time (HH:MM).", variant: "destructive" });
         return;
@@ -125,21 +133,30 @@ export default function ResidenciaAdminPage() {
     setIsProcessing(true);
     console.log("Simulating BASIC residence creation...");
     console.log("Name:", newResidenceName);
-    console.log("Submission Times:", newSubmissionTimes);
+    console.log("Submission Times (raw form state):", newSubmissionTimes); // Log raw state
     console.log("Comedores:", newComedores);
 
     await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
 
     try {
-        const finalTimes: MealRequestSubmissionTimes = {};
-         for (const day in newSubmissionTimes) {
-             const timeString = newSubmissionTimes[day as DayOfWeekKey];
-             if (timeString && /^\d{2}:\d{2}$/.test(timeString)) {
-                 finalTimes[day as DayOfWeekKey] = timeString;
-             }
-         }
-
         const mockNewId = `mock-${newResidenceName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
+
+        // *** MODIFIED: Convert simple state to HorarioSolicitudComida[] ***
+        const finalHorarios: HorarioSolicitudComida[] = [];
+        for (const day in newSubmissionTimes) {
+            const timeString = newSubmissionTimes[day as DayOfWeekKey];
+            if (timeString && /^\d{2}:\d{2}$/.test(timeString)) {
+                 // For mock, use day name as ID prefix and nombre
+                finalHorarios.push({
+                    id: `${day}-horario-${Date.now()}`, // Mock ID
+                    residenciaId: mockNewId,
+                    nombre: day as DayOfWeekKey,
+                    horaLimite: timeString,
+                    diasAntelacion: 0 // Default to 0 for now
+                });
+            }
+        }
+        console.log("Constructed Horarios:", finalHorarios); // Log the constructed array
 
         // Create mock Comedor objects from names for the mock Residencia
         const mockComedores: Comedor[] = newComedores.map((name, index) => ({
@@ -151,7 +168,7 @@ export default function ResidenciaAdminPage() {
         const newMockResidence: Residencia = {
             id: mockNewId,
             nombre: newResidenceName.trim(),
-            mealRequestSubmissionTimes: finalTimes,
+            horariosSolicitudComida: finalHorarios, // *** Use the new structure ***
             comedores: mockComedores, // Add the list of mock comedores
             // tiemposComida and alternativas will be managed elsewhere
         };
@@ -163,7 +180,7 @@ export default function ResidenciaAdminPage() {
 
         // Reset form state
         setNewResidenceName('');
-        setNewSubmissionTimes({});
+        setNewSubmissionTimes({}); // Reset the simple state
         setNewComedores([]);
         setCurrentComedorName('');
 
@@ -179,13 +196,24 @@ export default function ResidenciaAdminPage() {
     }
   };
 
-  // Helper function to format submission times for display in the list
-  const formatSubmissionTimes = (times: MealRequestSubmissionTimes | undefined): string => {
-    if (!times || Object.keys(times).length === 0) return 'Not set';
-    const orderedDays = daysOfWeek.map(d => d.value);
+  // *** MODIFIED: Helper function to format submission times for display in the list ***
+  const formatSubmissionTimes = (horarios: HorarioSolicitudComida[] | undefined): string => {
+    if (!horarios || horarios.length === 0) return 'Not set';
+
+    // Create a map for easy lookup: DayOfWeekKey -> horaLimite
+    const timesMap = new Map<DayOfWeekKey, string>();
+    horarios.forEach(h => {
+        // Ensure nombre is a valid DayOfWeekKey before adding to map
+        if (daysOfWeek.some(dayInfo => dayInfo.value === h.nombre)) {
+             timesMap.set(h.nombre as DayOfWeekKey, h.horaLimite);
+        }
+    });
+
+    const orderedDays = daysOfWeek.map(d => d.value); // Get days in order
+
     return orderedDays
-        .filter(day => times[day])
-        .map(day => `${day.charAt(0).toUpperCase() + day.slice(1)}: ${times[day]}`)
+        .filter(day => timesMap.has(day)) // Check if a time is set for this day in the map
+        .map(day => `${day.charAt(0).toUpperCase() + day.slice(1)}: ${timesMap.get(day)}`) // Format string
         .join(', ');
   };
 
@@ -227,7 +255,7 @@ export default function ResidenciaAdminPage() {
                     />
                   </div>
 
-                  {/* Meal Request Submission Times */}
+                  {/* Meal Request Submission Times (Inputs remain the same) */}
                   <div className="space-y-2">
                     <Label>Meal Request Submission Times</Label>
                     <CardDescription>Set the deadline time (HH:MM) for each day.</CardDescription>
@@ -238,6 +266,7 @@ export default function ResidenciaAdminPage() {
                           <Input
                             id={`time-${day.value}`}
                             type="time"
+                            // Bind to the simple state structure
                             value={newSubmissionTimes[day.value] || ''}
                             onChange={(e) => handleTimeChange(day.value, e.target.value)}
                             disabled={isProcessing}
@@ -314,7 +343,7 @@ export default function ResidenciaAdminPage() {
                 </CardHeader>
                 <CardContent>
                   {isLoadingResidences ? (
-                    <div className="space-y-2"> 
+                    <div className="space-y-2">
                         <Skeleton className="h-10 w-full" />
                         <Skeleton className="h-10 w-full" />
                     </div>
@@ -332,7 +361,7 @@ export default function ResidenciaAdminPage() {
                                     <p className="text-sm text-muted-foreground">ID: {res.id}</p>
                                 </div>
                                 {/* --- UPDATED Button --- */}
-                                <Button 
+                                <Button
                                     variant="secondary"
                                     size="sm"
                                     onClick={() => router.push(`/admin/residencia/${res.id}/horarios`)} // <<< Use router.push
@@ -341,7 +370,8 @@ export default function ResidenciaAdminPage() {
                                 </Button>
                                 {/* --- END UPDATED Button --- */}
                             </div>
-                            <p className="text-sm"><span className="font-medium">Submission Times:</span> {formatSubmissionTimes(res.mealRequestSubmissionTimes)}</p>
+                            {/* *** MODIFIED: Call formatSubmissionTimes with the correct field *** */}
+                            <p className="text-sm"><span className="font-medium">Submission Times:</span> {formatSubmissionTimes(res.horariosSolicitudComida)}</p>
                             <p className="text-sm"><span className="font-medium">Dining Halls:</span> {formatComedores(res.comedores)}</p>
                         </li>
                       ))}
