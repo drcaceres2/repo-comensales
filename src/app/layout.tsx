@@ -1,8 +1,9 @@
-import type {Metadata} from 'next';
-import {Inter, Geist, Geist_Mono} from 'next/font/google';
+import type { Metadata } from 'next';
+import { Inter, Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import { Toaster } from "@/components/ui/toaster"; // Import Toaster
 
-const inter = Inter({subsets: ['latin']});
+const inter = Inter({ subsets: ['latin'] });
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -37,6 +38,7 @@ export default function RootLayout({
       {/* The <head> section is automatically managed by Next.js based on metadata */}
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
+        <Toaster /> {/* Add Toaster here */}
       </body>
     </html>
   );
