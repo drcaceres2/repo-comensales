@@ -3,17 +3,22 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button"; // Corrected import
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Residencia, TiempoComida, AlternativaTiempoComida, HorarioSolicitudComida, Comedor, DayOfWeekKey, DayOfWeekMap, TipoAccesoAlternativa } from '@/models/firestore'; // Ensure all necessary types are imported
-import { Timestamp } from 'firebase/firestore'; // Import Timestamp if needed for actual data later
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"; // Import AlertDialog
+// <<< ADDED Imports for Logging >>>
+import { Residencia, TiempoComida, AlternativaTiempoComida, HorarioSolicitudComida, Comedor, DayOfWeekKey, DayOfWeekMap, TipoAccesoAlternativa, LogEntry, LogActionType, ResidenciaId } from '@/models/firestore'; 
+import { Timestamp, addDoc, collection } from 'firebase/firestore'; 
+import { db, auth } from '@/lib/firebase';
+// <<< END Imports for Logging >>>
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"; 
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea"; // Make sure Textarea is imported if used in forms
+import { Skeleton } from '@/components/ui/skeleton'; // Ensure Skeleton is imported
 
 interface AlternativaFormProps {
     formData: Partial<AlternativaTiempoComida>;
@@ -226,8 +231,9 @@ const mockHorariosSolicitud: HorarioSolicitudComida[] = [
 ];
 
 const mockTiemposComida: TiempoComida[] = [
-    { id: 'tc-1', residenciaId: 'res-guaymura', nombre: 'Almuerzo', orden: 1, diasDisponibles: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'] }, // Changed keys
-    { id: 'tc-2', residenciaId: 'res-guaymura', nombre: 'Cena', orden: 2, diasDisponibles: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'] }, // Changed keys
+    { id: 'tc-1', residenciaId: 'res-guaymura', nombre: 'Almuerzo L-V', nombreGrupo: 'Almuerzo', ordenGrupo: 2, diasDisponibles: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'] },
+    { id: 'tc-2', residenciaId: 'res-guaymura', nombre: 'Cena L-D', nombreGrupo: 'Cena', ordenGrupo: 3, diasDisponibles: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'] },
+    { id: 'tc-3', residenciaId: 'res-guaymura', nombre: 'Desayuno L-D', nombreGrupo: 'Desayuno', ordenGrupo: 1, diasDisponibles: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'] },
 ];
 
 const mockComedores: Comedor[] = [
@@ -235,12 +241,11 @@ const mockComedores: Comedor[] = [
 ];
 
 const mockAlternativas: AlternativaTiempoComida[] = [
-    // Almuerzo
-    { id: 'alt-1', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-1', nombre: 'Almuerzo Comedor', tipo: 'comedor', tipoAcceso: 'abierto', ventanaInicio: '13:00', ventanaFin: '14:30', horarioSolicitudComidaId: 'hsc-1', comedorId: 'com-1', isActive: true }, // Changed general -> abierto
-    { id: 'alt-2', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-1', nombre: 'Almuerzo Llevar', tipo: 'paraLlevar', tipoAcceso: 'abierto', ventanaInicio: '12:30', ventanaFin: '13:30', horarioSolicitudComidaId: 'hsc-1', isActive: true }, // Changed general -> abierto
-    // Cena
-    { id: 'alt-3', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-2', nombre: 'Cena Comedor', tipo: 'comedor', tipoAcceso: 'abierto', ventanaInicio: '20:00', ventanaFin: '21:00', horarioSolicitudComidaId: 'hsc-2', comedorId: 'com-1', isActive: true }, // Changed general -> abierto
-    { id: 'alt-4', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-2', nombre: 'Cena Llevar Tarde', tipo: 'paraLlevar', tipoAcceso: 'cerrado', ventanaInicio: '21:00', ventanaFin: '21:30', horarioSolicitudComidaId: 'hsc-2', isActive: true } // Changed restringido -> cerrado
+    { id: 'alt-1', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-1', nombre: 'Almuerzo Comedor', tipo: 'comedor', tipoAcceso: 'abierto', ventanaInicio: '13:00', ventanaFin: '14:30', horarioSolicitudComidaId: 'hsc-1', comedorId: 'com-1', isActive: true },
+    { id: 'alt-2', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-1', nombre: 'Almuerzo Llevar', tipo: 'paraLlevar', tipoAcceso: 'abierto', ventanaInicio: '12:30', ventanaFin: '13:30', horarioSolicitudComidaId: 'hsc-1', isActive: true },
+    { id: 'alt-3', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-2', nombre: 'Cena Comedor', tipo: 'comedor', tipoAcceso: 'abierto', ventanaInicio: '20:00', ventanaFin: '21:00', horarioSolicitudComidaId: 'hsc-2', comedorId: 'com-1', isActive: true },
+    { id: 'alt-4', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-2', nombre: 'Cena Llevar Tarde', tipo: 'paraLlevar', tipoAcceso: 'cerrado', ventanaInicio: '21:00', ventanaFin: '21:30', horarioSolicitudComidaId: 'hsc-2', isActive: true },
+    { id: 'alt-5', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-3', nombre: 'Desayuno Buffet', tipo: 'comedor', tipoAcceso: 'abierto', ventanaInicio: '07:30', ventanaFin: '09:00', horarioSolicitudComidaId: 'hsc-1', comedorId: 'com-1', isActive: true },
 ];
 
 const mockResidenciaDetail: Residencia = {
@@ -251,77 +256,79 @@ const mockResidenciaDetail: Residencia = {
     alternativas: mockAlternativas,
     comedores: mockComedores,
 };
-
 // --- END MOCK DATA ---
+
+// <<< Log Helper Function >>>
+async function createLogEntry(actionType: LogActionType, residenciaId: ResidenciaId, details?: string, relatedDocPath?: string) {
+    try {
+        const currentUserId = auth.currentUser?.uid || 'mock-admin-id'; // Replace with real auth user ID later
+        const logEntry: Omit<LogEntry, 'id'> = {
+            timestamp: Timestamp.now(),
+            userId: currentUserId,
+            residenciaId: residenciaId,
+            actionType: actionType,
+            relatedDocPath: relatedDocPath,
+            details: details,
+        };
+        console.log("Simulating log entry creation:", logEntry);
+        // In a real app, use addDoc:
+        // await addDoc(collection(db, "logEntries"), logEntry);
+    } catch (error) {
+        console.error("Error creating log entry:", error);
+    }
+}
+// <<< END Log Helper Function >>>
 
 export default function HorariosResidenciaPage() {
     const params = useParams();
-    const residenciaId = params.residenciaId as string;
+    // <<< Ensure residenciaId is typed correctly >>>
+    const residenciaId = params.residenciaId as ResidenciaId;
     const { toast } = useToast();
-
-    const [currentUserRole, setCurrentUserRole] = useState<'admin' | 'masterAdmin' | 'resident' | null>(null); // Simulate user role
-
+    // ... other state variables ...
+    const [currentUserRole, setCurrentUserRole] = useState<'admin' | 'masterAdmin' | 'resident' | null>(null);
     const [residencia, setResidencia] = useState<Residencia | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-    // --- State for TiemposComida ---
     const [tiemposComida, setTiemposComida] = useState<TiempoComida[]>([]);
-    // Add form state
     const [newTiempoComidaName, setNewTiempoComidaName] = useState('');
+    const [newTiempoComidaNombreGrupo, setNewTiempoComidaNombreGrupo] = useState('');
+    const [newTiempoComidaOrdenGrupo, setNewTiempoComidaOrdenGrupo] = useState<number | string>('');
     const [newTiempoComidaDays, setNewTiempoComidaDays] = useState<Set<DayOfWeekKey>>(new Set());
     const [isAddingTiempo, setIsAddingTiempo] = useState(false);
-    // Edit form state
     const [editingTiempoComidaId, setEditingTiempoComidaId] = useState<string | null>(null);
     const [editTiempoComidaName, setEditTiempoComidaName] = useState('');
+    const [editTiempoComidaNombreGrupo, setEditTiempoComidaNombreGrupo] = useState('');
+    const [editTiempoComidaOrdenGrupo, setEditTiempoComidaOrdenGrupo] = useState<number | string>('');
     const [editTiempoComidaDays, setEditTiempoComidaDays] = useState<Set<DayOfWeekKey>>(new Set());
     const [isSavingEditTiempo, setIsSavingEditTiempo] = useState(false);
-    // --- End State for TiemposComida ---
-
-    // --- State for HorariosSolicitudComida ---
     const [horariosSolicitud, setHorariosSolicitud] = useState<HorarioSolicitudComida[]>([]);
-    // Add form state
     const [newHorarioNombre, setNewHorarioNombre] = useState('');
-    const [newHorarioHoraLimite, setNewHorarioHoraLimite] = useState('10:00'); // Sensible default
+    const [newHorarioHoraLimite, setNewHorarioHoraLimite] = useState('10:00');
     const [newHorarioDiasAntelacion, setNewHorarioDiasAntelacion] = useState(0);
     const [isAddingHorario, setIsAddingHorario] = useState(false);
-    // Edit form state
     const [editingHorarioId, setEditingHorarioId] = useState<string | null>(null);
     const [editHorarioNombre, setEditHorarioNombre] = useState('');
     const [editHorarioHoraLimite, setEditHorarioHoraLimite] = useState('');
     const [editHorarioDiasAntelacion, setEditHorarioDiasAntelacion] = useState(0);
     const [isSavingEditHorario, setIsSavingEditHorario] = useState(false);
-    // --- End State for HorariosSolicitudComida ---
-
-    const [alternativas, setAlternativas] = useState<AlternativaTiempoComida[]>([]); // This one was already there
+    const [alternativas, setAlternativas] = useState<AlternativaTiempoComida[]>([]);
     const [showInactiveAlternativas, setShowInactiveAlternativas] = useState(false);
-
-    // *** State for Add/Edit Alternative Form ***
-    const [editingAlternativaId, setEditingAlternativaId] = useState<string | null>(null); // ID of alternative being edited
-    const [addingAlternativaTo, setAddingAlternativaTo] = useState<string | null>(null); // ID of TiempoComida to add to
-    const [alternativeFormData, setAlternativeFormData] = useState<Partial<AlternativaTiempoComida>>({}); // Holds form data for add/edit
-    const [isSavingAlternativa, setIsSavingAlternativa] = useState(false); // Loading state for save/add
-    // --- End State for AlternativasTiempoComida ---
-
-    // Available days constant
-    const availableDays: { key: DayOfWeekKey; label: string }[] = Object.entries(DayOfWeekMap)
-      .map(([key, label]) => ({ key: key as DayOfWeekKey, label }));
+    const [editingAlternativaId, setEditingAlternativaId] = useState<string | null>(null);
+    const [addingAlternativaTo, setAddingAlternativaTo] = useState<string | null>(null);
+    const [alternativeFormData, setAlternativeFormData] = useState<Partial<AlternativaTiempoComida>>({});
+    const [isSavingAlternativa, setIsSavingAlternativa] = useState(false);
+    const availableDays: { key: DayOfWeekKey; label: string }[] = Object.entries(DayOfWeekMap).map(([key, label]) => ({ key: key as DayOfWeekKey, label }));
 
     useEffect(() => {
         setIsLoading(true);
         setError(null);
-        // *** Simulate fetching user role ***
-        // In a real app, this would come from your auth context/hook
-        setCurrentUserRole('admin'); // Or 'masterAdmin' to test differences if any arise
-        // **********************************
+        setCurrentUserRole('admin');
         console.log(`Fetching data for residenciaId: ${residenciaId}`);
-
         const timer = setTimeout(() => {
             if (residenciaId === mockResidenciaDetail.id) {
                 console.log("Mock data found for ID:", residenciaId);
                 setResidencia(mockResidenciaDetail);
-                // Ensure initial sort by order
-                setTiemposComida((mockResidenciaDetail.tiemposComida || []).sort((a, b) => a.orden - b.orden));
+                setTiemposComida((mockResidenciaDetail.tiemposComida || []).sort((a, b) => a.ordenGrupo - b.ordenGrupo));
                 setAlternativas(mockResidenciaDetail.alternativas || []);
                 setHorariosSolicitud(mockResidenciaDetail.horariosSolicitudComida || []);
                 setIsLoading(false);
@@ -335,15 +342,22 @@ export default function HorariosResidenciaPage() {
                 setIsLoading(false);
             }
         }, 500);
-
         return () => clearTimeout(timer);
-
     }, [residenciaId]);
 
     const handleToggleAlternativaActive = async (id: string, newStatus: boolean) => {
+        const alternativa = alternativas.find(alt => alt.id === id);
         console.log(`Simulating ${newStatus ? 'activation' : 'deactivation'} for Alternativa ID: ${id}`);
         // Simulate async operation if needed for real API calls later
-        // await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 300));
+    
+        // <<< Add Logging >>>
+        await createLogEntry(
+            'alternativa_updated', // Reusing 'updated' type
+            residenciaId,
+            `${newStatus ? 'Activated' : 'Deactivated'} alternativa: ${alternativa?.nombre || id}`,
+            `residencias/${residenciaId}/alternativas/${id}`
+        );
     
         setAlternativas(prev =>
             prev.map(alt =>
@@ -371,28 +385,42 @@ export default function HorariosResidenciaPage() {
     };
 
     const handleAddTiempoComida = async () => {
+        const ordenGrupoNum = Number(newTiempoComidaOrdenGrupo);
         if (!newTiempoComidaName.trim() || newTiempoComidaDays.size === 0) {
             toast({ title: "Error", description: "Por favor, ingrese un nombre y seleccione al menos un día.", variant: "destructive" });
             return;
         }
         setIsAddingTiempo(true);
 
+        // <<< UPDATED Object Creation >>>
         const nuevoTiempo: TiempoComida = {
             id: `tc-${Date.now()}`, // Mock ID
             residenciaId: residenciaId,
-            nombre: newTiempoComidaName,
-            orden: (tiemposComida.length > 0 ? Math.max(...tiemposComida.map(t => t.orden)) : 0) + 1,
+            nombre: newTiempoComidaName.trim(),
+            nombreGrupo: newTiempoComidaNombreGrupo.trim(),
+            ordenGrupo: ordenGrupoNum,
             diasDisponibles: Array.from(newTiempoComidaDays),
         };
 
-        console.log("Simulating add:", nuevoTiempo);
+        console.log("Simulating add TiempoComida:", nuevoTiempo);
         await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
 
-        setTiemposComida(prev => [...prev, nuevoTiempo].sort((a, b) => a.orden - b.orden));
+        // <<< Add Logging >>>
+        await createLogEntry(
+            'tiempo_comida_created',
+            residenciaId,
+            `Created tiempo: ${nuevoTiempo.nombre}`,
+            `residencias/${residenciaId}/tiemposComida/${nuevoTiempo.id}` // Adjust path if needed
+        );
+
+        // <<< UPDATED State Update & Reset >>>
+        setTiemposComida(prev => [...prev, nuevoTiempo].sort((a, b) => a.ordenGrupo - b.ordenGrupo));
         setNewTiempoComidaName('');
+        setNewTiempoComidaNombreGrupo('');
+        setNewTiempoComidaOrdenGrupo('');
         setNewTiempoComidaDays(new Set());
         setIsAddingTiempo(false);
-        toast({ title: "Éxito", description: `"${nuevoTiempo.nombre}" añadido (simulado).` });
+        toast({ title: "Éxito", description: `Tiempo "${nuevoTiempo.nombre}" añadido (simulado).` });
     };
 
     // --- Handlers for TiempoComida Edit/Delete ---
@@ -408,42 +436,66 @@ export default function HorariosResidenciaPage() {
         });
     };
 
-     const handleEditTiempoComida = (tiempo: TiempoComida) => {
+    const handleEditTiempoComida = (tiempo: TiempoComida) => {
+        console.log("Opening edit form for:", tiempo); // Log the data being edited
         setEditingTiempoComidaId(tiempo.id);
         setEditTiempoComidaName(tiempo.nombre);
+        // <<< UPDATED: Set state for new fields >>>
+        setEditTiempoComidaNombreGrupo(tiempo.nombreGrupo);
+        setEditTiempoComidaOrdenGrupo(tiempo.ordenGrupo);
         setEditTiempoComidaDays(new Set(tiempo.diasDisponibles));
-        // Optionally hide the "Add" form while editing
-        // setIsAdding(false); // Or disable the add button
     };
 
     const handleCancelEdit = () => {
         setEditingTiempoComidaId(null);
         setEditTiempoComidaName('');
+        setEditTiempoComidaNombreGrupo(''); // Clear new state
+        setEditTiempoComidaOrdenGrupo(''); // Clear new state
         setEditTiempoComidaDays(new Set());
     };
 
     const handleSaveEditTiempoComida = async () => {
-        if (!editingTiempoComidaId || !editTiempoComidaName.trim() || editTiempoComidaDays.size === 0) {
-             toast({ title: "Error", description: "Nombre y días son requeridos para editar.", variant: "destructive" });
+        const ordenGrupoNum = Number(editTiempoComidaOrdenGrupo);
+        // <<< UPDATED Validation >>>
+        if (!editingTiempoComidaId || !editTiempoComidaName.trim() || !editTiempoComidaNombreGrupo.trim() || !Number.isInteger(ordenGrupoNum) || ordenGrupoNum < 1 || editTiempoComidaDays.size === 0) {
+             toast({
+                title: "Error",
+                description: "Nombre específico, nombre de grupo, orden de grupo (número >= 1) y al menos un día son requeridos para editar.",
+                variant: "destructive"
+             });
             return;
         }
-        setIsSavingEditTiempo(true); // Make sure state name matches (isSavingEditTiempo)
+        setIsSavingEditTiempo(true);
 
+        const originalTiempo = tiemposComida.find(t => t.id === editingTiempoComidaId);
         console.log(`Simulating save edit for TiempoComida ID: ${editingTiempoComidaId}`);
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Update the state
+        // <<< Add Logging >>>
+        // Consider adding details about changes vs originalTiempo
+        await createLogEntry(
+            'tiempo_comida_updated',
+            residenciaId,
+            `Updated tiempo: ${editTiempoComidaName.trim()}`,
+            `residencias/${residenciaId}/tiemposComida/${editingTiempoComidaId}`
+        );
+        // <<< UPDATED State Update >>>
         setTiemposComida(prev =>
             prev.map(t =>
                 t.id === editingTiempoComidaId
-                    ? { ...t, nombre: editTiempoComidaName, diasDisponibles: Array.from(editTiempoComidaDays) } // Update name and days
+                    ? { ...t,
+                        nombre: editTiempoComidaName.trim(),
+                        nombreGrupo: editTiempoComidaNombreGrupo.trim(),
+                        ordenGrupo: ordenGrupoNum,
+                        diasDisponibles: Array.from(editTiempoComidaDays)
+                      }
                     : t
-            ).sort((a, b) => a.orden - b.orden) // Maintain sort order
+            ).sort((a, b) => a.ordenGrupo - b.ordenGrupo) // Maintain sort order
         );
 
-        setIsSavingEditTiempo(false); // Update loading state
-        handleCancelEdit(); // Close edit form using the correct cancel handler
-        toast({ title: "Éxito", description: `"${editTiempoComidaName}" actualizado (simulado).` });
+        setIsSavingEditTiempo(false);
+        handleCancelEdit(); // Close edit form
+        toast({ title: "Éxito", description: `Tiempo "${editTiempoComidaName}" actualizado (simulado).` });
     };
 
     const handleDeleteTiempoComida = async (id: string, nombre: string) => {
@@ -509,7 +561,16 @@ export default function HorariosResidenciaPage() {
         }
         setIsSavingEditHorario(true);
         console.log(`Simulating save edit for HorarioSolicitud ID: ${editingHorarioId}`);
-        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // <<< Add Logging >>>
+        const originalHorario = horariosSolicitud.find(h => h.id === editingHorarioId);
+        await createLogEntry(
+            'horario_solicitud_updated',
+            residenciaId,
+            `Updated horario: ${editHorarioNombre}`, // Consider adding more detail about changes
+            `residencias/${residenciaId}/horariosSolicitud/${editingHorarioId}`
+        );
 
         setHorariosSolicitud(prev =>
             prev.map(h =>
@@ -544,7 +605,14 @@ export default function HorariosResidenciaPage() {
         // If not used, proceed with deletion (simulated)
         console.log(`Simulating delete for HorarioSolicitud ID: ${id}`);
         // Simulate async delay if needed for real API call later
-        // await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 300));
+        // <<< Add Logging >>>
+        await createLogEntry(
+            'horario_solicitud_deleted',
+            residenciaId,
+            `Deleted horario: ${nombre} (ID: ${id})`,
+            `residencias/${residenciaId}/horariosSolicitud/${id}`
+        );
 
         // Update state
         setHorariosSolicitud(prev => prev.filter(h => h.id !== id));
@@ -584,6 +652,14 @@ export default function HorariosResidenciaPage() {
         console.log("Simulating add HorarioSolicitud:", nuevoHorario);
         await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
 
+        // <<< Add Logging >>>
+        await createLogEntry(
+            'horario_solicitud_created',
+            residenciaId,
+            `Created horario: ${nuevoHorario.nombre}`,
+            `residencias/${residenciaId}/horariosSolicitud/${nuevoHorario.id}`
+        );
+        
         setHorariosSolicitud(prev => [...prev, nuevoHorario]); // Add to state
 
         // Reset form
@@ -732,6 +808,14 @@ export default function HorariosResidenciaPage() {
         console.log("Simulating add Alternativa:", nuevaAlternativa);
         await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
 
+        // <<< Add Logging >>>
+        await createLogEntry(
+            'alternativa_created',
+            residenciaId,
+            `Created alternativa: ${nuevaAlternativa.nombre} for tiempo ID ${addingAlternativaTo}`,
+            `residencias/${residenciaId}/alternativas/${nuevaAlternativa.id}` // Adjust path if needed
+        );
+
         // Add to state
         setAlternativas(prev => [...prev, nuevaAlternativa]);
 
@@ -813,6 +897,7 @@ export default function HorariosResidenciaPage() {
 
         setIsSavingAlternativa(true);
 
+        const originalAlternativa = alternativas.find(a => a.id === editingAlternativaId);
         // Create the updated object - ensure all fields are included
         const updatedAlternativa: AlternativaTiempoComida = {
             // Keep existing IDs and relationships
@@ -836,6 +921,15 @@ export default function HorariosResidenciaPage() {
         console.log("Simulating save Alternativa:", updatedAlternativa);
         await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
 
+        // <<< Add Logging >>>
+        await createLogEntry(
+            'alternativa_updated',
+            residenciaId,
+            `Updated alternativa: ${updatedAlternativa.nombre}`,
+            `residencias/${residenciaId}/alternativas/${editingAlternativaId}`
+        );
+
+
         // Update state
         setAlternativas(prev =>
             prev.map(alt =>
@@ -852,12 +946,8 @@ export default function HorariosResidenciaPage() {
     if (isLoading) {
         return <div>Cargando datos de horarios...</div>;
     }
-    if (error) {
-        return <div className="text-red-500">Error: {error}</div>;
-    }
-    if (!residencia) {
-        return <div>No se encontró la residencia con ID {residenciaId}.</div>;
-    }
+    if (error) { return <div className="text-red-500">Error: {error}</div>; }
+    if (!residencia) { return <div>No se encontró la residencia con ID {residenciaId}.</div>; }
 
     // Determine if any add/edit operation is active to disable buttons globally
     const isOperationActive = isAddingTiempo || !!editingTiempoComidaId || isAddingHorario || !!editingHorarioId;
@@ -881,7 +971,6 @@ export default function HorariosResidenciaPage() {
                 <CardHeader><CardTitle>Reglas de Solicitud de Comidas</CardTitle></CardHeader>
                 <CardContent>
                      <p className="text-sm text-muted-foreground mb-4">Define cuándo deben los usuarios solicitar sus comidas (ej. mismo día antes de las 10am, día anterior antes de las 8pm).</p>
-
                      {/* List/Edit HorariosSolicitud */}
                      <div className="space-y-3">
                          {horariosSolicitud.map(horario => {
@@ -1055,28 +1144,60 @@ export default function HorariosResidenciaPage() {
             <Card>
                 <CardHeader><CardTitle>Tiempos de Comida</CardTitle></CardHeader>
                 <CardContent>
-                     <p className="text-sm text-muted-foreground mb-4">Define los momentos principales del día en que se sirven comidas y en qué días.</p>
-                     {/* List/Edit TiemposComida */}
+                    <p className="text-sm text-muted-foreground mb-4">Define los momentos principales del día (ej. Desayuno, Almuerzo) y sus variantes específicas (ej. Almuerzo L-V, Almuerzo Sáb).</p>
+                     {/* List/Edit TiemposComida (Display updated) */}
                      <div className="space-y-3">
                         {tiemposComida.map(tiempo => (
                              <div key={tiempo.id} className={`p-3 border rounded ${editingTiempoComidaId === tiempo.id ? 'bg-yellow-50' : 'hover:bg-gray-50'}`}>
                                 {editingTiempoComidaId === tiempo.id ? (
-                                    // --- EDIT FORM ---
+									// --- EDIT FORM (Updated) ---
                                     <div className="space-y-3">
                                          <h4 className="font-semibold">Editando: {tiempo.nombre}</h4>
-                                         <div>
-                                            <Label htmlFor={`edit-tiempo-nombre-${tiempo.id}`}>Nombre</Label>
-                                            <Input
-                                                id={`edit-tiempo-nombre-${tiempo.id}`}
-                                                value={editTiempoComidaName}
-                                                onChange={(e) => setEditTiempoComidaName(e.target.value)}
-                                                placeholder="Ej. Almuerzo"
-                                                disabled={isSavingEditTiempo}
-                                            />
-                                        </div>
+                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div>
+                                                <Label htmlFor={`edit-tiempo-nombre-${tiempo.id}`}>Nombre Específico</Label>
+                                                <Input
+                                                    id={`edit-tiempo-nombre-${tiempo.id}`}
+                                                    value={editTiempoComidaName}
+                                                    onChange={(e) => setEditTiempoComidaName(e.target.value)}
+                                                    placeholder="Ej. Almuerzo L-V"
+                                                    disabled={isSavingEditTiempo}
+                                                />
+                                                <p className="text-xs text-muted-foreground mt-1">Nombre único para esta variante.</p>
+                                            </div>
+                                            {/* Nombre de Grupo */}
+                                            <div>
+                                                <Label htmlFor={`edit-tiempo-nombre-grupo-${tiempo.id}`}>Nombre de Grupo</Label>
+                                                <Input
+                                                    id={`edit-tiempo-nombre-grupo-${tiempo.id}`}
+                                                    value={editTiempoComidaNombreGrupo}
+                                                    onChange={(e) => setEditTiempoComidaNombreGrupo(e.target.value)}
+                                                    placeholder="Ej. Almuerzo, Cena"
+                                                    disabled={isSavingEditTiempo}
+                                                />
+                                                 <p className="text-xs text-muted-foreground mt-1">Nombre general que verá el usuario.</p>
+                                            </div>
+                                            {/* Orden de Grupo */}
+                                            <div>
+                                                <Label htmlFor={`edit-tiempo-orden-grupo-${tiempo.id}`}>Orden del Grupo</Label>
+                                                <Input
+                                                    id={`edit-tiempo-orden-grupo-${tiempo.id}`}
+                                                    type="number"
+                                                    min="1"
+                                                    step="1"
+                                                    value={editTiempoComidaOrdenGrupo}
+                                                    onChange={(e) => setEditTiempoComidaOrdenGrupo(e.target.value ? parseInt(e.target.value, 10) : '')}
+                                                    placeholder="Ej. 1"
+                                                    disabled={isSavingEditTiempo}
+                                                />
+                                                 <p className="text-xs text-muted-foreground mt-1">Orden para mostrar filas (1, 2...).</p>
+                                            </div>
+                                         </div>
+
+                                        {/* Días Disponibles (remains the same) */}
                                         <div>
                                             <Label>Días Disponibles</Label>
-                                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-1">
+                                            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2 mt-1">
                                                 {availableDays.map(({ key, label }) => (
                                                     <div key={key} className="flex items-center space-x-2">
                                                         <Checkbox
@@ -1092,6 +1213,7 @@ export default function HorariosResidenciaPage() {
                                                 ))}
                                             </div>
                                         </div>
+                                        {/* Action Buttons (remain the same) */}
                                         <div className="flex space-x-2">
                                              <Button onClick={handleSaveEditTiempoComida} disabled={isSavingEditTiempo}>
                                                 {isSavingEditTiempo ? 'Guardando...' : 'Guardar Cambios'}
@@ -1102,17 +1224,21 @@ export default function HorariosResidenciaPage() {
                                         </div>
                                     </div>
                                  ) : (
-                                    // --- DISPLAY ROW ---
-                                     <div className="flex justify-between items-center">
-                                        <span>{tiempo.orden}. {tiempo.nombre} (Días: {tiempo.diasDisponibles.map(d => DayOfWeekMap[d]).join(', ')})</span>
+                                    // --- DISPLAY ROW (Updated in previous chunk) ---
+                                    <div className="flex justify-between items-center">
+                                        <span>
+                                            <span className="font-semibold">(Orden: {tiempo.ordenGrupo}) {tiempo.nombreGrupo}</span>: {tiempo.nombre}
+                                            <span className="block text-sm text-muted-foreground">
+                                                (Días: {tiempo.diasDisponibles.map(d => DayOfWeekMap[d]).join(', ')})
+                                            </span>
+                                        </span>
                                         <div className="space-x-2">
-                                            <Button variant="outline" size="sm" onClick={() => handleEditTiempoComida(tiempo)} disabled={!!editingTiempoComidaId || isAddingTiempo}> {/* Disable if another edit/add is active */}
+                                            <Button variant="outline" size="sm" onClick={() => handleEditTiempoComida(tiempo)} disabled={!!editingTiempoComidaId || isAddingTiempo}>
                                                 Editar
                                             </Button>
-                                             {/* AlertDialog for Delete Confirmation */}
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
-                                                     <Button variant="destructive" size="sm" disabled={!!editingTiempoComidaId || isAddingTiempo || alternativas.some(alt => alt.tiempoComidaId === tiempo.id)}> {/* Disable if another edit/add is active OR if alternatives exist */}
+                                                     <Button variant="destructive" size="sm" disabled={!!editingTiempoComidaId || isAddingTiempo || alternativas.some(alt => alt.tiempoComidaId === tiempo.id)}>
                                                         Eliminar
                                                      </Button>
                                                 </AlertDialogTrigger>
@@ -1121,7 +1247,6 @@ export default function HorariosResidenciaPage() {
                                                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                                         <AlertDialogDescription>
                                                             Esta acción no se puede deshacer. ¿Seguro que quieres eliminar "{tiempo.nombre}"?
-                                                            {/* Message updated based on whether alternatives exist */}
                                                             {alternativas.some(alt => alt.tiempoComidaId === tiempo.id) 
                                                                 ? <span className="font-semibold text-destructive block mt-2">Primero debes eliminar las alternativas de comida asociadas a este tiempo.</span> 
                                                                 : ""
@@ -1130,7 +1255,6 @@ export default function HorariosResidenciaPage() {
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                        {/* Pass ID and name to handler, disable action if alternatives exist */}
                                                         <AlertDialogAction 
                                                             onClick={() => handleDeleteTiempoComida(tiempo.id, tiempo.nombre)} 
                                                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90" 
@@ -1149,25 +1273,52 @@ export default function HorariosResidenciaPage() {
                     </div>
                      {tiemposComida.length === 0 && <p className="text-muted-foreground mt-4">No hay tiempos de comida definidos.</p>}
 
-
-                    {/* Form to add new TiempoComida (Show only if not editing) */}
+                    {/* Form to add new TiempoComida (Show only if not editing - Updated) */}
                     {!editingTiempoComidaId && (
                          <div className="mt-6 pt-4 border-t">
                             <h3 className="font-semibold mb-2 text-lg">Añadir Nuevo Tiempo de Comida</h3>
                             <div className="space-y-3 p-4 border rounded bg-gray-50">
-                                <div>
-                                    <Label htmlFor="tiempo-nombre">Nombre</Label>
-                                    <Input
-                                        id="tiempo-nombre"
-                                        value={newTiempoComidaName}
-                                        onChange={(e) => setNewTiempoComidaName(e.target.value)}
-                                        placeholder="Ej. Almuerzo, Desayuno, Cena"
-                                        disabled={isAddingTiempo}
-                                    />
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <Label htmlFor="tiempo-nombre">Nombre Específico</Label>
+                                        <Input
+                                            id="tiempo-nombre"
+                                            value={newTiempoComidaName}
+                                            onChange={(e) => setNewTiempoComidaName(e.target.value)}
+                                            placeholder="Ej. Almuerzo L-V, Desayuno Finde"
+                                            disabled={isAddingTiempo}
+                                        />
+                                        <p className="text-xs text-muted-foreground mt-1">Nombre único para esta variante (ej. días, horario especial).</p>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="tiempo-nombre-grupo">Nombre de Grupo (para Usuarios)</Label>
+                                        <Input
+                                            id="tiempo-nombre-grupo"
+                                            value={newTiempoComidaNombreGrupo}
+                                            onChange={(e) => setNewTiempoComidaNombreGrupo(e.target.value)}
+                                            placeholder="Ej. Desayuno, Almuerzo, Cena"
+                                            disabled={isAddingTiempo}
+                                        />
+                                        <p className="text-xs text-muted-foreground mt-1">Nombre general que verá el usuario.</p>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="tiempo-orden-grupo">Orden del Grupo (1, 2, 3...)</Label>
+                                        <Input
+                                            id="tiempo-orden-grupo"
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            value={newTiempoComidaOrdenGrupo}
+                                            onChange={(e) => setNewTiempoComidaOrdenGrupo(e.target.value ? parseInt(e.target.value, 10) : '')}
+                                            placeholder="Ej. 1"
+                                            disabled={isAddingTiempo}
+                                        />
+                                        <p className="text-xs text-muted-foreground mt-1">Orden para mostrar filas (Desayuno=1, Almuerzo=2...).</p>
+                                    </div>
                                 </div>
                                 <div>
                                     <Label>Días Disponibles</Label>
-                                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-1">
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2 mt-1">
                                         {availableDays.map(({ key, label }) => (
                                             <div key={key} className="flex items-center space-x-2">
                                                 <Checkbox
@@ -1186,14 +1337,14 @@ export default function HorariosResidenciaPage() {
                                 <Button onClick={handleAddTiempoComida} disabled={isAddingTiempo}>
                                     {isAddingTiempo ? 'Añadiendo...' : 'Añadir Tiempo'}
                                 </Button>
-                            </div>
+                            </div>                            
                         </div>
                     )}
                 </CardContent>
             </Card>
 
-            {/* Section for Alternativas (Placeholder & Basic Listing - No changes here yet) */}
-             <Card>
+            {/* Section for Alternativas (remains unchanged) */}
+            <Card>
                 <CardHeader><CardTitle>Alternativas de Comida</CardTitle></CardHeader>
                 <CardContent>
                      <p className="text-sm text-muted-foreground mb-4">Define las opciones específicas disponibles para cada Tiempo de Comida.</p>

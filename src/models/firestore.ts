@@ -10,11 +10,40 @@ export type AlternativaTiempoComidaId = string;
 export type UserId = string;
 export type ComentarioId = string;
 export type HorarioSolicitudComidaId = string;
-export type DietaId = string; // *** NEW: Dieta ID Type ***
+export type DietaId = string;
+export type LogEntryId = string;
 
 // --- Added Types ---
 export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
-export type TipoAccesoAlternativa = 'abierto' | 'autorizado' | 'cerrado'; // Access levels
+export type TipoAccesoAlternativa = 'abierto' | 'autorizado' | 'cerrado';
+export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requerido';
+export type ModoEleccionUsuario = 'normal' | 'diario' | 'suspendido'; // <<< NEW: User meal choice mode
+
+// <<< UPDATED: Specific Log Action Types >>>
+export type LogActionType = 
+    'user_created' | 
+    'user_updated' | 
+    'user_deleted' | 
+    'residencia_created' | 
+    'residencia_updated' | 
+    'tiempo_comida_created' | 
+    'tiempo_comida_updated' | 
+    'tiempo_comida_deleted' | 
+    'alternativa_created' | 
+    'alternativa_updated' | 
+    'alternativa_deleted' | 
+    'horario_solicitud_created' | 
+    'horario_solicitud_updated' | 
+    'horario_solicitud_deleted' | 
+    'dieta_created' | 
+    'dieta_updated' | 
+    'dieta_deleted' | 
+    'solicitud_autorizacion_requerida' |
+    'solicitud_aprobada' |
+    'solicitud_rechazada' |
+    'dieta_asignada' |
+    'eleccion_modificada_por_director' |
+    'eleccion_creada_por_director';
 
 // *** Define User Roles ***
 export type UserRole = 'master' | 'admin' | 'director' | 'residente';
@@ -29,69 +58,62 @@ export const DayOfWeekMap: Record<DayOfWeekKey, string> = {
   domingo: 'Domingo'
 };
 
-export type TipoAlternativa = 'comedor' | 'paraLlevar'; // Added this export
+export type TipoAlternativa = 'comedor' | 'paraLlevar';
 
 // --- Interfaces ---
 
 // --- UPDATED UserProfile Interface ---
 export interface UserProfile {
-  id: UserId; // Corresponds to Firebase Auth UID
+  id: UserId;
   nombre: string;
   apellido: string;
-  email: string; // Mandatory (from Firebase Auth)
-  roles: UserRole[]; // Mandatory role
-  isActive: boolean; // For soft deletes
-
-  // Association
-  residenciaId?: ResidenciaId; // Optional for 'master', likely mandatory for others in logic
-  dietaId?: DietaId; // *** ADDED: Link to user's current primary diet ***
-
-  // Resident-specific (Optional in interface, mandatory in logic for 'residente' role)
-  numeroDeRopa?: string; // Laundry number
-  habitacion?: string; // Room number
-
-  // Optional details
+  email: string;
+  roles: UserRole[];
+  isActive: boolean;
+  residenciaId?: ResidenciaId;
+  dietaId?: DietaId;
+  // <<< NEW FIELD for user meal selection mode >>>
+  modoEleccion?: ModoEleccionUsuario; 
+  // --- END NEW FIELD ---
+  numeroDeRopa?: string;
+  habitacion?: string;
   universidad?: string;
   carrera?: string;
-  dni?: string; // National ID
-  fechaDeCumpleanos?: Timestamp; // Birthday (use Firestore Timestamp)
+  dni?: string;
+  fechaDeCumpleanos?: Timestamp;
 }
 // --- END UPDATED UserProfile Interface ---
 
-// *** NEW: Dieta Interface ***
 export interface Dieta {
     id: DietaId;
-    residenciaId: ResidenciaId; // Dietas are specific to a residence
-    nombre: string; // e.g., "Standard", "Sin Gluten", "Vegetariana"
+    residenciaId: ResidenciaId;
+    nombre: string;
     descripcion?: string;
-    isDefault?: boolean; // Indicates the standard/default diet for the residence
-    isActive: boolean; // For soft deletes (important for historical choices)
+    isDefault?: boolean;
+    isActive: boolean;
 }
-// *** END Dieta Interface ***
 
-// --- NEW HorarioSolicitudComida Interface ---
 export interface HorarioSolicitudComida {
   id: HorarioSolicitudComidaId;
   residenciaId: ResidenciaId;
-  nombre: string; // Descriptive name (e.g., "Same Day Morning", "Day Before Evening")
-  horaLimite: string; // The time of day for the deadline (e.g., "10:00", "20:00")
-  diasAntelacion: number; // Days before the meal date the deadline applies (0 = same day, 1 = day before, etc.)
+  nombre: string;
+  horaLimite: string;
+  diasAntelacion: number;
 }
-// --- END NEW HorarioSolicitudComida Interface ---
 
 export interface TiempoComida {
   id: TiempoComidaId;
-  nombre: string; // e.g., "Desayuno", "Almuerzo", "Cena"
+  nombre: string;
   residenciaId: ResidenciaId;
-  orden: number; // Order in which to display/process this meal time
-  diasDisponibles: DayOfWeekKey[]; // Specifies on which days it's available
+  nombreGrupo: string;
+  ordenGrupo: number;
+  diasDisponibles: DayOfWeekKey[];
 }
 
-// --- UPDATED AlternativaTiempoComida Interface ---
 export interface AlternativaTiempoComida {
   id: AlternativaTiempoComidaId;
   nombre: string;
-  tipo: 'comedor' | 'paraLlevar';
+  tipo: TipoAlternativa;
   tipoAcceso: TipoAccesoAlternativa;
   ventanaInicio: string;
   iniciaDiaAnterior?: boolean;
@@ -103,7 +125,6 @@ export interface AlternativaTiempoComida {
   comedorId?: ComedorId;
   isActive: boolean;
 }
-// --- END UPDATED AlternativaTiempoComida Interface ---
 
 export interface Comedor {
   id: ComedorId;
@@ -112,41 +133,38 @@ export interface Comedor {
   descripcion?: string;
 }
 
-// --- UPDATED Residencia Interface ---
 export interface Residencia {
   id: ResidenciaId;
   nombre: string;
   direccion?: string;
-  // Optional fields to hold related data
+  logoUrl?: string;
   horariosSolicitudComida?: HorarioSolicitudComida[];
   tiemposComida?: TiempoComida[];
   alternativas?: AlternativaTiempoComida[];
   comedores?: Comedor[];
-  dietas?: Dieta[]; // *** ADDED: Can hold related Dietas ***
+  dietas?: Dieta[];
 }
-// --- END UPDATED Residencia Interface ---
 
-// --- UPDATED Eleccion Interface ---
 export interface Eleccion {
-  id: string; // Firestore generated ID is usually simplest
+  id: string;
   usuarioId: UserId;
   residenciaId: ResidenciaId;
-  fecha: Timestamp; // The date for which the meal is chosen (Midnight UTC)
+  fecha: Timestamp;
   tiempoComidaId: TiempoComidaId;
   alternativaTiempoComidaId: AlternativaTiempoComidaId;
-  dietaId?: DietaId; // *** ADDED: Records the diet context for this choice ***
+  dietaId?: DietaId;
   solicitado: boolean;
   asistencia?: boolean;
   fechaSolicitud: Timestamp;
+  estadoAprobacion?: EstadoAprobacion;
 }
-// --- END UPDATED Eleccion Interface ---
 
 export interface MealCount {
-    id: string; // Firestore generated ID
+    id: string;
     residenciaId: ResidenciaId;
     tiempoComidaId: TiempoComidaId;
     alternativaTiempoComidaId: AlternativaTiempoComidaId;
-    dietaId?: DietaId; // *** ADDED: Count per diet ***
+    dietaId?: DietaId;
     fecha: Timestamp;
     totalSolicitado: number;
 }
@@ -159,4 +177,14 @@ export interface Comentario {
   fechaEnvio: Timestamp;
   leido: boolean;
   archivado: boolean;
+}
+
+export interface LogEntry {
+    id: LogEntryId;
+    timestamp: Timestamp;
+    userId: UserId;
+    residenciaId: ResidenciaId;
+    actionType: LogActionType;
+    relatedDocPath?: string;
+    details?: string;
 }

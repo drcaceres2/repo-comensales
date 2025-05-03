@@ -3,14 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox"; // For isActive toggle maybe
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Dieta, ResidenciaId } from '@/models/firestore'; // Ensure Dieta type is imported
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"; // For delete confirmation
-import { Skeleton } from '@/components/ui/skeleton'; // For loading state
+import { Dieta, ResidenciaId, LogEntry, LogActionType } from '@/models/firestore'; // <<< Import Log types
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from "@/components/ui/textarea";
+import { Timestamp, addDoc, collection } from 'firebase/firestore'; // <<< Import Firestore functions
+import { db, auth } from '@/lib/firebase'; // <<< Import db and auth
 
 // --- MOCK DATA DEFINITIONS ---
 
@@ -23,6 +26,25 @@ const mockDietasGuaymura: Dieta[] = [
 ];
 
 // --- END MOCK DATA ---
+
+// --- Log Helper ---
+async function createLogEntry(actionType: LogActionType, residenciaId: ResidenciaId, details?: string, relatedDocPath?: string) {
+    try {
+        const currentUserId = auth.currentUser?.uid || 'mock-admin-id';
+        const logEntry: Omit<LogEntry, 'id'> = {
+            timestamp: Timestamp.now(),
+            userId: currentUserId,
+            residenciaId: residenciaId,
+            actionType: actionType,
+            relatedDocPath: relatedDocPath,
+            details: details,
+        };
+        console.log("Simulating log entry creation:", logEntry);
+        // await addDoc(collection(db, "logEntries"), logEntry);
+    } catch (error) {
+        console.error("Error creating log entry:", error);
+    }
+}
 
 export default function DietasResidenciaPage() {
     const params = useParams();
@@ -39,6 +61,7 @@ export default function DietasResidenciaPage() {
     const [editingDietaId, setEditingDietaId] = useState<string | null>(null);
     const [formData, setFormData] = useState<Partial<Dieta>>({});
     const [isSaving, setIsSaving] = useState(false);
+    // <<< REMOVED isConfirmingDelete and dietaToDelete state >>>
 
     useEffect(() => {
         setIsLoading(true);
@@ -52,14 +75,12 @@ export default function DietasResidenciaPage() {
                 setDietas(mockDietasGuaymura);
                 setResidenciaNombre('Residencia Guaymura'); // Set mock name
                 setIsLoading(false);
-                console.log("Mock dietas loaded:", mockDietasGuaymura);
             } else {
                 // Simulate not found for other IDs
                 setError(`No se encontraron dietas para la residencia con ID: ${residenciaId}. (Simulado)`);
                 setResidenciaNombre(`Residencia (${residenciaId})`); // Show ID if name not found
                 setDietas([]);
                 setIsLoading(false);
-                console.error("Mock dietas NOT found for ID:", residenciaId);
             }
         }, 500); // Simulate network delay
 
@@ -117,6 +138,14 @@ export default function DietasResidenciaPage() {
         console.log("Simulating add Dieta:", nuevaDieta);
         await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
 
+        // <<< Add Logging >>>
+        await createLogEntry(
+            'dieta_created',
+            residenciaId,
+            `Created dieta: ${nuevaDieta.nombre}`, 
+            `residencias/${residenciaId}/dietas/${nuevaDieta.id}` // Example path
+        );
+
         setDietas(prev => [...prev, nuevaDieta]); // Add to state
 
         setIsSaving(false);
@@ -152,6 +181,7 @@ export default function DietasResidenciaPage() {
 
         setIsSaving(true);
 
+        const originalDieta = dietas.find(d => d.id === editingDietaId);
         // Construct the updated object
         const updatedDieta: Dieta = {
             // Keep original IDs and unchanged properties
@@ -167,9 +197,16 @@ export default function DietasResidenciaPage() {
         console.log("Simulating save Dieta:", updatedDieta);
         await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
 
+        // <<< Add Logging >>>
+        // Optional: Compare originalDieta with updatedDieta for detailed changes
+        await createLogEntry(
+            'dieta_updated',
+            residenciaId,
+            `Updated dieta: ${updatedDieta.nombre}`, 
+            `residencias/${residenciaId}/dietas/${updatedDieta.id}`
+        );
         // Update state
         setDietas(prev => prev.map(d => d.id === editingDietaId ? updatedDieta : d));
-
         setIsSaving(false);
         handleCancelDietaForm(); // Close form
         toast({ title: "Éxito", description: `Dieta \"${updatedDieta.nombre}\" actualizada (simulado).` });
@@ -193,6 +230,14 @@ export default function DietasResidenciaPage() {
         console.log(`Simulating ${!currentStatus ? 'activation' : 'deactivation'} for Dieta ID: ${id}`);
         // Optional: Add temporary loading state if needed
         // await new Promise(resolve => setTimeout(resolve, 300));
+
+        // <<< Add Logging >>>
+        await createLogEntry(
+            'dieta_updated', // Could use a more specific type like 'dieta_status_changed' if needed
+            residenciaId,
+            `${!currentStatus ? 'Activated' : 'Deactivated'} dieta: ${dietaToToggle?.nombre || id}`, 
+            `residencias/${residenciaId}/dietas/${id}`
+        );
 
         // Update state
         setDietas(prev =>
@@ -232,6 +277,14 @@ export default function DietasResidenciaPage() {
         // Simulate update (in real app, update both documents in Firestore transactionally)
         // await new Promise(resolve => setTimeout(resolve, 300));
 
+        // <<< Add Logging >>>
+        await createLogEntry(
+            'dieta_updated', // Could use 'dieta_default_changed'
+            residenciaId,
+            `Set dieta default: ${targetDieta.nombre}`, 
+            `residencias/${residenciaId}/dietas/${idToSetDefault}`
+        );
+
         // Update state: unset old default, set new default
         setDietas(prevDietas =>
             prevDietas.map(d => {
@@ -252,38 +305,40 @@ export default function DietasResidenciaPage() {
     };
 
     // Deletes a Dieta
-    const handleDeleteDieta = async (id: string) => {
-        const dietaToDelete = dietas.find(d => d.id === id);
+// <<< UPDATED: handleDeleteDieta now performs the action >>>
+const handleDeleteDieta = async (dietaToDelete: Dieta) => { // Pass the full object
+    if (!dietaToDelete) {
+        toast({ title: "Error", description: "Dieta no encontrada.", variant: "destructive" });
+        return;
+    }
+    if (dietaToDelete.isDefault) {
+        toast({ title: "Acción no permitida", description: "No se puede eliminar la dieta Default.", variant: "destructive" });
+        return;
+    }
+    // Optional: Check if dieta is assigned to any users before deleting (more complex)
 
-        if (!dietaToDelete) {
-            toast({ title: "Error", description: "Dieta no encontrada.", variant: "destructive" });
-            return;
-        }
+    console.log(`Attempting to delete Dieta ID ${dietaToDelete.id}...`);
+    // Simulate API call (replace with actual delete logic)
+    // Add a saving state if needed
+    await new Promise(resolve => setTimeout(resolve, 300)); 
 
-        // Prevent deleting the default diet
-        if (dietaToDelete.isDefault) {
-            toast({
-                title: "Acción no permitida",
-                description: "No se puede eliminar la dieta marcada como Default. Cambie la dieta Default antes de eliminar esta.",
-                variant: "destructive"
-            });
-            return;
-        }
+    // <<< Add Logging >>>
+    await createLogEntry(
+        'dieta_deleted',
+        residenciaId,
+        `Deleted dieta: ${dietaToDelete.nombre} (ID: ${dietaToDelete.id})`, 
+        `residencias/${residenciaId}/dietas/${dietaToDelete.id}`
+    );
 
-        // Optional: Add confirmation dialog here
+    // Update state
+    setDietas(prevDietas => prevDietas.filter(d => d.id !== dietaToDelete.id));
 
-        console.log(`Deleting Dieta ID ${id}...`);
-        // Simulate API call
-        // await new Promise(resolve => setTimeout(resolve, 300));
-
-        // Update state
-        setDietas(prevDietas => prevDietas.filter(d => d.id !== id));
-
-        toast({
-            title: "Éxito",
-            description: `Dieta "${dietaToDelete.nombre}" eliminada (simulado).`
-        });
-    };
+    toast({
+        title: "Éxito",
+        description: `Dieta "${dietaToDelete.nombre}" eliminada (simulado).`
+    });
+    // No need to close dialog state as it's handled by AlertDialog itself
+};
 
     // --- Render Logic ---
     if (isLoading) {
@@ -362,15 +417,40 @@ export default function DietasResidenciaPage() {
                                             Marcar Default
                                         </Button>
                                     )}
-                                    {/* --- Delete Button --- */}
-                                    <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={() => handleDeleteDieta(dieta.id)} // Link to handler
-                                        disabled={isAdding || !!editingDietaId || isSaving || dieta.isDefault} // Disable if busy or if it's default
-                                    >
-                                        Eliminar
-                                    </Button>
+                                    {/* --- Delete Button (Triggers Dialog) --- */}
+                                    <AlertDialog>
+                                        {/* <<< Trigger is the Button itself >>> */}
+                                        <AlertDialogTrigger asChild>
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                disabled={isAdding || !!editingDietaId || isSaving || dieta.isDefault} // Disable if busy or if it's default
+                                            >
+                                                Eliminar
+                                            </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Esta acción no se puede deshacer. ¿Seguro que quieres eliminar la dieta "{dieta.nombre}"?
+                                                        {dieta.isDefault ? <span className="font-semibold text-destructive block mt-2">No se puede eliminar la dieta Default.</span> : ""}
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    {/* <<< Action calls handleDeleteDieta directly >>> */}
+                                                    <AlertDialogAction
+                                                        onClick={() => handleDeleteDieta(dieta)} // Pass the dieta object
+                                                        className={buttonVariants({ variant: "destructive" })} 
+                                                        disabled={dieta.isDefault} // Also disable action if default
+                                                    >
+                                                        Sí, Eliminar
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+
                                 </div>
                             </div>
                         ))}
@@ -407,8 +487,6 @@ export default function DietasResidenciaPage() {
         </div>
     );
 }
-
-import { Textarea } from "@/components/ui/textarea"; // Import Textarea
 
 interface DietaFormProps {
     formData: Partial<Dieta>;

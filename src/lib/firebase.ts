@@ -34,6 +34,8 @@ const storage = getStorage(app);
 // Use environment variables for emulator hosts if defined, otherwise fallback to 127.0.0.1
 const authEmulatorHost = process.env.NEXT_PUBLIC_AUTH_EMULATOR_HOST; // Expected format: http://hostname:port or https://hostname:port
 const firestoreEmulatorHost = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST; // Expected format: hostname or hostname:port or http://hostname:port or https://hostname:port
+const functionsEmulatorHost = process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_HOST; // Expected format: hostname or hostname:port or http://hostname:port or https://hostname:port
+const storageEmulatorHost = process.env.NEXT_PUBLIC_STORAGE_EMULATOR_HOST; // Expected format: hostname or hostname:port or http://hostname:port or https://hostname:port
 
 const useEmulators = true; // Keep forcing emulator connection for now
 
@@ -69,7 +71,7 @@ if (useEmulators) {
 
     // --- Firestore Emulator ---
     // @ts-ignore
-    if (!db._settings.host || !db._settings.host.includes('127.0.0.1') || (firestoreEmulatorHost && !db._settings.host.includes(firestoreEmulatorHost.split(':')[0]))) {
+    if (!db._settings.host || (!db._settings.host.includes('127.0.0.1') && !db._settings.host.includes('localhost')) || (firestoreEmulatorHost && !db._settings.host.includes(firestoreEmulatorHost.split(':')[0]))) {
          try {
             let host = "127.0.0.1";
             let port = 8080;
@@ -94,8 +96,52 @@ if (useEmulators) {
         }
     }
 
-    // Add similar logic for Functions and Storage emulators if you use them
-    // ... (Functions/Storage emulator connection code using env variables) ...
+    // --- Functions Emulator ---
+    // @ts-ignore
+    if (!functions.emulatorOrigin) {
+        try {
+            let host = "127.0.0.1";
+            let port = 5001;
+            if (functionsEmulatorHost) {
+                console.log(`Using Functions Emulator Host from env: ${functionsEmulatorHost}`);
+                // Functions emulator needs host and port separately
+                let hostAndPort = functionsEmulatorHost.replace(/^https?:\/\//, '');
+                const parts = hostAndPort.split(':');
+                host = parts[0];
+                if (parts.length > 1) {
+                    port = parseInt(parts[1], 10);
+                }
+            }
+            console.log(`Connecting Functions Emulator to ${host}:${port}`);
+            connectFunctionsEmulator(functions, host, port);
+        } catch (error) {
+            console.error("Failed to connect Functions emulator:", error);
+        }
+    }
+
+    // --- Storage Emulator ---
+    // @ts-ignore
+    if (!storage.emulatorOrigin) {
+        try {
+            let host = "127.0.0.1";
+            let port = 9199;
+            if (storageEmulatorHost) {
+                console.log(`Using Storage Emulator Host from env: ${storageEmulatorHost}`);
+                // Storage emulator needs host and port separately
+                let hostAndPort = storageEmulatorHost.replace(/^https?:\/\//, '');
+                const parts = hostAndPort.split(':');
+                host = parts[0];
+                if (parts.length > 1) {
+                    port = parseInt(parts[1], 10);
+                }
+            }
+            console.log(`Connecting Storage Emulator to ${host}:${port}`);
+            connectStorageEmulator(storage, host, port);
+        } catch (error) {
+            console.error("Failed to connect Storage emulator:", error);
+        }
+    }
+
 }
 
 

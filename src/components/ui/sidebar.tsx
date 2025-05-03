@@ -4,6 +4,7 @@ import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
 import { PanelLeft } from "lucide-react"
+import Image from 'next/image' // Import Next.js Image component
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -25,6 +26,10 @@ const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+
+// --- LOGO URL ---
+const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/imagenes%2Fcomensales-logo.png?alt=media&token=d8d50163-1817-45b1-be6e-b43541118347";
+
 
 type SidebarContext = {
   state: "expanded" | "collapsed"
@@ -353,14 +358,43 @@ SidebarInput.displayName = "SidebarInput"
 const SidebarHeader = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div">
->(({ className, ...props }, ref) => {
+>(({ className, children, ...props }, ref) => {
+  const { state } = useSidebar(); // Get sidebar state
+
   return (
     <div
       ref={ref}
       data-sidebar="header"
-      className={cn("flex flex-col gap-2 p-2", className)}
+      className={cn("flex flex-col gap-2 p-2 items-center", className)} // Added items-center for logo centering
       {...props}
-    />
+    >
+      {/* Logo Section */}
+      <div className="flex items-center justify-center w-full mb-4"> {/* Added mb-4 for spacing */} 
+        {/* Collapsed state logo (small icon) */}
+        <div className={cn("transition-opacity duration-200", state === 'expanded' ? 'opacity-0 w-0 h-0' : 'opacity-100 w-8 h-8')}> 
+          <Image 
+            src={LOGO_URL} 
+            alt="ResiMeals Logo Small" 
+            width={32} // Small icon size
+            height={32}
+            className="object-contain"
+          />
+        </div>
+        {/* Expanded state logo (larger) */}
+        <div className={cn("transition-opacity duration-200", state === 'collapsed' ? 'opacity-0 w-0 h-0' : 'opacity-100 w-32 h-auto')}> 
+          <Image 
+            src={LOGO_URL} 
+            alt="ResiMeals Logo" 
+            width={128} // Larger size for expanded sidebar
+            height={40} // Adjust height as needed
+            className="object-contain"
+            priority // Prioritize loading the visible logo
+          />
+        </div>
+      </div>
+      {/* Original children passed to the header */} 
+      {children}
+    </div>
   )
 })
 SidebarHeader.displayName = "SidebarHeader"

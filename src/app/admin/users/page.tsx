@@ -28,8 +28,9 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
-// Import types from the model file (UserProfile now has roles: UserRole[])
-import { UserProfile, UserRole, ResidenciaId, DietaId } from '@/models/firestore';
+import { UserProfile, UserRole, ResidenciaId, DietaId, LogEntry, LogActionType } from '@/models/firestore';
+import { Timestamp, addDoc, collection } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
 
 // Define available roles for the checkboxes
 const availableRoles: UserRole[] = ['residente', 'director', 'admin', 'master']; // Add/remove roles as needed
@@ -69,6 +70,33 @@ type UserFormData = Partial<Omit<UserProfile, 'id' | 'roles'>> & { // Keep isAct
     dietaId?: DietaId | '';
 };
 
+// <<< NEW: Helper function to create log entries >>>
+async function createLogEntry(actionType: LogActionType, residenciaId: ResidenciaId, details?: string, relatedDocPath?: string) {
+    try {
+        // TODO: Get the *actual* logged-in user's ID
+        const currentUserId = auth.currentUser?.uid || 'mock-admin-id'; // Replace with real auth user ID later
+
+        const logEntry: Omit<LogEntry, 'id'> = {
+            timestamp: Timestamp.now(),
+            userId: currentUserId,
+            residenciaId: residenciaId, // Use the relevant residence ID
+            actionType: actionType,
+            relatedDocPath: relatedDocPath,
+            details: details,
+        };
+
+        // In a real app, use addDoc to save to Firestore
+        // const docRef = await addDoc(collection(db, "logEntries"), logEntry);
+        // console.log("Log entry created with ID: ", docRef.id);
+        console.log("Simulating log entry creation:", logEntry);
+
+    } catch (error) {
+        console.error("Error creating log entry:", error);
+        // Decide if you want to show a toast message for logging errors
+        // toast({ title: "Error", description: "No se pudo registrar la acción en el log.", variant: "destructive" });
+    }
+}
+
 export default function UserManagementPage() {
     const { toast } = useToast();
     // Initialize form state with roles as empty array
@@ -95,6 +123,10 @@ export default function UserManagementPage() {
 
     const [residences, setResidences] = useState<Record<ResidenciaId, { nombre: string }>>(mockResidences);
     const [dietas, setDietas] = useState<Record<DietaId, { nombre: string }>>(mockDietas);
+
+    // --- Mock current residence ID (Needed for logging context) ---
+    // TODO: Get this from the admin's profile or global state
+    const adminResidenciaId = 'res-guaymura'; // Example, adjust as needed
 
     useEffect(() => {
         setIsLoadingUsers(true);

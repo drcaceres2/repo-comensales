@@ -2,43 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
+    /* --- Updated based on blueprint.md --- */
+    /* --background variable remains white for components like cards */
+    --background: 0 0% 100%; 
+    --foreground: 240 10% 3.9%; 
+    
+    --primary: 213 89% 28%; /* Blue (#084886) */
+    --primary-foreground: 0 0% 100%; /* White text on blue */
+    
+    --destructive: 348 77% 35%; /* Red (#A21E35) */
+    --destructive-foreground: 0 0% 100%; /* White text on red */
+
+    /* --- Standard Variables (using defaults or slight adjustments) --- */
+    --card: 0 0% 100%; 
     --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
-    --primary: 213 88% 28%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 240 10% 3.9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 240 10% 3.9%;
-    --destructive: 348 77% 35%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 213 88% 28%;
+    
+    --secondary: 210 40% 96.1%; 
+    --secondary-foreground: 213 89% 28%;
+    
+    --muted: 210 40% 96.1%; 
+    --muted-foreground: 240 5% 64.9%; 
+    
+    --accent: 210 40% 96.1%; 
+    --accent-foreground: 213 89% 28%;
+    
+    --border: 210 20% 85%; 
+    --input: 210 20% 95%; 
+    --ring: 213 89% 28%; 
+    
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* --- Sidebar Variables (Adjusted for new palette) --- */
+    --sidebar-background: 213 89% 28%; 
+    --sidebar-foreground: 0 0% 100%; 
+    
+    --sidebar-primary: 0 0% 100%; 
+    --sidebar-primary-foreground: 213 89% 28%;
+    
+    --sidebar-accent: 213 80% 40%; 
+    --sidebar-accent-foreground: 0 0% 100%; 
+    
+    --sidebar-border: 213 80% 40%; 
+    --sidebar-ring: 0 0% 100%; 
   }
 
   .dark {
+    /* Dark theme remains unchanged for now */
+    /* Update --background here if needed for dark mode gradient */
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
     --card: 240 10% 3.9%;
@@ -75,6 +89,21 @@ body {
   }
 
   body {
-    @apply bg-background text-foreground;
+    /* Changed to Geist Sans as per layout.tsx */
+    font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+    
+    /* Apply gradient background directly to body */
+    @apply text-foreground;
+    /* Ensure min height */
+    min-height: 100vh;
+    /* Define the gradient */
+    background-image: linear-gradient(
+      to bottom, 
+      hsl(0 0% 100%), /* Start with white */
+      hsl(213 80% 97%) /* End with very light blue */
+    );
+    /* Ensure the gradient covers the full viewport */
+    background-repeat: no-repeat;
+    background-attachment: fixed;
   }
 }
