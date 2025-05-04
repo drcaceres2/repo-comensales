@@ -730,8 +730,14 @@ export default function ResidenciaAdminPage() {
                                         <p className="font-semibold text-lg">{res.nombre}</p> 
                                         <p className="text-sm text-muted-foreground">ID: {res.id}</p> 
                                       </div> 
-                                      <DialogTrigger> 
-                                        <Button variant="secondary" size="sm" onClick={() => handleManageSettings(res)}> Manage Settings </Button> 
+                                      <DialogTrigger asChild>
+                                          <Button
+                                              variant="secondary"
+                                              size="sm"
+                                              onClick={() => handleManageSettings(res)}
+                                          >
+                                              Manage Settings
+                                          </Button>
                                       </DialogTrigger> 
                                     </li>))} 
                                   </ul>)}
