@@ -10,14 +10,18 @@ export type ComentarioId = string;
 export type HorarioSolicitudComidaId = string;
 export type DietaId = string;
 export type LogEntryId = string;
-export type AusenciaId = string; // Added for clarity
-export type ExcepcionId = string; // Added for clarity
+export type AusenciaId = string;
+export type ExcepcionId = string; // Note: This might become less relevant if 'Eleccion' covers all cases
 
 // --- Added Types ---
 export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
 export type TipoAccesoAlternativa = 'abierto' | 'autorizado' | 'cerrado';
-export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requerido';
+// <<< UPDATED: EstadoAprobacion >>>
+export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requerido' | 'contingencia' | 'anulada_por_cambio'; // Added 'contingencia' and 'anulada_por_cambio'
 export type ModoEleccionUsuario = 'normal' | 'diario' | 'suspendido'; // User meal choice mode
+
+// <<< NEW: OrigenEleccion >>>
+export type OrigenEleccion = 'semanario' | 'excepcion' | 'excepcion_autorizada' | 'contingencia' | 'director';
 
 // <<< UPDATED: Specific Log Action Types >>>
 export type LogActionType =
@@ -42,15 +46,16 @@ export type LogActionType =
     'solicitud_aprobada' |
     'solicitud_rechazada' |
     'dieta_asignada' |
-    'dieta_desasignada' | // Added
-    'semanario_updated' | // Added
-    'excepcion_created' | // Added
-    'excepcion_deleted' | // Added
-    'ausencia_created' | // Added
-    'ausencia_updated' | // Added
-    'ausencia_deleted' | // Added
-    'comentario_created' | // Added
-    'modo_eleccion_updated'; // Added
+    'dieta_desasignada' |
+    'semanario_updated' |
+    'eleccion_created' | // Renamed from 'excepcion_created' for clarity
+    'eleccion_updated' | // Added
+    'eleccion_deleted' | // Renamed from 'excepcion_deleted'
+    'ausencia_created' |
+    'ausencia_updated' |
+    'ausencia_deleted' |
+    'comentario_created' |
+    'modo_eleccion_updated';
 
 export type UserRole = 'master' | 'admin' | 'director' | 'residente';
 
@@ -73,11 +78,7 @@ export interface Residencia {
     nombre: string;
     direccion?: string;
     logoUrl?: string;
-    horariosSolicitudComida?: HorarioSolicitudComida[];
-    tiemposComida?: TiempoComida[];
-    alternativas?: AlternativaTiempoComida[];
-    comedores?: Comedor[];
-    dietas?: Dieta[];
+    // Removed embedded collections - prefer top-level collections queried by residenciaId
   }
 
 export interface Comedor {
@@ -87,46 +88,52 @@ export interface Comedor {
     descripcion?: string;
 }
 
+// <<< UPDATED: TiempoComida >>>
 export interface TiempoComida {
     id: TiempoComidaId;
-    nombre: string;
+    nombre: string; // e.g., "Almuerzo", "Cena", "Desayuno", "Brunch Domingo"
     residenciaId: ResidenciaId;
-    nombreGrupo: string;
-    ordenGrupo: number;
-    diasDisponibles: DayOfWeekKey[];
+    nombreGrupo: string; // e.g., "Comidas Principales", "Desayunos", "Eventos Especiales"
+    ordenGrupo: number; // For sorting groups (e.g., 1: Desayuno, 2: Almuerzo, 3: Cena)
+    dia: DayOfWeekKey; // <<< CHANGED: Now single day
+    horaEstimada?: string; // Optional: Display time like "13:30hs"
 }
 
 export interface AlternativaTiempoComida {
     id: AlternativaTiempoComidaId;
-    nombre: string;
-    tipo: TipoAlternativa;
-    tipoAcceso: TipoAccesoAlternativa;
-    requiereAprobacion: boolean;
-    ventanaInicio: string;
-    iniciaDiaAnterior?: boolean;
-    ventanaFin: string;
-    terminaDiaSiguiente?: boolean;
-    horarioSolicitudComidaId: HorarioSolicitudComidaId;
-    tiempoComidaId: TiempoComidaId;
+    nombre: string; // e.g., "Menú Normal", "Menú Vegetariano", "Para Llevar", "No como"
+    tipo: TipoAlternativa; // 'comedor' or 'paraLlevar'
+    tipoAcceso: TipoAccesoAlternativa; // 'abierto', 'autorizado', 'cerrado'
+    requiereAprobacion: boolean; // If true, director must approve 'Eleccion'
+    ventanaInicio: string; // HH:mm - Start time window for this alternative
+    iniciaDiaAnterior?: boolean; // Does the window start the day before the meal date?
+    ventanaFin: string; // HH:mm - End time window
+    terminaDiaSiguiente?: boolean; // Does the window end the day after the meal date?
+    horarioSolicitudComidaId: HorarioSolicitudComidaId; // Link to the request schedule
+    tiempoComidaId: TiempoComidaId; // Link to the specific meal time (defines day, group)
     residenciaId: ResidenciaId;
-    comedorId?: ComedorId;
-    isActive: boolean;
-  }
+    comedorId?: ComedorId; // If 'tipo' is 'comedor', link to the dining hall
+    isActive: boolean; // Can this alternative be chosen?
+    isContingencia?: boolean; // Is this the fallback/contingency option?
+}
 
+// <<< UPDATED: HorarioSolicitudComida >>>
 export interface HorarioSolicitudComida {
     id: HorarioSolicitudComidaId;
     residenciaId: ResidenciaId;
-    nombre: string;
-    horaLimite: string;
-    diasAntelacion: number;
-  }
+    nombre: string; // e.g., "Solicitud Semanal", "Cambio Almuerzo", "Cambio Cena"
+    dia: DayOfWeekKey; // Day of the week this schedule applies to
+    horaSolicitud: string; // HH:mm - Deadline time for this request/change window
+    isPrimary: boolean; // True if this is the main weekly request schedule
+    isActive: boolean; // Is this schedule currently active?
+}
 
 export interface Dieta {
     id: DietaId;
     residenciaId: ResidenciaId;
     nombre: string;
     descripcion?: string;
-    isDefault?: boolean;
+    isDefault?: boolean; // True if this is the default diet (e.g., "Normal")
     isActive: boolean;
 }
 
@@ -138,7 +145,7 @@ export interface UserProfile {
     roles: UserRole[];
     isActive: boolean;
     residenciaId?: ResidenciaId;
-    dietaId?: DietaId;
+    dietaId?: DietaId; // User's default assigned diet
     modoEleccion?: ModoEleccionUsuario;
     numeroDeRopa?: string;
     habitacion?: string;
@@ -148,84 +155,90 @@ export interface UserProfile {
     fechaDeCumpleanos?: Timestamp;
 }
 
-// *** NEW: Interface for a single choice within the Semanario ***
+// SemanarioAlternativaSeleccion remains conceptually similar but context might change
 export interface SemanarioAlternativaSeleccion {
     alternativaId: AlternativaTiempoComidaId; // The primary choice
     requiereAprobacion: boolean; // Store this explicitly based on the selected Alternativa
-    alternativaContingenciaId?: AlternativaTiempoComidaId | null; // Fallback if requiereAprobacion is true
+    alternativaContingenciaId?: AlternativaTiempoComidaId | null; // Fallback if requiereAprobacion is true and rejected
 }
 
-// *** UPDATED: Semanario interface ***
 export interface Semanario {
     id?: string; // Document ID (likely userId)
     userId: UserId;
     residenciaId: ResidenciaId;
-    // Using TiempoComidaId as the key for precision.
     elecciones: {
         [key in DayOfWeekKey]?: {
-            [tiempoComidaId: string]: SemanarioAlternativaSeleccion; // Key is TiempoComidaId
+            [tiempoComidaId: string]: SemanarioAlternativaSeleccion;
         }
     };
     ultimaActualizacion: Timestamp;
 }
 
-// *** NEW: Eleccion interface (Specific meal choice for a date) ***
-// This represents an 'exception' or a specific choice overriding the semanario.
+// <<< UPDATED: Eleccion >>>
+// Represents a specific meal choice for a specific date, often overriding the semanario.
 export interface Eleccion {
-    id: string;
+    id: string; // Firestore Document ID
     usuarioId: UserId;
     residenciaId: ResidenciaId;
-    fecha: Timestamp;
+    fecha: Timestamp; // The specific date of the meal
     tiempoComidaId: TiempoComidaId;
-    alternativaTiempoComidaId: AlternativaTiempoComidaId;
-    dietaId?: DietaId;
-    solicitado: boolean;
-    asistencia?: boolean;
-    fechaSolicitud: Timestamp;
-    estadoAprobacion?: EstadoAprobacion;
-  }
+    alternativaTiempoComidaId: AlternativaTiempoComidaId; // The chosen alternative
+    dietaId?: DietaId; // Diet applicable at the time of choice (could be default or assigned)
+    solicitado: boolean; // Generally true, indicates user made a choice (or system default)
+    asistencia?: boolean; // Optional: Track if the user actually attended
+    fechaSolicitud: Timestamp; // When this choice was made/recorded
+    estadoAprobacion: EstadoAprobacion; // Use the updated type
+    origen: OrigenEleccion; // <<< NEW: Source of the choice
+    comentario?: string; // Optional user comment for this specific choice
+    processedForBilling?: boolean; // Optional flag for billing integration
+}
 
+// MealCount structure remains the same, utility depends on implementation.
 export interface MealCount {
-    id: string;
+    id: string; // Composite ID like: {residenciaId}_{fecha}_{tiempoComidaId}_{alternativaId}_{dietaId?}
     residenciaId: ResidenciaId;
     tiempoComidaId: TiempoComidaId;
     alternativaTiempoComidaId: AlternativaTiempoComidaId;
-    dietaId?: DietaId;
-    fecha: Timestamp;
-    totalSolicitado: number;
+    dietaId?: DietaId | 'ninguna'; // Use 'ninguna' or similar if diet isn't relevant for this count
+    fecha: Timestamp; // Date (YYYY-MM-DD, start of day timestamp)
+    totalSolicitado: number; // Count of users choosing this combo
+    totalAprobado?: number; // Count after approval logic (if applicable)
 }
 
-// *** NEW: Ausencia interface ***
 export interface Ausencia {
-    id?: AusenciaId; // Firestore Document ID
+    id?: AusenciaId;
     userId: UserId;
     residenciaId: ResidenciaId;
-    fechaInicio: Timestamp;
-    ultimoTiempoComidaId?: TiempoComidaId | null; // Last meal before leaving
-    fechaFin: Timestamp;
-    primerTiempoComidaId?: TiempoComidaId | null; // First meal upon return
-    retornoPendienteConfirmacion?: boolean; // Flag for "Not Sure" reminder
+    fechaInicio: Timestamp; // Date the absence starts
+    ultimoTiempoComidaId?: TiempoComidaId | null; // Last meal *before* leaving (optional)
+    fechaFin: Timestamp; // Date the absence ends
+    primerTiempoComidaId?: TiempoComidaId | null; // First meal *after* returning (optional)
+    retornoPendienteConfirmacion?: boolean; // User needs to confirm return date
     fechaCreacion: Timestamp;
+    motivo?: string; // Optional reason
 }
 
-// *** NEW: Comentario interface ***
 export interface Comentario {
     id: ComentarioId;
-    usuarioId: UserId;
+    usuarioId: UserId; // Who sent it
+    destinatarioId?: UserId; // Optional: specific recipient (e.g., director)
     residenciaId: ResidenciaId;
     texto: string;
     fechaEnvio: Timestamp;
     leido: boolean;
     archivado: boolean;
+    relacionadoA?: { // Optional link to related item
+        coleccion: 'eleccion' | 'ausencia' | 'usuario'; // etc.
+        documentoId: string;
+    };
 }
 
-// *** NEW: LogEntry interface ***
 export interface LogEntry {
     id: LogEntryId;
     timestamp: Timestamp;
-    userId: UserId;
-    residenciaId: ResidenciaId;
+    userId: UserId; // User performing the action (or 'system')
+    residenciaId?: ResidenciaId; // Contextual, if applicable
     actionType: LogActionType;
-    relatedDocPath?: string;
-    details?: string;
+    relatedDocPath?: string; // e.g., "residencias/R001/elecciones/E123"
+    details?: string | object; // More context about the change
 }
