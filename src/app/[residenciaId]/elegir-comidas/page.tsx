@@ -30,6 +30,17 @@ import { PlusCircle } from 'lucide-react'; // Icon for add button
 
 import { Textarea } from "@/components/ui/textarea";
 
+import { useRouter } from 'next/navigation'; // Add this
+import { Loader2 } from 'lucide-react'; // Add this for loading indicator
+
+// Add these Firebase imports
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
+
+// Add/ensure these specific model imports
+import { UserProfile, UserRole } from '@/models/firestore';
+
 // --- Mock Data ---
 interface MockUser {
     id: UserId;
@@ -226,34 +237,105 @@ const getTiempoComidaName = (id: TiempoComidaId | null | undefined): string => {
 
 
 export default function ElegirComidasPage() {
+    const router = useRouter(); // Add this line
+
+    // Add these state variables for Auth/Authz
+    const [authCurrentUser, setAuthCurrentUser] = useState<User | null>(null); // Rename to avoid conflict with existing mock currentUser
+    const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+    const [isAuthorized, setIsAuthorized] = useState(false);
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null); // Store fetched profile
+
+    // Derive role and relevant IDs from the fetched profile
+    const isDirector = userProfile?.roles?.includes('director' as UserRole) ?? false;
+    const isResidente = userProfile?.roles?.includes('residente' as UserRole) ?? false;
+    const loggedInUserId = authCurrentUser?.uid; // Get the actual logged-in user's ID
+
+    // For now, users can only view/edit their own data. Selection logic removed.
+    const selectedUserId = loggedInUserId; // Always view self
+    const viewedUser = userProfile; // The profile fetched belongs to the logged-in user
+    
+    // Director editing state - irrelevant for now as only self-viewing is implemented
+    // const [isEditingEnabled, setIsEditingEnabled] = useState<boolean>(true); // Always true when viewing self
+    
+    // Read-only state - becomes simpler: it's never read-only when viewing self
+    const isReadOnly = false; // User always views their own data initially
+    
+
+    // Get residenciaId from URL (Keep existing logic)
     const params = useParams();
-    // Use mock residenciaId for now, replace with params.residenciaId later
-    const residenciaId = MOCK_RESIDENCIA.id;
+    const residenciaIdFromUrl = params.residenciaId as ResidenciaId;
 
+    // --- Authentication & Authorization Effect ---
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+          if (user) {
+            setAuthCurrentUser(user); // Store the authenticated user object
+            // User is signed in, check authorization
+            try {
+              const userDocRef = doc(db, "users", user.uid);
+              const userDocSnap = await getDoc(userDocRef);
+  
+              if (userDocSnap.exists()) {
+                const fetchedProfile = userDocSnap.data() as UserProfile;
+                setUserProfile(fetchedProfile); // Store the fetched profile
+                const roles = fetchedProfile.roles || [];
+  
+                // Authorization Check: Must be residente or director AND belong to this residence
+                const isResidenteOrDirector = roles.includes('residente' as UserRole) || roles.includes('director' as UserRole);
+                const belongsToResidence = fetchedProfile.residenciaId === residenciaIdFromUrl;
+  
+                if (isResidenteOrDirector && belongsToResidence) {
+                   console.log(`User ${user.uid} authorized for residence ${residenciaIdFromUrl}. Roles: ${roles}`);
+                   setIsAuthorized(true);
+                } else {
+                   console.warn(`User ${user.uid} not authorized for residence ${residenciaIdFromUrl}. Roles: ${roles}, Profile Residence: ${fetchedProfile.residenciaId}`);
+                   setIsAuthorized(false);
+                   // Optionally redirect unauthorized users immediately
+                   // router.push('/');
+                }
+              } else {
+                // No profile found in Firestore for logged-in user
+                console.error(`No Firestore profile found for authenticated user ${user.uid}.`);
+                setIsAuthorized(false);
+                // Redirecting is crucial here
+                // router.push('/');
+              }
+            } catch (error) {
+              console.error("Error fetching user profile for authorization:", error);
+              setIsAuthorized(false);
+              // Redirect on error?
+              // router.push('/');
+            } finally {
+              setIsLoadingAuth(false); // Auth check finished
+            }
+          } else {
+            // No user is signed in
+            setAuthCurrentUser(null);
+            setUserProfile(null);
+            setIsAuthorized(false);
+            setIsLoadingAuth(false); // Auth check finished
+            console.log("No user signed in, redirecting to login.");
+            router.push('/'); // Redirect to login page
+          }
+        });
+  
+        // Cleanup subscription on unmount
+        return () => unsubscribe();
+      // Depend on router and the residence ID from the URL
+      }, [router, residenciaIdFromUrl]);
+  
+      // --- Keep Original State Variables (for now) ---
+      // const [currentUser, setCurrentUser] = useState<MockUser>(...); // Note: This conflicts with authCurrentUser now
+      // ... other existing state ...
+  
     // --- State ---
-    // Determine current user type (replace with actual auth logic later)
-    const [currentUser, setCurrentUser] = useState<MockUser>(MOCK_CURRENT_USER_DIRECTOR); // CHANGE THIS TO MOCK_CURRENT_USER_RESIDENT to test resident view
-    const isDirector = currentUser.roles.includes('director');
-
-    // State for Director's view: who is being viewed/edited
-    const [selectedUserId, setSelectedUserId] = useState<UserId>(currentUser.id);
-    // State for Director's view: are we editing the selected user?
-    const [isEditingEnabled, setIsEditingEnabled] = useState<boolean>(!isDirector || selectedUserId === currentUser.id); // Edit self by default
-
+ 
     // --- State for Ausencia Form ---
     const [absenceStartDate, setAbsenceStartDate] = useState<Date | undefined>();
     const [absenceLastMeal, setAbsenceLastMeal] = useState<TiempoComidaId | ''>('');
     const [absenceEndDate, setAbsenceEndDate] = useState<Date | undefined>();
     const [absenceFirstMeal, setAbsenceFirstMeal] = useState<TiempoComidaId | ''>('');
     const [absenceNotSure, setAbsenceNotSure] = useState<boolean>(false);
-
-    // Derive viewed user details based on selectedUserId
-    const viewedUser = selectedUserId === currentUser.id
-        ? currentUser
-        : MOCK_OTHER_RESIDENTS.find(r => r.id === selectedUserId);
-
-    // Determine if the view is read-only (Director viewing someone else AND editing not enabled)
-    const isReadOnly = isDirector && selectedUserId !== currentUser.id && !isEditingEnabled;
 
     // --- State for Excepcion Form ---
     interface ExceptionRowState {
@@ -274,20 +356,6 @@ export default function ElegirComidasPage() {
     const [commentDate, setCommentDate] = useState<Date | undefined>();
     const [commentIsNextOpportunity, setCommentIsNextOpportunity] = useState<boolean>(true); // Default to next opportunity
 
-    // Handle user selection change by Director
-    const handleUserChange = (userId: UserId) => {
-        setSelectedUserId(userId);
-        // When Director selects someone else, default to read-only
-        setIsEditingEnabled(userId === currentUser.id);
-    };
-
-    // Handle Director enabling edit mode for another user
-    const handleEnableEditing = () => {
-        if (isDirector && selectedUserId !== currentUser.id) {
-            setIsEditingEnabled(true);
-        }
-    };
-
     // --- Mock Theme Handler ---
     const handleThemeChange = (theme: string) => {
         console.log(`Theme changed to: ${theme}`);
@@ -306,14 +374,17 @@ export default function ElegirComidasPage() {
     };
 
     const handleAbsenceSave = () => {
-      console.log('Saving Absence:', {
-          fechaInicio: absenceStartDate,
-          ultimoTiempoComidaId: absenceLastMeal || null,
-          fechaFin: absenceEndDate,
-          primerTiempoComidaId: absenceFirstMeal || null,
-          retornoPendienteConfirmacion: absenceNotSure,
-      });
-      // TODO: Add actual Firestore save logic
+      // Inside handleAbsenceSave function
+        console.log('Saving Absence:', {
+            // Use REAL user ID and residence ID from URL
+            userId: loggedInUserId,
+            residenciaId: residenciaIdFromUrl,
+            fechaInicio: absenceStartDate,
+            ultimoTiempoComidaId: absenceLastMeal || null,
+            fechaFin: absenceEndDate,
+            primerTiempoComidaId: absenceFirstMeal || null,
+            retornoPendienteConfirmacion: absenceNotSure,
+        });// TODO: Add actual Firestore save logic
       // TODO: Clear form after save?
       alert('Ausencia guardada (simulado). Revisa la consola.');
     };
@@ -369,8 +440,12 @@ export default function ElegirComidasPage() {
 
 
     const handleSaveExceptions = () => {
-      console.log('Saving Exceptions:', exceptionRows);
-      // TODO: Add validation for each row (date, tiempo, alternativa required)
+        console.log('Saving Exceptions:', {
+            rows: exceptionRows,
+            // Use REAL user ID and residence ID from URL
+            userId: loggedInUserId,
+            residenciaId: residenciaIdFromUrl
+            });// TODO: Add validation for each row (date, tiempo, alternativa required)
       // TODO: Add actual Firestore save logic (creating Eleccion documents)
       // TODO: Clear form after successful save
       alert('Excepciones guardadas (simulado). Revisa la consola.');
@@ -387,7 +462,8 @@ export default function ElegirComidasPage() {
 
     // Filter existing exceptions to show only future ones for the viewed user
     const futureExceptions = MOCK_ELECCIONES.filter(ex =>
-      ex.usuarioId === viewedUser?.id && ex.fecha.toDate() >= new Date()
+    // Use REAL loggedInUserId instead of viewedUser.id
+    ex.usuarioId === loggedInUserId && ex.fecha.toDate() >= new Date()
     );
 
     // --- Handlers for Comentario Form ---
@@ -408,9 +484,12 @@ export default function ElegirComidasPage() {
           return;
       }
       console.log('Submitting Comment:', {
-          texto: commentText,
-          fechaAplicacion: commentIsNextOpportunity ? null : commentDate,
-      });
+            // Use REAL user ID and residence ID from URL
+            userId: loggedInUserId,
+            residenciaId: residenciaIdFromUrl,
+            texto: commentText,
+            fechaAplicacion: commentIsNextOpportunity ? null : commentDate,
+        });
       // TODO: Add actual Firestore save logic (creating Comentario document)
       // TODO: Clear form after save
       alert('Comentario enviado (simulado). Revisa la consola.');
@@ -418,6 +497,35 @@ export default function ElegirComidasPage() {
       setCommentDate(undefined);
       setCommentIsNextOpportunity(true);
     };
+
+    // --- Conditional Rendering Logic ---
+
+    if (isLoadingAuth) {
+        // Show loading indicator while checking authentication/authorization
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2">Cargando datos de usuario...</span>
+            </div>
+        );
+        }
+        
+        if (!isAuthorized) {
+        // Show access denied if user is logged in but not authorized for this residence/role
+        // The redirect in useEffect might fire first, but this is a fallback.
+        return (
+            <div className="container mx-auto p-4 text-center">
+            <h1 className="text-2xl font-bold text-destructive mb-4">Acceso Denegado</h1>
+            <p className="text-muted-foreground">No tienes permiso para acceder a esta página o la residencia no coincide con tu perfil.</p>
+                <button onClick={() => router.push('/')} className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90">
+                Ir al Inicio
+                </button>
+            </div>
+        );
+        }
+        
+        // --- Render actual page content if authorized ---
+        // (The existing <main>...</main> block will follow)  
 
     // --- Render ---
     return (
@@ -464,65 +572,51 @@ export default function ElegirComidasPage() {
             {/* --- Main Content --- */}
             <main className="flex-grow container mx-auto p-4 space-y-6">
 
-                 {/* --- User Context Section --- */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-lg">Contexto de Usuario</CardTitle>
-                         {isReadOnly && (
-                            <Badge variant="destructive" className="w-fit">Modo Lectura</Badge>
-                        )}
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                         <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 space-y-2 sm:space-y-0">
-                            {isDirector ? (
-                                <div className="flex-grow">
-                                    <Label htmlFor="user-selector">Seleccionar Residente:</Label>
-                                    <Select value={selectedUserId} onValueChange={handleUserChange}>
-                                        <SelectTrigger id="user-selector">
-                                            <SelectValue placeholder="Selecciona un residente" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value={currentUser.id}>{currentUser.nombre} (Yo)</SelectItem>
-                                            {MOCK_OTHER_RESIDENTS.filter(r => r.id !== currentUser.id).map(resident => (
-                                                <SelectItem key={resident.id} value={resident.id}>
-                                                    {resident.nombre}
-                                                 </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            ) : (
+                 {/* --- User Context Section (Refactored for Auth) --- */}
+                 {/* Only render this section if profile is loaded and user is authorized */}
+                 {userProfile && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-lg">Contexto de Usuario</CardTitle>
+                             {/* isReadOnly is always false now when viewing self, so no badge needed */}
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                             <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 space-y-2 sm:space-y-0">
+                                {/* Always display the logged-in user's name */}
                                 <div>
                                     <Label>Usuario Actual:</Label>
-                                    <p className="font-semibold">{currentUser.nombre}</p>
+                                    {/* Use userProfile for name */}
+                                    <p className="font-semibold">{userProfile.nombre} {userProfile.apellido}</p>
                                  </div>
-                            )}
 
-                             {viewedUser && (
+                                {/* Display ModoEleccion from the user's profile */}
                                 <div className="flex items-center gap-2">
                                      <Label>Modo:</Label>
-                                     {/* TODO: Add logic for director to change mode */}
-                                    <Badge variant={viewedUser.modoEleccion === 'suspendido' ? 'destructive' : 'secondary'}>
-                                        {viewedUser.modoEleccion}
+                                     {/* TODO: Add logic for director to change mode (if re-implementing) */}
+                                    <Badge variant={userProfile.modoEleccion === 'suspendido' ? 'destructive' : 'secondary'}>
+                                        {userProfile.modoEleccion || 'normal'} {/* Default to normal if undefined */}
                                     </Badge>
                                 </div>
-                            )}
 
-                             {isDirector && selectedUserId !== currentUser.id && !isEditingEnabled && (
-                                <Button onClick={handleEnableEditing} size="sm">
-                                    Habilitar Edición
-                                </Button>
-                            )}
-                        </div>
-                     </CardContent>
-                </Card>
+                                {/* Remove the Select component for choosing other residents */}
+                                {/* Remove the "Habilitar Edición" button */}
+                            </div>
+                         </CardContent>
+                    </Card>
+                 )}
+                 {/* End User Context Section */}
+
+                 <Separator /> // Keep Separator
+
+                 {/* --- Placeholder Sections --- */}
+
 
                 <Separator />
 
                 {/* --- Placeholder Sections --- */}
 
                 {/* 1. Semanario */}
-                <Card className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
+                <Card>
                     <CardHeader>
                         <CardTitle>Semanario</CardTitle>
                         {/* TODO: Add 'Solo esta semana' checkbox? */}
@@ -621,26 +715,24 @@ export default function ElegirComidasPage() {
                         </table>
                     </div>
                     {/* TODO: Add 'Solo esta semana' checkbox and Save button below the table div */}
-                    {!isReadOnly && (
-                        <div className="mt-4 flex justify-end">
-                            <Button>Guardar Semanario</Button>
-                        </div>
-                    )}
+                    <div className="mt-4 flex justify-end">
+                        <Button>Guardar Semanario</Button>
+                    </div>
+
                             {/* TODO: Placeholder for grid + interaction */}
                             {/* TODO: Placeholder for save button */}
                     </CardContent>
                 </Card>
 
                 {/* 2. Ausencias / Vacaciones */}
-                <Card className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
+                <Card>
                     <CardHeader>
                         <CardTitle>Ausencias / Vacaciones</CardTitle>
                      </CardHeader>
                     <CardContent>
                         <div className="space-y-6">
                             {/* --- Formulario Nueva Ausencia --- */}
-                            {!isReadOnly && ( // Only show form if editing is enabled
-                                <form onSubmit={(e) => { e.preventDefault(); handleAbsenceSave(); }} className="space-y-4 border p-4 rounded-md">
+                            <form onSubmit={(e) => { e.preventDefault(); handleAbsenceSave(); }} className="space-y-4 border p-4 rounded-md">
                                     <h3 className="font-medium text-md mb-4">Registrar Nueva Ausencia</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {/* Salida */}
@@ -751,7 +843,7 @@ export default function ElegirComidasPage() {
                                         <Button type="submit">Guardar Ausencia</Button>
                                     </div>
                                 </form>
-                            )} {/* End Form Section */}
+                            {/* End Form Section */}
 
                             {/* --- Listado de Ausencias Futuras --- */}
                             <div>
@@ -766,7 +858,7 @@ export default function ElegirComidasPage() {
                                                 <TableHead>Hasta</TableHead>
                                                 <TableHead>Prim. Comida</TableHead>
                                                 <TableHead>Estado</TableHead>
-                                                {!isReadOnly && <TableHead className="text-right">Acción</TableHead>}
+                                                <TableHead className="text-right">Acción</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -807,7 +899,7 @@ export default function ElegirComidasPage() {
                 </Card>
 
                  {/* 3. Excepciones */}
-                 <Card className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
+                 <Card>
                      <CardHeader>
                         <CardTitle>Excepciones</CardTitle>
                      </CardHeader>
@@ -997,7 +1089,7 @@ export default function ElegirComidasPage() {
                 </Card>
 
                 {/* 4. Comentarios */}
-                <Card className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
+                <Card>
                 <CardHeader>
                     <CardTitle>Comentarios para Dirección</CardTitle>
                 </CardHeader>
