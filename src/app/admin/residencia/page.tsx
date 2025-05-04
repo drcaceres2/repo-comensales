@@ -215,50 +215,64 @@ export default function ResidenciaAdminPage() {
 
   // *** UPDATED: fetchModalData to include Alternativas ***
   const fetchModalData = useCallback(async (residenciaId: ResidenciaId) => {
-      if (!residenciaId) return;
-      setIsLoadingModalData(true);
-      setErrorModalData(null);
-      // Clear all modal data
-      setModalHorarios([]); setModalTiempos([]); setModalComedores([]); setModalAlternativas([]);
+    if (!residenciaId) {
+        console.log("fetchModalData: No residenciaId provided."); // Log if ID is missing
+        return;
+    }
+    console.log(`fetchModalData: Starting for residenceId: ${residenciaId}`); // Log start
+    setIsLoadingModalData(true);
+    setErrorModalData(null);
+    // Clear all modal data
+    setModalHorarios([]); setModalTiempos([]); setModalComedores([]); setModalAlternativas([]);
 
-      let fetchedTiempos: TiempoComida[] = []; // Need tiempos for sorting alternatives
+    let fetchedTiempos: TiempoComida[] = [];
 
-      try {
-          // Fetch Horarios
-          const horariosQuery = query(collection(db, 'horariosSolicitudComida'), where("residenciaId", "==", residenciaId));
-          const horariosSnapshot = await getDocs(horariosQuery);
-          let fetchedHorarios: HorarioSolicitudComida[] = horariosSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<HorarioSolicitudComida, 'id'>) }));
-          setModalHorarios(sortHorarios(fetchedHorarios));
+    try {
+        console.log("fetchModalData: Fetching Horarios..."); // Log before fetch
+        // Fetch Horarios
+        const horariosQuery = query(collection(db, 'horariosSolicitudComida'), where("residenciaId", "==", residenciaId));
+        const horariosSnapshot = await getDocs(horariosQuery);
+        let fetchedHorarios: HorarioSolicitudComida[] = horariosSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<HorarioSolicitudComida, 'id'>) }));
+        console.log(`fetchModalData: Fetched ${fetchedHorarios.length} Horarios.`); // Log count
+        setModalHorarios(sortHorarios(fetchedHorarios));
 
-          // Fetch TiemposComida
-          const tiemposQuery = query(collection(db, 'tiemposComida'), where("residenciaId", "==", residenciaId));
-          const tiemposSnapshot = await getDocs(tiemposQuery);
-          fetchedTiempos = tiemposSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<TiempoComida, 'id'>) })); // Assign to outer scope variable
-          setModalTiempos(sortTiempos(fetchedTiempos));
+        console.log("fetchModalData: Fetching TiemposComida..."); // Log before fetch
+        // Fetch TiemposComida
+        const tiemposQuery = query(collection(db, 'tiemposComida'), where("residenciaId", "==", residenciaId));
+        const tiemposSnapshot = await getDocs(tiemposQuery);
+        fetchedTiempos = tiemposSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<TiempoComida, 'id'>) }));
+        console.log(`fetchModalData: Fetched ${fetchedTiempos.length} TiemposComida.`); // Log count
+        setModalTiempos(sortTiempos(fetchedTiempos));
 
-          // Fetch Comedores
-          const comedoresQuery = query(collection(db, 'comedores'), where("residenciaId", "==", residenciaId));
-          const comedoresSnapshot = await getDocs(comedoresQuery);
-          let fetchedComedores: Comedor[] = comedoresSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<Comedor, 'id'>) }));
-          setModalComedores(sortComedores(fetchedComedores));
+        console.log("fetchModalData: Fetching Comedores..."); // Log before fetch
+        // Fetch Comedores
+        const comedoresQuery = query(collection(db, 'comedores'), where("residenciaId", "==", residenciaId));
+        const comedoresSnapshot = await getDocs(comedoresQuery);
+        let fetchedComedores: Comedor[] = comedoresSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<Comedor, 'id'>) }));
+        console.log(`fetchModalData: Fetched ${fetchedComedores.length} Comedores.`); // Log count
+        setModalComedores(sortComedores(fetchedComedores));
 
-          // *** NEW: Fetch Alternativas ***
-          const alternativasQuery = query(collection(db, 'alternativasTiempoComida'), where("residenciaId", "==", residenciaId));
-          const alternativasSnapshot = await getDocs(alternativasQuery);
-          let fetchedAlternativas: AlternativaTiempoComida[] = alternativasSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<AlternativaTiempoComida, 'id'>) }));
-          // Sort using the fetched tiempos data
-          setModalAlternativas(sortAlternativas(fetchedAlternativas, fetchedTiempos));
-          console.log("Fetched Alternativas:", fetchedAlternativas);
+        console.log("fetchModalData: Fetching Alternativas..."); // Log before fetch
+        // Fetch Alternativas
+        const alternativasQuery = query(collection(db, 'alternativasTiempoComida'), where("residenciaId", "==", residenciaId));
+        const alternativasSnapshot = await getDocs(alternativasQuery);
+        let fetchedAlternativas: AlternativaTiempoComida[] = alternativasSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<AlternativaTiempoComida, 'id'>) }));
+        console.log(`fetchModalData: Fetched ${fetchedAlternativas.length} Alternativas.`); // Log count
+        setModalAlternativas(sortAlternativas(fetchedAlternativas, fetchedTiempos));
 
+        console.log("fetchModalData: Successfully fetched all data."); // Log success end of try
 
-      } catch (error) {
-          const errorMessage = `Failed to load settings data. ${error instanceof Error ? error.message : 'Unknown error'}`;
-          console.error("Error fetching modal data: ", error);
-          setErrorModalData(errorMessage);
-      } finally {
-          setIsLoadingModalData(false);
-      }
-  }, [toast]);
+    } catch (error) {
+        const errorMessage = `Failed to load settings data. ${error instanceof Error ? error.message : 'Unknown error'}`;
+        console.error("Error fetching modal data: ", error); // Log the actual error
+        setErrorModalData(errorMessage); // Set error state
+        console.log("fetchModalData: Error occurred, setErrorModalData called."); // Log error handling
+    } finally {
+        setIsLoadingModalData(false); // Ensure loading is set to false
+        console.log("fetchModalData: Finished, setIsLoadingModalData(false) called."); // Log finally block
+    }
+}, [toast]); // Keep dependency array minimal unless other state is needed
+
 
 
   const handleManageSettings = (residencia: Residencia) => {/*...*/};
