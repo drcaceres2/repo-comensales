@@ -766,18 +766,110 @@ export default function ResidenciaAdminPage() {
                    </TabsList>
 
                    {/* --- Horarios Tab Content --- */}
-                   <TabsContent value="comedores">
+                   <TabsContent value="horarios">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Dining Halls</CardTitle>
-                                <CardDescription>Manage the dining halls available at the residence.</CardDescription>
+                                <CardTitle>Meal Request Schedules</CardTitle>
+                                <CardDescription>Define when users can submit or change their meal requests.</CardDescription>
                             </CardHeader>
-                            <CardContent>
-                               <p className='text-muted-foreground'>TODO: Fetch and display Comedor data here.</p>
-                               {/* Add form for creating/editing Comedor */}
+                            <CardContent className="space-y-4">
+                                {/* Accordion for Creating New Schedule */}
+                                <Accordion type="single" collapsible className="w-full">
+                                    <AccordionItem value="new-horario">
+                                        <AccordionTrigger asChild>
+                                            <Button variant="outline" size="sm">
+                                                <PlusCircle className="mr-2 h-4 w-4" /> Add New Schedule
+                                            </Button>
+                                        </AccordionTrigger>
+                                        <AccordionContent>
+                                            <form onSubmit={handleCreateHorario} className="border p-4 rounded-md mt-2 space-y-4 bg-muted/30">
+                                                 <h3 className="font-medium">New Schedule Details</h3>
+                                                 <div className="space-y-1.5">
+                                                      <Label htmlFor="new-horario-nombre">Schedule Name</Label>
+                                                      <Input id="new-horario-nombre" placeholder="e.g., Cambio Almuerzo, Solicitud Finde" value={newHorarioNombre} onChange={(e) => setNewHorarioNombre(e.target.value)} disabled={isProcessingNewHorario} />
+                                                 </div>
+                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                      <div className="space-y-1.5">
+                                                           <Label htmlFor="new-horario-dia">Day of Week</Label>
+                                                           <Select value={newHorarioDia} onValueChange={(value) => setNewHorarioDia(value as DayOfWeekKey)} disabled={isProcessingNewHorario}>
+                                                                <SelectTrigger id="new-horario-dia"><SelectValue placeholder="Select day..." /></SelectTrigger>
+                                                                <SelectContent>{daysOfWeek.map(day => (<SelectItem key={day.value} value={day.value}>{day.label} ({DayOfWeekMap[day.value]})</SelectItem>))}</SelectContent>
+                                                           </Select>
+                                                      </div>
+                                                      <div className="space-y-1.5">
+                                                          <Label htmlFor="new-horario-hora">Deadline Time (HH:MM)</Label>
+                                                          <Input id="new-horario-hora" type="time" value={newHorarioHora} onChange={(e) => setNewHorarioHora(e.target.value)} disabled={isProcessingNewHorario} step="900" />
+                                                      </div>
+                                                 </div>
+                                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                                     <div className="flex items-center space-x-2">
+                                                         <Switch id="new-horario-primary" checked={newHorarioIsPrimary} onCheckedChange={setNewHorarioIsPrimary} disabled={isProcessingNewHorario} />
+                                                         <Label htmlFor="new-horario-primary">Primary Schedule?</Label>
+                                                     </div>
+                                                      <div className="flex items-center space-x-2">
+                                                         <Switch id="new-horario-active" checked={newHorarioIsActive} onCheckedChange={setNewHorarioIsActive} disabled={isProcessingNewHorario} />
+                                                         <Label htmlFor="new-horario-active">Active?</Label>
+                                                     </div>
+                                                 </div>
+                                                 <Button type="submit" size="sm" disabled={isProcessingNewHorario}>
+                                                      {isProcessingNewHorario ? 'Saving...' : 'Save New Schedule'}
+                                                 </Button>
+                                            </form>
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                </Accordion>
+
+                                {/* Existing Schedules List */}
+                                <div className='pt-4'>
+                                    <h4 className="font-medium mb-2 text-sm text-muted-foreground">Existing Schedules</h4>
+                                    {isLoadingModalData ? (
+                                        <Skeleton className="h-20 w-full" />
+                                    ) : errorModalData ? (
+                                        <p className="text-destructive">{errorModalData}</p>
+                                    ) : modalHorarios.length === 0 ? (
+                                        <p>No request schedules found for this residence. Add one above.</p>
+                                    ) : (
+                                        <ul className="space-y-3">
+                                            {modalHorarios.map((horario) => (
+                                                <li key={horario.id} className="border p-3 rounded-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                                    <div className="flex-grow space-y-1">
+                                                        <p className="font-medium">{horario.nombre}</p>
+                                                        <p className="text-sm text-muted-foreground">
+                                                            Applies to: <span className="font-semibold">{DayOfWeekMap[horario.dia]}</span> |
+                                                            Deadline: <span className="font-semibold">{horario.horaSolicitud}</span>
+                                                        </p>
+                                                        <div className='flex gap-2 items-center'>
+                                                            <Badge variant={horario.isPrimary ? "default" : "secondary"}>
+                                                                {horario.isPrimary ? 'Primary' : 'Secondary'}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0">
+                                                        <div className="flex items-center space-x-2">
+                                                            <Switch
+                                                                id={`active-switch-${horario.id}`}
+                                                                checked={horario.isActive}
+                                                                onCheckedChange={() => handleToggleHorarioActive(horario)}
+                                                                aria-label={horario.isActive ? "Deactivate Schedule" : "Activate Schedule"}
+                                                             />
+                                                            <Label htmlFor={`active-switch-${horario.id}`} className="text-xs">{horario.isActive ? 'Active' : 'Inactive'}</Label>
+                                                        </div>
+                                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleEditHorario(horario)}>
+                                                            <Pencil className="h-4 w-4" /> <span className="sr-only">Edit</span>
+                                                        </Button>
+                                                        <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteHorario(horario.id, horario.nombre)}>
+                                                            <Trash2 className="h-4 w-4" /> <span className="sr-only">Delete</span>
+                                                        </Button>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
                             </CardContent>
-                       </Card>
+                        </Card>
                    </TabsContent>
+
 
                    {/* --- Tiempos Tab Content --- */}
                    <TabsContent value="tiempos">
@@ -790,7 +882,7 @@ export default function ResidenciaAdminPage() {
                                 {/* Accordion for Creating New Tiempo */}
                                 <Accordion type="single" collapsible className="w-full">
                                     <AccordionItem value="new-tiempo">
-                                        <AccordionTrigger>
+                                        <AccordionTrigger asChild>
                                             <Button variant="outline" size="sm">
                                                 <PlusCircle className="mr-2 h-4 w-4" /> Add New Meal Time
                                             </Button>
@@ -884,7 +976,7 @@ export default function ResidenciaAdminPage() {
                                 {/* Accordion for Creating New Comedor */}
                                 <Accordion type="single" collapsible className="w-full">
                                     <AccordionItem value="new-comedor">
-                                        <AccordionTrigger>
+                                        <AccordionTrigger asChild>
                                             <Button variant="outline" size="sm">
                                                 <PlusCircle className="mr-2 h-4 w-4" /> Add New Dining Hall
                                             </Button>
@@ -966,7 +1058,7 @@ export default function ResidenciaAdminPage() {
                                 {/* Accordion for Creating New Alternativa */}
                                 <Accordion type="single" collapsible className="w-full">
                                     <AccordionItem value="new-alternativa">
-                                        <AccordionTrigger>
+                                        <AccordionTrigger asChild>
                                             <Button variant="outline" size="sm" disabled={modalTiempos.length === 0 || modalHorarios.length === 0}>
                                                 <PlusCircle className="mr-2 h-4 w-4" /> Add New Meal Alternative
                                             </Button>
