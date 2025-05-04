@@ -29,17 +29,6 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-// Metadata can still be exported from client components in the app router
-export const metadata: Metadata = {
-  title: 'Comensales Residencia',
-  description: 'Meal Schedule App for University Residences',
-  icons: {
-    icon: [
-      { url: 'https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/imagenes%2Ficono_comensales_residencia.ico?alt=media&token=a56c08fa-6bb4-48bd-855e-1f14d86ea167', type: 'image/x-icon', sizes: 'any' },
-    ],
-  },
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
