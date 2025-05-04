@@ -206,12 +206,111 @@ export default function ResidenciaAdminPage() {
     fetchResidences();
   }, []);
 
-  const fetchResidences = useCallback(async () => {/*...*/}, [toast]);
-  const handleTimeChange = (day: DayOfWeekKey, value: string) => {/*...*/};
-  const handleAddComedor = () => {/*...*/};
-  const handleRemoveComedor = (nameToRemove: string) => {/*...*/};
-  const handleCreateResidence = async () => {/*...*/};
+  const fetchResidences = useCallback(async () => {
+    setIsLoadingResidences(true);
+    setErrorResidences(null);
+    try {
+        const residencesCol = collection(db, 'residencias');
+        const residenceSnapshot = await getDocs(residencesCol);
+        const fetchedResidences: Residencia[] = residenceSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...(doc.data() as Omit<Residencia, 'id'>)
+        }));
+        fetchedResidences.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        setResidences(fetchedResidences);
+    } catch (error) {
+        const errorMessage = `Failed to fetch residences. ${error instanceof Error ? error.message : 'Unknown error'}`;
+        console.error("Error fetching residences: ", error);
+        setErrorResidences(errorMessage);
+        toast({ title: "Error", description: "Could not fetch residences from Firestore.", variant: "destructive" });
+    } finally {
+        setIsLoadingResidences(false);
+    }
+  }, [toast]);
 
+
+  const handleTimeChange = (day: DayOfWeekKey, value: string) => {
+    setNewSubmissionTimes(prev => ({ ...prev, [day]: value }));
+  };
+  const handleAddComedor = () => {
+    const trimmedName = currentComedorName.trim();
+    if (!trimmedName) return;
+    if (newComedores.some(name => name.toLowerCase() === trimmedName.toLowerCase())) {
+        toast({ title: "Warning", description: `Dining hall \"${trimmedName}\" already added.`, variant: "destructive"});
+        return;
+    }
+    setNewComedores(prev => [...prev, trimmedName]);
+    setCurrentComedorName('');
+    toast({ title: "Success", description: `Added dining hall: \"${trimmedName}\"`});
+  };
+  const handleRemoveComedor = (nameToRemove: string) => {
+    setNewComedores(prev => prev.filter(name => name !== nameToRemove));
+    toast({ title: "Removed", description: `Removed dining hall: \"${nameToRemove}\"`});
+  };
+
+
+  const handleCreateResidence = async () => {
+     if (!newResidenceName.trim()) { toast({ title: "Error", description: "Residence name cannot be empty.", variant: "destructive" }); return; }
+    const validTimes = Object.entries(newSubmissionTimes).filter(([_, time]) => time && /^\d{2}:\d{2}$/.test(time));
+    if (validTimes.length === 0) { toast({ title: "Error", description: "Please set at least one valid primary meal request submission time (HH:MM).", variant: "destructive" }); return; }
+    if (newComedores.length === 0) { toast({ title: "Error", description: "Please add at least one dining hall.", variant: "destructive" }); return; }
+
+    setIsProcessingCreate(true);
+    let newResidenciaId: ResidenciaId | null = null;
+
+    try {
+        const residenciaData: Omit<Residencia, 'id'> = { nombre: newResidenceName.trim() };
+        const residenciaRef = await addDoc(collection(db, 'residencias'), residenciaData);
+        newResidenciaId = residenciaRef.id;
+
+        const batch = writeBatch(db);
+
+        // Still create the default Dieta
+        const defaultDietaRef = doc(db, 'dietas', `N_${newResidenciaId}`);
+        const defaultDietaData: Omit<Dieta, 'id'> = { residenciaId: newResidenciaId, nombre: "Dieta Normal", descripcion: "Dieta normal (por defecto).", isDefault: true, isActive: true };
+        batch.set(defaultDietaRef, defaultDietaData);
+
+        newComedores.forEach((nombreComedor) => {
+            const comedorRef = doc(collection(db, 'comedores'));
+            const comedorData: Omit<Comedor, 'id'> = { nombre: nombreComedor, residenciaId: newResidenciaId! };
+            batch.set(comedorRef, comedorData);
+        });
+
+        for (const day in newSubmissionTimes) {
+            const timeString = newSubmissionTimes[day as DayOfWeekKey];
+            if (timeString && /^\d{2}:\d{2}$/.test(timeString)) {
+                const horarioRef = doc(collection(db, 'horariosSolicitudComida'));
+                const horarioData: Omit<HorarioSolicitudComida, 'id'> = {
+                    residenciaId: newResidenciaId!,
+                    nombre: `Solicitud Principal ${DayOfWeekMap[day as DayOfWeekKey]}`,
+                    dia: day as DayOfWeekKey,
+                    horaSolicitud: timeString,
+                    isPrimary: true,
+                    isActive: true,
+                };
+                batch.set(horarioRef, horarioData);
+            }
+        }
+
+        await batch.commit();
+        toast({ title: "Success", description: `Residence "${newResidenceName}" and initial settings created successfully.` });
+
+        const newResidenceForState: Residencia = { id: newResidenciaId!, nombre: newResidenceName.trim() };
+        setResidences(prev => [...prev, newResidenceForState].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+        
+        setNewResidenceName('');
+        setNewSubmissionTimes({});
+        setNewComedores([]);
+        setCurrentComedorName('');
+
+    } catch (error) {
+        const errorMessage = `Failed to create residence. ${error instanceof Error ? error.message : 'Unknown error'}`;
+        console.error("Error creating residence: ", error);
+        toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    } finally {
+        setIsProcessingCreate(false);
+    }
+  };
 
   // *** UPDATED: fetchModalData to include Alternativas ***
   const fetchModalData = useCallback(async (residenciaId: ResidenciaId) => {
