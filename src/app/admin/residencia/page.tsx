@@ -297,7 +297,7 @@ export default function ResidenciaAdminPage() {
 
         const newResidenceForState: Residencia = { id: newResidenciaId!, nombre: newResidenceName.trim() };
         setResidences(prev => [...prev, newResidenceForState].sort((a, b) => a.nombre.localeCompare(b.nombre)));
-        
+
         setNewResidenceName('');
         setNewSubmissionTimes({});
         setNewComedores([]);
@@ -714,7 +714,27 @@ export default function ResidenciaAdminPage() {
                      <Card>
                          <CardHeader> <CardTitle>Existing Residences</CardTitle> <CardDescription>View existing residences and manage their settings.</CardDescription> </CardHeader>
                          <CardContent>
-                             {isLoadingResidences ? (<div className="space-y-2"> <Skeleton className="h-16 w-full" /> <Skeleton className="h-16 w-full" /> </div>) : errorResidences ? (<p className="text-destructive">{errorResidences}</p>) : !residences || residences.length === 0 ? (<p>No residences found. Create one using the 'Create New Residence' tab.</p>) : (<ul className="space-y-3"> {residences.map((res) => (<li key={res.id} className="border p-4 rounded-md shadow-sm flex justify-between items-center"> <div> <p className="font-semibold text-lg">{res.nombre}</p> <p className="text-sm text-muted-foreground">ID: {res.id}</p> </div> <DialogTrigger asChild> <Button variant="secondary" size="sm" onClick={() => handleManageSettings(res)}> Manage Settings </Button> </DialogTrigger> </li>))} </ul>)}
+                             {isLoadingResidences ? (
+                                  <div className="space-y-2"> 
+                                    <Skeleton className="h-16 w-full" /> 
+                                    <Skeleton className="h-16 w-full" /> 
+                                  </div>
+                                ) : errorResidences ? (
+                                  <p className="text-destructive">{errorResidences}</p>
+                                ) : !residences || residences.length === 0 ? (
+                                  <p>No residences found. Create one using the 'Create New Residence' tab.</p>
+                                ) : (
+                                  <ul className="space-y-3"> {residences.map((res) => (
+                                    <li key={res.id} className="border p-4 rounded-md shadow-sm flex justify-between items-center"> 
+                                      <div> 
+                                        <p className="font-semibold text-lg">{res.nombre}</p> 
+                                        <p className="text-sm text-muted-foreground">ID: {res.id}</p> 
+                                      </div> 
+                                      <DialogTrigger> 
+                                        <Button variant="secondary" size="sm" onClick={() => handleManageSettings(res)}> Manage Settings </Button> 
+                                      </DialogTrigger> 
+                                    </li>))} 
+                                  </ul>)}
                          </CardContent>
                      </Card>
                  </TabsContent>
