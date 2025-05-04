@@ -250,13 +250,13 @@ export default function UserManagementPage() {
                   email: data.email || '',
                   roles: data.roles || [],
                   isActive: data.isActive === undefined ? true : data.isActive, // Default to true if missing
-                  residenciaId: data.residenciaId || undefined,
-                  dietaId: data.dietaId || undefined,
-                  numeroDeRopa: data.numeroDeRopa || undefined,
-                  habitacion: data.habitacion || undefined,
-                  universidad: data.universidad || undefined,
-                  carrera: data.carrera || undefined,
-                  dni: data.dni || undefined,
+                  residenciaId: data.residenciaId || null,
+                  dietaId: data.dietaId || null,
+                  numeroDeRopa: data.numeroDeRopa || null,
+                  habitacion: data.habitacion || null,
+                  universidad: data.universidad || null,
+                  carrera: data.carrera || null,
+                  dni: data.dni || null,
                   // Add other fields from UserProfile if they exist in Firestore
                   // fechaDeCumpleanos: data.fechaDeCumpleanos // Example if you store this
               });
@@ -355,23 +355,24 @@ export default function UserManagementPage() {
             newUserAuthUid = userCredential.user.uid;
             console.log(`Auth user created successfully with UID: ${newUserAuthUid}`);
     
-            // 2. Prepare Firestore User Profile Data (excluding passwords!)
+                    // 2. Prepare Firestore User Profile Data (excluding passwords!)
             const userProfileData: Omit<UserProfile, 'id'> = { // Exclude ID as it's the doc ID
                 nombre: formData.nombre!.trim(),
                 apellido: formData.apellido!.trim(),
                 email: formData.email!.trim(),
                 roles: formData.roles!,
-                isActive: true, // New users are active by default
-                residenciaId: (roles.includes('residente') || roles.includes('director')) ? formData.residenciaId || undefined : undefined,
-                dietaId: roles.includes('residente') ? formData.dietaId || undefined : undefined,
-                numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
-                habitacion: formData.habitacion?.trim() || undefined,
-                universidad: formData.universidad?.trim() || undefined,
-                carrera: formData.carrera?.trim() || undefined,
-                dni: formData.dni?.trim() || undefined,
-                // Add any other relevant fields from UserProfile, ensure they match the interface
-                 // passwordChangeRequired: true, // Add this if/when implementing force password change
+                isActive: true, // New users active by default
+                // Conditionally add fields only if they have a value
+                ...( (roles.includes('residente') || roles.includes('director')) && formData.residenciaId ? { residenciaId: formData.residenciaId } : {} ),
+                ...( roles.includes('residente') && formData.dietaId ? { dietaId: formData.dietaId } : {} ),
+                ...( formData.numeroDeRopa?.trim() ? { numeroDeRopa: formData.numeroDeRopa.trim() } : {} ),
+                ...( formData.habitacion?.trim() ? { habitacion: formData.habitacion.trim() } : {} ),
+                ...( formData.universidad?.trim() ? { universidad: formData.universidad.trim() } : {} ),
+                ...( formData.carrera?.trim() ? { carrera: formData.carrera.trim() } : {} ),
+                ...( formData.dni?.trim() ? { dni: formData.dni.trim() } : {} ),
+                // passwordChangeRequired: true, // Add this if/when implementing force password change
             };
+
     
             // 3. Create Firestore User Document using the Auth UID
             console.log(`Attempting to create Firestore document users/${newUserAuthUid}...`);
@@ -558,21 +559,47 @@ export default function UserManagementPage() {
         // --- End Validation ---
 
         try {
-            // Prepare data object for Firestore update (only include changed fields if desired, but updating all is simpler here)
-            const updatedData: Partial<UserProfile> = { // Use Partial as we don't update ID
-                nombre: formData.nombre!.trim(),
-                apellido: formData.apellido!.trim(),
-                isActive: formData.isActive ?? true, // Use the value from the form state
-                email: formData.email!.trim(), // Update email in profile doc (Auth email remains unchanged)
-                roles: formData.roles!,
-                residenciaId: (roles.includes('residente') || roles.includes('director')) ? formData.residenciaId || undefined : undefined,
-                dietaId: roles.includes('residente') ? formData.dietaId || undefined : undefined,
-                numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
-                habitacion: formData.habitacion?.trim() || undefined,
-                universidad: formData.universidad?.trim() || undefined,
-                carrera: formData.carrera?.trim() || undefined,
-                dni: formData.dni?.trim() || undefined,
-            };
+            // Prepare data object for Firestore update
+            // Include only fields that have values or are being explicitly set (like isActive)
+            const updatedData: { [key: string]: any } = {}; // Start with a less strict type temporarily
+
+            if (formData.nombre?.trim()) updatedData.nombre = formData.nombre.trim(); else updatedData.nombre = ''; // Explicitly set empty if needed
+            if (formData.apellido?.trim()) updatedData.apellido = formData.apellido.trim(); else updatedData.apellido = ''; // Explicitly set empty if needed
+            if (formData.email?.trim()) updatedData.email = formData.email.trim(); // Update email in profile doc
+            updatedData.roles = formData.roles!; // Always update roles
+            updatedData.isActive = formData.isActive ?? true; // Always update isActive status
+
+            // Conditionally add/update fields based on roles and form data
+            if (roles.includes('residente') || roles.includes('director')) {
+                // Add residenciaId only if it has a value, otherwise omit it (updateDoc won't change it)
+                if(formData.residenciaId) {
+                   updatedData.residenciaId = formData.residenciaId;
+                }
+                // Note: To *explicitly remove* residenciaId if roles change, you'd need FieldValue.delete() which is more complex.
+                // Omitting the field in updateDoc leaves it unchanged if it exists.
+            }
+            // Consider if you need to explicitly REMOVE residenciaId if roles change (using FieldValue.delete())
+
+            if (roles.includes('residente')) {
+                // Add dietaId only if it has a value
+                 if(formData.dietaId) {
+                   updatedData.dietaId = formData.dietaId;
+                }
+            }
+             // Consider if you need to explicitly REMOVE dietaId if role changes
+
+
+            // Add other optional fields only if they have a trimmed value
+            if (formData.numeroDeRopa?.trim()) updatedData.numeroDeRopa = formData.numeroDeRopa.trim();
+            if (formData.habitacion?.trim()) updatedData.habitacion = formData.habitacion.trim();
+            if (formData.universidad?.trim()) updatedData.universidad = formData.universidad.trim();
+            if (formData.carrera?.trim()) updatedData.carrera = formData.carrera.trim();
+            if (formData.dni?.trim()) updatedData.dni = formData.dni.trim();
+
+            // NOTE: This logic does NOT explicitly clear fields in Firestore if they are emptied in the form.
+            // To clear fields like 'habitacion', you would need to send { habitacion: null } or { habitacion: FieldValue.delete() }
+            // For now, we only update fields that have new values in the form.
+
         
             // Get Firestore document reference
             const userDocRef = doc(db, "users", editingUserId);
@@ -722,7 +749,37 @@ export default function UserManagementPage() {
                         <Label htmlFor="email">Email *</Label>
                         <Input id="email" type="email" value={formData.email || ''} onChange={(e) => handleFormChange('email', e.target.value)} placeholder="ej. juan.perez@email.com" disabled={isSaving} />
                     </div>
-  
+
+                    {/* Password Fields (Only for Create Mode) */}
+                    {!editingUserId && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <Label htmlFor="password">Contraseña Inicial *</Label>
+                                <Input
+                                    id="password"
+                                    type="password"
+                                    value={formData.password || ''}
+                                    onChange={(e) => handleFormChange('password', e.target.value)}
+                                    placeholder="********"
+                                    disabled={isSaving}
+                                    autoComplete="new-password" // Helps browser suggest strong passwords
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="confirmPassword">Confirmar Contraseña *</Label>
+                                <Input
+                                    id="confirmPassword"
+                                    type="password"
+                                    value={formData.confirmPassword || ''}
+                                    onChange={(e) => handleFormChange('confirmPassword', e.target.value)}
+                                    placeholder="********"
+                                    disabled={isSaving}
+                                    autoComplete="new-password"
+                                />
+                            </div>
+                        </div>
+                    )}
+
                     {/* Roles Checkboxes */}
                     <div className="space-y-2">
                         <Label>Roles *</Label>
@@ -907,8 +964,7 @@ export default function UserManagementPage() {
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
-  
-    </div> // Close main container div
-    ); // Close main return
-  } // Close component function
+    </div>
+    );
+  }
   

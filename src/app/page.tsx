@@ -40,7 +40,7 @@ const redirectToDashboard = (profile: UserProfile, router: ReturnType<typeof use
     if (roles.includes('admin' as UserRole) || roles.includes('master' as UserRole)) { // Treat master and admin similarly for initial redirect
       router.push('/admin/users');
     } else if (roles.includes('director' as UserRole) && residenciaId) {
-      router.push(`/admin/residencia/${residenciaId}/horarios`);
+      router.push(`/${residenciaId}/solicitar-comensales`); // Redirect director here
     } else if (roles.includes('residente' as UserRole) && residenciaId) {
       router.push(`/${residenciaId}/elegir-comidas`);
     } else {
