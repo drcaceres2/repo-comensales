@@ -34,8 +34,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Firebase Imports
-import { onAuthStateChanged, User } from 'firebase/auth'; // Import User type
-import { doc, getDoc, Timestamp, addDoc, collection } from 'firebase/firestore'; // Keep Timestamp etc. if needed later
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, User, createUserWithEmailAndPassword } from "firebase/auth"; // Add createUserWithEmailAndPassword
+import { doc, getDoc, getDocs, Timestamp, addDoc, collection, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'; // Add deleteDoc
 import { auth, db } from '@/lib/firebase'; // Your initialized instances
 
 // Model Imports (Ensure these match your firestore.ts)
@@ -56,6 +56,10 @@ export default function UserManagementPage() {
         dni?: string;
         // isActive should be included if it's managed in the form directly
         isActive?: boolean;
+        // --- ADD/VERIFY THESE LINES ---
+        password?: string;
+        confirmPassword?: string;
+        // --- END ADD/VERIFY ---
     };
 
     
@@ -120,7 +124,6 @@ export default function UserManagementPage() {
         return () => unsubscribe();
       }, [router]); // Depend on router
   
-    // --- Original State Variables and Mock Data ---
     const [formData, setFormData] = useState<UserFormData>({
         nombre: '',
         apellido: '',
@@ -133,7 +136,9 @@ export default function UserManagementPage() {
         habitacion: '',
         universidad: '',
         carrera: '',
-        dni: ''
+        dni: '',
+        password: '',
+        confirmPassword: ''
     });
     const [isSaving, setIsSaving] = useState(false);
     const [users, setUsers] = useState<UserProfile[]>([]);
@@ -145,43 +150,143 @@ export default function UserManagementPage() {
     // Define available roles for the checkboxes
     const availableRoles: UserRole[] = ['residente', 'director', 'admin', 'master']; // Add/remove roles as needed
 
-    // Mock residences data (Keep for now, replace with fetched data later)
-    const [residences, setResidences] = useState<Record<ResidenciaId, { nombre: string }>>({
-        'res-guaymura': { nombre: 'Residencia Guaymura' },
-        'res-del-valle': { nombre: 'Residencia Del Valle' },
-        'res-los-andes': { nombre: 'Residencia Los Andes' },
-    });
+    // Initially empty
+    const [residences, setResidences] = useState<Record<ResidenciaId, { nombre: string }>>({});
 
-    // Mock diets data (Keep for now, replace with fetched data later)
-    const [dietas, setDietas] = useState<Record<DietaId, { nombre: string }>>({
-        'dieta-std-g': { nombre: 'Standard' },
-        'dieta-celi-g': { nombre: 'Sin Gluten (Celíaco)' },
-        'dieta-veggie-g': { nombre: 'Vegetariana' },
-    });
+    // Initially empty
+    const [dietas, setDietas] = useState<Record<DietaId, { nombre: string }>>({});
 
-    // --- MOCK USER DATA (Using roles array) ---
-    const mockUsers: UserProfile[] = [
-        // Using 'id', roles[], and no 'createdAt'
-        { id: 'usr-1', nombre: 'Ana', apellido: 'García', email: 'ana.garcia@email.com', roles: ['residente'], residenciaId: 'res-guaymura', dietaId: 'dieta-std-g', isActive: true },
-        { id: 'usr-2', nombre: 'Carlos', apellido: 'López', email: 'carlos.lopez@email.com', roles: ['director', 'residente'], residenciaId: 'res-guaymura', dietaId: 'dieta-std-g', isActive: true }, // Example Director + Residente
-        { id: 'usr-3', nombre: 'Admin', apellido: 'General', email: 'admin@sistema.com', roles: ['admin'], isActive: true },
-        { id: 'usr-4', nombre: 'Beatriz', apellido: 'Fernández', email: 'beatriz.fernandez@email.com', roles: ['residente'], residenciaId: 'res-del-valle', dietaId: 'dieta-celi-g', isActive: false },
-        { id: 'usr-5', nombre: 'David', apellido: 'Martínez', email: 'david.martinez@email.com', roles: ['director'], residenciaId: 'res-del-valle', isActive: true }, // Example Director only
-        { id: 'usr-6', nombre: 'Master', apellido: 'User', email: 'master@sistema.com', roles: ['master', 'admin'], isActive: true }, // Example Master + Admin
-        ];
-    // --- END MOCK USER DATA ---
-
-    // Mock effect to load users (replace with actual Firestore fetch later)
+    // --- Fetch Residences from Firestore ---
     useEffect(() => {
-        setIsLoadingUsers(true);
-        // Simulate fetching users
-        const timer = setTimeout(() => {
-            setUsers(mockUsers); // Load mock users into state
-            setIsLoadingUsers(false);
-        }, 800); // Simulate network delay
-        return () => clearTimeout(timer); // Cleanup timer
-    }, []); // Run once on mount
-
+        const fetchResidences = async () => {
+            console.log("Fetching residences from Firestore...");
+            try {
+            const residencesCol = collection(db, "residencias");
+            const querySnapshot = await getDocs(residencesCol);
+            const residencesData: Record<ResidenciaId, { nombre: string }> = {};
+            querySnapshot.forEach((doc) => {
+                // Assuming each residence doc has a 'nombre' field
+                const data = doc.data();
+                if (data.nombre) {
+                    // Use the document ID as the key
+                    residencesData[doc.id] = { nombre: data.nombre };
+                } else {
+                    console.warn(`Residence document ${doc.id} is missing the 'nombre' field.`);
+                }
+            });
+            console.log("Fetched residences:", residencesData);
+            setResidences(residencesData);
+            } catch (error) {
+            console.error("Error fetching residences:", error);
+            toast({
+                title: "Error al Cargar Residencias",
+                description: "No se pudieron obtener los datos de las residencias.",
+                variant: "destructive",
+            });
+            }
+        };
+    
+        // Fetch only if authorized (to avoid unnecessary calls if access denied)
+        if (isAuthorized) {
+            fetchResidences();
+        }
+    // Run only when authorization status changes to true
+    }, [isAuthorized, toast]); // Add toast as dependency
+    
+    // --- Fetch Dietas from Firestore ---
+    useEffect(() => {
+        const fetchDietas = async () => {
+          console.log("Fetching dietas from Firestore...");
+          try {
+            const dietasCol = collection(db, "dietas");
+            const querySnapshot = await getDocs(dietasCol);
+            const dietasData: Record<DietaId, { nombre: string }> = {};
+            querySnapshot.forEach((doc) => {
+              // Assuming each dieta doc has a 'nombre' field
+              const data = doc.data();
+              if (data.nombre) {
+                  // Use the document ID as the key
+                  dietasData[doc.id] = { nombre: data.nombre };
+              } else {
+                  console.warn(`Dieta document ${doc.id} is missing the 'nombre' field.`);
+              }
+            });
+            console.log("Fetched dietas:", dietasData);
+            setDietas(dietasData);
+          } catch (error) {
+            console.error("Error fetching dietas:", error);
+            toast({
+              title: "Error al Cargar Dietas",
+              description: "No se pudieron obtener los datos de las dietas.",
+              variant: "destructive",
+            });
+          }
+        };
+  
+        // Fetch only if authorized
+        if (isAuthorized) {
+          fetchDietas();
+        }
+        // Run only when authorization status changes to true
+    }, [isAuthorized, toast]); // Add toast as dependency
+  
+    // --- Fetch Users from Firestore ---
+    useEffect(() => {
+        const fetchUsers = async () => {
+          console.log("Fetching users from Firestore...");
+          setIsLoadingUsers(true); // Set loading state for the user list
+          try {
+            const usersCol = collection(db, "users");
+            const querySnapshot = await getDocs(usersCol);
+            const usersData: UserProfile[] = [];
+            querySnapshot.forEach((doc) => {
+              // Important: Map Firestore data to UserProfile, include the doc ID
+              // Ensure all fields match your UserProfile interface
+              const data = doc.data();
+              usersData.push({
+                  id: doc.id, // Use the document ID as the user ID
+                  nombre: data.nombre || '',
+                  apellido: data.apellido || '',
+                  email: data.email || '',
+                  roles: data.roles || [],
+                  isActive: data.isActive === undefined ? true : data.isActive, // Default to true if missing
+                  residenciaId: data.residenciaId || undefined,
+                  dietaId: data.dietaId || undefined,
+                  numeroDeRopa: data.numeroDeRopa || undefined,
+                  habitacion: data.habitacion || undefined,
+                  universidad: data.universidad || undefined,
+                  carrera: data.carrera || undefined,
+                  dni: data.dni || undefined,
+                  // Add other fields from UserProfile if they exist in Firestore
+                  // fechaDeCumpleanos: data.fechaDeCumpleanos // Example if you store this
+              });
+            });
+            console.log("Fetched users:", usersData);
+            setUsers(usersData); // Update state with real users
+          } catch (error) {
+            console.error("Error fetching users:", error);
+            toast({
+              title: "Error al Cargar Usuarios",
+              description: "No se pudieron obtener los datos de los usuarios.",
+              variant: "destructive",
+            });
+            setUsers([]); // Clear users on error
+          } finally {
+            setIsLoadingUsers(false); // Loading finished
+          }
+        };
+  
+        // Fetch only if authorized
+        if (isAuthorized) {
+          fetchUsers();
+        } else {
+           // If not authorized, ensure user list isn't stuck loading
+           setIsLoadingUsers(false);
+           setUsers([]); // Clear any potentially stale user data
+        }
+        // Run when authorization status changes
+      }, [isAuthorized, toast]); // Add toast dependency
+  
     // --- Handler Functions ---
 
     const handleFormChange = (field: keyof Omit<UserFormData, 'roles'>, value: string | boolean) => {
@@ -218,59 +323,121 @@ export default function UserManagementPage() {
         event.preventDefault();
         setIsSaving(true);
 
-        // Validation adjusted for roles array
+        // --- Validation ---
         let validationError: string | null = null;
         const roles = formData.roles || [];
-        if (!formData.nombre?.trim()) validationError = "Nombre es requerido.";
+        // Add password checks
+        if (!formData.password || !formData.confirmPassword) validationError = "Contraseña inicial y confirmación son requeridas.";
+        else if (formData.password.length < 6) validationError = "La contraseña debe tener al menos 6 caracteres."; // Basic Firebase requirement
+        else if (formData.password !== formData.confirmPassword) validationError = "Las contraseñas no coinciden.";
+        // Keep existing checks
+        else if (!formData.nombre?.trim()) validationError = "Nombre es requerido.";
         else if (!formData.apellido?.trim()) validationError = "Apellido es requerido.";
-        else if (!formData.email?.trim()) validationError = "Email es requerido."; // TODO: Add email format validation
+        else if (!formData.email?.trim()) validationError = "Email es requerido.";
         else if (roles.length === 0) validationError = "Al menos un Rol es requerido.";
         else if ((roles.includes('residente') || roles.includes('director')) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para Directores y/o Residentes.";
         else if (roles.includes('residente') && !formData.dietaId) validationError = "Dieta Predeterminada es requerida para Residentes.";
         else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) validationError = "Número de Ropa es requerido para Residentes.";
-
+    
         if (validationError) {
             toast({ title: "Error de Validación", description: validationError, variant: "destructive" });
             setIsSaving(false);
             return;
         }
-
-        console.log("Simulating user creation with data:", formData);
-        // TODO: Replace simulation with actual Firebase logic (Auth creation + Firestore doc write)
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Create the new user object with roles array
-        const newUser: UserProfile = {
-            id: `usr-${Date.now()}`, // Generate mock ID
-            nombre: formData.nombre!.trim(),
-            apellido: formData.apellido!.trim(),
-            email: formData.email!.trim(),
-            roles: formData.roles!, // Assign roles array
-            isActive: true, // New users are active by default
-            residenciaId: (roles.includes('residente') || roles.includes('director')) ? formData.residenciaId || undefined : undefined,
-            dietaId: roles.includes('residente') ? formData.dietaId || undefined : undefined,
-            numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
-            habitacion: formData.habitacion?.trim() || undefined,
-            universidad: formData.universidad?.trim() || undefined,
-            carrera: formData.carrera?.trim() || undefined,
-            dni: formData.dni?.trim() || undefined,
-        };
-
-        toast({
-            title: "Usuario Creado (Simulado)",
-            description: `Se ha creado el usuario ${newUser.nombre} ${newUser.apellido}.`,
-        });
-
-        setUsers(prevUsers => [newUser, ...prevUsers]); // Add to local state
-
-        // Reset form
-        setFormData({
-            nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '', // Reset isActive
-            numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: ''
-        });
-        setIsSaving(false);
+        // --- End Validation ---
+    
+        let newUserAuthUid: string | null = null; // To store the UID from Auth creation
+    
+        try {
+            // 1. Create Firebase Auth User
+            console.log(`Attempting to create Auth user for ${formData.email}...`);
+            const userCredential = await createUserWithEmailAndPassword(auth, formData.email!, formData.password!);
+            newUserAuthUid = userCredential.user.uid;
+            console.log(`Auth user created successfully with UID: ${newUserAuthUid}`);
+    
+            // 2. Prepare Firestore User Profile Data (excluding passwords!)
+            const userProfileData: Omit<UserProfile, 'id'> = { // Exclude ID as it's the doc ID
+                nombre: formData.nombre!.trim(),
+                apellido: formData.apellido!.trim(),
+                email: formData.email!.trim(),
+                roles: formData.roles!,
+                isActive: true, // New users are active by default
+                residenciaId: (roles.includes('residente') || roles.includes('director')) ? formData.residenciaId || undefined : undefined,
+                dietaId: roles.includes('residente') ? formData.dietaId || undefined : undefined,
+                numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
+                habitacion: formData.habitacion?.trim() || undefined,
+                universidad: formData.universidad?.trim() || undefined,
+                carrera: formData.carrera?.trim() || undefined,
+                dni: formData.dni?.trim() || undefined,
+                // Add any other relevant fields from UserProfile, ensure they match the interface
+                 // passwordChangeRequired: true, // Add this if/when implementing force password change
+            };
+    
+            // 3. Create Firestore User Document using the Auth UID
+            console.log(`Attempting to create Firestore document users/${newUserAuthUid}...`);
+            const userDocRef = doc(db, "users", newUserAuthUid);
+            await setDoc(userDocRef, userProfileData);
+            console.log(`Firestore document created successfully for user ${newUserAuthUid}`);
+    
+            // 4. Update Local UI State
+            const newUserForUI: UserProfile = {
+                ...userProfileData,
+                id: newUserAuthUid, // Use the real UID
+            };
+            setUsers(prevUsers => [newUserForUI, ...prevUsers]); // Add to local state
+    
+            toast({
+                title: "Usuario Creado",
+                description: `Se ha creado el usuario ${newUserForUI.nombre} ${newUserForUI.apellido}.`,
+            });
+    
+            // 5. Reset Form
+            setFormData({
+                nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
+                numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
+                password: '', confirmPassword: '' // Clear password fields
+            });
+    
+        } catch (error: any) {
+            console.error("Error creating user:", error);
+            let errorTitle = "Error al Crear Usuario";
+            let errorMessage = "Ocurrió un error inesperado.";
+    
+            if (error.code) {
+                switch (error.code) {
+                    case 'auth/email-already-in-use':
+                        errorTitle = "Error de Autenticación";
+                        errorMessage = "Este correo electrónico ya está registrado.";
+                        break;
+                    case 'auth/invalid-email':
+                        errorTitle = "Error de Autenticación";
+                        errorMessage = "El formato del correo electrónico no es válido.";
+                        break;
+                    case 'auth/weak-password':
+                        errorTitle = "Error de Autenticación";
+                        errorMessage = "La contraseña es demasiado débil (debe tener al menos 6 caracteres).";
+                        break;
+                    case 'permission-denied': // Firestore error
+                        errorTitle = "Error de Permisos";
+                        errorMessage = "No tienes permiso para crear este documento de usuario en Firestore.";
+                         // If Auth user was created but Firestore failed, we might need to delete the Auth user
+                         if (newUserAuthUid) {
+                             console.warn(`Firestore failed after Auth user ${newUserAuthUid} created. Consider manual cleanup or rollback function.`);
+                             // Ideally, delete the auth user here if possible from client, or flag for admin cleanup
+                         }
+                        break;
+                    default:
+                        errorMessage = `Error: ${error.message} (Code: ${error.code})`;
+                }
+            }
+    
+            toast({ title: errorTitle, description: errorMessage, variant: "destructive" });
+    
+        } finally {
+            setIsSaving(false);
+        }
       };
-
+    
       const handleEditUser = (userId: string) => {
         const userToEdit = users.find(u => u.id === userId);
         if (!userToEdit) {
@@ -284,7 +451,7 @@ export default function UserManagementPage() {
             nombre: userToEdit.nombre || '',
             apellido: userToEdit.apellido || '',
             email: userToEdit.email || '',
-            isActive: userToEdit.isActive, // Load current isActive status
+            isActive: userToEdit.isActive === undefined ? true : userToEdit.isActive, // Handle undefined isActive
             roles: userToEdit.roles || [],
             residenciaId: userToEdit.residenciaId || '',
             dietaId: userToEdit.dietaId || '',
@@ -293,46 +460,79 @@ export default function UserManagementPage() {
             universidad: userToEdit.universidad || '',
             carrera: userToEdit.carrera || '',
             dni: userToEdit.dni || '',
+            // DO NOT populate password fields when editing
+            password: '',
+            confirmPassword: ''
         });
         // Optionally scroll form into view
         // window.scrollTo({ top: 0, behavior: 'smooth' });
       };
-
-      const handleDeleteUser = (userId: string) => {
-          const user = users.find(u => u.id === userId);
-          if (!user) { toast({ title: "Error", description: "Usuario no encontrado.", variant: "destructive" }); return; }
-          console.log("Requesting delete confirmation for user:", userId, user.nombre);
-          setUserToDeleteId(userId); // Set the ID
-          setIsConfirmingDelete(true); // Open the dialog
+    
+      // Cancel Edit Mode
+      const handleCancelEdit = () => {
+          setEditingUserId(null);
+          // Reset form to initial state
+          setFormData({
+            nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
+            numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
+            password: '', confirmPassword: '' // Ensure passwords are cleared
+        });
+          console.log("Cancelled edit.");
       };
 
-      // Added: confirmDeleteUser - Performs delete after confirmation
-      const confirmDeleteUser = async () => {
-        if (!userToDeleteId) return;
-        const userToDelete = users.find(u => u.id === userToDeleteId); // Find user info before filtering
-        console.log("Confirmed delete for user ID:", userToDeleteId);
-        // TODO: Implement actual Firebase Auth user deletion & Firestore doc deletion
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 500));
-        // Update state
-        setUsers(prevUsers => prevUsers.filter(user => user.id !== userToDeleteId));
-        toast({ title: "Usuario Eliminado (Simulado)", description: `El usuario ${userToDelete?.nombre || userToDeleteId} ha sido eliminado.` });
-        // Close dialog and reset
-        setIsConfirmingDelete(false);
-        setUserToDeleteId(null);
+      const handleDeleteUser = (userId: string) => {
+        const user = users.find(u => u.id === userId);
+        if (!user) { toast({ title: "Error", description: "Usuario no encontrado.", variant: "destructive" }); return; }
+        console.log("Requesting delete confirmation for user:", userId, user.nombre);
+        setUserToDeleteId(userId); // Set the ID of the user targeted for deletion
+        setIsConfirmingDelete(true); // Open the confirmation dialog
     };
 
-    // Cancel Edit Mode
-    const handleCancelEdit = () => {
-      setEditingUserId(null);
-      // Reset form to initial state
-      setFormData({
-        nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '', // Reset isActive to true
-        numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: ''
-    });
-      console.log("Cancelled edit.");
+    // Performs delete after confirmation in the dialog
+    const confirmDeleteUser = async () => {
+      if (!userToDeleteId) return; // Should not happen if dialog is open, but safe check
+      const userToDelete = users.find(u => u.id === userToDeleteId); // Get user info for toast message before deleting
+      console.log("Confirmed delete for user ID:", userToDeleteId);
+
+      // Set saving state maybe? Or handle loading specifically for delete
+      // setIsSaving(true); // Optional: Show loading indicator
+
+      try {
+          // Get Firestore document reference
+          const userDocRef = doc(db, "users", userToDeleteId);
+
+          // Delete Firestore document
+          console.log(`Attempting to delete Firestore document users/${userToDeleteId}...`);
+          await deleteDoc(userDocRef);
+          console.log(`Firestore document deleted successfully for user ${userToDeleteId}`);
+
+          // TODO: Implement Auth user deletion (Requires backend function or careful handling)
+          // For now, we only delete the Firestore profile. The Auth user remains.
+
+           // Update local state ONLY after successful Firestore deletion
+           setUsers(prevUsers => prevUsers.filter(user => user.id !== userToDeleteId));
+           toast({ title: "Usuario Eliminado", description: `El perfil de Firestore para ${userToDelete?.nombre || userToDeleteId} ha sido eliminado.` }); // Adjusted message
+
+      } catch (error: any) {
+          console.error("Error deleting user profile from Firestore:", error);
+          toast({
+              title: "Error al Eliminar",
+              description: `No se pudo eliminar el perfil de Firestore. ${error.message}`,
+              variant: "destructive",
+          });
+          // Don't proceed with UI updates if Firestore deletion fails
+          // We still close the dialog and reset the ID in finally block
+      } finally {
+           // Close dialog and reset state regardless of success/failure
+           setIsConfirmingDelete(false);
+           setUserToDeleteId(null);
+           // setIsSaving(false); // Optional: Reset saving state
+      }
     };
 
+    // const handleUpdateUser = async (event: React.FormEvent<HTMLFormElement>) => { ... keep this ...
+
+    
     const handleUpdateUser = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!editingUserId) return; // Should not happen if form submit logic is correct
@@ -357,9 +557,41 @@ export default function UserManagementPage() {
         }
         // --- End Validation ---
 
-        console.log("Simulating user update for ID:", editingUserId, "with data:", formData);
-        // TODO: Replace simulation with actual Firestore document update
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+        try {
+            // Prepare data object for Firestore update (only include changed fields if desired, but updating all is simpler here)
+            const updatedData: Partial<UserProfile> = { // Use Partial as we don't update ID
+                nombre: formData.nombre!.trim(),
+                apellido: formData.apellido!.trim(),
+                isActive: formData.isActive ?? true, // Use the value from the form state
+                email: formData.email!.trim(), // Update email in profile doc (Auth email remains unchanged)
+                roles: formData.roles!,
+                residenciaId: (roles.includes('residente') || roles.includes('director')) ? formData.residenciaId || undefined : undefined,
+                dietaId: roles.includes('residente') ? formData.dietaId || undefined : undefined,
+                numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
+                habitacion: formData.habitacion?.trim() || undefined,
+                universidad: formData.universidad?.trim() || undefined,
+                carrera: formData.carrera?.trim() || undefined,
+                dni: formData.dni?.trim() || undefined,
+            };
+        
+            // Get Firestore document reference
+            const userDocRef = doc(db, "users", editingUserId);
+        
+            // Update Firestore document
+            console.log(`Attempting to update Firestore document users/${editingUserId}...`);
+            await updateDoc(userDocRef, updatedData);
+            console.log(`Firestore document updated successfully for user ${editingUserId}`);
+        
+        } catch (error: any) {
+            console.error("Error updating user profile in Firestore:", error);
+            toast({
+                title: "Error al Actualizar",
+                description: `No se pudo guardar el perfil en Firestore. ${error.message}`,
+                variant: "destructive",
+            });
+            setIsSaving(false); // Stop saving state on error
+            return; // Exit the function on Firestore error
+        }
 
         // Find the original user to preserve ID and potentially other immutable fields
         const originalUser = users.find(u => u.id === editingUserId);
