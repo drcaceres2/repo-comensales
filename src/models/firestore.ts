@@ -1,5 +1,3 @@
-// src/models/firestore.ts
-
 import { Timestamp } from "firebase/firestore";
 
 // --- Basic Types ---
@@ -54,61 +52,100 @@ export type LogActionType =
     'comentario_created' | // Added
     'modo_eleccion_updated'; // Added
 
+export type UserRole = 'master' | 'admin' | 'director' | 'residente';
+
+export const DayOfWeekMap: Record<DayOfWeekKey, string> = {
+    lunes: 'Lunes',
+    martes: 'Martes',
+    miercoles: 'Miércoles',
+    jueves: 'Jueves',
+    viernes: 'Viernes',
+    sabado: 'Sábado',
+    domingo: 'Domingo'
+  };
+
+export type TipoAlternativa = 'comedor' | 'paraLlevar';
+
 // --- Interfaces ---
 
 export interface Residencia {
-    id?: ResidenciaId; // Automatically assigned by Firestore
+    id: ResidenciaId;
     nombre: string;
-    comedores?: Comedor[];
-    tiemposComida?: TiempoComida[];
+    direccion?: string;
+    logoUrl?: string;
     horariosSolicitudComida?: HorarioSolicitudComida[];
+    tiemposComida?: TiempoComida[];
+    alternativas?: AlternativaTiempoComida[];
+    comedores?: Comedor[];
     dietas?: Dieta[];
-}
+  }
 
 export interface Comedor {
-    id: ComedorId; // Use uuid or similar for unique ID within the array
+    id: ComedorId;
     nombre: string;
+    residenciaId: ResidenciaId;
+    descripcion?: string;
 }
 
 export interface TiempoComida {
-    id: TiempoComidaId; // Use uuid or similar
-    nombre: string; // e.g., "Desayuno", "Almuerzo Principal", "Cena Temprano"
-    grupo: string; // e.g., "Desayuno", "Almuerzo", "Cena" - For grouping in UI
-    alternativas?: AlternativaTiempoComida[];
+    id: TiempoComidaId;
+    nombre: string;
+    residenciaId: ResidenciaId;
+    nombreGrupo: string;
+    ordenGrupo: number;
+    diasDisponibles: DayOfWeekKey[];
 }
 
 export interface AlternativaTiempoComida {
-    id: AlternativaTiempoComidaId; // Use uuid or similar
-    nombre: string; // e.g., "Menú Basal", "Opción Vegetariana", "Dieta Blanda"
-    descripcion?: string;
-    alergenos?: string[];
-    tipoAcceso: TipoAccesoAlternativa; // abierto, autorizado, cerrado
-    requiereAprobacion: boolean; // Derived from tipoAcceso === 'autorizado' ? true : false
-    dietaId?: DietaId | null; // Link to a specific Dieta if applicable
-}
+    id: AlternativaTiempoComidaId;
+    nombre: string;
+    tipo: TipoAlternativa;
+    tipoAcceso: TipoAccesoAlternativa;
+    requiereAprobacion: boolean;
+    ventanaInicio: string;
+    iniciaDiaAnterior?: boolean;
+    ventanaFin: string;
+    terminaDiaSiguiente?: boolean;
+    horarioSolicitudComidaId: HorarioSolicitudComidaId;
+    tiempoComidaId: TiempoComidaId;
+    residenciaId: ResidenciaId;
+    comedorId?: ComedorId;
+    isActive: boolean;
+  }
 
 export interface HorarioSolicitudComida {
-    id: HorarioSolicitudComidaId; // Use uuid or similar
-    diaSemana: DayOfWeekKey;
-    tiempoComidaId: TiempoComidaId;
-    horaLimite: string; // e.g., "09:00" (24-hour format)
-}
+    id: HorarioSolicitudComidaId;
+    residenciaId: ResidenciaId;
+    nombre: string;
+    horaLimite: string;
+    diasAntelacion: number;
+  }
 
 export interface Dieta {
-    id: DietaId; // Use uuid or similar
+    id: DietaId;
+    residenciaId: ResidenciaId;
     nombre: string;
     descripcion?: string;
+    isDefault?: boolean;
+    isActive: boolean;
 }
 
-export interface Usuario {
-    id?: UserId; // Firestore Auth UID
+export interface UserProfile {
+    id: UserId;
     nombre: string;
+    apellido: string;
     email: string;
-    residenciaId: ResidenciaId;
-    roles: ('residente' | 'director' | 'admin')[];
-    dietasAsignadas?: DietaId[]; // IDs of assigned diets
-    modoEleccion: ModoEleccionUsuario;
-    // Add other user-specific settings if needed
+    roles: UserRole[];
+    isActive: boolean;
+    residenciaId?: ResidenciaId;
+    dietaId?: DietaId;
+    modoEleccion?: ModoEleccionUsuario;
+    numeroDeRopa?: string;
+    habitacion?: string;
+    universidad?: string;
+    carrera?: string;
+    dni?: string;
+    fechaDeCumpleanos?: Timestamp;
 }
 
 // *** NEW: Interface for a single choice within the Semanario ***
@@ -135,15 +172,27 @@ export interface Semanario {
 // *** NEW: Eleccion interface (Specific meal choice for a date) ***
 // This represents an 'exception' or a specific choice overriding the semanario.
 export interface Eleccion {
-    id?: ExcepcionId; // Firestore Document ID
-    userId: UserId;
+    id: string;
+    usuarioId: UserId;
     residenciaId: ResidenciaId;
-    fecha: Timestamp; // Specific date of the meal
-    tiempoComidaId: TiempoComidaId; // Specific meal time ID
-    alternativaId: AlternativaTiempoComidaId; // The chosen Alternativa for this specific instance
-    estadoAprobacion: EstadoAprobacion; // pendiente, aprobado, rechazado, no_requerido
-    alternativaContingenciaId?: AlternativaTiempoComidaId | null; // Store contingency if approval was required
-    fechaSolicitud: Timestamp; // When the Eleccion was created/last updated
+    fecha: Timestamp;
+    tiempoComidaId: TiempoComidaId;
+    alternativaTiempoComidaId: AlternativaTiempoComidaId;
+    dietaId?: DietaId;
+    solicitado: boolean;
+    asistencia?: boolean;
+    fechaSolicitud: Timestamp;
+    estadoAprobacion?: EstadoAprobacion;
+  }
+
+export interface MealCount {
+    id: string;
+    residenciaId: ResidenciaId;
+    tiempoComidaId: TiempoComidaId;
+    alternativaTiempoComidaId: AlternativaTiempoComidaId;
+    dietaId?: DietaId;
+    fecha: Timestamp;
+    totalSolicitado: number;
 }
 
 // *** NEW: Ausencia interface ***
@@ -161,21 +210,22 @@ export interface Ausencia {
 
 // *** NEW: Comentario interface ***
 export interface Comentario {
-    id?: ComentarioId; // Firestore Document ID
-    userId: UserId; // Author
+    id: ComentarioId;
+    usuarioId: UserId;
     residenciaId: ResidenciaId;
     texto: string;
-    fechaAplicacion?: Timestamp | null; // Specific date it applies to, or null for 'next opportunity'
-    fechaCreacion: Timestamp;
-    leido?: boolean; // Optional: Track if read by director
+    fechaEnvio: Timestamp;
+    leido: boolean;
+    archivado: boolean;
 }
 
 // *** NEW: LogEntry interface ***
 export interface LogEntry {
-    id?: LogEntryId; // Firestore Document ID
+    id: LogEntryId;
     timestamp: Timestamp;
-    userId: UserId; // User performing the action
-    residenciaId?: ResidenciaId; // Context where available
-    action: LogActionType;
-    details: any; // Flexible object for action-specific details
+    userId: UserId;
+    residenciaId: ResidenciaId;
+    actionType: LogActionType;
+    relatedDocPath?: string;
+    details?: string;
 }

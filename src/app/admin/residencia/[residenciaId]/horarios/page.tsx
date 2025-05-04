@@ -241,11 +241,13 @@ const mockComedores: Comedor[] = [
 ];
 
 const mockAlternativas: AlternativaTiempoComida[] = [
-    { id: 'alt-1', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-1', nombre: 'Almuerzo Comedor', tipo: 'comedor', tipoAcceso: 'abierto', ventanaInicio: '13:00', ventanaFin: '14:30', horarioSolicitudComidaId: 'hsc-1', comedorId: 'com-1', isActive: true },
-    { id: 'alt-2', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-1', nombre: 'Almuerzo Llevar', tipo: 'paraLlevar', tipoAcceso: 'abierto', ventanaInicio: '12:30', ventanaFin: '13:30', horarioSolicitudComidaId: 'hsc-1', isActive: true },
-    { id: 'alt-3', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-2', nombre: 'Cena Comedor', tipo: 'comedor', tipoAcceso: 'abierto', ventanaInicio: '20:00', ventanaFin: '21:00', horarioSolicitudComidaId: 'hsc-2', comedorId: 'com-1', isActive: true },
-    { id: 'alt-4', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-2', nombre: 'Cena Llevar Tarde', tipo: 'paraLlevar', tipoAcceso: 'cerrado', ventanaInicio: '21:00', ventanaFin: '21:30', horarioSolicitudComidaId: 'hsc-2', isActive: true },
-    { id: 'alt-5', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-3', nombre: 'Desayuno Buffet', tipo: 'comedor', tipoAcceso: 'abierto', ventanaInicio: '07:30', ventanaFin: '09:00', horarioSolicitudComidaId: 'hsc-1', comedorId: 'com-1', isActive: true },
+    { id: 'alt-1', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-1', nombre: 'Almuerzo Comedor', tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false, ventanaInicio: '13:00', ventanaFin: '14:30', horarioSolicitudComidaId: 'hsc-1', comedorId: 'com-1', isActive: true },
+    { id: 'alt-2', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-1', nombre: 'Almuerzo Llevar', tipo: 'paraLlevar', tipoAcceso: 'abierto', requiereAprobacion: false, ventanaInicio: '12:30', ventanaFin: '13:30', horarioSolicitudComidaId: 'hsc-1', isActive: true },
+    { id: 'alt-3', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-2', nombre: 'Cena Comedor', tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false, ventanaInicio: '20:00', ventanaFin: '21:00', horarioSolicitudComidaId: 'hsc-2', comedorId: 'com-1', isActive: true },
+    { id: 'alt-4', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-2', nombre: 'Cena Llevar Tarde', tipo: 'paraLlevar', tipoAcceso: 'cerrado', requiereAprobacion: false, ventanaInicio: '21:00', ventanaFin: '21:30', horarioSolicitudComidaId: 'hsc-2', isActive: true },
+    // Example with 'autorizado' access, requiring approval:
+    { id: 'alt-5', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-3', nombre: 'Desayuno Buffet', tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false, ventanaInicio: '07:30', ventanaFin: '09:00', horarioSolicitudComidaId: 'hsc-1', comedorId: 'com-1', isActive: true },
+    { id: 'alt-6', residenciaId: 'res-guaymura', tiempoComidaId: 'tc-1', nombre: 'Almuerzo Especial Autorizado', tipo: 'comedor', tipoAcceso: 'autorizado', requiereAprobacion: true, ventanaInicio: '13:00', ventanaFin: '14:00', horarioSolicitudComidaId: 'hsc-2', comedorId: 'com-1', isActive: true } // Added example
 ];
 
 const mockResidenciaDetail: Residencia = {
@@ -678,6 +680,7 @@ export default function HorariosResidenciaPage() {
         setAlternativeFormData({
             tipo: 'comedor', // Default type
             tipoAcceso: 'abierto', // Default access
+            requiereAprobacion: false,
             ventanaInicio: '13:00', // Default start time
             ventanaFin: '14:00', // Default end time
             horarioSolicitudComidaId: horariosSolicitud.length > 0 ? horariosSolicitud[0].id : '', // Default to first schedule if available
@@ -700,6 +703,21 @@ export default function HorariosResidenciaPage() {
         console.log("Form change:", field, value);
         setAlternativeFormData(prev => {
             const updatedData = { ...prev, [field]: value };
+
+            // ** NEW LOGIC START **
+            // Automatically set requiereAprobacion based on tipoAcceso
+            if (field === 'tipoAcceso') {
+                if (value === 'autorizado') {
+                    updatedData.requiereAprobacion = true;
+                    console.log("tipoAcceso set to 'autorizado', setting requiereAprobacion to true");
+                } else {
+                    // For 'abierto' or 'cerrado' access, approval is not required
+                    updatedData.requiereAprobacion = false;
+                    console.log("tipoAcceso set to 'abierto' or 'cerrado', setting requiereAprobacion to false");
+                }
+            }
+            // ** NEW LOGIC END **
+
             // If type changes to 'paraLlevar', clear comedorId
             if (field === 'tipo' && value === 'paraLlevar') {
                 updatedData.comedorId = undefined; // Or null, depending on your model/preference
@@ -795,6 +813,7 @@ export default function HorariosResidenciaPage() {
             nombre: alternativeFormData.nombre.trim(),
             tipo: alternativeFormData.tipo,
             tipoAcceso: alternativeFormData.tipoAcceso,
+            requiereAprobacion: alternativeFormData.requiereAprobacion ?? false,
             ventanaInicio: alternativeFormData.ventanaInicio,
             ventanaFin: alternativeFormData.ventanaFin,
             horarioSolicitudComidaId: alternativeFormData.horarioSolicitudComidaId,
@@ -905,19 +924,20 @@ export default function HorariosResidenciaPage() {
             residenciaId: residenciaId, // Assuming this doesn't change on edit
             tiempoComidaId: alternativeFormData.tiempoComidaId!, // Needs to be present in formData
             // Update editable fields
-            nombre: alternativeFormData.nombre.trim(),
+            nombre: alternativeFormData.nombre!.trim(), // Added '!' assuming validation caught empty name
             tipo: alternativeFormData.tipo!,
             tipoAcceso: alternativeFormData.tipoAcceso!,
+            // *** ADDED LINE WITH DEFAULT VALUE ***
+            requiereAprobacion: alternativeFormData.requiereAprobacion ?? false,
             ventanaInicio: alternativeFormData.ventanaInicio!,
             ventanaFin: alternativeFormData.ventanaFin!,
             horarioSolicitudComidaId: alternativeFormData.horarioSolicitudComidaId!,
             comedorId: alternativeFormData.tipo === 'comedor' ? alternativeFormData.comedorId : undefined,
-            isActive: alternativeFormData.isActive!, // Ensure isActive status is preserved/editable if needed
+            isActive: alternativeFormData.isActive!, // Ensure isActive status is preserved
             iniciaDiaAnterior: alternativeFormData.iniciaDiaAnterior ?? false,
             terminaDiaSiguiente: alternativeFormData.terminaDiaSiguiente ?? false,
         };
-
-
+        
         console.log("Simulating save Alternativa:", updatedAlternativa);
         await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
 

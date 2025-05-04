@@ -14,7 +14,7 @@ env:
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     value: AIzaSyAEBAErxfhk0RqwT1jOrE1I8D6si1WGt9I
     availability:
-      - BUILD
+      - BUILD  
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
     value: comensales-residencia.firebaseapp.com

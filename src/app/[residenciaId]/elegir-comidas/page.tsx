@@ -80,31 +80,49 @@ const MOCK_OTHER_RESIDENTS: MockResident[] = [
      { id: 'user-resident-000', nombre: 'Carlos Sánchez', modoEleccion: 'suspendido'},
 ];
 
-// --- Additional Mock Data for Semanario ---
+// --- Refactored Mock Data for Tiempos, Alternativas, Horarios, Comedores ---
+import { Comedor, HorarioSolicitudComida, TipoAccesoAlternativa } from '@/models/firestore'; // Import necessary types
 
-const MOCK_TIEMPOS_COMIDA: TiempoComida[] = [
-    { id: 'tc-des', nombre: 'Desayuno', grupo: 'Desayuno', alternativas: [
-        { id: 'alt-des-cafe', nombre: 'Café y Tostadas', tipoAcceso: 'abierto', requiereAprobacion: false },
-        { id: 'alt-des-zumo', nombre: 'Zumo y Bollería', tipoAcceso: 'abierto', requiereAprobacion: false },
-    ]},
-    { id: 'tc-alm', nombre: 'Almuerzo Principal', grupo: 'Almuerzo', alternativas: [
-        { id: 'alt-alm-basal', nombre: 'Menú Basal', tipoAcceso: 'abierto', requiereAprobacion: false },
-        { id: 'alt-alm-veg', nombre: 'Opción Vegetariana', tipoAcceso: 'abierto', requiereAprobacion: false },
-        { id: 'alt-alm-dieta', nombre: 'Dieta Especial (Solicitar)', tipoAcceso: 'autorizado', requiereAprobacion: true },
-    ]},
-     { id: 'tc-alm-postre', nombre: 'Postre Almuerzo', grupo: 'Almuerzo', alternativas: [ // Example of multiple Tiempos in one Grupo
-        { id: 'alt-pos-fruta', nombre: 'Fruta', tipoAcceso: 'abierto', requiereAprobacion: false },
-        { id: 'alt-pos-lacteo', nombre: 'Lácteo', tipoAcceso: 'abierto', requiereAprobacion: false },
-    ]},
-    { id: 'tc-cen', nombre: 'Cena', grupo: 'Cena', alternativas: [
-        { id: 'alt-cen-ligero', nombre: 'Menú Ligero', tipoAcceso: 'abierto', requiereAprobacion: false },
-        { id: 'alt-cen-completo', nombre: 'Menú Completo', tipoAcceso: 'abierto', requiereAprobacion: false },
-        { id: 'alt-cen-dieta', nombre: 'Dieta Especial Cena (Solicitar)', tipoAcceso: 'autorizado', requiereAprobacion: true },
-    ]},
+// Minimal mock Horarios Solicitud (needed for Alternativas)
+const MOCK_HORARIOS_SOLICITUD: HorarioSolicitudComida[] = [
+    { id: 'hsc-mock-1', residenciaId: MOCK_RESIDENCIA.id, nombre: 'Mismo Día', horaLimite: '10:00', diasAntelacion: 0 },
+    { id: 'hsc-mock-2', residenciaId: MOCK_RESIDENCIA.id, nombre: 'Día Anterior', horaLimite: '20:00', diasAntelacion: 1 },
 ];
 
-// Example Mock Semanario data for the currently viewed user
-// Using the NEW SemanarioAlternativaSeleccion structure
+// Minimal mock Comedores (needed for Alternativas tipo 'comedor')
+const MOCK_COMEDORES: Comedor[] = [
+    { id: 'com-mock-1', residenciaId: MOCK_RESIDENCIA.id, nombre: 'Comedor Principal' },
+];
+
+// Updated MOCK_TIEMPOS_COMIDA (flat structure, no nested alternativas)
+const MOCK_TIEMPOS_COMIDA: TiempoComida[] = [
+    // Added residenciaId, ordenGrupo, diasDisponibles. Removed nested alternativas.
+    { id: 'tc-des', residenciaId: MOCK_RESIDENCIA.id, nombre: 'Desayuno', nombreGrupo: 'Desayuno', ordenGrupo: 1, diasDisponibles: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'] },
+    { id: 'tc-alm', residenciaId: MOCK_RESIDENCIA.id, nombre: 'Almuerzo Principal', nombreGrupo: 'Almuerzo', ordenGrupo: 2, diasDisponibles: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'] },
+    { id: 'tc-alm-postre', residenciaId: MOCK_RESIDENCIA.id, nombre: 'Postre Almuerzo', nombreGrupo: 'Almuerzo', ordenGrupo: 3, diasDisponibles: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'] }, // Postre only weekdays example
+    { id: 'tc-cen', residenciaId: MOCK_RESIDENCIA.id, nombre: 'Cena', nombreGrupo: 'Cena', ordenGrupo: 4, diasDisponibles: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'] },
+];
+
+// New MOCK_ALTERNATIVAS (flat structure, linked by tiempoComidaId)
+const MOCK_ALTERNATIVAS: AlternativaTiempoComida[] = [
+    // Added residenciaId, tiempoComidaId, tipo, isActive, ventanaInicio/Fin, horarioSolicitudComidaId etc.
+    // --- Desayuno Alternatives ---
+    { id: 'alt-des-cafe', residenciaId: MOCK_RESIDENCIA.id, tiempoComidaId: 'tc-des', nombre: 'Café y Tostadas', tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false, isActive: true, ventanaInicio: '07:30', ventanaFin: '09:00', horarioSolicitudComidaId: 'hsc-mock-1', comedorId: 'com-mock-1' },
+    { id: 'alt-des-zumo', residenciaId: MOCK_RESIDENCIA.id, tiempoComidaId: 'tc-des', nombre: 'Zumo y Bollería', tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false, isActive: true, ventanaInicio: '07:30', ventanaFin: '09:00', horarioSolicitudComidaId: 'hsc-mock-1', comedorId: 'com-mock-1' },
+    // --- Almuerzo Principal Alternatives ---
+    { id: 'alt-alm-basal', residenciaId: MOCK_RESIDENCIA.id, tiempoComidaId: 'tc-alm', nombre: 'Menú Basal', tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false, isActive: true, ventanaInicio: '13:00', ventanaFin: '14:30', horarioSolicitudComidaId: 'hsc-mock-1', comedorId: 'com-mock-1' },
+    { id: 'alt-alm-veg', residenciaId: MOCK_RESIDENCIA.id, tiempoComidaId: 'tc-alm', nombre: 'Opción Vegetariana', tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false, isActive: true, ventanaInicio: '13:00', ventanaFin: '14:30', horarioSolicitudComidaId: 'hsc-mock-1', comedorId: 'com-mock-1' },
+    { id: 'alt-alm-dieta', residenciaId: MOCK_RESIDENCIA.id, tiempoComidaId: 'tc-alm', nombre: 'Dieta Especial (Solicitar)', tipo: 'comedor', tipoAcceso: 'autorizado' as TipoAccesoAlternativa, requiereAprobacion: true, isActive: true, ventanaInicio: '13:00', ventanaFin: '14:30', horarioSolicitudComidaId: 'hsc-mock-2', comedorId: 'com-mock-1' }, // Requires approval, different schedule
+    // --- Postre Almuerzo Alternatives ---
+    { id: 'alt-pos-fruta', residenciaId: MOCK_RESIDENCIA.id, tiempoComidaId: 'tc-alm-postre', nombre: 'Fruta', tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false, isActive: true, ventanaInicio: '13:00', ventanaFin: '14:30', horarioSolicitudComidaId: 'hsc-mock-1', comedorId: 'com-mock-1' },
+    { id: 'alt-pos-lacteo', residenciaId: MOCK_RESIDENCIA.id, tiempoComidaId: 'tc-alm-postre', nombre: 'Lácteo', tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false, isActive: true, ventanaInicio: '13:00', ventanaFin: '14:30', horarioSolicitudComidaId: 'hsc-mock-1', comedorId: 'com-mock-1' },
+    // --- Cena Alternatives ---
+    { id: 'alt-cen-ligero', residenciaId: MOCK_RESIDENCIA.id, tiempoComidaId: 'tc-cen', nombre: 'Menú Ligero', tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false, isActive: true, ventanaInicio: '20:00', ventanaFin: '21:00', horarioSolicitudComidaId: 'hsc-mock-2', comedorId: 'com-mock-1' },
+    { id: 'alt-cen-completo', residenciaId: MOCK_RESIDENCIA.id, tiempoComidaId: 'tc-cen', nombre: 'Menú Completo', tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false, isActive: true, ventanaInicio: '20:00', ventanaFin: '21:00', horarioSolicitudComidaId: 'hsc-mock-2', comedorId: 'com-mock-1' },
+    { id: 'alt-cen-dieta', residenciaId: MOCK_RESIDENCIA.id, tiempoComidaId: 'tc-cen', nombre: 'Dieta Especial Cena (Solicitar)', tipo: 'comedor', tipoAcceso: 'autorizado' as TipoAccesoAlternativa, requiereAprobacion: true, isActive: true, ventanaInicio: '20:00', ventanaFin: '21:00', horarioSolicitudComidaId: 'hsc-mock-2', comedorId: 'com-mock-1' }, // Requires approval
+];
+
+// Example Mock Semanario data for the currently viewed user (Structure remains the same)
 const MOCK_SEMANARIO_USER: Semanario = {
     userId: 'user-resident-123', // Corresponds to Juan Pérez
     residenciaId: MOCK_RESIDENCIA.id,
@@ -131,9 +149,9 @@ const MOCK_SEMANARIO_USER: Semanario = {
 };
 
 const DAYS_OF_WEEK: DayOfWeekKey[] = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
-// --- End Additional Mock Data ---
+// --- End Refactored Mock Data ---
 
-// --- Mock Data for Ausencias ---
+// --- Mock Data for Ausencias (Structure remains the same) ---
 const MOCK_AUSENCIAS: Ausencia[] = [
   {
       id: 'aus-001',
@@ -159,49 +177,53 @@ const MOCK_AUSENCIAS: Ausencia[] = [
   },
 ];
 
-// --- Mock Data for Excepciones (Eleccion records) ---
+// --- Mock Data for Excepciones (Corrected Structure) ---
 const MOCK_ELECCIONES: Eleccion[] = [
-  {
-      id: 'exc-001',
-      userId: 'user-resident-123',
-      residenciaId: MOCK_RESIDENCIA.id,
-      fecha: Timestamp.fromDate(new Date(2024, 7, 15)), // Aug 15th, 2024
-      tiempoComidaId: 'tc-alm', // Almuerzo Principal
-      alternativaId: 'alt-alm-veg', // Vegetarian option chosen
-      estadoAprobacion: 'no_requerido',
-      fechaSolicitud: Timestamp.now(),
-  },
-  {
-      id: 'exc-002',
-      userId: 'user-resident-123',
-      residenciaId: MOCK_RESIDENCIA.id,
-      fecha: Timestamp.fromDate(new Date(2024, 7, 16)), // Aug 16th, 2024
-      tiempoComidaId: 'tc-cen', // Cena
-      alternativaId: 'alt-cen-dieta', // Special diet requested
-      estadoAprobacion: 'pendiente', // Requires approval
-      alternativaContingenciaId: 'alt-cen-ligero', // Fallback choice
-      fechaSolicitud: Timestamp.now(),
-  },
-   // Add an older one to test filtering
-   {
-      id: 'exc-003',
-      userId: 'user-resident-123',
-      residenciaId: MOCK_RESIDENCIA.id,
-      fecha: Timestamp.fromDate(new Date(2024, 6, 1)), // July 1st, 2024 (Past)
-      tiempoComidaId: 'tc-des',
-      alternativaId: 'alt-des-zumo',
-      estadoAprobacion: 'no_requerido',
-      fechaSolicitud: Timestamp.now(),
-  },
-];
-// --- End Mock Data for Excepciones ---
-
-// Helper to get Tiempo Comida name
+    {
+        id: 'exc-001',
+        usuarioId: 'user-resident-123', // Corrected from userId if necessary
+        residenciaId: MOCK_RESIDENCIA.id,
+        fecha: Timestamp.fromDate(new Date(2024, 7, 15)), // Aug 15th, 2024
+        tiempoComidaId: 'tc-alm', // Almuerzo Principal
+        alternativaTiempoComidaId: 'alt-alm-veg', // CORRECTED FIELD NAME
+        estadoAprobacion: 'no_requerido',
+        solicitado: true, // Added missing mandatory field
+        fechaSolicitud: Timestamp.now(),
+    },
+    {
+        id: 'exc-002',
+        usuarioId: 'user-resident-123', // Corrected from userId if necessary
+        residenciaId: MOCK_RESIDENCIA.id,
+        fecha: Timestamp.fromDate(new Date(2024, 7, 16)), // Aug 16th, 2024
+        tiempoComidaId: 'tc-cen', // Cena
+        alternativaTiempoComidaId: 'alt-cen-dieta', // CORRECTED FIELD NAME
+        estadoAprobacion: 'pendiente', // Requires approval
+        // alternativaContingenciaId: 'alt-cen-ligero', // REMOVED - Not part of Eleccion interface
+        solicitado: true, // Added missing mandatory field
+        fechaSolicitud: Timestamp.now(),
+    },
+     // Add an older one to test filtering
+     {
+        id: 'exc-003',
+        usuarioId: 'user-resident-123', // Corrected from userId if necessary
+        residenciaId: MOCK_RESIDENCIA.id,
+        fecha: Timestamp.fromDate(new Date(2024, 6, 1)), // July 1st, 2024 (Past)
+        tiempoComidaId: 'tc-des',
+        alternativaTiempoComidaId: 'alt-des-zumo', // CORRECTED FIELD NAME
+        estadoAprobacion: 'no_requerido',
+        solicitado: true, // Added missing mandatory field
+        fechaSolicitud: Timestamp.now(),
+    },
+  ];
+  // --- End Mock Data for Excepciones ---
+  
+// Helper to get Tiempo Comida name (no change needed here)
 const getTiempoComidaName = (id: TiempoComidaId | null | undefined): string => {
   if (!id) return 'No especificado';
   return MOCK_TIEMPOS_COMIDA.find(tc => tc.id === id)?.nombre || 'Desconocido';
 };
 // --- End Mock Data for Ausencias ---
+
 
 export default function ElegirComidasPage() {
     const params = useParams();
@@ -305,7 +327,8 @@ export default function ElegirComidasPage() {
 
     // Filter Tiempos based on selected date's day of week (simplified for now)
     // In reality, you might need a more robust way if Tiempos vary by day
-    const availableTiemposComida = MOCK_TIEMPOS_COMIDA; // Keep it simple for mock data
+    // This still works as it only needs the TiempoComida definitions
+    const availableTiemposComida = MOCK_TIEMPOS_COMIDA;
 
     // --- Handlers for Excepcion Form ---
     const handleAddExceptionRow = () => {
@@ -326,12 +349,22 @@ export default function ElegirComidasPage() {
 
     // Placeholder for opening the Alternativa selection dialog/sheet for a specific row
     const handleOpenAlternativaSelector = (rowId: string) => {
-      console.log(`Open Alternativa Selector for Exception Row ID: ${rowId}`);
-      // TODO: Implement Dialog/Sheet opening logic
+      const row = exceptionRows.find(r => r.id === rowId);
+      if (!row?.tiempoComidaId) {
+          alert("Por favor, selecciona primero una fecha y una comida.");
+          return;
+      }
+      console.log(`Open Alternativa Selector for Exception Row ID: ${rowId}, TiempoComidaId: ${row.tiempoComidaId}`);
+
+      // Filter alternatives based on the selected tiempoComidaId for this row
+      const relevantAlternativas = MOCK_ALTERNATIVAS.filter(alt => alt.tiempoComidaId === row.tiempoComidaId && alt.isActive);
+      console.log("Relevant Alternatives:", relevantAlternativas);
+
+      // TODO: Implement Dialog/Sheet opening logic using 'relevantAlternativas'
       // This would likely involve setting state to control the dialog
       // and passing the rowId and current selections to it.
       // On dialog save, it would call handleUpdateExceptionRow with selected alternativaId, etc.
-      alert(`Simulando selección de alternativa para fila ${rowId}.`);
+      alert(`Simulando selección de alternativa para fila ${rowId}. Relevantes: ${relevantAlternativas.map(a => a.nombre).join(', ')}`);
     };
 
 
@@ -354,7 +387,7 @@ export default function ElegirComidasPage() {
 
     // Filter existing exceptions to show only future ones for the viewed user
     const futureExceptions = MOCK_ELECCIONES.filter(ex =>
-      ex.userId === viewedUser?.id && ex.fecha.toDate() >= new Date()
+      ex.usuarioId === viewedUser?.id && ex.fecha.toDate() >= new Date()
     );
 
     // --- Handlers for Comentario Form ---
@@ -489,87 +522,114 @@ export default function ElegirComidasPage() {
                 {/* --- Placeholder Sections --- */}
 
                 {/* 1. Semanario */}
-                 <Card className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
-                      <CardHeader>
-                          <CardTitle>Semanario</CardTitle>
-                          {/* TODO: Add 'Solo esta semana' checkbox? */}
-                      </CardHeader>
-                      <CardContent>
-                          <div className="overflow-x-auto relative border rounded-md">
-                            <table className="w-full text-sm text-left">
-                                <thead className="text-xs uppercase bg-muted/50">
-                                    <tr>
-                                        <th scope="col" className="py-3 px-4 sticky left-0 bg-muted/50 z-10">Día</th>
-                                        {/* Dynamically create columns based on unique Grupos */}
-                                        {Array.from(new Set(MOCK_TIEMPOS_COMIDA.map(tc => tc.grupo))).map(grupo => (
-                                            <th key={grupo} scope="col" className="py-3 px-4 whitespace-nowrap">
-                                                {grupo}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {DAYS_OF_WEEK.map((day) => (
-                                        <tr key={day} className="border-b last:border-b-0 hover:bg-muted/30">
-                                            {/* Sticky Day column */}
-                                            <th scope="row" className="py-3 px-4 font-medium whitespace-nowrap sticky left-0 bg-background z-10 capitalize border-r">
-                                                {day}
-                                            </th>
-                                            {/* Data cells for each Grupo */}
-                                            {Array.from(new Set(MOCK_TIEMPOS_COMIDA.map(tc => tc.grupo))).map(grupo => {
-                                                // Find the FIRST TiempoComida matching this Day and Grupo (as per our assumption)
-                                                // In a real scenario, ensure only one TiempoComida exists per day/grupo or handle multiple.
-                                                const tiempoComida = MOCK_TIEMPOS_COMIDA.find(tc => tc.grupo === grupo); // Simplified lookup for mock data
-                                                const tiempoComidaId = tiempoComida?.id;
+                <Card className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
+                    <CardHeader>
+                        <CardTitle>Semanario</CardTitle>
+                        {/* TODO: Add 'Solo esta semana' checkbox? */}
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto relative border rounded-md">
+                        <table className="w-full text-sm text-left">
+                            <thead className="text-xs uppercase bg-muted/50">
+                                <tr>
+                                    <th scope="col" className="py-3 px-4 sticky left-0 bg-muted/50 z-10">Día</th>
+                                    {/* Dynamically create columns based on unique Grupos */}
+                                    {/* REFACTOR: Use MOCK_TIEMPOS_COMIDA for groups, sort by ordenGrupo */}
+                                    {Array.from(new Set(MOCK_TIEMPOS_COMIDA.map(tc => tc.nombreGrupo)))
+                                        .map(grupo => ({
+                                            nombreGrupo: grupo,
+                                            // Find the minimum ordenGrupo for this group name to ensure correct column order
+                                            ordenGrupo: Math.min(...MOCK_TIEMPOS_COMIDA.filter(tc => tc.nombreGrupo === grupo).map(tc => tc.ordenGrupo))
+                                        }))
+                                        .sort((a, b) => a.ordenGrupo - b.ordenGrupo) // Sort columns by ordenGrupo
+                                        .map(({ nombreGrupo }) => (
+                                        <th key={nombreGrupo} scope="col" className="py-3 px-4 whitespace-nowrap">
+                                            {nombreGrupo}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {DAYS_OF_WEEK.map((day) => (
+                                    <tr key={day} className="border-b last:border-b-0 hover:bg-muted/30">
+                                        {/* Sticky Day column */}
+                                        <th scope="row" className="py-3 px-4 font-medium whitespace-nowrap sticky left-0 bg-background z-10 capitalize border-r">
+                                            {day}
+                                        </th>
+                                        {/* Data cells for each Grupo (sorted) */}
+                                        {/* REFACTOR: Use MOCK_TIEMPOS_COMIDA, sort by ordenGrupo */}
+                                        {Array.from(new Set(MOCK_TIEMPOS_COMIDA.map(tc => tc.nombreGrupo)))
+                                            .map(grupo => ({
+                                                nombreGrupo: grupo,
+                                                ordenGrupo: Math.min(...MOCK_TIEMPOS_COMIDA.filter(tc => tc.nombreGrupo === grupo).map(tc => tc.ordenGrupo))
+                                            }))
+                                            .sort((a, b) => a.ordenGrupo - b.ordenGrupo)
+                                            .map(({ nombreGrupo }) => { // Use nombreGrupo from sorted list
 
-                                                // Find the selection in the mock semanario data
-                                                const seleccion: SemanarioAlternativaSeleccion | undefined =
-                                                    tiempoComidaId ? MOCK_SEMANARIO_USER.elecciones[day]?.[tiempoComidaId] : undefined;
+                                            // Find the specific TiempoComida for this cell (Day + Group + Available)
+                                            // NOTE: This assumes one TiempoComida per Grupo *per Day* where available.
+                                            // If multiple Tiempos can share a Grupo on the same Day, logic needs adjustment.
+                                            const tiempoComida = MOCK_TIEMPOS_COMIDA.find(tc =>
+                                                tc.nombreGrupo === nombreGrupo && tc.diasDisponibles.includes(day)
+                                            );
+                                            const tiempoComidaId = tiempoComida?.id;
 
-                                                // Find the name of the selected alternative
-                                                const alternativa = MOCK_TIEMPOS_COMIDA
-                                                    .flatMap(tc => tc.alternativas || [])
-                                                    .find(alt => alt.id === seleccion?.alternativaId);
+                                            // Find the selection in the mock semanario data
+                                            const seleccion: SemanarioAlternativaSeleccion | undefined =
+                                                tiempoComidaId ? MOCK_SEMANARIO_USER.elecciones[day]?.[tiempoComidaId] : undefined;
 
-                                                // Placeholder click handler
-                                                const handleCellClick = () => {
-                                                    if (isReadOnly) return; // Prevent interaction in read-only mode
-                                                    console.log(`Clicked: Day=${day}, Grupo=${grupo}, TiempoComidaId=${tiempoComidaId || 'N/A'}`);
-                                                    // TODO: Open selection dialog/sheet here
-                                                };
+                                            // REFACTOR: Find the name of the selected alternative from MOCK_ALTERNATIVAS
+                                            const alternativa = seleccion?.alternativaId
+                                                ? MOCK_ALTERNATIVAS.find(alt => alt.id === seleccion.alternativaId)
+                                                : undefined;
 
-                                                return (
-                                                    <td key={`${day}-${grupo}`} className={`py-2 px-4 border-l first:border-l-0 ${isReadOnly ? '' : 'cursor-pointer'}`} onClick={handleCellClick}>
-                                                        {seleccion ? (
+                                            // Placeholder click handler
+                                            const handleCellClick = () => {
+                                                if (isReadOnly || !tiempoComidaId || !tiempoComida) return; // Prevent interaction if read-only or no matching TiempoComida
+                                                console.log(`Clicked: Day=${day}, Grupo=${nombreGrupo}, TiempoComidaId=${tiempoComidaId}`);
+                                                // TODO: Open selection dialog/sheet here, passing relevant alternatives for tiempoComidaId
+                                                const relevantAlternativas = MOCK_ALTERNATIVAS.filter(alt => alt.tiempoComidaId === tiempoComidaId && alt.isActive);
+                                                alert(`Simulando selector para ${tiempoComida.nombre}. Opciones: ${relevantAlternativas.map(a => a.nombre).join(', ')}`);
+                                            };
+
+                                            return (
+                                                <td key={`${day}-${nombreGrupo}`} className={`py-2 px-4 border-l first:border-l-0 ${isReadOnly || !tiempoComidaId ? '' : 'cursor-pointer'}`} onClick={handleCellClick}>
+                                                    {/* Render content only if a tiempoComida applies to this day/group */}
+                                                    {tiempoComidaId ? (
+                                                        seleccion && alternativa ? ( // Check if seleccion AND alternativa are found
                                                             <div className="flex flex-col">
-                                                                <span className={seleccion.requiereAprobacion ? 'italic text-orange-600' : ''}>
+                                                                {/* REFACTOR: Use alternativa.requiereAprobacion */}
+                                                                <span className={alternativa?.requiereAprobacion ? 'italic text-orange-600' : ''}>
                                                                     {alternativa?.nombre || 'Desconocido'}
-                                                                    {seleccion.requiereAprobacion && ' (Req. Apr.)'}
+                                                                    {alternativa?.requiereAprobacion && ' (Req. Apr.)'}
                                                                 </span>
                                                                 {/* Optionally show contingency */}
                                                                 {/* {seleccion.alternativaContingenciaId && <span className="text-xs text-muted-foreground">(Fallback: ...)</span>} */}
                                                             </div>
                                                         ) : (
                                                             <span className="text-muted-foreground text-xs">Elegir...</span>
-                                                        )}
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                                        )
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400">-</span> // Indicate not applicable
+                                                    )}
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {/* TODO: Add 'Solo esta semana' checkbox and Save button below the table div */}
+                    {!isReadOnly && (
+                        <div className="mt-4 flex justify-end">
+                            <Button>Guardar Semanario</Button>
                         </div>
-                        {/* TODO: Add 'Solo esta semana' checkbox and Save button below the table div */}
-                        {!isReadOnly && (
-                            <div className="mt-4 flex justify-end">
-                                <Button>Guardar Semanario</Button>
-                            </div>
-                        )}
-                              {/* TODO: Placeholder for grid + interaction */}
-                              {/* TODO: Placeholder for save button */}
-                      </CardContent>
-                 </Card>
+                    )}
+                            {/* TODO: Placeholder for grid + interaction */}
+                            {/* TODO: Placeholder for save button */}
+                    </CardContent>
+                </Card>
 
                 {/* 2. Ausencias / Vacaciones */}
                 <Card className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
@@ -619,8 +679,9 @@ export default function ElegirComidasPage() {
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {/* Populate with available Tiempos Comida */}
+                                                    {/* This uses MOCK_TIEMPOS_COMIDA, which is correct */}
                                                     {availableTiemposComida.map(tc => (
-                                                        <SelectItem key={tc.id} value={tc.id}>{tc.nombre} ({tc.grupo})</SelectItem>
+                                                        <SelectItem key={tc.id} value={tc.id}>{tc.nombre} ({tc.nombreGrupo})</SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
@@ -663,8 +724,9 @@ export default function ElegirComidasPage() {
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {/* Populate with available Tiempos Comida */}
+                                                    {/* This uses MOCK_TIEMPOS_COMIDA, which is correct */}
                                                     {availableTiemposComida.map(tc => (
-                                                        <SelectItem key={tc.id} value={tc.id}>{tc.nombre} ({tc.grupo})</SelectItem>
+                                                        <SelectItem key={tc.id} value={tc.id}>{tc.nombre} ({tc.nombreGrupo})</SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
@@ -711,8 +773,10 @@ export default function ElegirComidasPage() {
                                             {MOCK_AUSENCIAS.map((ausencia) => (
                                                 <TableRow key={ausencia.id}>
                                                     <TableCell>{format(ausencia.fechaInicio.toDate(), "P", { locale: es })}</TableCell>
+                                                    {/* This uses getTiempoComidaName which uses MOCK_TIEMPOS_COMIDA, correct */}
                                                     <TableCell>{getTiempoComidaName(ausencia.ultimoTiempoComidaId)}</TableCell>
                                                     <TableCell>{format(ausencia.fechaFin.toDate(), "P", { locale: es })}</TableCell>
+                                                    {/* This uses getTiempoComidaName which uses MOCK_TIEMPOS_COMIDA, correct */}
                                                     <TableCell>{getTiempoComidaName(ausencia.primerTiempoComidaId)}</TableCell>
                                                     <TableCell>
                                                         {ausencia.retornoPendienteConfirmacion ? (
@@ -746,14 +810,23 @@ export default function ElegirComidasPage() {
                  <Card className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
                      <CardHeader>
                         <CardTitle>Excepciones</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                     </CardHeader>
+                     <CardContent>
                         <div className="space-y-6">
                             {/* --- Formulario Nuevas Excepciones --- */}
                             {!isReadOnly && ( // Only show form if editing is enabled
                                 <div className="space-y-4 border p-4 rounded-md">
                                     <h3 className="font-medium text-md mb-4">Registrar Nuevas Excepciones</h3>
-                                    {exceptionRows.map((row, index) => (
+                                    {exceptionRows.map((row, index) => {
+                                        // REFACTOR: Find selected alternative name for button display
+                                        const selectedAlternativa = row.alternativaId
+                                            ? MOCK_ALTERNATIVAS.find(alt => alt.id === row.alternativaId)
+                                            : undefined;
+                                        const buttonText = selectedAlternativa
+                                            ? selectedAlternativa.nombre
+                                            : 'Seleccionar Alternativa...';
+
+                                        return (
                                         <div key={row.id} className="flex flex-col md:flex-row items-start md:items-end gap-2 border-b pb-4 last:border-b-0 last:pb-0">
                                             {/* Fecha */}
                                             <div className="space-y-1 w-full md:w-auto">
@@ -773,7 +846,12 @@ export default function ElegirComidasPage() {
                                                         <Calendar
                                                             mode="single"
                                                             selected={row.fecha}
-                                                            onSelect={(date) => handleUpdateExceptionRow(row.id, 'fecha', date)}
+                                                            onSelect={(date) => {
+                                                                // Clear dependent fields when date changes
+                                                                handleUpdateExceptionRow(row.id, 'fecha', date);
+                                                                handleUpdateExceptionRow(row.id, 'tiempoComidaId', '');
+                                                                handleUpdateExceptionRow(row.id, 'alternativaId', '');
+                                                            }}
                                                             // You might want to disable past dates here
                                                             initialFocus
                                                         />
@@ -786,13 +864,18 @@ export default function ElegirComidasPage() {
                                                 <Label htmlFor={`exc-tiempo-${row.id}`}>Comida</Label>
                                                 <Select
                                                     value={row.tiempoComidaId || ''}
-                                                    onValueChange={(value) => handleUpdateExceptionRow(row.id, 'tiempoComidaId', value)}
+                                                    onValueChange={(value) => {
+                                                        // Clear alternativa when tiempo changes
+                                                        handleUpdateExceptionRow(row.id, 'tiempoComidaId', value);
+                                                        handleUpdateExceptionRow(row.id, 'alternativaId', '');
+                                                    }}
                                                     disabled={!row.fecha} // Require date first
                                                 >
                                                     <SelectTrigger id={`exc-tiempo-${row.id}`} className="w-full md:w-[180px]">
                                                         <SelectValue placeholder="Selecciona" />
                                                     </SelectTrigger>
                                                     <SelectContent>
+                                                        {/* This correctly uses availableTiemposComida */}
                                                         {availableTiemposComida.map(tc => (
                                                             <SelectItem key={tc.id} value={tc.id}>{tc.nombre}</SelectItem>
                                                         ))}
@@ -810,8 +893,8 @@ export default function ElegirComidasPage() {
                                                     onClick={() => handleOpenAlternativaSelector(row.id)}
                                                     disabled={!row.tiempoComidaId} // Require Tiempo first
                                                 >
-                                                    {/* TODO: Display selected alternativa name here */}
-                                                    {row.alternativaId ? `ID: ${row.alternativaId}` : 'Seleccionar Alternativa...'}
+                                                    {/* REFACTOR: Display selected alternativa name */}
+                                                    {buttonText}
                                                 </Button>
                                             </div>
 
@@ -829,7 +912,8 @@ export default function ElegirComidasPage() {
                                                 </Button>
                                             )}
                                         </div>
-                                    ))}
+                                        ); // End of return for map row
+                                    })}
 
                                     {/* Add Row Button */}
                                     <div className="flex items-center pt-2 gap-2">
@@ -865,10 +949,9 @@ export default function ElegirComidasPage() {
                                             <TableBody>
                                                 {futureExceptions.map((exc) => {
                                                     // Find names for display
-                                                    const tiempoNombre = getTiempoComidaName(exc.tiempoComidaId);
-                                                    const alternativa = MOCK_TIEMPOS_COMIDA
-                                                        .flatMap(tc => tc.alternativas || [])
-                                                        .find(alt => alt.id === exc.alternativaId);
+                                                    const tiempoNombre = getTiempoComidaName(exc.tiempoComidaId); // Uses MOCK_TIEMPOS_COMIDA (correct)
+                                                    // REFACTOR: Look up alternativa in MOCK_ALTERNATIVAS
+                                                    const alternativa = MOCK_ALTERNATIVAS.find(alt => alt.id === exc.alternativaTiempoComidaId);
                                                     const alternativaNombre = alternativa?.nombre || 'Desconocido';
 
                                                     return (
@@ -876,6 +959,7 @@ export default function ElegirComidasPage() {
                                                             <TableCell>{format(exc.fecha.toDate(), "P", { locale: es })}</TableCell>
                                                             <TableCell>{tiempoNombre}</TableCell>
                                                             <TableCell>
+                                                                {/* REFACTOR: Use alternativa?.requiereAprobacion */}
                                                                 <span className={alternativa?.requiereAprobacion ? 'italic text-orange-600' : ''}>
                                                                     {alternativaNombre}
                                                                 </span>
@@ -913,88 +997,87 @@ export default function ElegirComidasPage() {
                 </Card>
 
                 {/* 4. Comentarios */}
-                 <Card className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
-                    <CardHeader>
-                        <CardTitle>Comentarios para Dirección</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div> {/* Using div instead of form as submit is handled by button click */}
-                            {!isReadOnly ? ( // Only show form if editing is enabled
-                                <div className="space-y-4">
-                                    <div>
-                                        <Label htmlFor="comment-text">Tu Comentario</Label>
-                                        <Textarea
-                                            id="comment-text"
-                                            placeholder="Escribe aquí tu comentario para la dirección (e.g., peticiones especiales, agradecimientos...)"
-                                            value={commentText}
-                                            onChange={(e) => setCommentText(e.target.value)}
-                                            rows={4}
-                                            className="mt-1"
-                                        />
-                                    </div>
-
-                                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                                        {/* Option Toggle */}
-                                        <div className="flex items-center space-x-4">
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="comment-next-opp"
-                                                    checked={commentIsNextOpportunity}
-                                                    onCheckedChange={(checked) => handleCommentDateToggle(true)}
-                                                />
-                                                <Label htmlFor="comment-next-opp" className="cursor-pointer">Próxima Oportunidad</Label>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="comment-specific-date"
-                                                    checked={!commentIsNextOpportunity}
-                                                    onCheckedChange={(checked) => handleCommentDateToggle(false)}
-                                                />
-                                                <Label htmlFor="comment-specific-date" className="cursor-pointer">Fecha Específica</Label>
-                                            </div>
-                                        </div>
-
-                                        {/* Date Picker (conditional) */}
-                                        {!commentIsNextOpportunity && (
-                                            <div className="flex-grow">
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <Button
-                                                            id="comment-date-picker"
-                                                            variant={"outline"}
-                                                            className={`w-full sm:w-[240px] justify-start text-left font-normal ${!commentDate && "text-muted-foreground"}`}
-                                                        >
-                                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                                            {commentDate ? format(commentDate, "PPP", { locale: es }) : <span>Selecciona fecha</span>}
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0">
-                                                        <Calendar
-                                                            mode="single"
-                                                            selected={commentDate}
-                                                            onSelect={setCommentDate}
-                                                            initialFocus
-                                                        />
-                                                    </PopoverContent>
-                                                </Popover>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex justify-end">
-                                        <Button onClick={handleCommentSubmit}>
-                                            Enviar Comentario
-                                        </Button>
-                                    </div>
+                <Card className={isReadOnly ? 'opacity-50 pointer-events-none' : ''}>
+                <CardHeader>
+                    <CardTitle>Comentarios para Dirección</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div> {/* Using div instead of form as submit is handled by button click */}
+                        {!isReadOnly ? ( // Only show form if editing is enabled
+                            <div className="space-y-4">
+                                <div>
+                                    <Label htmlFor="comment-text">Tu Comentario</Label>
+                                    <Textarea
+                                        id="comment-text"
+                                        placeholder="Escribe aquí tu comentario para la dirección (e.g., peticiones especiales, agradecimientos...)"
+                                        value={commentText}
+                                        onChange={(e) => setCommentText(e.target.value)}
+                                        rows={4}
+                                        className="mt-1"
+                                    />
                                 </div>
-                            ) : (
-                                <p className="text-sm text-muted-foreground">No puedes enviar comentarios en modo lectura.</p>
-                            )}
-                        </div>
-                        {/* TODO: Placeholder for comment form */}
-                        {/* TODO: Placeholder for submit button */}
-                     </CardContent>
-                 </Card>
-             </main>
-        </div>
-    );
-}
+
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                                    {/* Option Toggle */}
+                                    <div className="flex items-center space-x-4">
+                                        <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id="comment-next-opp"
+                                                checked={commentIsNextOpportunity}
+                                                onCheckedChange={(checked) => handleCommentDateToggle(true)}
+                                            />
+                                            <Label htmlFor="comment-next-opp" className="cursor-pointer">Próxima Oportunidad</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id="comment-specific-date"
+                                                checked={!commentIsNextOpportunity}
+                                                onCheckedChange={(checked) => handleCommentDateToggle(false)}
+                                            />
+                                            <Label htmlFor="comment-specific-date" className="cursor-pointer">Fecha Específica</Label>
+                                        </div>
+                                    </div>
+
+                                    {/* Date Picker (conditional) */}
+                                    {!commentIsNextOpportunity && (
+                                        <div className="flex-grow">
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        id="comment-date-picker"
+                                                        variant={"outline"}
+                                                        className={`w-full sm:w-[240px] justify-start text-left font-normal ${!commentDate && "text-muted-foreground"}`}
+                                                    >
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {commentDate ? format(commentDate, "PPP", { locale: es }) : <span>Selecciona fecha</span>}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={commentDate}
+                                                        onSelect={setCommentDate}
+                                                        initialFocus
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex justify-end">
+                                    <Button onClick={handleCommentSubmit}>
+                                        Enviar Comentario
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">No puedes enviar comentarios en modo lectura.</p>
+                        )}
+                    </div>
+                    {/* TODO: Placeholder for comment form */}
+                    {/* TODO: Placeholder for submit button */}
+                 </CardContent>
+             </Card>
+         </main>
+    </div>
+);}

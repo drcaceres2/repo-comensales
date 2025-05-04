@@ -15,66 +15,106 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react"; // Import loader icon
 
 // --- Firebase Imports ---
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+// Import onAuthStateChanged
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, User } from "firebase/auth";
 import { getFirestore, doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { auth, db } from '@/lib/firebase'; // Import initialized instances
 
 // --- Model Imports ---
-import { UserProfile, UserRole, SystemSettings } from '@/models/firestore';
+// Make sure UserRole is imported correctly if it's an enum/type
+import { UserProfile, UserRole, ResidenciaId } from '@/models/firestore';
 
 // --- LOGO URL ---
 const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/imagenes%2Fcomensales-logo.png?alt=media&token=d8d50163-1817-45b1-be6e-b43541118347";
+
+// Helper function to redirect based on profile
+const redirectToDashboard = (profile: UserProfile, router: ReturnType<typeof useRouter>) => {
+    // Check UserRole definition. Assuming it's a string literal type for includes check.
+    // If UserRole is an enum, the check might need adjustment (e.g., profile.roles?.includes(UserRole.Admin))
+    const roles = profile.roles || [];
+    const residenciaId = profile.residenciaId;
+
+    if (roles.includes('admin' as UserRole) || roles.includes('master' as UserRole)) { // Treat master and admin similarly for initial redirect
+      router.push('/admin/users');
+    } else if (roles.includes('director' as UserRole) && residenciaId) {
+      router.push(`/admin/residencia/${residenciaId}/horarios`);
+    } else if (roles.includes('residente' as UserRole) && residenciaId) {
+      router.push(`/${residenciaId}/elegir-comidas`);
+    } else {
+      // Fallback if roles/residenciaId are missing or unexpected
+      console.warn("User logged in but has undefined role/residenciaId or unknown role combination:", profile);
+      // Redirect to a generic logged-in page or profile page might be better than login
+       router.push('/dashboard'); // Example: redirect to a generic dashboard
+      // Or show a specific error/message
+    }
+};
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [masterEmails, setMasterEmails] = useState<string[]>([]);
-  const [mailtoLink, setMailtoLink] = useState<string>('#');
+  const [isLoading, setIsLoading] = useState(false); // For login button specifically
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true); // Initial auth check state
 
-  // --- Fetch Master Admin Emails --- (Keep this part)
+  // --- Auth State Listener ---
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const settingsRef = collection(db, 'systemSettings');
-        const q = query(settingsRef, where('active', '==', true)); // Assuming an 'active' field
-        const querySnapshot = await getDocs(q);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        console.log("Auth state changed: User detected", user.uid);
+        try {
+          // User is signed in, fetch profile and redirect
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
 
-        if (!querySnapshot.empty) {
-          // Use the first active settings document found
-          const settingsDoc = querySnapshot.docs[0];
-          const settingsData = settingsDoc.data() as SystemSettings;
-          if (settingsData.masterAdminEmails && settingsData.masterAdminEmails.length > 0) {
-            setMasterEmails(settingsData.masterAdminEmails);
-            setMailtoLink(`mailto:${settingsData.masterAdminEmails.join(',')}?subject=Consulta%20Sistema%20Comensales`);
+          if (userDocSnap.exists()) {
+            const userProfile = userDocSnap.data() as UserProfile;
+            console.log("User profile found:", userProfile);
+            redirectToDashboard(userProfile, router);
+            // No need to setIsCheckingAuth(false) here, redirection handles it
           } else {
-             console.warn("System settings found, but no master admin emails configured.");
-             setMailtoLink('#'); // Disable link if no emails
+            // User exists in Auth but not Firestore - critical error
+            console.error(`Auth user ${user.uid} exists but no Firestore profile found.`);
+            toast({
+              title: "Error de Perfil",
+              description: "Tu cuenta de autenticación existe, pero falta tu perfil de usuario. Contacta al administrador.",
+              variant: "destructive",
+              duration: 7000
+            });
+            await auth.signOut(); // Log out inconsistent user
+            setIsCheckingAuth(false); // Allow login form to show after logout
           }
-        } else {
-           console.warn("No active system settings document found.");
-           setMailtoLink('#'); // Disable link if no settings
+        } catch (error) {
+          console.error("Error fetching user profile during auth check:", error);
+          toast({
+              title: "Error",
+              description: "No se pudo verificar tu perfil. Inténtalo de nuevo.",
+              variant: "destructive"
+          });
+          // Log out if profile check fails? Maybe depends on security policy
+          await auth.signOut();
+          setIsCheckingAuth(false); // Allow login form
         }
-      } catch (error) {
-        console.error("Error fetching system settings:", error);
-        toast({ title: "Error", description: "No se pudieron cargar los datos de contacto del administrador.", variant: "warning"});
-        setMailtoLink('#'); // Disable link on error
+      } else {
+        // User is signed out
+        console.log("Auth state changed: No user detected.");
+        setIsCheckingAuth(false); // Auth check complete, allow rendering
       }
-    };
-    fetchSettings();
-  }, [toast]); // Add toast to dependency array if used inside useEffect
+    });
 
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, [router, toast]); // Add dependencies
 
-  // --- Firebase Login Handler (Updated) ---
+  // --- Firebase Login Handler ---
   const handleLogin = async (event: React.FormEvent) => {
-    event.preventDefault(); // Prevent default form submission
+    event.preventDefault();
     if (!email || !password) {
       toast({
-        title: "Error",
+        title: "Faltan Datos",
         description: "Por favor, introduce tu email y contraseña.",
         variant: "destructive",
       });
@@ -86,61 +126,42 @@ export default function LoginPage() {
       // 1. Authenticate User
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      const uid = user.uid;
+      console.log("Login successful for user:", user.uid);
 
-      // 2. Fetch User Profile from Firestore
-      const userDocRef = doc(db, "users", uid); // Create reference to user document
-      const userDocSnap = await getDoc(userDocRef); // Fetch the document
+      // 2. Fetch User Profile (Already handled by onAuthStateChanged, but we can re-verify here or rely on the listener)
+       // The onAuthStateChanged listener should ideally handle the redirect immediately after successful sign-in.
+       // If relying solely on the listener, we might just need to show a loading state here until redirection happens.
+       // However, fetching again ensures immediate feedback if the listener logic has issues. Let's fetch again for robustness.
+
+      const userDocRef = doc(db, "users", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
 
       if (userDocSnap.exists()) {
-        const userProfile = userDocSnap.data() as UserProfile; // Type cast the data
-
-        // 3. Determine Redirection based on Roles & residenciaId
+        const userProfile = userDocSnap.data() as UserProfile;
         toast({
           title: "Inicio de sesión exitoso",
-          description: `Bienvenido de nuevo, ${userProfile.nombre || 'usuario'}. Redirigiendo...`,
+          description: `Bienvenido, ${userProfile.nombre || 'usuario'}.`, // Simpler message, redirection handles next step
         });
-
-        // Redirection Logic
-        if (userProfile.roles?.includes(UserRole.ADMIN)) {
-          router.push('/admin/users'); // Redirect Admin to user management
-        } else if (userProfile.roles?.includes(UserRole.DIRECTOR) && userProfile.residenciaId) {
-          router.push(`/admin/residencia/${userProfile.residenciaId}/horarios`); // Redirect Director to their residence admin page
-        } else if (userProfile.roles?.includes(UserRole.RESIDENTE) && userProfile.residenciaId) {
-          router.push(`/${userProfile.residenciaId}/elegir-comidas`); // Redirect Resident to meal selection
-        } else {
-          // Fallback or error if roles/residenciaId are missing or unexpected
-          console.warn("User logged in but has undefined role/residenciaId or unknown role combination:", userProfile);
-          toast({
-            title: "Error de perfil",
-            description: "No se pudo determinar a dónde redirigirte. Contacta al administrador.",
-            variant: "warning", // Changed to warning
-          });
-          // Optionally log out or redirect to a generic page
-          // await auth.signOut();
-          // router.push('/perfil-incompleto');
-        }
-
+        // Redirection is handled by the onAuthStateChanged listener now
+        // redirectToDashboard(userProfile, router); // Remove explicit redirect from here
       } else {
-        // Handle case where user exists in Auth but not in Firestore users collection
-        console.error(`Login successful for UID ${uid}, but no corresponding user document found in Firestore.`);
-        toast({
-          title: "Error de perfil",
-          description: "Tu cuenta existe, pero no se encontró tu perfil de usuario. Por favor, contacta al administrador.",
-          variant: "destructive",
-        });
-        // Consider logging the user out here if a Firestore profile is absolutely required
+         // This case should ideally not happen if registration ensures profile creation
+         console.error(`Login successful for UID ${user.uid}, but no corresponding user document found in Firestore.`);
+         toast({
+            title: "Error de perfil",
+            description: "Tu cuenta existe, pero no se encontró tu perfil de usuario. Por favor, contacta al administrador.",
+            variant: "destructive",
+         });
          await auth.signOut(); // Log out user if profile is missing
       }
 
     } catch (error: any) {
-      console.error("Login failed:", error);
+      console.error("Login failed:", error.code, error.message);
       let errorMessage = "Ha ocurrido un error al iniciar sesión.";
-      // Map Firebase auth errors to user-friendly messages
       switch (error.code) {
         case 'auth/user-not-found':
         case 'auth/wrong-password':
-        case 'auth/invalid-credential': // General invalid credential error
+        case 'auth/invalid-credential':
           errorMessage = "El correo electrónico o la contraseña son incorrectos.";
           break;
         case 'auth/invalid-email':
@@ -149,12 +170,15 @@ export default function LoginPage() {
         case 'auth/user-disabled':
           errorMessage = "Esta cuenta ha sido deshabilitada.";
           break;
-        case 'firestore/permission-denied': // Example Firestore error
-             errorMessage = "No tienes permiso para acceder a los datos del perfil.";
-             break;
+        case 'auth/too-many-requests':
+            errorMessage = "Acceso bloqueado temporalmente debido a demasiados intentos fallidos. Intenta más tarde.";
+            break;
+         // Add Firestore specific errors if necessary, e.g., permission denied during getDoc
+         // case 'permission-denied': // Example for Firestore error code
+         //    errorMessage = "No tienes permiso para acceder a los datos del perfil.";
+         //    break;
         default:
-          // Keep the default message for other errors, including network issues
-          errorMessage = `Error inesperado (${error.code || 'Network Error'}). Por favor, inténtalo de nuevo.`;
+          errorMessage = `Error inesperado (${error.code || 'desconocido'}). Por favor, inténtalo de nuevo.`;
       }
       toast({
         title: "Error de inicio de sesión",
@@ -162,11 +186,23 @@ export default function LoginPage() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false); // Ensure loading state is reset
+      setIsLoading(false);
     }
   };
   // --- End Firebase Login Handler ---
 
+  // --- Render Logic ---
+  // Show loading indicator while checking auth state initially
+  if (isCheckingAuth) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Verificando sesión...</span>
+      </div>
+    );
+  }
+
+  // Render login form if auth check is complete and no user is logged in
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 px-4">
       <Card className="w-full max-w-sm">
@@ -175,16 +211,15 @@ export default function LoginPage() {
             <Image
               src={LOGO_URL}
               alt="Logo Comensales"
-              width={80} // Adjust width as needed
-              height={80} // Adjust height as needed
+              width={80}
+              height={80}
               className="mx-auto mb-4 rounded-full"
-              priority // Prioritize loading logo
+              priority
             />
           )}
           <CardTitle className="text-2xl font-bold">Iniciar Sesión</CardTitle>
           <CardDescription>Accede a tu cuenta de Comensales</CardDescription>
         </CardHeader>
-        {/* --- Update Form to use handleLogin --- */}
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -197,7 +232,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
-                autoComplete="email" // Standard autocomplete
+                autoComplete="email"
               />
             </div>
             <div className="space-y-2">
@@ -206,36 +241,22 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 placeholder="Tu contraseña"
-                required // Keep required
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
-                autoComplete="current-password" // Standard autocomplete
+                autoComplete="current-password"
               />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
           </CardFooter>
         </form>
-         {/* --- End Update Form --- */}
       </Card>
-
-      {/* --- Admin Link --- (Keep this section) */}
-      <div className="mt-4 text-center text-sm">
-          <a
-              href={mailtoLink}
-              className={`text-muted-foreground hover:text-primary ${!masterEmails || masterEmails.length === 0 || mailtoLink === '#' ? 'opacity-50 cursor-not-allowed' : ''}`}
-              onClick={(e) => (!masterEmails || masterEmails.length === 0 || mailtoLink === '#') && e.preventDefault()} // Prevent click if no emails or link is disabled
-              aria-disabled={!masterEmails || masterEmails.length === 0 || mailtoLink === '#'}
-              target="_blank" // Open mail client in new tab/window
-              rel="noopener noreferrer" // Security measure for target="_blank"
-          >
-              Escribir al administrador del sistema
-          </a>
-      </div>
     </div>
   );
 }
