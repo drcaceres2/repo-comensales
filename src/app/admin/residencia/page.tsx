@@ -519,7 +519,7 @@ export default function ResidenciaAdminPage() {
             const newComedorData: Omit<Comedor, 'id'> = {
                 residenciaId: managingResidenciaId,
                 nombre: newComedorNombre.trim(),
-                descripcion: newComedorDescripcion.trim() || undefined,
+                descripcion: newComedorDescripcion.trim() || '',
             };
             const comedorRef = await addDoc(collection(db, 'comedores'), newComedorData);
             console.log("New Comedor created with ID:", comedorRef.id);
