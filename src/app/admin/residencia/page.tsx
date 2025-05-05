@@ -56,7 +56,8 @@ import {
     where,
     orderBy, // Keep orderBy
     deleteDoc,
-    updateDoc
+    updateDoc,
+    deleteField
 } from 'firebase/firestore';
 
 // Import ALL necessary types
@@ -664,7 +665,8 @@ export default function ResidenciaAdminPage() {
                 dia: newTiempoDia,
                 nombreGrupo: newTiempoGrupoNombre.trim(),
                 ordenGrupo: newTiempoGrupoOrden,
-                horaEstimada: newTiempoHoraEstimada || undefined, // Store as undefined if empty
+                // Conditionally include horaEstimada only if it has a value
+                ...(newTiempoHoraEstimada && { horaEstimada: newTiempoHoraEstimada }),
             };
 
             const tiempoRef = await addDoc(collection(db, 'tiemposComida'), newTiempoData);
@@ -747,9 +749,14 @@ export default function ResidenciaAdminPage() {
                   dia: editTiempoDia,
                   nombreGrupo: editTiempoGrupoNombre.trim(),
                   ordenGrupo: editTiempoGrupoOrden,
-                  horaEstimada: editTiempoHoraEstimada || undefined,
+                  // Conditionally include horaEstimada only if it has a value
+                  ...(editTiempoHoraEstimada && { horaEstimada: editTiempoHoraEstimada }),
               };
-  
+              // If the user cleared the horaEstimada, explicitly remove it from Firestore
+              // We need to import deleteField from 'firebase/firestore'
+              if (!editTiempoHoraEstimada && editingTiempo?.horaEstimada) {
+                    updatedData.horaEstimada = deleteField() as unknown as string; // Use deleteField to remove
+              }
               await updateDoc(tiempoRef, updatedData);
               console.log("TiempoComida updated successfully:", editingTiempo.id);
   
