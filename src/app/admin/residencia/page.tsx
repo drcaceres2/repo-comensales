@@ -201,6 +201,16 @@ export default function ResidenciaAdminPage() {
   const [isProcessingNewAlternativa, setIsProcessingNewAlternativa] = useState(false);
   // Note: iniciaDiaAnterior, terminaDiaSiguiente are omitted for simplicity, add if needed
 
+    // *** NEW: State for Editing Horario ***
+    const [editingHorario, setEditingHorario] = useState<HorarioSolicitudComida | null>(null);
+    const [isEditHorarioDialogOpen, setIsEditHorarioDialogOpen] = useState(false);
+    const [editHorarioNombre, setEditHorarioNombre] = useState('');
+    const [editHorarioDia, setEditHorarioDia] = useState<DayOfWeekKey | ''>('');
+    const [editHorarioHora, setEditHorarioHora] = useState('');
+    const [editHorarioIsPrimary, setEditHorarioIsPrimary] = useState(false);
+    // Note: isActive is handled by the toggle switch, no need in edit form unless you want it there too.
+    const [isProcessingEditHorario, setIsProcessingEditHorario] = useState(false);  
+
   useEffect(() => {
     setIsClient(true);
     fetchResidences();
@@ -397,6 +407,10 @@ export default function ResidenciaAdminPage() {
             setNewComedorNombre(''); setNewComedorDescripcion(''); setIsProcessingNewComedor(false);
             // Reset Alternativa form
             setNewAlternativaNombre(''); setNewAlternativaTipo(''); setNewAlternativaTiempoId(''); setNewAlternativaHorarioId(''); setNewAlternativaComedorId(''); setNewAlternativaTipoAcceso('abierto'); setNewAlternativaRequiereAprobacion(false); setNewAlternativaVentanaInicio(''); setNewAlternativaVentanaFin(''); setNewAlternativaIsActive(true); setIsProcessingNewAlternativa(false);
+            // Reset Edit Horario state
+            setEditingHorario(null);
+            setIsEditHorarioDialogOpen(false); // Ensure edit dialog is closed if main closes
+            setIsProcessingEditHorario(false);
 
             console.log("Modal closed, state reset.");
         }
@@ -404,9 +418,19 @@ export default function ResidenciaAdminPage() {
 
     // --- Handlers for Horarios Tab ---
     const handleEditHorario = (horario: HorarioSolicitudComida) => {
-        console.log("TODO: Edit Horario", horario);
-        toast({ title: "TODO", description: `Implement edit for ${horario.nombre}` });
+        if (!horario) return;
+        console.log("Opening edit dialog for Horario:", horario);
+        setEditingHorario(horario); // Store the whole object
+        // Pre-populate edit form state
+        setEditHorarioNombre(horario.nombre);
+        setEditHorarioDia(horario.dia);
+        setEditHorarioHora(horario.horaSolicitud);
+        setEditHorarioIsPrimary(horario.isPrimary);
+        // Reset processing state for the edit form
+        setIsProcessingEditHorario(false);
+        setIsEditHorarioDialogOpen(true); // Open the dedicated edit dialog
     };
+
     const handleDeleteHorario = async (horarioId: string, horarioNombre: string) => {
         if (!managingResidenciaId || !confirm(`Are you sure you want to delete the schedule "${horarioNombre}"?`)) return;
         try {
@@ -461,6 +485,145 @@ export default function ResidenciaAdminPage() {
             setIsProcessingNewHorario(false);
         }
     };
+    // *** NEW: Handler for Updating a Horario ***
+    const handleUpdateHorario = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingHorario || !managingResidenciaId) {
+            toast({ title: "Error", description: "No schedule selected for editing.", variant: "destructive" });
+            return;
+        }
+
+        // Validation (similar to create)
+        if (!editHorarioNombre.trim() || !editHorarioDia || !editHorarioHora || !/^\d{2}:\d{2}$/.test(editHorarioHora)) {
+            toast({ title: "Validation Error", description: "Please fill in all schedule fields correctly.", variant: "destructive" });
+            return;
+        }
+        // Optional: Check for duplicate primary schedule for the same day (excluding the one being edited)
+        if (editHorarioIsPrimary && modalHorarios.some(h => h.id !== editingHorario.id && h.dia === editHorarioDia && h.isPrimary)) {
+            if (!confirm(`There is already another primary schedule for ${DayOfWeekMap[editHorarioDia]}. Are you sure you want to make this one primary too?`)) {
+                return;
+            }
+        }
+
+        setIsProcessingEditHorario(true);
+        try {
+            const horarioRef = doc(db, 'horariosSolicitudComida', editingHorario.id);
+            const updatedData: Partial<HorarioSolicitudComida> = { // Use Partial for update
+                nombre: editHorarioNombre.trim(),
+                dia: editHorarioDia,
+                horaSolicitud: editHorarioHora,
+                isPrimary: editHorarioIsPrimary,
+                // isActive is updated via the toggle switch, not typically in the edit form
+            };
+
+            await updateDoc(horarioRef, updatedData);
+            console.log("Horario updated successfully:", editingHorario.id);
+
+            const updatedHorarioForState: HorarioSolicitudComida = {
+                ...editingHorario, // Spread existing data
+                ...updatedData     // Override with updated fields
+            };
+
+            // Update local state and re-sort
+            setModalHorarios(prev => sortHorarios(
+                prev.map(h => h.id === editingHorario.id ? updatedHorarioForState : h)
+            ));
+
+            toast({ title: "Success", description: `Schedule "${editHorarioNombre}" updated.` });
+            setIsEditHorarioDialogOpen(false); // Close the edit dialog
+
+        } catch (error) {
+            const errorMessage = `Failed to update schedule. ${error instanceof Error ? error.message : 'Unknown error'}`;
+            console.error("Error updating horario: ", error);
+            toast({ title: "Error", description: errorMessage, variant: "destructive" });
+        } finally {
+            setIsProcessingEditHorario(false);
+        }
+    };
+
+    // *** NEW: Edit Horario Dialog Component ***
+    const EditHorarioDialog = () => (
+        <Dialog open={isEditHorarioDialogOpen} onOpenChange={(open) => {
+            setIsEditHorarioDialogOpen(open);
+            if (!open) {
+                setEditingHorario(null); // Clear editing state when dialog closes
+            }
+        }}>
+            <DialogContent className="sm:max-w-[500px]"> {/* Adjust size as needed */}
+                <DialogHeader>
+                    <DialogTitle>Edit Schedule: {editingHorario?.nombre}</DialogTitle>
+                    <DialogDescription>Modify the details for this request schedule.</DialogDescription>
+                </DialogHeader>
+                {editingHorario ? ( // Only render form if editingHorario is set
+                    <form onSubmit={handleUpdateHorario} className="space-y-4 py-4">
+                        {/* Name Input */}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="edit-horario-nombre">Schedule Name</Label>
+                            <Input
+                                id="edit-horario-nombre"
+                                value={editHorarioNombre}
+                                onChange={(e) => setEditHorarioNombre(e.target.value)}
+                                disabled={isProcessingEditHorario}
+                            />
+                        </div>
+                        {/* Day and Time */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="edit-horario-dia">Day of Week</Label>
+                                <Select
+                                    value={editHorarioDia}
+                                    onValueChange={(value) => setEditHorarioDia(value as DayOfWeekKey)}
+                                    disabled={isProcessingEditHorario}
+                                >
+                                    <SelectTrigger id="edit-horario-dia">
+                                        <SelectValue placeholder="Select day..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {daysOfWeek.map(day => (
+                                            <SelectItem key={day.value} value={day.value}>
+                                                {day.label} ({DayOfWeekMap[day.value]})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="edit-horario-hora">Deadline Time (HH:MM)</Label>
+                                <Input
+                                    id="edit-horario-hora"
+                                    type="time"
+                                    value={editHorarioHora}
+                                    onChange={(e) => setEditHorarioHora(e.target.value)}
+                                    disabled={isProcessingEditHorario}
+                                    step="900"
+                                />
+                            </div>
+                        </div>
+                        {/* Primary Switch */}
+                        <div className="flex items-center space-x-2 pt-2">
+                            <Switch
+                                id="edit-horario-primary"
+                                checked={editHorarioIsPrimary}
+                                onCheckedChange={setEditHorarioIsPrimary}
+                                disabled={isProcessingEditHorario}
+                            />
+                            <Label htmlFor="edit-horario-primary">Primary Schedule?</Label>
+                        </div>
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button type="button" variant="outline" disabled={isProcessingEditHorario}>Cancel</Button>
+                            </DialogClose>
+                            <Button type="submit" disabled={isProcessingEditHorario}>
+                                {isProcessingEditHorario ? 'Saving...' : 'Save Changes'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                ) : (
+                    <p>Loading schedule data...</p> // Placeholder if editingHorario is null
+                )}
+            </DialogContent>
+        </Dialog>
+    );
 
     // --- Handlers for Tiempos Tab ---
     const handleCreateTiempo = async (e: React.FormEvent) => {
@@ -1260,6 +1423,8 @@ export default function ResidenciaAdminPage() {
                  <DialogClose asChild><Button type="button" variant="outline">Close</Button></DialogClose>
             </DialogFooter>
          </DialogContent> {/* End DialogContent */}
+         {/* --- Render the Edit Dialog (it will be controlled by isEditHorarioDialogOpen state) --- */}
+         <EditHorarioDialog />
      </Dialog> // End Dialog component
    );
 }
