@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox"; // *** NEW: Import Checkbox ***
+// Checkbox import removed as it was only used for Alternativas
 
 // Firestore Imports
 import { db } from '@/lib/firebase';
@@ -54,90 +54,72 @@ import {
     setDoc,
     query,
     where,
-    orderBy, // Keep orderBy
+    orderBy,
     deleteDoc,
     updateDoc,
     deleteField,
     FieldValue
 } from 'firebase/firestore';
 
-// Import ALL necessary types
+// Import necessary types (Removed TiempoComida, AlternativaTiempoComida related types)
 import {
   Residencia,
-  HorarioSolicitudComida, HorarioSolicitudComidaId, // Added ID type
-  TiempoComida, TiempoComidaId,                 // Added ID type
-  AlternativaTiempoComida,
-  Comedor, ComedorId,                           // Added ID type
+  HorarioSolicitudComida, HorarioSolicitudComidaId,
+  Comedor, ComedorId,
   Dieta,
   ResidenciaId,
   DayOfWeekKey, DayOfWeekMap,
-  TipoAlternativa,
-  TipoAccesoAlternativa
+  // Removed TipoAlternativa, TipoAccesoAlternativa
 } from '@/models/firestore';
 
 const daysOfWeek: { label: string; value: DayOfWeekKey }[] = [
-    // ... (definition remains the same)
     { label: 'Monday', value: 'lunes' }, { label: 'Tuesday', value: 'martes' }, { label: 'Wednesday', value: 'miercoles' }, { label: 'Thursday', value: 'jueves' }, { label: 'Friday', value: 'viernes' }, { label: 'Saturday', value: 'sabado' }, { label: 'Sunday', value: 'domingo' },
 ] as const;
 const orderedDaysOfWeek: DayOfWeekKey[] = daysOfWeek.map(d => d.value);
 
 // Helper sort functions
 const sortHorarios = (horarios: HorarioSolicitudComida[]): HorarioSolicitudComida[] => {
-    // ... (implementation remains the same)
     return [...horarios].sort((a, b) => {
         const dayAIndex = orderedDaysOfWeek.indexOf(a.dia); const dayBIndex = orderedDaysOfWeek.indexOf(b.dia);
         if (dayAIndex !== dayBIndex) { return dayAIndex - dayBIndex; }
         return a.horaSolicitud.localeCompare(b.horaSolicitud);
     });
 };
-const sortTiempos = (tiempos: TiempoComida[]): TiempoComida[] => {
-    return [...tiempos].sort((a, b) => {
-        const dayAIndex = orderedDaysOfWeek.indexOf(a.dia);
-        const dayBIndex = orderedDaysOfWeek.indexOf(b.dia);
-        if (dayAIndex !== dayBIndex) {
-            return dayAIndex - dayBIndex; // Sort by day first
-        }
-        if (a.ordenGrupo !== b.ordenGrupo) {
-            return a.ordenGrupo - b.ordenGrupo; // Then by group order
-        }
-        return a.nombre.localeCompare(b.nombre); // Finally by name
-    });
-};
+// Removed sortTiempos
 const sortComedores = (comedores: Comedor[]): Comedor[] => {
     return [...comedores].sort((a, b) => a.nombre.localeCompare(b.nombre));
 };
+// Removed sortAlternativas
 
-// *** NEW: Helper function to sort Alternativas (example: by TiempoComida, then name) ***
-const sortAlternativas = (alternativas: AlternativaTiempoComida[], tiempos: TiempoComida[]): AlternativaTiempoComida[] => {
-     // Create a map for quick TiempoComida lookup and sorting info
-    const tiempoSortMap = new Map(tiempos.map((t, index) => [t.id, { diaIndex: orderedDaysOfWeek.indexOf(t.dia), grupoOrden: t.ordenGrupo, nombre: t.nombre }]));
-
-    return [...alternativas].sort((a, b) => {
-        const tiempoA = tiempoSortMap.get(a.tiempoComidaId);
-        const tiempoB = tiempoSortMap.get(b.tiempoComidaId);
-
-        // Handle cases where tiempo might not be found (shouldn't happen ideally)
-        if (!tiempoA && !tiempoB) return 0;
-        if (!tiempoA) return 1;
-        if (!tiempoB) return -1;
-
-        // Sort by day index
-        if (tiempoA.diaIndex !== tiempoB.diaIndex) {
-            return tiempoA.diaIndex - tiempoB.diaIndex;
-        }
-        // Sort by group order
-        if (tiempoA.grupoOrden !== tiempoB.grupoOrden) {
-            return tiempoA.grupoOrden - tiempoB.grupoOrden;
-        }
-         // Sort by tiempo name
-        if (tiempoA.nombre !== tiempoB.nombre) {
-            return tiempoA.nombre.localeCompare(tiempoB.nombre);
-        }
-        // Finally, sort by alternativa name
-        return a.nombre.localeCompare(b.nombre);
-    });
+// Type definition for props needed by EditHorarioDialog
+type EditHorarioDialogProps = {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  horario: HorarioSolicitudComida | null;
+  nombre: string;
+  setNombre: (value: string) => void;
+  dia: DayOfWeekKey | '';
+  setDia: (value: DayOfWeekKey | '') => void;
+  hora: string;
+  setHora: (value: string) => void;
+  isPrimary: boolean;
+  setIsPrimary: (value: boolean) => void;
+  isProcessing: boolean;
+  onSubmit: (e: React.FormEvent) => Promise<void>;
 };
 
+// Removed EditTiempoDialogProps
+
+// Type definition for props needed by EditComedorDialog
+type EditComedorDialogProps = {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  comedor: Comedor | null;
+  nombre: string; setNombre: (value: string) => void;
+  descripcion: string; setDescripcion: (value: string) => void;
+  isProcessing: boolean;
+  onSubmit: (e: React.FormEvent) => Promise<void>;
+};
 
 export default function ResidenciaAdminPage() {
     const router = useRouter();
@@ -155,7 +137,7 @@ export default function ResidenciaAdminPage() {
     const [residences, setResidences] = useState<Residencia[]>([]);
     const [isLoadingResidences, setIsLoadingResidences] = useState(true);
     const [errorResidences, setErrorResidences] = useState<string | null>(null);
-  
+
   // --- State: Management Modal ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [managingResidenciaId, setManagingResidenciaId] = useState<ResidenciaId | null>(null);
@@ -172,14 +154,7 @@ export default function ResidenciaAdminPage() {
   const [newHorarioIsActive, setNewHorarioIsActive] = useState(true);
   const [isProcessingNewHorario, setIsProcessingNewHorario] = useState(false);
 
-  // --- State: Modal - TiemposComida ---
-  const [modalTiempos, setModalTiempos] = useState<TiempoComida[]>([]);
-  const [newTiempoNombre, setNewTiempoNombre] = useState('');
-  const [newTiempoDia, setNewTiempoDia] = useState<DayOfWeekKey | ''>('');
-  const [newTiempoGrupoNombre, setNewTiempoGrupoNombre] = useState('');
-  const [newTiempoGrupoOrden, setNewTiempoGrupoOrden] = useState<number>(1); // Default order
-  const [newTiempoHoraEstimada, setNewTiempoHoraEstimada] = useState(''); // Optional, HH:MM
-  const [isProcessingNewTiempo, setIsProcessingNewTiempo] = useState(false);
+  // --- State: Modal - TiemposComida (REMOVED) ---
 
   // --- State: Modal - Comedores ---
   const [modalComedores, setModalComedores] = useState<Comedor[]>([]);
@@ -187,47 +162,22 @@ export default function ResidenciaAdminPage() {
   const [newComedorDescripcion, setNewComedorDescripcion] = useState(''); // Optional
   const [isProcessingNewComedor, setIsProcessingNewComedor] = useState(false);
 
+  // --- State: Modal - Alternativas (REMOVED) ---
 
-  // *** NEW: State: Modal - Alternativas ***
-  const [modalAlternativas, setModalAlternativas] = useState<AlternativaTiempoComida[]>([]);
-  const [newAlternativaNombre, setNewAlternativaNombre] = useState('');
-  const [newAlternativaTipo, setNewAlternativaTipo] = useState<TipoAlternativa | ''>('');
-  const [newAlternativaTiempoId, setNewAlternativaTiempoId] = useState<TiempoComidaId | ''>('');
-  const [newAlternativaHorarioId, setNewAlternativaHorarioId] = useState<HorarioSolicitudComidaId | ''>('');
-  const [newAlternativaComedorId, setNewAlternativaComedorId] = useState<ComedorId | ''>(''); // Only if tipo === 'comedor'
-  const [newAlternativaTipoAcceso, setNewAlternativaTipoAcceso] = useState<TipoAccesoAlternativa>('abierto');
-  const [newAlternativaRequiereAprobacion, setNewAlternativaRequiereAprobacion] = useState(false);
-  const [newAlternativaVentanaInicio, setNewAlternativaVentanaInicio] = useState(''); // HH:MM
-  const [newAlternativaVentanaFin, setNewAlternativaVentanaFin] = useState(''); // HH:MM
-  const [newAlternativaIsActive, setNewAlternativaIsActive] = useState(true);
-  const [isProcessingNewAlternativa, setIsProcessingNewAlternativa] = useState(false);
-  // Note: iniciaDiaAnterior, terminaDiaSiguiente are omitted for simplicity, add if needed
-
-    // *** NEW: State for Editing Horario ***
+    // *** State for Editing Horario ***
     const [editingHorario, setEditingHorario] = useState<HorarioSolicitudComida | null>(null);
     const [isEditHorarioDialogOpen, setIsEditHorarioDialogOpen] = useState(false);
     const [editHorarioNombre, setEditHorarioNombre] = useState('');
     const [editHorarioDia, setEditHorarioDia] = useState<DayOfWeekKey | ''>('');
     const [editHorarioHora, setEditHorarioHora] = useState('');
     const [editHorarioIsPrimary, setEditHorarioIsPrimary] = useState(false);
-    // Note: isActive is handled by the toggle switch, no need in edit form unless you want it there too.
-    const [isProcessingEditHorario, setIsProcessingEditHorario] = useState(false);  
+    const [isProcessingEditHorario, setIsProcessingEditHorario] = useState(false);
 
-    // *** NEW: State for Editing TiempoComida ***
-    const [editingTiempo, setEditingTiempo] = useState<TiempoComida | null>(null);
-    const [isEditTiempoDialogOpen, setIsEditTiempoDialogOpen] = useState(false);
-    // State for the edit form fields
-    const [editTiempoNombre, setEditTiempoNombre] = useState('');
-    const [editTiempoDia, setEditTiempoDia] = useState<DayOfWeekKey | ''>('');
-    const [editTiempoGrupoNombre, setEditTiempoGrupoNombre] = useState('');
-    const [editTiempoGrupoOrden, setEditTiempoGrupoOrden] = useState<number>(1);
-    const [editTiempoHoraEstimada, setEditTiempoHoraEstimada] = useState('');
-    const [isProcessingEditTiempo, setIsProcessingEditTiempo] = useState(false);
+    // *** State for Editing TiempoComida (REMOVED) ***
 
-    // *** NEW: State for Editing Comedor ***
+    // *** State for Editing Comedor ***
   const [editingComedor, setEditingComedor] = useState<Comedor | null>(null);
   const [isEditComedorDialogOpen, setIsEditComedorDialogOpen] = useState(false);
-  // State for the edit form fields
   const [editComedorNombre, setEditComedorNombre] = useState('');
   const [editComedorDescripcion, setEditComedorDescripcion] = useState('');
   const [isProcessingEditComedor, setIsProcessingEditComedor] = useState(false);
@@ -325,7 +275,7 @@ export default function ResidenciaAdminPage() {
         }
 
         await batch.commit();
-        toast({ title: "Success", description: `Residence "${newResidenceName}" and initial settings created successfully.` });
+        toast({ title: "Success", description: `Residence \"${newResidenceName}\" and initial settings created successfully.` });
 
         const newResidenceForState: Residencia = { id: newResidenciaId!, nombre: newResidenceName.trim() };
         setResidences(prev => [...prev, newResidenceForState].sort((a, b) => a.nombre.localeCompare(b.nombre)));
@@ -344,106 +294,88 @@ export default function ResidenciaAdminPage() {
     }
   };
 
-  // *** UPDATED: fetchModalData to include Alternativas ***
+  // *** UPDATED: fetchModalData (Removed Tiempos and Alternativas fetch) ***
   const fetchModalData = useCallback(async (residenciaId: ResidenciaId) => {
     if (!residenciaId) {
-        console.log("fetchModalData: No residenciaId provided."); // Log if ID is missing
+        console.log("fetchModalData: No residenciaId provided.");
         return;
     }
-    console.log(`fetchModalData: Starting for residenceId: ${residenciaId}`); // Log start
+    console.log(`fetchModalData: Starting for residenceId: ${residenciaId}`);
     setIsLoadingModalData(true);
     setErrorModalData(null);
-    // Clear all modal data
-    setModalHorarios([]); setModalTiempos([]); setModalComedores([]); setModalAlternativas([]);
-
-    let fetchedTiempos: TiempoComida[] = [];
+    // Clear remaining modal data
+    setModalHorarios([]); setModalComedores([]);
 
     try {
-        console.log("fetchModalData: Fetching Horarios..."); // Log before fetch
+        console.log("fetchModalData: Fetching Horarios...");
         // Fetch Horarios
         const horariosQuery = query(collection(db, 'horariosSolicitudComida'), where("residenciaId", "==", residenciaId));
         const horariosSnapshot = await getDocs(horariosQuery);
         let fetchedHorarios: HorarioSolicitudComida[] = horariosSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<HorarioSolicitudComida, 'id'>) }));
-        console.log(`fetchModalData: Fetched ${fetchedHorarios.length} Horarios.`); // Log count
+        console.log(`fetchModalData: Fetched ${fetchedHorarios.length} Horarios.`);
         setModalHorarios(sortHorarios(fetchedHorarios));
 
-        console.log("fetchModalData: Fetching TiemposComida..."); // Log before fetch
-        // Fetch TiemposComida
-        const tiemposQuery = query(collection(db, 'tiemposComida'), where("residenciaId", "==", residenciaId));
-        const tiemposSnapshot = await getDocs(tiemposQuery);
-        fetchedTiempos = tiemposSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<TiempoComida, 'id'>) }));
-        console.log(`fetchModalData: Fetched ${fetchedTiempos.length} TiemposComida.`); // Log count
-        setModalTiempos(sortTiempos(fetchedTiempos));
+        // Fetch TiemposComida (REMOVED)
 
-        console.log("fetchModalData: Fetching Comedores..."); // Log before fetch
+        console.log("fetchModalData: Fetching Comedores...");
         // Fetch Comedores
         const comedoresQuery = query(collection(db, 'comedores'), where("residenciaId", "==", residenciaId));
         const comedoresSnapshot = await getDocs(comedoresQuery);
         let fetchedComedores: Comedor[] = comedoresSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<Comedor, 'id'>) }));
-        console.log(`fetchModalData: Fetched ${fetchedComedores.length} Comedores.`); // Log count
+        console.log(`fetchModalData: Fetched ${fetchedComedores.length} Comedores.`);
         setModalComedores(sortComedores(fetchedComedores));
 
-        console.log("fetchModalData: Fetching Alternativas..."); // Log before fetch
-        // Fetch Alternativas
-        const alternativasQuery = query(collection(db, 'alternativasTiempoComida'), where("residenciaId", "==", residenciaId));
-        const alternativasSnapshot = await getDocs(alternativasQuery);
-        let fetchedAlternativas: AlternativaTiempoComida[] = alternativasSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<AlternativaTiempoComida, 'id'>) }));
-        console.log(`fetchModalData: Fetched ${fetchedAlternativas.length} Alternativas.`); // Log count
-        setModalAlternativas(sortAlternativas(fetchedAlternativas, fetchedTiempos));
+        // Fetch Alternativas (REMOVED)
 
-        console.log("fetchModalData: Successfully fetched all data."); // Log success end of try
+        console.log("fetchModalData: Successfully fetched remaining data.");
 
     } catch (error) {
         const errorMessage = `Failed to load settings data. ${error instanceof Error ? error.message : 'Unknown error'}`;
-        console.error("Error fetching modal data: ", error); // Log the actual error
-        setErrorModalData(errorMessage); // Set error state
-        console.log("fetchModalData: Error occurred, setErrorModalData called."); // Log error handling
+        console.error("Error fetching modal data: ", error);
+        setErrorModalData(errorMessage);
+        console.log("fetchModalData: Error occurred, setErrorModalData called.");
     } finally {
-        setIsLoadingModalData(false); // Ensure loading is set to false
-        console.log("fetchModalData: Finished, setIsLoadingModalData(false) called."); // Log finally block
+        setIsLoadingModalData(false);
+        console.log("fetchModalData: Finished, setIsLoadingModalData(false) called.");
     }
-}, [toast]); // Keep dependency array minimal unless other state is needed
+}, [toast]); // Keep dependency array minimal
 
 
   const handleManageSettings = (residencia: Residencia) => {
-    console.log(`handleManageSettings triggered for ${residencia.id}`); // <<< ADD THIS LOG
+    console.log(`handleManageSettings triggered for ${residencia.id}`);
     setManagingResidenciaId(residencia.id);
     setManagingResidenciaNombre(residencia.nombre);
-    console.log(`handleManageSettings: Calling fetchModalData for ${residencia.id}`); // <<< ADD THIS LOG
+    console.log(`handleManageSettings: Calling fetchModalData for ${residencia.id}`);
     fetchModalData(residencia.id);
     setIsModalOpen(true);
   }
 
-  // *** UPDATED: handleModalOpenChange to reset Alternativa form state ***
+  // *** UPDATED: handleModalOpenChange (Removed Tiempo and Alternativa resets) ***
    const handleModalOpenChange = (open: boolean) => {
         setIsModalOpen(open);
         if (!open) {
             // Reset common state
             setManagingResidenciaId(null); setManagingResidenciaNombre('');
             setIsLoadingModalData(false); setErrorModalData(null);
-            // Reset data arrays
-            setModalHorarios([]); setModalTiempos([]); setModalComedores([]); setModalAlternativas([]);
-            // Reset forms
+            // Reset remaining data arrays
+            setModalHorarios([]); setModalComedores([]);
+            // Reset Horario form
             setNewHorarioNombre(''); setNewHorarioDia(''); setNewHorarioHora(''); setNewHorarioIsPrimary(false); setNewHorarioIsActive(true); setIsProcessingNewHorario(false);
-            setNewTiempoNombre(''); setNewTiempoDia(''); setNewTiempoGrupoNombre(''); setNewTiempoGrupoOrden(1); setNewTiempoHoraEstimada(''); setIsProcessingNewTiempo(false);
+            // Reset Tiempo form (REMOVED)
+            // Reset Comedor form
             setNewComedorNombre(''); setNewComedorDescripcion(''); setIsProcessingNewComedor(false);
-            // Reset Alternativa form
-            setNewAlternativaNombre(''); setNewAlternativaTipo(''); setNewAlternativaTiempoId(''); setNewAlternativaHorarioId(''); setNewAlternativaComedorId(''); setNewAlternativaTipoAcceso('abierto'); setNewAlternativaRequiereAprobacion(false); setNewAlternativaVentanaInicio(''); setNewAlternativaVentanaFin(''); setNewAlternativaIsActive(true); setIsProcessingNewAlternativa(false);
+            // Reset Alternativa form (REMOVED)
             // Reset Edit Horario state
             setEditingHorario(null);
             setIsEditHorarioDialogOpen(false); // Ensure edit dialog is closed if main closes
             setIsProcessingEditHorario(false);
-            // Reset Edit Tiempo state
-            setEditingTiempo(null);
-            setIsEditTiempoDialogOpen(false);
-            setIsProcessingEditTiempo(false);
+            // Reset Edit Tiempo state (REMOVED)
             // Reset Edit Comedor state
             setEditingComedor(null);
             setIsEditComedorDialogOpen(false);
             setIsProcessingEditComedor(false);
-            
 
-            console.log("Modal closed, state reset.");
+            console.log("Modal closed, relevant state reset.");
         }
     };
 
@@ -451,22 +383,21 @@ export default function ResidenciaAdminPage() {
     const handleEditHorario = (horario: HorarioSolicitudComida) => {
         if (!horario) return;
         console.log("Opening edit dialog for Horario:", horario);
-        setEditingHorario(horario); // Store the whole object
-        // Pre-populate edit form state
+        setEditingHorario(horario);
         setEditHorarioNombre(horario.nombre);
         setEditHorarioDia(horario.dia);
         setEditHorarioHora(horario.horaSolicitud);
         setEditHorarioIsPrimary(horario.isPrimary);
-        // Reset processing state for the edit form
         setIsProcessingEditHorario(false);
-        setIsEditHorarioDialogOpen(true); // Open the dedicated edit dialog
+        setIsEditHorarioDialogOpen(true);
     };
 
     const handleDeleteHorario = async (horarioId: string, horarioNombre: string) => {
-        if (!managingResidenciaId || !confirm(`Are you sure you want to delete the schedule "${horarioNombre}"?`)) return;
+        if (!managingResidenciaId || !confirm(`Are you sure you want to delete the schedule \"${horarioNombre}\"? This might affect Meal Alternatives defined elsewhere.`)) return;
+        // Reminder: Check dependencies in the Horarios page before allowing deletion there.
         try {
             await deleteDoc(doc(db, 'horariosSolicitudComida', horarioId));
-            toast({ title: "Success", description: `Schedule "${horarioNombre}" deleted.` });
+            toast({ title: "Success", description: `Schedule \"${horarioNombre}\" deleted.` });
             setModalHorarios(prev => prev.filter(h => h.id !== horarioId));
         } catch (error) {
             const errorMessage = `Failed to delete schedule. ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -480,7 +411,7 @@ export default function ResidenciaAdminPage() {
         try {
             const horarioRef = doc(db, 'horariosSolicitudComida', horario.id);
             await updateDoc(horarioRef, { isActive: newStatus });
-            toast({ title: "Success", description: `Schedule "${horario.nombre}" ${newStatus ? 'activated' : 'deactivated'}.` });
+            toast({ title: "Success", description: `Schedule \"${horario.nombre}\" ${newStatus ? 'activated' : 'deactivated'}.` });
             setModalHorarios(prev => sortHorarios(prev.map(h => h.id === horario.id ? {...h, isActive: newStatus } : h)));
         } catch (error) {
             const errorMessage = `Failed to update schedule status. ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -506,7 +437,7 @@ export default function ResidenciaAdminPage() {
             const horarioRef = await addDoc(collection(db, 'horariosSolicitudComida'), newHorarioData);
             const newHorarioForState: HorarioSolicitudComida = { id: horarioRef.id, ...newHorarioData };
             setModalHorarios(prev => sortHorarios([...prev, newHorarioForState]));
-            toast({ title: "Success", description: `Schedule "${newHorarioNombre}" created.` });
+            toast({ title: "Success", description: `Schedule \"${newHorarioNombre}\" created.` });
             setNewHorarioNombre(''); setNewHorarioDia(''); setNewHorarioHora(''); setNewHorarioIsPrimary(false); setNewHorarioIsActive(true);
         } catch (error) {
             const errorMessage = `Failed to create schedule. ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -516,20 +447,17 @@ export default function ResidenciaAdminPage() {
             setIsProcessingNewHorario(false);
         }
     };
-    // *** NEW: Handler for Updating a Horario ***
+    // Handler for Updating a Horario
     const handleUpdateHorario = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingHorario || !managingResidenciaId) {
             toast({ title: "Error", description: "No schedule selected for editing.", variant: "destructive" });
             return;
         }
-
-        // Validation (similar to create)
         if (!editHorarioNombre.trim() || !editHorarioDia || !editHorarioHora || !/^\d{2}:\d{2}$/.test(editHorarioHora)) {
             toast({ title: "Validation Error", description: "Please fill in all schedule fields correctly.", variant: "destructive" });
             return;
         }
-        // Optional: Check for duplicate primary schedule for the same day (excluding the one being edited)
         if (editHorarioIsPrimary && modalHorarios.some(h => h.id !== editingHorario.id && h.dia === editHorarioDia && h.isPrimary)) {
             if (!confirm(`There is already another primary schedule for ${DayOfWeekMap[editHorarioDia]}. Are you sure you want to make this one primary too?`)) {
                 return;
@@ -539,30 +467,22 @@ export default function ResidenciaAdminPage() {
         setIsProcessingEditHorario(true);
         try {
             const horarioRef = doc(db, 'horariosSolicitudComida', editingHorario.id);
-            const updatedData: Partial<HorarioSolicitudComida> = { // Use Partial for update
+            const updatedData: Partial<HorarioSolicitudComida> = {
                 nombre: editHorarioNombre.trim(),
                 dia: editHorarioDia,
                 horaSolicitud: editHorarioHora,
                 isPrimary: editHorarioIsPrimary,
-                // isActive is updated via the toggle switch, not typically in the edit form
             };
-
             await updateDoc(horarioRef, updatedData);
             console.log("Horario updated successfully:", editingHorario.id);
-
             const updatedHorarioForState: HorarioSolicitudComida = {
-                ...editingHorario, // Spread existing data
-                ...updatedData     // Override with updated fields
+                ...editingHorario, ...updatedData
             };
-
-            // Update local state and re-sort
             setModalHorarios(prev => sortHorarios(
                 prev.map(h => h.id === editingHorario.id ? updatedHorarioForState : h)
             ));
-
-            toast({ title: "Success", description: `Schedule "${editHorarioNombre}" updated.` });
-            setIsEditHorarioDialogOpen(false); // Close the edit dialog
-
+            toast({ title: "Success", description: `Schedule \"${editHorarioNombre}\" updated.` });
+            setIsEditHorarioDialogOpen(false);
         } catch (error) {
             const errorMessage = `Failed to update schedule. ${error instanceof Error ? error.message : 'Unknown error'}`;
             console.error("Error updating horario: ", error);
@@ -572,291 +492,13 @@ export default function ResidenciaAdminPage() {
         }
     };
 
-    // *** NEW: Edit Horario Dialog Component ***
-    const EditHorarioDialog = () => (
-        <Dialog open={isEditHorarioDialogOpen} onOpenChange={(open) => {
-            setIsEditHorarioDialogOpen(open);
-            if (!open) {
-                setEditingHorario(null); // Clear editing state when dialog closes
-            }
-        }}>
-            <DialogContent className="sm:max-w-[500px]"> {/* Adjust size as needed */}
-                <DialogHeader>
-                    <DialogTitle>Edit Schedule: {editingHorario?.nombre}</DialogTitle>
-                    <DialogDescription>Modify the details for this request schedule.</DialogDescription>
-                </DialogHeader>
-                {editingHorario ? ( // Only render form if editingHorario is set
-                    <form onSubmit={handleUpdateHorario} className="space-y-4 py-4">
-                        {/* Name Input */}
-                        <div className="space-y-1.5">
-                            <Label htmlFor="edit-horario-nombre">Schedule Name</Label>
-                            <Input
-                                id="edit-horario-nombre"
-                                value={editHorarioNombre}
-                                onChange={(e) => setEditHorarioNombre(e.target.value)}
-                                disabled={isProcessingEditHorario}
-                            />
-                        </div>
-                        {/* Day and Time */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <Label htmlFor="edit-horario-dia">Day of Week</Label>
-                                <Select
-                                    value={editHorarioDia}
-                                    onValueChange={(value) => setEditHorarioDia(value as DayOfWeekKey)}
-                                    disabled={isProcessingEditHorario}
-                                >
-                                    <SelectTrigger id="edit-horario-dia">
-                                        <SelectValue placeholder="Select day..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {daysOfWeek.map(day => (
-                                            <SelectItem key={day.value} value={day.value}>
-                                                {day.label} ({DayOfWeekMap[day.value]})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label htmlFor="edit-horario-hora">Deadline Time (HH:MM)</Label>
-                                <Input
-                                    id="edit-horario-hora"
-                                    type="time"
-                                    value={editHorarioHora}
-                                    onChange={(e) => setEditHorarioHora(e.target.value)}
-                                    disabled={isProcessingEditHorario}
-                                    step="900"
-                                />
-                            </div>
-                        </div>
-                        {/* Primary Switch */}
-                        <div className="flex items-center space-x-2 pt-2">
-                            <Switch
-                                id="edit-horario-primary"
-                                checked={editHorarioIsPrimary}
-                                onCheckedChange={setEditHorarioIsPrimary}
-                                disabled={isProcessingEditHorario}
-                            />
-                            <Label htmlFor="edit-horario-primary">Primary Schedule?</Label>
-                        </div>
-                        <DialogFooter>
-                            <DialogClose asChild>
-                                <Button type="button" variant="outline" disabled={isProcessingEditHorario}>Cancel</Button>
-                            </DialogClose>
-                            <Button type="submit" disabled={isProcessingEditHorario}>
-                                {isProcessingEditHorario ? 'Saving...' : 'Save Changes'}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                ) : (
-                    <p>Loading schedule data...</p> // Placeholder if editingHorario is null
-                )}
-            </DialogContent>
-        </Dialog>
-    );
+    // --- Edit Horario Dialog Component (Defined at the bottom) ---
 
-    // --- Handlers for Tiempos Tab ---
-    const handleCreateTiempo = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!managingResidenciaId) return;
+    // --- Handlers for Tiempos Tab (REMOVED) ---
+    // Removed handleCreateTiempo, handleEditTiempo, handleDeleteTiempo, handleUpdateTiempo
 
-        // Validation
-        if (!newTiempoNombre.trim() || !newTiempoDia || !newTiempoGrupoNombre.trim() || newTiempoGrupoOrden <= 0) {
-             toast({ title: "Validation Error", description: "Please fill in Meal Time Name, Day, Group Name, and a valid Group Order (> 0).", variant: "destructive" });
-             return;
-        }
-        if (newTiempoHoraEstimada && !/^\d{2}:\d{2}$/.test(newTiempoHoraEstimada)) {
-            toast({ title: "Validation Error", description: "Estimated Time must be in HH:MM format or left empty.", variant: "destructive" });
-            return;
-        }
+    // --- Edit TiempoComida Dialog Component (REMOVED) ---
 
-        setIsProcessingNewTiempo(true);
-        try {
-            const newTiempoData: Omit<TiempoComida, 'id'> = {
-                residenciaId: managingResidenciaId,
-                nombre: newTiempoNombre.trim(),
-                dia: newTiempoDia,
-                nombreGrupo: newTiempoGrupoNombre.trim(),
-                ordenGrupo: newTiempoGrupoOrden,
-                // Conditionally include horaEstimada only if it has a value
-                ...(newTiempoHoraEstimada && { horaEstimada: newTiempoHoraEstimada }),
-            };
-
-            const tiempoRef = await addDoc(collection(db, 'tiemposComida'), newTiempoData);
-            console.log("New TiempoComida created with ID:", tiempoRef.id);
-
-            const newTiempoForState: TiempoComida = { id: tiempoRef.id, ...newTiempoData };
-
-            // Add to local state and re-sort
-            setModalTiempos(prev => sortTiempos([...prev, newTiempoForState]));
-
-            toast({ title: "Success", description: `Meal Time "${newTiempoNombre}" created.` });
-
-            // Reset form
-            setNewTiempoNombre(''); setNewTiempoDia(''); setNewTiempoGrupoNombre(''); setNewTiempoGrupoOrden(1); setNewTiempoHoraEstimada('');
-
-        } catch (error) {
-             const errorMessage = `Failed to create Meal Time. ${error instanceof Error ? error.message : 'Unknown error'}`;
-            console.error("Error creating TiempoComida: ", error);
-            toast({ title: "Error", description: errorMessage, variant: "destructive" });
-        } finally {
-            setIsProcessingNewTiempo(false);
-        }
-    };
-
-    const handleEditTiempo = (tiempo: TiempoComida) => {
-        if (!tiempo) return;
-        console.log("Opening edit dialog for TiempoComida:", tiempo);
-        setEditingTiempo(tiempo); // Store the object being edited
-        // Pre-populate edit form state
-        setEditTiempoNombre(tiempo.nombre);
-        setEditTiempoDia(tiempo.dia);
-        setEditTiempoGrupoNombre(tiempo.nombreGrupo);
-        setEditTiempoGrupoOrden(tiempo.ordenGrupo);
-        setEditTiempoHoraEstimada(tiempo.horaEstimada || ''); // Handle potentially undefined horaEstimada
-        // Reset processing state
-        setIsProcessingEditTiempo(false);
-        setIsEditTiempoDialogOpen(true); // Open the dialog
-    };
-
-    const handleDeleteTiempo = async (tiempoId: string, tiempoNombre: string) => {
-        // Placeholder - check dependencies (Alternativas) before deleting in real implementation
-        if (!managingResidenciaId) return;
-        if (!confirm(`Are you sure you want to delete the Meal Time "${tiempoNombre}"? Make sure no Meal Alternatives depend on it first.`)) {
-            return;
-        }
-        console.log("Deleting TiempoComida", tiempoId);
-        try {
-            await deleteDoc(doc(db, 'tiemposComida', tiempoId));
-            toast({ title: "Success", description: `Meal Time "${tiempoNombre}" deleted.` });
-            // Update UI
-            setModalTiempos(prev => prev.filter(t => t.id !== tiempoId));
-        } catch (error) {
-            const errorMessage = `Failed to delete Meal Time. ${error instanceof Error ? error.message : 'Unknown error'}`;
-            console.error("Error deleting TiempoComida: ", error);
-            toast({ title: "Error", description: errorMessage, variant: "destructive" });
-        }
-    };
-
-        // *** NEW: Handler for Updating a TiempoComida ***
-        const handleUpdateTiempo = async (e: React.FormEvent) => {
-          e.preventDefault();
-          if (!editingTiempo || !managingResidenciaId) {
-              toast({ title: "Error", description: "No Meal Time selected for editing.", variant: "destructive" });
-              return;
-          }
-  
-          // Validation (similar to create)
-          if (!editTiempoNombre.trim() || !editTiempoDia || !editTiempoGrupoNombre.trim() || editTiempoGrupoOrden <= 0) {
-               toast({ title: "Validation Error", description: "Please fill in Name, Day, Group Name, and a valid Group Order (> 0).", variant: "destructive" }); return;
-          }
-          if (editTiempoHoraEstimada && !/^\d{2}:\d{2}$/.test(editTiempoHoraEstimada)) {
-              toast({ title: "Validation Error", description: "Estimated Time must be in HH:MM format or left empty.", variant: "destructive" }); return;
-          }
-  
-          setIsProcessingEditTiempo(true);
-          try {
-              const tiempoRef = doc(db, 'tiemposComida', editingTiempo.id);
-              const updatedData: Partial<TiempoComida> = {
-                  nombre: editTiempoNombre.trim(),
-                  dia: editTiempoDia,
-                  nombreGrupo: editTiempoGrupoNombre.trim(),
-                  ordenGrupo: editTiempoGrupoOrden,
-                  // Conditionally include horaEstimada only if it has a value
-                  ...(editTiempoHoraEstimada && { horaEstimada: editTiempoHoraEstimada }),
-              };
-              // If the user cleared the horaEstimada, explicitly remove it from Firestore
-              // We need to import deleteField from 'firebase/firestore'
-              if (!editTiempoHoraEstimada && editingTiempo?.horaEstimada) {
-                    updatedData.horaEstimada = deleteField() as unknown as string; // Use deleteField to remove
-              }
-              await updateDoc(tiempoRef, updatedData);
-              console.log("TiempoComida updated successfully:", editingTiempo.id);
-  
-              const updatedTiempoForState: TiempoComida = {
-                  ...editingTiempo,
-                  ...updatedData
-              };
-  
-              // Update local state and re-sort
-              setModalTiempos(prev => sortTiempos(
-                  prev.map(t => t.id === editingTiempo.id ? updatedTiempoForState : t)
-              ));
-  
-              toast({ title: "Success", description: `Meal Time "${editTiempoNombre}" updated.` });
-              setIsEditTiempoDialogOpen(false); // Close the edit dialog
-  
-          } catch (error) {
-               const errorMessage = `Failed to update Meal Time. ${error instanceof Error ? error.message : 'Unknown error'}`;
-              console.error("Error updating TiempoComida: ", error);
-              toast({ title: "Error", description: errorMessage, variant: "destructive" });
-          } finally {
-              setIsProcessingEditTiempo(false);
-          }
-      };
-  
-      // *** NEW: Edit TiempoComida Dialog Component ***
-      const EditTiempoDialog = () => (
-          <Dialog open={isEditTiempoDialogOpen} onOpenChange={(open) => {
-              setIsEditTiempoDialogOpen(open);
-              if (!open) {
-                  setEditingTiempo(null); // Clear editing state on close
-              }
-          }}>
-              <DialogContent className="sm:max-w-[550px]"> {/* Adjust size */}
-                  <DialogHeader>
-                      <DialogTitle>Edit Meal Time: {editingTiempo?.nombre}</DialogTitle>
-                      <DialogDescription>Modify the details for this meal time.</DialogDescription>
-                  </DialogHeader>
-                  {editingTiempo ? (
-                      <form onSubmit={handleUpdateTiempo} className="space-y-4 py-4">
-                          {/* Name */}
-                          <div className="space-y-1.5">
-                              <Label htmlFor="edit-tiempo-nombre">Meal Time Name</Label>
-                              <Input id="edit-tiempo-nombre" value={editTiempoNombre} onChange={(e) => setEditTiempoNombre(e.target.value)} disabled={isProcessingEditTiempo} />
-                          </div>
-                          {/* Day and Estimated Time */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div className="space-y-1.5">
-                                  <Label htmlFor="edit-tiempo-dia">Day of Week</Label>
-                                  <Select value={editTiempoDia} onValueChange={(value) => setEditTiempoDia(value as DayOfWeekKey)} disabled={isProcessingEditTiempo}>
-                                      <SelectTrigger id="edit-tiempo-dia"><SelectValue placeholder="Select day..." /></SelectTrigger>
-                                      <SelectContent>{daysOfWeek.map(day => (<SelectItem key={day.value} value={day.value}>{day.label} ({DayOfWeekMap[day.value]})</SelectItem>))}</SelectContent>
-                                  </Select>
-                              </div>
-                              <div className="space-y-1.5">
-                                  <Label htmlFor="edit-tiempo-hora">Estimated Time (Optional, HH:MM)</Label>
-                                  <Input id="edit-tiempo-hora" type="time" value={editTiempoHoraEstimada} onChange={(e) => setEditTiempoHoraEstimada(e.target.value)} disabled={isProcessingEditTiempo} step="900" />
-                              </div>
-                          </div>
-                          {/* Group Name and Order */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div className="space-y-1.5">
-                                  <Label htmlFor="edit-tiempo-grupo-nombre">Group Name</Label>
-                                  <Input id="edit-tiempo-grupo-nombre" value={editTiempoGrupoNombre} onChange={(e) => setEditTiempoGrupoNombre(e.target.value)} disabled={isProcessingEditTiempo} />
-                              </div>
-                              <div className="space-y-1.5">
-                                  <Label htmlFor="edit-tiempo-grupo-orden">Group Order</Label>
-                                  <Input id="edit-tiempo-grupo-orden" type="number" min="1" step="1" value={editTiempoGrupoOrden} onChange={(e) => setEditTiempoGrupoOrden(parseInt(e.target.value, 10) || 1)} disabled={isProcessingEditTiempo} />
-                              </div>
-                          </div>
-                          <DialogFooter>
-                              <DialogClose asChild>
-                                  <Button type="button" variant="outline" disabled={isProcessingEditTiempo}>Cancel</Button>
-                              </DialogClose>
-                              <Button type="submit" disabled={isProcessingEditTiempo}>
-                                  {isProcessingEditTiempo ? 'Saving...' : 'Save Changes'}
-                              </Button>
-                          </DialogFooter>
-                      </form>
-                  ) : (
-                      <p>Loading meal time data...</p>
-                  )}
-              </DialogContent>
-          </Dialog>
-      );
-  
 
     // --- Handlers for Comedores Tab ---
     const handleCreateComedor = async (e: React.FormEvent) => {
@@ -867,35 +509,24 @@ export default function ResidenciaAdminPage() {
              toast({ title: "Validation Error", description: "Dining Hall Name cannot be empty.", variant: "destructive" });
              return;
         }
-
-        // Check for duplicate name (case-insensitive)
         if (modalComedores.some(c => c.nombre.toLowerCase() === newComedorNombre.trim().toLowerCase())) {
-            toast({ title: "Validation Error", description: `A dining hall named "${newComedorNombre.trim()}" already exists.`, variant: "destructive" });
+            toast({ title: "Validation Error", description: `A dining hall named \"${newComedorNombre.trim()}\" already exists.`, variant: "destructive" });
             return;
         }
-
 
         setIsProcessingNewComedor(true);
         try {
             const newComedorData: Omit<Comedor, 'id'> = {
                 residenciaId: managingResidenciaId,
                 nombre: newComedorNombre.trim(),
-                descripcion: newComedorDescripcion.trim() || undefined, // Store as undefined if empty
+                descripcion: newComedorDescripcion.trim() || undefined,
             };
-
             const comedorRef = await addDoc(collection(db, 'comedores'), newComedorData);
             console.log("New Comedor created with ID:", comedorRef.id);
-
             const newComedorForState: Comedor = { id: comedorRef.id, ...newComedorData };
-
-            // Add to local state and re-sort
             setModalComedores(prev => sortComedores([...prev, newComedorForState]));
-
-            toast({ title: "Success", description: `Dining Hall "${newComedorNombre}" created.` });
-
-            // Reset form
+            toast({ title: "Success", description: `Dining Hall \"${newComedorNombre}\" created.` });
             setNewComedorNombre(''); setNewComedorDescripcion('');
-
         } catch (error) {
              const errorMessage = `Failed to create Dining Hall. ${error instanceof Error ? error.message : 'Unknown error'}`;
             console.error("Error creating Comedor: ", error);
@@ -908,26 +539,23 @@ export default function ResidenciaAdminPage() {
     const handleEditComedor = (comedor: Comedor) => {
         if (!comedor) return;
         console.log("Opening edit dialog for Comedor:", comedor);
-        setEditingComedor(comedor); // Store the object
-        // Pre-populate form state
+        setEditingComedor(comedor);
         setEditComedorNombre(comedor.nombre);
-        setEditComedorDescripcion(comedor.descripcion || ''); // Handle potentially undefined description
-        // Reset processing state
+        setEditComedorDescripcion(comedor.descripcion || '');
         setIsProcessingEditComedor(false);
-        setIsEditComedorDialogOpen(true); // Open the dialog
+        setIsEditComedorDialogOpen(true);
     };
 
     const handleDeleteComedor = async (comedorId: string, comedorNombre: string) => {
-        // Placeholder - check dependencies (Alternativas) before deleting in real implementation
         if (!managingResidenciaId) return;
-         if (!confirm(`Are you sure you want to delete the Dining Hall "${comedorNombre}"? Make sure no Meal Alternatives depend on it first.`)) {
+         if (!confirm(`Are you sure you want to delete the Dining Hall \"${comedorNombre}\"? Make sure no Meal Alternatives (managed in the Horarios section) depend on it first.`)) {
             return;
         }
         console.log("Deleting Comedor", comedorId);
+        // Reminder: Check dependencies in the Horarios page before allowing deletion there.
         try {
             await deleteDoc(doc(db, 'comedores', comedorId));
-            toast({ title: "Success", description: `Dining Hall "${comedorNombre}" deleted.` });
-            // Update UI
+            toast({ title: "Success", description: `Dining Hall \"${comedorNombre}\" deleted.` });
             setModalComedores(prev => prev.filter(c => c.id !== comedorId));
         } catch (error) {
             const errorMessage = `Failed to delete Dining Hall. ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -936,779 +564,448 @@ export default function ResidenciaAdminPage() {
         }
     };
 
-        // *** NEW: Handler for Updating a Comedor ***
-        const handleUpdateComedor = async (e: React.FormEvent) => {
-          e.preventDefault();
-          if (!editingComedor || !managingResidenciaId) {
-              toast({ title: "Error", description: "No Dining Hall selected for editing.", variant: "destructive" });
-              return;
-          }
-  
-          const trimmedName = editComedorNombre.trim();
-          if (!trimmedName) {
-               toast({ title: "Validation Error", description: "Dining Hall Name cannot be empty.", variant: "destructive" }); return;
-          }
-  
-          // Check for duplicate name (excluding the one being edited)
-          if (modalComedores.some(c => c.id !== editingComedor.id && c.nombre.toLowerCase() === trimmedName.toLowerCase())) {
-              toast({ title: "Validation Error", description: `Another dining hall named "${trimmedName}" already exists.`, variant: "destructive" });
-              return;
-          }
-  
-          setIsProcessingEditComedor(true);
-          try {
-              const comedorRef = doc(db, 'comedores', editingComedor.id);
-  
-              // --- Prepare data object specifically for Firestore update ---
-              const dataForFirestore: { [key: string]: string | FieldValue } = {
-                   nombre: trimmedName,
-                   // Use deleteField if description is cleared, otherwise update or add it
-                   descripcion: editComedorDescripcion.trim() ? editComedorDescripcion.trim() : deleteField(),
-              };
-              // -------------------------------------------------------------
-  
-              await updateDoc(comedorRef, dataForFirestore); // Use the specific object for update
-              console.log("Comedor updated successfully:", editingComedor.id);
-  
-              // --- Prepare data object specifically for local state update ---
-              // This object strictly adheres to the Comedor type
-              const updatedComedorForState: Comedor = {
-                  ...editingComedor, // Spread the original state
-                  nombre: trimmedName, // Apply the name change
-                  descripcion: editComedorDescripcion.trim() || undefined, // Apply description change (string or undefined)
-              };
-              // ------------------------------------------------------------
-  
-              // Update local state using the correctly typed object
-              setModalComedores(prev => sortComedores(
-                  prev.map(c => c.id === editingComedor.id ? updatedComedorForState : c)
-              ));
-  
-              toast({ title: "Success", description: `Dining Hall "${trimmedName}" updated.` });
-              setIsEditComedorDialogOpen(false); // Close the edit dialog
-  
-          } catch (error) {
-               const errorMessage = `Failed to update Dining Hall. ${error instanceof Error ? error.message : 'Unknown error'}`;
-              console.error("Error updating Comedor: ", error);
-              toast({ title: "Error", description: errorMessage, variant: "destructive" });
-          } finally {
-              setIsProcessingEditComedor(false);
-          }
-      };
-  
-  
-      // *** NEW: Edit Comedor Dialog Component ***
-      const EditComedorDialog = () => (
-          <Dialog open={isEditComedorDialogOpen} onOpenChange={(open) => {
-              setIsEditComedorDialogOpen(open);
-              if (!open) {
-                  setEditingComedor(null); // Clear editing state on close
-              }
-          }}>
-              <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader>
-                      <DialogTitle>Edit Dining Hall: {editingComedor?.nombre}</DialogTitle>
-                      <DialogDescription>Modify the details for this dining hall.</DialogDescription>
-                  </DialogHeader>
-                  {editingComedor ? (
-                      <form onSubmit={handleUpdateComedor} className="space-y-4 py-4">
-                          {/* Name Input */}
-                          <div className="space-y-1.5">
-                              <Label htmlFor="edit-comedor-nombre">Dining Hall Name</Label>
-                              <Input
-                                  id="edit-comedor-nombre"
-                                  value={editComedorNombre}
-                                  onChange={(e) => setEditComedorNombre(e.target.value)}
-                                  disabled={isProcessingEditComedor}
-                              />
-                          </div>
-                          {/* Description (Optional) */}
-                          <div className="space-y-1.5">
-                              <Label htmlFor="edit-comedor-descripcion">Description (Optional)</Label>
-                              <Textarea
-                                  id="edit-comedor-descripcion"
-                                  placeholder="Enter any relevant details..."
-                                  value={editComedorDescripcion}
-                                  onChange={(e) => setEditComedorDescripcion(e.target.value)}
-                                  disabled={isProcessingEditComedor}
-                                  rows={3}
-                              />
-                          </div>
-                          <DialogFooter>
-                              <DialogClose asChild>
-                                  <Button type="button" variant="outline" disabled={isProcessingEditComedor}>Cancel</Button>
-                              </DialogClose>
-                              <Button type="submit" disabled={isProcessingEditComedor}>
-                                  {isProcessingEditComedor ? 'Saving...' : 'Save Changes'}
-                              </Button>
-                          </DialogFooter>
-                      </form>
-                  ) : (
-                      <p>Loading dining hall data...</p>
-                  )}
-              </DialogContent>
-          </Dialog>
-      );
-  
-
-    // *** NEW: Handlers for Alternativas Tab ***
-    const handleCreateAlternativa = async (e: React.FormEvent) => {
+    // Handler for Updating a Comedor
+    const handleUpdateComedor = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!managingResidenciaId) return;
-
-        // --- Validation ---
-        if (!newAlternativaNombre.trim() || !newAlternativaTipo || !newAlternativaTiempoId || !newAlternativaHorarioId || !newAlternativaVentanaInicio || !newAlternativaVentanaFin) {
-             toast({ title: "Validation Error", description: "Please fill in Name, Type, Meal Time, Request Schedule, Start Window, and End Window.", variant: "destructive" }); return;
-        }
-        if (newAlternativaTipo === 'comedor' && !newAlternativaComedorId) {
-             toast({ title: "Validation Error", description: "Please select a Dining Hall for 'comedor' type alternatives.", variant: "destructive" }); return;
-        }
-         if (!/^\d{2}:\d{2}$/.test(newAlternativaVentanaInicio) || !/^\d{2}:\d{2}$/.test(newAlternativaVentanaFin)) {
-             toast({ title: "Validation Error", description: "Window Start and End times must be in HH:MM format.", variant: "destructive" }); return;
-         }
-        // Add more validation if needed (e.g., window start < end)
-
-        setIsProcessingNewAlternativa(true);
-        try {
-            const newAlternativaData: Omit<AlternativaTiempoComida, 'id'> = {
-                residenciaId: managingResidenciaId,
-                nombre: newAlternativaNombre.trim(),
-                tipo: newAlternativaTipo,
-                tiempoComidaId: newAlternativaTiempoId,
-                horarioSolicitudComidaId: newAlternativaHorarioId,
-                comedorId: newAlternativaTipo === 'comedor' ? newAlternativaComedorId : undefined,
-                tipoAcceso: newAlternativaTipoAcceso,
-                requiereAprobacion: newAlternativaRequiereAprobacion,
-                ventanaInicio: newAlternativaVentanaInicio,
-                ventanaFin: newAlternativaVentanaFin,
-                isActive: newAlternativaIsActive,
-                // Add other fields like isContingencia if implementing that logic
-            };
-
-            const alternativaRef = await addDoc(collection(db, 'alternativasTiempoComida'), newAlternativaData);
-            console.log("New Alternativa created with ID:", alternativaRef.id);
-
-            const newAlternativaForState: AlternativaTiempoComida = { id: alternativaRef.id, ...newAlternativaData };
-
-            // Add to local state and re-sort (pass modalTiempos for sorting context)
-            setModalAlternativas(prev => sortAlternativas([...prev, newAlternativaForState], modalTiempos));
-
-            toast({ title: "Success", description: `Meal Alternative "${newAlternativaNombre}" created.` });
-
-            // Reset form (partially, keep maybe tiempo/horario if user adds multiple?) - Simple reset for now:
-             setNewAlternativaNombre(''); setNewAlternativaTipo(''); setNewAlternativaTiempoId(''); setNewAlternativaHorarioId(''); setNewAlternativaComedorId(''); setNewAlternativaTipoAcceso('abierto'); setNewAlternativaRequiereAprobacion(false); setNewAlternativaVentanaInicio(''); setNewAlternativaVentanaFin(''); setNewAlternativaIsActive(true);
-
-        } catch (error) {
-             const errorMessage = `Failed to create Meal Alternative. ${error instanceof Error ? error.message : 'Unknown error'}`;
-            console.error("Error creating Alternativa: ", error);
-            toast({ title: "Error", description: errorMessage, variant: "destructive" });
-        } finally {
-            setIsProcessingNewAlternativa(false);
-        }
-    };
-
-    const handleEditAlternativa = (alternativa: AlternativaTiempoComida) => {
-        // TODO: Implement edit logic
-        console.log("TODO: Edit Alternativa", alternativa);
-        toast({ title: "TODO", description: `Implement edit for ${alternativa.nombre}` });
-    };
-
-    const handleDeleteAlternativa = async (alternativaId: string, alternativaNombre: string) => {
-        // Placeholder - check dependencies (Elecciones, Semanario) before deleting in real implementation
-        if (!managingResidenciaId) return;
-         if (!confirm(`Are you sure you want to delete the Meal Alternative "${alternativaNombre}"? This cannot be undone and might affect existing choices.`)) {
+        if (!editingComedor || !managingResidenciaId) {
+            toast({ title: "Error", description: "No Dining Hall selected for editing.", variant: "destructive" });
             return;
         }
-        console.log("Deleting Alternativa", alternativaId);
+        const trimmedName = editComedorNombre.trim();
+        if (!trimmedName) {
+             toast({ title: "Validation Error", description: "Dining Hall Name cannot be empty.", variant: "destructive" }); return;
+        }
+        if (modalComedores.some(c => c.id !== editingComedor.id && c.nombre.toLowerCase() === trimmedName.toLowerCase())) {
+            toast({ title: "Validation Error", description: `Another dining hall named \"${trimmedName}\" already exists.`, variant: "destructive" });
+            return;
+        }
+
+        setIsProcessingEditComedor(true);
         try {
-            await deleteDoc(doc(db, 'alternativasTiempoComida', alternativaId));
-            toast({ title: "Success", description: `Meal Alternative "${alternativaNombre}" deleted.` });
-            // Update UI
-            setModalAlternativas(prev => prev.filter(a => a.id !== alternativaId));
+            const comedorRef = doc(db, 'comedores', editingComedor.id);
+            const dataForFirestore: { [key: string]: string | FieldValue } = {
+                 nombre: trimmedName,
+                 descripcion: editComedorDescripcion.trim() ? editComedorDescripcion.trim() : deleteField(),
+            };
+            await updateDoc(comedorRef, dataForFirestore);
+            console.log("Comedor updated successfully:", editingComedor.id);
+            const updatedComedorForState: Comedor = {
+                ...editingComedor,
+                nombre: trimmedName,
+                descripcion: editComedorDescripcion.trim() || undefined,
+            };
+            setModalComedores(prev => sortComedores(
+                prev.map(c => c.id === editingComedor.id ? updatedComedorForState : c)
+            ));
+            toast({ title: "Success", description: `Dining Hall \"${trimmedName}\" updated.` });
+            setIsEditComedorDialogOpen(false);
         } catch (error) {
-            const errorMessage = `Failed to delete Meal Alternative. ${error instanceof Error ? error.message : 'Unknown error'}`;
-            console.error("Error deleting Alternativa: ", error);
+             const errorMessage = `Failed to update Dining Hall. ${error instanceof Error ? error.message : 'Unknown error'}`;
+            console.error("Error updating Comedor: ", error);
             toast({ title: "Error", description: errorMessage, variant: "destructive" });
+        } finally {
+            setIsProcessingEditComedor(false);
         }
     };
+
+    // --- Edit Comedor Dialog Component (Defined at the bottom) ---
+
+    // --- Handlers for Alternativas Tab (REMOVED) ---
+    // Removed handleCreateAlternativa, handleEditAlternativa, handleDeleteAlternativa
+
 
     // --- Render Logic ---
   return (
      <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
-         <div className="container mx-auto p-4 space-y-6">
-            <h1 className="text-2xl font-bold">Manage Residences</h1>
-             <Tabs defaultValue="list" className="w-full">
-                 <TabsList>
-                     <TabsTrigger value="create">Create New Residence</TabsTrigger>
-                     <TabsTrigger value="list">Existing Residences</TabsTrigger>
-                 </TabsList>
-                 <TabsContent value="create">
-                     <Card>
-                         <CardHeader>
-                             <CardTitle>Create New Residence</CardTitle>
-                             <CardDescription>Enter the basic details and initial settings for the new residence.</CardDescription>
-                         </CardHeader>
-                         <CardContent className="space-y-6">
-                             {!isClient ? (<Skeleton className="h-80 w-full" />) : (
-                                 <>
-                                      <div className="space-y-2"> <Label htmlFor="residence-name">Residence Name</Label> <Input id="residence-name" placeholder="e.g., Residencia Central" value={newResidenceName} onChange={(e) => setNewResidenceName(e.target.value)} disabled={isProcessingCreate} /> </div>
-                                      <div className="space-y-2"> <Label>Primary Meal Request Submission Times</Label> <CardDescription>Set the main deadline time (HH:MM) for each day's meal requests.</CardDescription> <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"> {daysOfWeek.map(day => (<div key={day.value} className="grid gap-2"> <Label htmlFor={`time-${day.value}`}>{day.label}</Label> <Input id={`time-${day.value}`} type="time" value={newSubmissionTimes[day.value] || ''} onChange={(e) => handleTimeChange(day.value, e.target.value)} disabled={isProcessingCreate} step="900" /> </div>))} </div> </div>
-                                      <div className="space-y-4"> <Label>Initial Dining Halls (Comedores)</Label> <CardDescription>Add the names of the dining halls available at this residence.</CardDescription> <div className="flex items-center space-x-2"> <div className="grid flex-1 gap-2"> <Label htmlFor="new-comedor-name" className="sr-only">New Dining Hall Name</Label> <Input id="new-comedor-name" placeholder="e.g., Comedor Principal" value={currentComedorName} onChange={(e) => setCurrentComedorName(e.target.value)} disabled={isProcessingCreate} /> </div> <Button type="button" size="sm" onClick={handleAddComedor} disabled={isProcessingCreate || !currentComedorName.trim()}> <PlusCircle className="mr-2 h-4 w-4" /> Add Hall </Button> </div> {newComedores.length > 0 && (<div className="space-y-2 pt-2"> <Label className="text-xs font-medium text-muted-foreground">Added Halls:</Label> <ul className="space-y-1"> {newComedores.map((name) => (<li key={name} className="flex items-center justify-between p-1.5 border rounded-md bg-secondary/30 text-sm"> <span>{name}</span> <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleRemoveComedor(name)} disabled={isProcessingCreate} aria-label={`Remove ${name}`}> <X className="h-3 w-3" /> </Button> </li>))} </ul> </div>)} </div>
-                                     <div className="pt-4"> <Button onClick={handleCreateResidence} disabled={isProcessingCreate}> {isProcessingCreate ? 'Creating...' : 'Create Residence'} </Button> </div>
-                                 </>
-                             )}
-                         </CardContent>
-                     </Card>
-                 </TabsContent>
-                 <TabsContent value="list">
-                     <Card>
-                         <CardHeader> <CardTitle>Existing Residences</CardTitle> <CardDescription>View existing residences and manage their settings.</CardDescription> </CardHeader>
-                         <CardContent>
-                             {isLoadingResidences ? (
-                                  <div className="space-y-2"> 
-                                    <Skeleton className="h-16 w-full" /> 
-                                    <Skeleton className="h-16 w-full" /> 
-                                  </div>
-                                ) : errorResidences ? (
-                                  <p className="text-destructive">{errorResidences}</p>
-                                ) : !residences || residences.length === 0 ? (
-                                  <p>No residences found. Create one using the 'Create New Residence' tab.</p>
-                                ) : (
-                                  <ul className="space-y-3"> {residences.map((res) => (
-                                    <li key={res.id} className="border p-4 rounded-md shadow-sm flex justify-between items-center"> 
-                                      <div> 
-                                        <p className="font-semibold text-lg">{res.nombre}</p> 
-                                        <p className="text-sm text-muted-foreground">ID: {res.id}</p> 
-                                      </div> 
-                                      <DialogTrigger asChild>
-                                          <Button
-                                              variant="secondary"
-                                              size="sm"
-                                              onClick={() => handleManageSettings(res)}
-                                          >
-                                              Manage Settings
-                                          </Button>
-                                      </DialogTrigger> 
-                                    </li>))} 
-                                  </ul>)}
-                         </CardContent>
-                     </Card>
-                 </TabsContent>
-             </Tabs>
-         </div>
+    <div className="container mx-auto p-4 space-y-6">
+        <h1 className="text-2xl font-bold">Manage Residences</h1>
+            <Tabs defaultValue="list" className="w-full">
+                <TabsList>
+                    <TabsTrigger value="create">Create New Residence</TabsTrigger>
+                    <TabsTrigger value="list">Existing Residences</TabsTrigger>
+                </TabsList>
+                <TabsContent value="create">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Create New Residence</CardTitle>
+                            <CardDescription>Enter the basic details and initial settings for the new residence.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            {!isClient ? (<Skeleton className="h-80 w-full" />) : (
+                                <>
+                                    <div className="space-y-2"> <Label htmlFor="residence-name">Residence Name</Label> <Input id="residence-name" placeholder="e.g., Residencia Central" value={newResidenceName} onChange={(e) => setNewResidenceName(e.target.value)} disabled={isProcessingCreate} /> </div>
+                                    <div className="space-y-2"> <Label>Primary Meal Request Submission Times</Label> <CardDescription>Set the main deadline time (HH:MM) for each day's meal requests.</CardDescription> <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"> {daysOfWeek.map(day => (<div key={day.value} className="grid gap-2"> <Label htmlFor={`time-${day.value}`}>{day.label}</Label> <Input id={`time-${day.value}`} type="time" value={newSubmissionTimes[day.value] || ''} onChange={(e) =>
+                                            handleTimeChange(day.value, e.target.value)} disabled={isProcessingCreate} step="900" /> </div>))} </div> </div>
+                                        {/* Initial Dining Halls Section */}
+                                        <div className="space-y-4"> <Label>Initial Dining Halls (Comedores)</Label> <CardDescription>Add the names of the dining halls available at this residence.</CardDescription> <div className="flex items-center space-x-2"> <div className="grid flex-1 gap-2"> <Label htmlFor="new-comedor-name" className="sr-only">New Dining Hall Name</Label> <Input id="new-comedor-name" placeholder="e.g., Comedor Principal" value={currentComedorName} onChange={(e) => setCurrentComedorName(e.target.value)} disabled={isProcessingCreate} /> </div> <Button type="button" size="sm" onClick={handleAddComedor} disabled={isProcessingCreate || !currentComedorName.trim()}> <PlusCircle className="mr-2 h-4 w-4" /> Add Hall </Button> </div> {newComedores.length > 0 && (<div className="space-y-2 pt-2"> <Label className="text-xs font-medium text-muted-foreground">Added Halls:</Label> <ul className="space-y-1"> {newComedores.map((name) => (<li key={name} className="flex items-center justify-between p-1.5 border rounded-md bg-secondary/30 text-sm"> <span>{name}</span> <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleRemoveComedor(name)} disabled={isProcessingCreate} aria-label={`Remove ${name}`}> <X className="h-3 w-3" /> </Button> </li>))} </ul> </div>)} </div>
+                                        {/* Create Button */}
+                                        <div className="pt-4"> <Button onClick={handleCreateResidence} disabled={isProcessingCreate}> {isProcessingCreate ? 'Creating...' : 'Create Residence'} </Button> </div>
+                                        </>
+                                        )}
+                            </CardContent>
+                    </Card>
+                </TabsContent>
+                {/* Existing Residences Tab */}
+                <TabsContent value="list">
+                    <Card>
+                        <CardHeader> <CardTitle>Existing Residences</CardTitle> <CardDescription>View existing residences and manage their settings.</CardDescription> </CardHeader>
+                        <CardContent>
+                            {isLoadingResidences ? (
+                            <div className="space-y-2">
+                                <Skeleton className="h-16 w-full" />
+                                <Skeleton className="h-16 w-full" />
+                            </div>
+                            ) : errorResidences ? (
+                            <p className="text-destructive">{errorResidences}</p>
+                            ) : !residences || residences.length === 0 ? (
+                            <p>No residences found. Create one using the 'Create New Residence' tab.</p>
+                            ) : (
+                            <ul className="space-y-3"> {residences.map((res) => (
+                                <li key={res.id} className="border p-4 rounded-md shadow-sm flex justify-between items-center">
+                                    <div>
+                                        <p className="font-semibold text-lg">{res.nombre}</p>
+                                        <p className="text-sm text-muted-foreground">ID: {res.id}</p>
+                                    </div>
+                                    {/* Trigger for Modal */}
+                                    <DialogTrigger asChild>
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => handleManageSettings(res)}
+                                        >
+                                            Manage Settings
+                                        </Button>
+                                    </DialogTrigger>
+                                </li>))}
+                            </ul>)}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs> {/* End Main Tabs */}
+        </div> {/* End Container Div */}
 
-         {/* --- MODAL CONTENT --- */}
-         <DialogContent className="sm:max-w-[600px] md:max-w-[800px] lg:max-w-[1000px] max-h-[90vh] flex flex-col">
+            {/* --- MODAL CONTENT --- */}
+            <DialogContent className="sm:max-w-[600px] md:max-w-[800px] lg:max-w-[900px] max-h-[90vh] flex flex-col"> {/* Adjusted max-width */}
             <DialogHeader>
-                <DialogTitle>Manage Settings for: {managingResidenciaNombre || '...'}</DialogTitle>
-                <DialogDescription> Configure meal settings... </DialogDescription>
+            <DialogTitle>Manage Settings for: {managingResidenciaNombre || '...'}</DialogTitle>
+            <DialogDescription> Configure request schedules and dining halls for this residence. Meal times and alternatives are managed elsewhere.</DialogDescription>
             </DialogHeader>
 
             {/* Modal Tabs Container */}
-            <div className="py-4 flex-grow overflow-y-auto">
-                <Tabs defaultValue="horarios" className="w-full">
-                   <TabsList className="mb-4">
-                       {/* ... Tab Triggers ... */}
-                       <TabsTrigger value="horarios">Request Schedules</TabsTrigger>
-                       <TabsTrigger value="tiempos">Meal Times</TabsTrigger>
-                       <TabsTrigger value="comedores">Dining Halls</TabsTrigger>
-                       <TabsTrigger value="alternativas">Meal Alternatives</TabsTrigger>
-                   </TabsList>
+            <div className="py-4 flex-grow overflow-y-auto"> {/* Added overflow-y-auto */}
+            <Tabs defaultValue="horarios" className="w-full">
+            <TabsList className="mb-4 grid w-full grid-cols-2"> {/* Adjusted grid-cols */}
+            <TabsTrigger value="horarios">Request Schedules</TabsTrigger>
+            {/* Removed Tiempos Trigger */}
+            <TabsTrigger value="comedores">Dining Halls</TabsTrigger>
+            {/* Removed Alternativas Trigger */}
+            </TabsList>
 
-                   {/* --- Horarios Tab Content --- */}
-                   <TabsContent value="horarios">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Meal Request Schedules</CardTitle>
-                                <CardDescription>Define when users can submit or change their meal requests.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                {/* Accordion for Creating New Schedule */}
-                                <Accordion type="single" collapsible className="w-full">
-                                    <AccordionItem value="new-horario">
-                                    <AccordionTrigger className="text-sm font-medium hover:underline [&[data-state=open]>svg]:rotate-180"> {/* Default trigger styling often looks like a link */}
-                                          <PlusCircle className="mr-2 h-4 w-4 inline" /> Add New Schedule {/* Icon and text directly inside */}
-                                          {/* The default trigger usually includes its own down chevron, remove if duplicating */}
-                                      </AccordionTrigger>
-                                        <AccordionContent>
-                                            <form onSubmit={handleCreateHorario} className="border p-4 rounded-md mt-2 space-y-4 bg-muted/30">
-                                                 <h3 className="font-medium">New Schedule Details</h3>
-                                                 <div className="space-y-1.5">
-                                                      <Label htmlFor="new-horario-nombre">Schedule Name</Label>
-                                                      <Input id="new-horario-nombre" placeholder="e.g., Cambio Almuerzo, Solicitud Finde" value={newHorarioNombre} onChange={(e) => setNewHorarioNombre(e.target.value)} disabled={isProcessingNewHorario} />
-                                                 </div>
-                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                      <div className="space-y-1.5">
-                                                           <Label htmlFor="new-horario-dia">Day of Week</Label>
-                                                           <Select value={newHorarioDia} onValueChange={(value) => setNewHorarioDia(value as DayOfWeekKey)} disabled={isProcessingNewHorario}>
-                                                                <SelectTrigger id="new-horario-dia"><SelectValue placeholder="Select day..." /></SelectTrigger>
-                                                                <SelectContent>{daysOfWeek.map(day => (<SelectItem key={day.value} value={day.value}>{day.label} ({DayOfWeekMap[day.value]})</SelectItem>))}</SelectContent>
-                                                           </Select>
-                                                      </div>
-                                                      <div className="space-y-1.5">
-                                                          <Label htmlFor="new-horario-hora">Deadline Time (HH:MM)</Label>
-                                                          <Input id="new-horario-hora" type="time" value={newHorarioHora} onChange={(e) => setNewHorarioHora(e.target.value)} disabled={isProcessingNewHorario} step="900" />
-                                                      </div>
-                                                 </div>
-                                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                                                     <div className="flex items-center space-x-2">
-                                                         <Switch id="new-horario-primary" checked={newHorarioIsPrimary} onCheckedChange={setNewHorarioIsPrimary} disabled={isProcessingNewHorario} />
-                                                         <Label htmlFor="new-horario-primary">Primary Schedule?</Label>
-                                                     </div>
-                                                      <div className="flex items-center space-x-2">
-                                                         <Switch id="new-horario-active" checked={newHorarioIsActive} onCheckedChange={setNewHorarioIsActive} disabled={isProcessingNewHorario} />
-                                                         <Label htmlFor="new-horario-active">Active?</Label>
-                                                     </div>
-                                                 </div>
-                                                 <Button type="submit" size="sm" disabled={isProcessingNewHorario}>
-                                                      {isProcessingNewHorario ? 'Saving...' : 'Save New Schedule'}
-                                                 </Button>
-                                            </form>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                </Accordion>
+            {/* --- Horarios Tab Content --- */}
+            <TabsContent value="horarios">
+            <Card>
+            <CardHeader>
+            <CardTitle>Meal Request Schedules</CardTitle>
+            <CardDescription>Define when users can submit or change their meal requests.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+            {/* Accordion for Creating New Schedule */}
+            <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="new-horario">
+            <AccordionTrigger className="text-sm font-medium hover:underline [&[data-state=open]>svg]:rotate-180">
+                <PlusCircle className="mr-2 h-4 w-4 inline" /> Add New Schedule
+            </AccordionTrigger>
+            <AccordionContent>
+                <form onSubmit={handleCreateHorario} className="border p-4 rounded-md mt-2 space-y-4 bg-muted/30">
+                    <h3 className="font-medium">New Schedule Details</h3>
+                    <div className="space-y-1.5">
+                            <Label htmlFor="new-horario-nombre">Schedule Name</Label>
+                            <Input id="new-horario-nombre" placeholder="e.g., Cambio Almuerzo, Solicitud Finde" value={newHorarioNombre} onChange={(e) => setNewHorarioNombre(e.target.value)} disabled={isProcessingNewHorario} />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="new-horario-dia">Day of Week</Label>
+                                <Select value={newHorarioDia} onValueChange={(value) => setNewHorarioDia(value as DayOfWeekKey)} disabled={isProcessingNewHorario}>
+                                    <SelectTrigger id="new-horario-dia"><SelectValue placeholder="Select day..." /></SelectTrigger>
+                                    <SelectContent>{daysOfWeek.map(day => (<SelectItem key={day.value} value={day.value}>{day.label} ({DayOfWeekMap[day.value]})</SelectItem>))}</SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="new-horario-hora">Deadline Time (HH:MM)</Label>
+                                <Input id="new-horario-hora" type="time" value={newHorarioHora} onChange={(e) => setNewHorarioHora(e.target.value)} disabled={isProcessingNewHorario} step="900" />
+                            </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex items-center space-x-2">
+                            <Switch id="new-horario-primary" checked={newHorarioIsPrimary} onCheckedChange={setNewHorarioIsPrimary} disabled={isProcessingNewHorario} />
+                            <Label htmlFor="new-horario-primary">Primary Schedule?</Label>
+                        </div>
+                            <div className="flex items-center space-x-2">
+                            <Switch id="new-horario-active" checked={newHorarioIsActive} onCheckedChange={setNewHorarioIsActive} disabled={isProcessingNewHorario} />
+                            <Label htmlFor="new-horario-active">Active?</Label>
+                        </div>
+                    </div>
+                    <Button type="submit" size="sm" disabled={isProcessingNewHorario}>
+                            {isProcessingNewHorario ? 'Saving...' : 'Save New Schedule'}
+                    </Button>
+                </form>
+            </AccordionContent>
+            </AccordionItem>
+            </Accordion>
 
-                                {/* Existing Schedules List */}
-                                <div className='pt-4'>
-                                    <h4 className="font-medium mb-2 text-sm text-muted-foreground">Existing Schedules</h4>
-                                    {isLoadingModalData ? (
-                                        <Skeleton className="h-20 w-full" />
-                                    ) : errorModalData ? (
-                                        <p className="text-destructive">{errorModalData}</p>
-                                    ) : modalHorarios.length === 0 ? (
-                                        <p>No request schedules found for this residence. Add one above.</p>
-                                    ) : (
-                                        <ul className="space-y-3">
-                                            {modalHorarios.map((horario) => (
-                                                <li key={horario.id} className="border p-3 rounded-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                                                    <div className="flex-grow space-y-1">
-                                                        <p className="font-medium">{horario.nombre}</p>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            Applies to: <span className="font-semibold">{DayOfWeekMap[horario.dia]}</span> |
-                                                            Deadline: <span className="font-semibold">{horario.horaSolicitud}</span>
-                                                        </p>
-                                                        <div className='flex gap-2 items-center'>
-                                                            <Badge variant={horario.isPrimary ? "default" : "secondary"}>
-                                                                {horario.isPrimary ? 'Primary' : 'Secondary'}
-                                                            </Badge>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0">
-                                                        <div className="flex items-center space-x-2">
-                                                            <Switch
-                                                                id={`active-switch-${horario.id}`}
-                                                                checked={horario.isActive}
-                                                                onCheckedChange={() => handleToggleHorarioActive(horario)}
-                                                                aria-label={horario.isActive ? "Deactivate Schedule" : "Activate Schedule"}
-                                                             />
-                                                            <Label htmlFor={`active-switch-${horario.id}`} className="text-xs">{horario.isActive ? 'Active' : 'Inactive'}</Label>
-                                                        </div>
-                                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleEditHorario(horario)}>
-                                                            <Pencil className="h-4 w-4" /> <span className="sr-only">Edit</span>
-                                                        </Button>
-                                                        <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteHorario(horario.id, horario.nombre)}>
-                                                            <Trash2 className="h-4 w-4" /> <span className="sr-only">Delete</span>
-                                                        </Button>
-                                                    </div>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                   </TabsContent>
+            {/* Existing Schedules List */}
+            <div className='pt-4'>
+            <h4 className="font-medium mb-2 text-sm text-muted-foreground">Existing Schedules</h4>
+            {isLoadingModalData ? (
+            <Skeleton className="h-20 w-full" />
+            ) : errorModalData ? (
+            <p className="text-destructive">{errorModalData}</p>
+            ) : modalHorarios.length === 0 ? (
+            <p>No request schedules found for this residence. Add one above.</p>
+            ) : (
+            <ul className="space-y-3">
+                {modalHorarios.map((horario) => (
+                    <li key={horario.id} className="border p-3 rounded-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div className="flex-grow space-y-1">
+                            <p className="font-medium">{horario.nombre}</p>
+                            <p className="text-sm text-muted-foreground">
+                                Applies to: <span className="font-semibold">{DayOfWeekMap[horario.dia]}</span> |
+                                Deadline: <span className="font-semibold">{horario.horaSolicitud}</span>
+                            </p>
+                            <div className='flex gap-2 items-center'>
+                                <Badge variant={horario.isPrimary ? "default" : "secondary"}>
+                                    {horario.isPrimary ? 'Primary' : 'Secondary'}
+                                </Badge>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0">
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id={`active-switch-${horario.id}`}
+                                    checked={horario.isActive}
+                                    onCheckedChange={() => handleToggleHorarioActive(horario)}
+                                    aria-label={horario.isActive ? "Deactivate Schedule" : "Activate Schedule"}
+                                />
+                                <Label htmlFor={`active-switch-${horario.id}`} className="text-xs">{horario.isActive ? 'Active' : 'Inactive'}</Label>
+                            </div>
+                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleEditHorario(horario)}>
+                                <Pencil className="h-4 w-4" /> <span className="sr-only">Edit</span>
+                            </Button>
+                            <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteHorario(horario.id, horario.nombre)}>
+                                <Trash2 className="h-4 w-4" /> <span className="sr-only">Delete</span>
+                            </Button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+            )}
+            </div>
+            </CardContent>
+            </Card>
+            </TabsContent>
 
 
-                   {/* --- Tiempos Tab Content --- */}
-                   <TabsContent value="tiempos">
-                       <Card>
-                            <CardHeader>
-                                <CardTitle>Meal Times</CardTitle>
-                                <CardDescription>Define the different meal times offered each day (e.g., Lunch Monday, Dinner Friday).</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                {/* Accordion for Creating New Tiempo */}
-                                <Accordion type="single" collapsible className="w-full">
-                                    <AccordionItem value="new-tiempo">
-                                        <AccordionTrigger className="text-sm font-medium hover:underline [&[data-state=open]>svg]:rotate-180">
-                                            <PlusCircle className="mr-2 h-4 w-4 inline" /> Add New Meal Time
-                                        </AccordionTrigger>
-                                        <AccordionContent>
-                                            <form onSubmit={handleCreateTiempo} className="border p-4 rounded-md mt-2 space-y-4 bg-muted/30">
-                                                 <h3 className="font-medium">New Meal Time Details</h3>
-                                                 {/* Name */}
-                                                 <div className="space-y-1.5">
-                                                      <Label htmlFor="new-tiempo-nombre">Meal Time Name</Label>
-                                                      <Input id="new-tiempo-nombre" placeholder="e.g., Almuerzo, Cena, Desayuno" value={newTiempoNombre} onChange={(e) => setNewTiempoNombre(e.target.value)} disabled={isProcessingNewTiempo} />
-                                                 </div>
-                                                 {/* Day and Estimated Time */}
-                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                     <div className="space-y-1.5">
-                                                          <Label htmlFor="new-tiempo-dia">Day of Week</Label>
-                                                          <Select value={newTiempoDia} onValueChange={(value) => setNewTiempoDia(value as DayOfWeekKey)} disabled={isProcessingNewTiempo}>
-                                                               <SelectTrigger id="new-tiempo-dia"><SelectValue placeholder="Select day..." /></SelectTrigger>
-                                                               <SelectContent>{daysOfWeek.map(day => (<SelectItem key={day.value} value={day.value}>{day.label} ({DayOfWeekMap[day.value]})</SelectItem>))}</SelectContent>
-                                                          </Select>
-                                                     </div>
-                                                     <div className="space-y-1.5">
-                                                         <Label htmlFor="new-tiempo-hora">Estimated Time (Optional, HH:MM)</Label>
-                                                         <Input id="new-tiempo-hora" type="time" value={newTiempoHoraEstimada} onChange={(e) => setNewTiempoHoraEstimada(e.target.value)} disabled={isProcessingNewTiempo} step="900" />
-                                                     </div>
-                                                 </div>
-                                                 {/* Group Name and Order */}
-                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                      <div className="space-y-1.5">
-                                                           <Label htmlFor="new-tiempo-grupo-nombre">Group Name</Label>
-                                                           <Input id="new-tiempo-grupo-nombre" placeholder="e.g., Comidas Principales, Desayunos" value={newTiempoGrupoNombre} onChange={(e) => setNewTiempoGrupoNombre(e.target.value)} disabled={isProcessingNewTiempo} />
-                                                      </div>
-                                                      <div className="space-y-1.5">
-                                                          <Label htmlFor="new-tiempo-grupo-orden">Group Order</Label>
-                                                          <Input id="new-tiempo-grupo-orden" type="number" min="1" step="1" value={newTiempoGrupoOrden} onChange={(e) => setNewTiempoGrupoOrden(parseInt(e.target.value, 10) || 1)} disabled={isProcessingNewTiempo} />
-                                                      </div>
-                                                 </div>
-                                                 <Button type="submit" size="sm" disabled={isProcessingNewTiempo}>
-                                                      {isProcessingNewTiempo ? 'Saving...' : 'Save New Meal Time'}
-                                                 </Button>
-                                            </form>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                </Accordion>
+            {/* --- Tiempos Tab Content (REMOVED) --- */}
 
-                                {/* Existing Tiempos List */}
-                                <div className='pt-4'>
-                                    <h4 className="font-medium mb-2 text-sm text-muted-foreground">Existing Meal Times</h4>
-                                    {isLoadingModalData ? (
-                                        <Skeleton className="h-20 w-full" />
-                                    ) : errorModalData ? ( // Check shared error state
-                                        <p className="text-destructive">{errorModalData}</p>
-                                    ) : modalTiempos.length === 0 ? (
-                                        <p>No meal times found for this residence. Add one above.</p>
-                                    ) : (
-                                        <ul className="space-y-3">
-                                            {modalTiempos.map((tiempo) => (
-                                                <li key={tiempo.id} className="border p-3 rounded-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                                                    <div className="flex-grow space-y-1">
-                                                        <p className="font-medium">{tiempo.nombre} ({DayOfWeekMap[tiempo.dia]})</p>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            Group: <span className="font-semibold">{tiempo.nombreGrupo}</span> (Order: {tiempo.ordenGrupo})
-                                                            {tiempo.horaEstimada && ` | Est. Time: ${tiempo.horaEstimada}`}
-                                                        </p>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0">
-                                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleEditTiempo(tiempo)}>
-                                                            <Pencil className="h-4 w-4" /> <span className="sr-only">Edit</span>
-                                                        </Button>
-                                                        <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteTiempo(tiempo.id, tiempo.nombre)}>
-                                                            <Trash2 className="h-4 w-4" /> <span className="sr-only">Delete</span>
-                                                        </Button>
-                                                    </div>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-                            </CardContent>
-                       </Card>
-                   </TabsContent>
 
-                    {/* --- Comedores Tab Content --- */}
-                    <TabsContent value="comedores">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Dining Halls</CardTitle>
-                                <CardDescription>Manage the dining halls available at the residence.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                {/* Accordion for Creating New Comedor */}
-                                <Accordion type="single" collapsible className="w-full">
-                                    <AccordionItem value="new-comedor">
-                                        <AccordionTrigger className="text-sm font-medium hover:underline [&[data-state=open]>svg]:rotate-180">
-                                            <PlusCircle className="mr-2 h-4 w-4 inline" /> Add New Dining Hall
-                                        </AccordionTrigger>
-                                        <AccordionContent>
-                                            <form onSubmit={handleCreateComedor} className="border p-4 rounded-md mt-2 space-y-4 bg-muted/30">
-                                                 <h3 className="font-medium">New Dining Hall Details</h3>
-                                                 {/* Name */}
-                                                 <div className="space-y-1.5">
-                                                      <Label htmlFor="new-comedor-nombre">Dining Hall Name</Label>
-                                                      <Input id="new-comedor-nombre" placeholder="e.g., Comedor Principal, Salón Anexo" value={newComedorNombre} onChange={(e) => setNewComedorNombre(e.target.value)} disabled={isProcessingNewComedor} />
-                                                 </div>
-                                                 {/* Description (Optional) */}
-                                                 <div className="space-y-1.5">
-                                                      <Label htmlFor="new-comedor-descripcion">Description (Optional)</Label>
-                                                      <Textarea
-                                                            id="new-comedor-descripcion"
-                                                            placeholder="Enter any relevant details about this dining hall..."
-                                                            value={newComedorDescripcion}
-                                                            onChange={(e) => setNewComedorDescripcion(e.target.value)}
-                                                            disabled={isProcessingNewComedor}
-                                                            rows={3}
-                                                      />
-                                                 </div>
-                                                 <Button type="submit" size="sm" disabled={isProcessingNewComedor}>
-                                                      {isProcessingNewComedor ? 'Saving...' : 'Save New Dining Hall'}
-                                                 </Button>
-                                            </form>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                </Accordion>
+            {/* --- Comedores Tab Content --- */}
+            <TabsContent value="comedores">
+            <Card>
+            <CardHeader>
+            <CardTitle>Dining Halls</CardTitle>
+            <CardDescription>Manage the dining halls available at the residence.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+            {/* Accordion for Creating New Comedor */}
+            <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="new-comedor">
+            <AccordionTrigger className="text-sm font-medium hover:underline [&[data-state=open]>svg]:rotate-180">
+                <PlusCircle className="mr-2 h-4 w-4 inline" /> Add New Dining Hall
+            </AccordionTrigger>
+            <AccordionContent>
+                <form onSubmit={handleCreateComedor} className="border p-4 rounded-md mt-2 space-y-4 bg-muted/30">
+                    <h3 className="font-medium">New Dining Hall Details</h3>
+                    {/* Name */}
+                    <div className="space-y-1.5">
+                            <Label htmlFor="new-comedor-nombre">Dining Hall Name</Label>
+                            <Input id="new-comedor-nombre" placeholder="e.g., Comedor Principal, Salón Anexo" value={newComedorNombre} onChange={(e) => setNewComedorNombre(e.target.value)} disabled={isProcessingNewComedor} />
+                    </div>
+                    {/* Description (Optional) */}
+                    <div className="space-y-1.5">
+                            <Label htmlFor="new-comedor-descripcion">Description (Optional)</Label>
+                            <Textarea
+                                id="new-comedor-descripcion"
+                                placeholder="Enter any relevant details about this dining hall..."
+                                value={newComedorDescripcion}
+                                onChange={(e) => setNewComedorDescripcion(e.target.value)}
+                                disabled={isProcessingNewComedor}
+                                rows={3}
+                            />
+                    </div>
+                    <Button type="submit" size="sm" disabled={isProcessingNewComedor}>
+                            {isProcessingNewComedor ? 'Saving...' : 'Save New Dining Hall'}
+                    </Button>
+                </form>
+            </AccordionContent>
+            </AccordionItem>
+            </Accordion>
 
-                                {/* Existing Comedores List */}
-                                <div className='pt-4'>
-                                    <h4 className="font-medium mb-2 text-sm text-muted-foreground">Existing Dining Halls</h4>
-                                    {isLoadingModalData ? (
-                                        <Skeleton className="h-20 w-full" />
-                                    ) : errorModalData ? (
-                                        <p className="text-destructive">{errorModalData}</p>
-                                    ) : modalComedores.length === 0 ? (
-                                        <p>No dining halls found for this residence. Add one above.</p>
-                                    ) : (
-                                        <ul className="space-y-3">
-                                            {modalComedores.map((comedor) => (
-                                                <li key={comedor.id} className="border p-3 rounded-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                                                    <div className="flex-grow space-y-1">
-                                                        <p className="font-medium">{comedor.nombre}</p>
-                                                        {comedor.descripcion && (
-                                                            <p className="text-sm text-muted-foreground">
-                                                                {comedor.descripcion}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0">
-                                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleEditComedor(comedor)}>
-                                                            <Pencil className="h-4 w-4" /> <span className="sr-only">Edit</span>
-                                                        </Button>
-                                                        <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteComedor(comedor.id, comedor.nombre)}>
-                                                            <Trash2 className="h-4 w-4" /> <span className="sr-only">Delete</span>
-                                                        </Button>
-                                                    </div>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-                            </CardContent>
-                       </Card>
-                   </TabsContent>
+            {/* Existing Comedores List */}
+            <div className='pt-4'>
+            <h4 className="font-medium mb-2 text-sm text-muted-foreground">Existing Dining Halls</h4>
+            {isLoadingModalData ? (
+            <Skeleton className="h-20 w-full" />
+            ) : errorModalData ? (
+            <p className="text-destructive">{errorModalData}</p>
+            ) : modalComedores.length === 0 ? (
+            <p>No dining halls found for this residence. Add one above.</p>
+            ) : (
+            <ul className="space-y-3">
+                {modalComedores.map((comedor) => (
+                    <li key={comedor.id} className="border p-3 rounded-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div className="flex-grow space-y-1">
+                            <p className="font-medium">{comedor.nombre}</p>
+                            {comedor.descripcion && (
+                                <p className="text-sm text-muted-foreground">
+                                    {comedor.descripcion}
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0">
+                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleEditComedor(comedor)}>
+                                <Pencil className="h-4 w-4" /> <span className="sr-only">Edit</span>
+                            </Button>
+                            <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteComedor(comedor.id, comedor.nombre)}>
+                                <Trash2 className="h-4 w-4" /> <span className="sr-only">Delete</span>
+                            </Button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+            )}
+            </div>
+            </CardContent>
+            </Card>
+            </TabsContent>
 
-                   {/* --- Alternativas Tab --- */}
-                   <TabsContent value="alternativas">
-                       <Card>
-                            <CardHeader>
-                                <CardTitle>Meal Alternatives</CardTitle>
-                                <CardDescription>Define the specific meal options available for each Meal Time.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                {/* Accordion for Creating New Alternativa */}
-                                <Accordion type="single" collapsible className="w-full">
-                                   <AccordionItem value="new-alternativa">
-                                      {/* Container to hold trigger and optional message */}
-                                      <div className="flex items-center justify-between"> {/* Use flex to potentially place message beside */}
-                                          <AccordionTrigger
-                                              className="text-sm font-medium hover:underline [&[data-state=open]>svg]:rotate-180 flex-grow" // Use flex-grow to take up space
-                                              disabled={modalTiempos.length === 0 || modalHorarios.length === 0}
-                                          >
-                                                <PlusCircle className="mr-2 h-4 w-4 inline" /> Add New Meal Alternative
-                                                {/* Default chevron icon will likely be added by AccordionTrigger automatically */}
-                                          </AccordionTrigger>
-                                            {/* Conditional message placed *after* the trigger */}
-                                            {(modalTiempos.length === 0 || modalHorarios.length === 0) && (
-                                                    <p className="text-xs text-destructive pl-2 flex-shrink-0"> {/* Use flex-shrink-0 */}
-                                                        Se requiere al menos un Tiempo de Comida y un Horario de Solicitud.
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <AccordionContent>
-                                            <form onSubmit={handleCreateAlternativa} className="border p-4 rounded-md mt-2 space-y-4 bg-muted/30">
-                                                <h3 className="font-medium">New Meal Alternative Details</h3>
+            {/* --- Alternativas Tab Content (REMOVED) --- */}
 
-                                                {/* Name */}
-                                                <div className="space-y-1.5">
-                                                    <Label htmlFor="new-alt-nombre">Alternative Name</Label>
-                                                    <Input id="new-alt-nombre" placeholder="e.g., Menú Normal, Vegetariano, Para Llevar" value={newAlternativaNombre} onChange={(e) => setNewAlternativaNombre(e.target.value)} disabled={isProcessingNewAlternativa} />
-                                                </div>
-
-                                                {/* Type and Comedor (Conditional) */}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                    <div className="space-y-1.5">
-                                                        <Label htmlFor="new-alt-tipo">Type</Label>
-                                                        <Select value={newAlternativaTipo} onValueChange={(value) => { setNewAlternativaTipo(value as TipoAlternativa); if (value !== 'comedor') setNewAlternativaComedorId(''); }} disabled={isProcessingNewAlternativa}>
-                                                              <SelectTrigger id="new-alt-tipo"><SelectValue placeholder="Select type..." /></SelectTrigger>
-                                                              <SelectContent>
-                                                                  <SelectItem value="comedor">Comedor (Dining Hall)</SelectItem>
-                                                                  <SelectItem value="paraLlevar">Para Llevar (Takeaway)</SelectItem>
-                                                              </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    {/* Show Comedor select only if type is 'comedor' */}
-                                                    {newAlternativaTipo === 'comedor' && (
-                                                        <div className="space-y-1.5">
-                                                            <Label htmlFor="new-alt-comedor">Dining Hall</Label>
-                                                            <Select value={newAlternativaComedorId} onValueChange={(value) => setNewAlternativaComedorId(value as ComedorId)} disabled={isProcessingNewAlternativa || modalComedores.length === 0}>
-                                                                  <SelectTrigger id="new-alt-comedor"><SelectValue placeholder="Select dining hall..." /></SelectTrigger>
-                                                                  <SelectContent>
-                                                                      {modalComedores.length === 0 && <SelectItem value="" disabled>No dining halls available</SelectItem>}
-                                                                      {modalComedores.map(com => (<SelectItem key={com.id} value={com.id}>{com.nombre}</SelectItem>))}
-                                                                  </SelectContent>
-                                                            </Select>
-                                                            {modalComedores.length === 0 && <p className="text-xs text-destructive">No dining halls defined for this residence.</p>}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* TiempoComida and HorarioSolicitud */}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                    <div className="space-y-1.5">
-                                                          <Label htmlFor="new-alt-tiempo">Meal Time (Defines Day/Group)</Label>
-                                                          <Select value={newAlternativaTiempoId} onValueChange={(value) => setNewAlternativaTiempoId(value as TiempoComidaId)} disabled={isProcessingNewAlternativa || modalTiempos.length === 0}>
-                                                              <SelectTrigger id="new-alt-tiempo"><SelectValue placeholder="Select meal time..." /></SelectTrigger>
-                                                              <SelectContent>
-                                                                  {modalTiempos.length === 0 && <SelectItem value="" disabled>No meal times available</SelectItem>}
-                                                                  {modalTiempos.map(t => (<SelectItem key={t.id} value={t.id}>{t.nombre} ({DayOfWeekMap[t.dia]})</SelectItem>))}
-                                                              </SelectContent>
-                                                          </Select>
-                                                    </div>
-                                                    <div className="space-y-1.5">
-                                                        <Label htmlFor="new-alt-horario">Request Schedule (Defines Deadline)</Label>
-                                                        <Select value={newAlternativaHorarioId} onValueChange={(value) => setNewAlternativaHorarioId(value as HorarioSolicitudComidaId)} disabled={isProcessingNewAlternativa || modalHorarios.length === 0}>
-                                                              <SelectTrigger id="new-alt-horario"><SelectValue placeholder="Select request schedule..." /></SelectTrigger>
-                                                              <SelectContent>
-                                                                  {modalHorarios.length === 0 && <SelectItem value="" disabled>No schedules available</SelectItem>}
-                                                                  {/* Only show active schedules */}
-                                                                  {modalHorarios.filter(h => h.isActive).map(h => (<SelectItem key={h.id} value={h.id}>{h.nombre} ({DayOfWeekMap[h.dia]} {h.horaSolicitud})</SelectItem>))}
-                                                              </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                </div>
-
-                                                {/* Access Type and Requires Approval */}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                    <div className="space-y-1.5">
-                                                        <Label htmlFor="new-alt-acceso">Access Type</Label>
-                                                        <Select value={newAlternativaTipoAcceso} onValueChange={(value) => setNewAlternativaTipoAcceso(value as TipoAccesoAlternativa)} disabled={isProcessingNewAlternativa}>
-                                                              <SelectTrigger id="new-alt-acceso"><SelectValue placeholder="Select access type..." /></SelectTrigger>
-                                                              <SelectContent>
-                                                                  <SelectItem value="abierto">Abierto (Open)</SelectItem>
-                                                                  <SelectItem value="autorizado">Autorizado (Requires Approval)</SelectItem>
-                                                                  <SelectItem value="cerrado">Cerrado (Closed)</SelectItem>
-                                                              </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    <div className="flex items-center space-x-2 pt-6"> {/* Adjust padding for alignment */}
-                                                        <Checkbox id="new-alt-aprobacion" checked={newAlternativaRequiereAprobacion} onCheckedChange={(checked) => setNewAlternativaRequiereAprobacion(Boolean(checked))} disabled={isProcessingNewAlternativa} />
-                                                        <Label htmlFor="new-alt-aprobacion">Requires Director Approval?</Label>
-                                                    </div>
-                                                </div>
-
-                                                {/* Window Start/End */}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                    <div className="space-y-1.5">
-                                                        <Label htmlFor="new-alt-ventana-inicio">Window Start (HH:MM)</Label>
-                                                        <Input id="new-alt-ventana-inicio" type="time" value={newAlternativaVentanaInicio} onChange={(e) => setNewAlternativaVentanaInicio(e.target.value)} disabled={isProcessingNewAlternativa} step="900" />
-                                                    </div>
-                                                    <div className="space-y-1.5">
-                                                        <Label htmlFor="new-alt-ventana-fin">Window End (HH:MM)</Label>
-                                                        <Input id="new-alt-ventana-fin" type="time" value={newAlternativaVentanaFin} onChange={(e) => setNewAlternativaVentanaFin(e.target.value)} disabled={isProcessingNewAlternativa} step="900" />
-                                                    </div>
-                                                </div>
-
-                                                {/* Active Switch */}
-                                                <div className="flex items-center space-x-2">
-                                                  <Switch id="new-alt-active" checked={newAlternativaIsActive} onCheckedChange={setNewAlternativaIsActive} disabled={isProcessingNewAlternativa} />
-                                                  <Label htmlFor="new-alt-active">Active?</Label>
-                                                </div>
-
-                                                <Button type="submit" size="sm" disabled={isProcessingNewAlternativa}>
-                                                    {isProcessingNewAlternativa ? 'Saving...' : 'Save New Alternative'}
-                                                </Button>
-                                            </form>
-                                            </AccordionContent>
-
-                                    </AccordionItem>
-                                </Accordion>
-
-                                {/* Existing Alternativas List */}
-                                <div className='pt-4'>
-                                    <h4 className="font-medium mb-2 text-sm text-muted-foreground">Existing Meal Alternatives</h4>
-                                    {isLoadingModalData ? (
-                                        <Skeleton className="h-20 w-full" />
-                                    ) : errorModalData ? (
-                                        <p className="text-destructive">{errorModalData}</p>
-                                    ) : modalAlternativas.length === 0 ? (
-                                        <p>No meal alternatives found for this residence. Add one above.</p>
-                                    ) : (
-                                        // Group alternatives by Meal Time (TiempoComida)
-                                        Array.from(modalTiempos).sort((a, b) => { // Sort the meal times themselves first
-                                            const dayAIndex = orderedDaysOfWeek.indexOf(a.dia); const dayBIndex = orderedDaysOfWeek.indexOf(b.dia);
-                                            if (dayAIndex !== dayBIndex) return dayAIndex - dayBIndex;
-                                            if (a.ordenGrupo !== b.ordenGrupo) return a.ordenGrupo - b.ordenGrupo;
-                                            return a.nombre.localeCompare(b.nombre);
-                                        }).map(tiempo => {
-                                            // Filter alternatives for the current meal time
-                                            const alternativasForTiempo = modalAlternativas.filter(alt => alt.tiempoComidaId === tiempo.id);
-                                            if (alternativasForTiempo.length === 0) return null; // Don't render header if no alternatives for this time
-
-                                            return (
-                                                <div key={tiempo.id} className="mb-4">
-                                                    <h5 className="font-semibold text-base mb-2 border-b pb-1">{tiempo.nombre} ({DayOfWeekMap[tiempo.dia]})</h5>
-                                                    <ul className="space-y-3 pl-2">
-                                                        {alternativasForTiempo.map((alt) => {
-                                                            // Find associated data for display
-                                                            const horario = modalHorarios.find(h => h.id === alt.horarioSolicitudComidaId);
-                                                            const comedor = alt.comedorId ? modalComedores.find(c => c.id === alt.comedorId) : null;
-
-                                                            return (
-                                                                <li key={alt.id} className="border p-3 rounded-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-background">
-                                                                    <div className="flex-grow space-y-1">
-                                                                        <p className="font-medium flex items-center gap-2">
-                                                                            {alt.nombre}
-                                                                            <Badge variant={alt.isActive ? "default" : "outline"}>{alt.isActive ? 'Active' : 'Inactive'}</Badge>
-                                                                        </p>
-                                                                        <p className="text-sm text-muted-foreground">
-                                                                            Type: <span className="font-semibold">{alt.tipo === 'comedor' ? 'Comedor' : 'Takeaway'}</span>
-                                                                            {comedor && ` @ ${comedor.nombre}`} |
-                                                                            Access: <span className="font-semibold">{alt.tipoAcceso}</span> {alt.requiereAprobacion ? '(Approval Req.)' : ''}
-                                                                        </p>
-                                                                        <p className="text-sm text-muted-foreground">
-                                                                            Window: <span className="font-semibold">{alt.ventanaInicio} - {alt.ventanaFin}</span> |
-                                                                            Schedule: <span className="font-semibold">{horario?.nombre ?? 'N/A'}</span>
-                                                                        </p>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0">
-                                                                        {/* TODO: Add Toggle Active Button here if needed */}
-                                                                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleEditAlternativa(alt)}>
-                                                                            <Pencil className="h-4 w-4" /> <span className="sr-only">Edit</span>
-                                                                        </Button>
-                                                                        <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteAlternativa(alt.id, alt.nombre)}>
-                                                                            <Trash2 className="h-4 w-4" /> <span className="sr-only">Delete</span>
-                                                                        </Button>
-                                                                    </div>
-                                                                </li>
-                                                            );
-                                                        })}
-                                                    </ul>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </CardContent>
-                       </Card>
-                   </TabsContent>
-
-                </Tabs> {/* End Tabs component inside Dialog */}
+            </Tabs> {/* End Tabs component inside Dialog */}
             </div> {/* End flex-grow div */}
 
-            <DialogFooter className="flex-shrink-0">
-                {/* ... Close Button ... */}
-                 <DialogClose asChild><Button type="button" variant="outline">Close</Button></DialogClose>
+            <DialogFooter className="flex-shrink-0 border-t pt-4"> {/* Added border and padding */}
+            <DialogClose asChild><Button type="button" variant="outline">Close</Button></DialogClose>
             </DialogFooter>
-         </DialogContent> {/* End DialogContent */}
-         {/* --- Render the Edit Dialog (it will be controlled by isEditHorarioDialogOpen state) --- */}
-         <EditHorarioDialog />
-         <EditTiempoDialog />
-         <EditComedorDialog />
-     </Dialog> // End Dialog component
-   );
-}
+            </DialogContent> {/* End DialogContent */}
+
+            {/* --- Render the Edit Dialogs (they will be controlled by their respective isOpen state) --- */}
+            <EditHorarioDialog
+            isOpen={isEditHorarioDialogOpen}
+            onOpenChange={(open) => { setIsEditHorarioDialogOpen(open); if (!open) setEditingHorario(null); }}
+            horario={editingHorario}
+            nombre={editHorarioNombre} setNombre={setEditHorarioNombre}
+            dia={editHorarioDia} setDia={setEditHorarioDia}
+            hora={editHorarioHora} setHora={setEditHorarioHora}
+            isPrimary={editHorarioIsPrimary} setIsPrimary={setEditHorarioIsPrimary}
+            isProcessing={isProcessingEditHorario}
+            onSubmit={handleUpdateHorario}
+            />
+            {/* Removed EditTiempoDialog render */}
+            <EditComedorDialog
+            isOpen={isEditComedorDialogOpen}
+            onOpenChange={(open) => { setIsEditComedorDialogOpen(open); if (!open) setEditingComedor(null); }}
+            comedor={editingComedor}
+            nombre={editComedorNombre} setNombre={setEditComedorNombre}
+            descripcion={editComedorDescripcion} setDescripcion={setEditComedorDescripcion}
+            isProcessing={isProcessingEditComedor}
+            onSubmit={handleUpdateComedor}
+            />
+        </Dialog> // End Main Dialog component
+    );
+} // End ResidenciaAdminPage Component
+
+// ==========================================================================
+// Separate Dialog Components (Moved outside the main component)
+// ==========================================================================
+
+const EditHorarioDialog: React.FC<EditHorarioDialogProps> = ({
+isOpen, onOpenChange, horario, nombre, setNombre, dia, setDia, hora, setHora, isPrimary, setIsPrimary, isProcessing, onSubmit
+}) => {
+return (
+<Dialog open={isOpen} onOpenChange={onOpenChange}>
+<DialogContent className="sm:max-w-[500px]">
+<DialogHeader>
+<DialogTitle>Edit Schedule: {horario?.nombre}</DialogTitle>
+<DialogDescription>Modify the details for this request schedule.</DialogDescription>
+</DialogHeader>
+{horario ? (
+<form onSubmit={onSubmit} className="space-y-4 py-4">
+{/* Name Input */}
+<div className="space-y-1.5">
+<Label htmlFor="edit-horario-nombre">Schedule Name</Label>
+<Input id="edit-horario-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={isProcessing} />
+</div>
+{/* Day and Time */}
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div className="space-y-1.5">
+<Label htmlFor="edit-horario-dia">Day of Week</Label>
+<Select value={dia} onValueChange={(value) => setDia(value as DayOfWeekKey)} disabled={isProcessing}>
+<SelectTrigger id="edit-horario-dia"><SelectValue placeholder="Select day..." /></SelectTrigger>
+<SelectContent>{daysOfWeek.map(day => (<SelectItem key={day.value} value={day.value}>{day.label} ({DayOfWeekMap[day.value]})</SelectItem>))}</SelectContent>
+</Select>
+</div>
+<div className="space-y-1.5">
+<Label htmlFor="edit-horario-hora">Deadline Time (HH:MM)</Label>
+<Input id="edit-horario-hora" type="time" value={hora} onChange={(e) => setHora(e.target.value)} disabled={isProcessing} step="900" />
+</div>
+</div>
+{/* Primary Switch */}
+<div className="flex items-center space-x-2 pt-2">
+<Switch id="edit-horario-primary" checked={isPrimary} onCheckedChange={setIsPrimary} disabled={isProcessing} />
+<Label htmlFor="edit-horario-primary">Primary Schedule?</Label>
+</div>
+<DialogFooter>
+<DialogClose asChild><Button type="button" variant="outline" disabled={isProcessing}>Cancel</Button></DialogClose>
+<Button type="submit" disabled={isProcessing}>{isProcessing ? 'Saving...' : 'Save Changes'}</Button>
+</DialogFooter>
+</form>
+) : ( <p>Loading schedule data...</p> )}
+</DialogContent>
+</Dialog>
+);
+};
+
+// Removed EditTiempoDialog Component
+
+const EditComedorDialog: React.FC<EditComedorDialogProps> = ({
+isOpen, onOpenChange, comedor, nombre, setNombre, descripcion, setDescripcion, isProcessing, onSubmit
+}) => {
+return (
+<Dialog open={isOpen} onOpenChange={onOpenChange}>
+<DialogContent className="sm:max-w-[500px]">
+<DialogHeader>
+<DialogTitle>Edit Dining Hall: {comedor?.nombre}</DialogTitle>
+<DialogDescription>Modify the details for this dining hall.</DialogDescription>
+</DialogHeader>
+{comedor ? (
+<form onSubmit={onSubmit} className="space-y-4 py-4">
+{/* Name Input */}
+<div className="space-y-1.5">
+<Label htmlFor="edit-comedor-nombre">Dining Hall Name</Label>
+<Input id="edit-comedor-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={isProcessing}/>
+</div>
+{/* Description (Optional) */}
+<div className="space-y-1.5">
+<Label htmlFor="edit-comedor-descripcion">Description (Optional)</Label>
+<Textarea id="edit-comedor-descripcion" placeholder="Enter any relevant details..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} disabled={isProcessing} rows={3} />
+</div>
+<DialogFooter>
+<DialogClose asChild><Button type="button" variant="outline" disabled={isProcessing}>Cancel</Button></DialogClose>
+<Button type="submit" disabled={isProcessing}>{isProcessing ? 'Saving...' : 'Save Changes'}</Button>
+</DialogFooter>
+</form>
+) : ( <p>Loading dining hall data...</p> )}
+</DialogContent>
+</Dialog>
+);
+};
