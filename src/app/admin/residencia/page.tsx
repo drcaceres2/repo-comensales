@@ -211,6 +211,18 @@ export default function ResidenciaAdminPage() {
     // Note: isActive is handled by the toggle switch, no need in edit form unless you want it there too.
     const [isProcessingEditHorario, setIsProcessingEditHorario] = useState(false);  
 
+    // *** NEW: State for Editing TiempoComida ***
+    const [editingTiempo, setEditingTiempo] = useState<TiempoComida | null>(null);
+    const [isEditTiempoDialogOpen, setIsEditTiempoDialogOpen] = useState(false);
+    // State for the edit form fields
+    const [editTiempoNombre, setEditTiempoNombre] = useState('');
+    const [editTiempoDia, setEditTiempoDia] = useState<DayOfWeekKey | ''>('');
+    const [editTiempoGrupoNombre, setEditTiempoGrupoNombre] = useState('');
+    const [editTiempoGrupoOrden, setEditTiempoGrupoOrden] = useState<number>(1);
+    const [editTiempoHoraEstimada, setEditTiempoHoraEstimada] = useState('');
+    const [isProcessingEditTiempo, setIsProcessingEditTiempo] = useState(false);
+
+
   useEffect(() => {
     setIsClient(true);
     fetchResidences();
@@ -411,6 +423,10 @@ export default function ResidenciaAdminPage() {
             setEditingHorario(null);
             setIsEditHorarioDialogOpen(false); // Ensure edit dialog is closed if main closes
             setIsProcessingEditHorario(false);
+            // Reset Edit Tiempo state
+            setEditingTiempo(null);
+            setIsEditTiempoDialogOpen(false);
+            setIsProcessingEditTiempo(false);
 
             console.log("Modal closed, state reset.");
         }
@@ -674,9 +690,18 @@ export default function ResidenciaAdminPage() {
     };
 
     const handleEditTiempo = (tiempo: TiempoComida) => {
-        // TODO: Implement edit logic
-        console.log("TODO: Edit TiempoComida", tiempo);
-        toast({ title: "TODO", description: `Implement edit for ${tiempo.nombre}` });
+        if (!tiempo) return;
+        console.log("Opening edit dialog for TiempoComida:", tiempo);
+        setEditingTiempo(tiempo); // Store the object being edited
+        // Pre-populate edit form state
+        setEditTiempoNombre(tiempo.nombre);
+        setEditTiempoDia(tiempo.dia);
+        setEditTiempoGrupoNombre(tiempo.nombreGrupo);
+        setEditTiempoGrupoOrden(tiempo.ordenGrupo);
+        setEditTiempoHoraEstimada(tiempo.horaEstimada || ''); // Handle potentially undefined horaEstimada
+        // Reset processing state
+        setIsProcessingEditTiempo(false);
+        setIsEditTiempoDialogOpen(true); // Open the dialog
     };
 
     const handleDeleteTiempo = async (tiempoId: string, tiempoNombre: string) => {
@@ -697,6 +722,121 @@ export default function ResidenciaAdminPage() {
             toast({ title: "Error", description: errorMessage, variant: "destructive" });
         }
     };
+
+        // *** NEW: Handler for Updating a TiempoComida ***
+        const handleUpdateTiempo = async (e: React.FormEvent) => {
+          e.preventDefault();
+          if (!editingTiempo || !managingResidenciaId) {
+              toast({ title: "Error", description: "No Meal Time selected for editing.", variant: "destructive" });
+              return;
+          }
+  
+          // Validation (similar to create)
+          if (!editTiempoNombre.trim() || !editTiempoDia || !editTiempoGrupoNombre.trim() || editTiempoGrupoOrden <= 0) {
+               toast({ title: "Validation Error", description: "Please fill in Name, Day, Group Name, and a valid Group Order (> 0).", variant: "destructive" }); return;
+          }
+          if (editTiempoHoraEstimada && !/^\d{2}:\d{2}$/.test(editTiempoHoraEstimada)) {
+              toast({ title: "Validation Error", description: "Estimated Time must be in HH:MM format or left empty.", variant: "destructive" }); return;
+          }
+  
+          setIsProcessingEditTiempo(true);
+          try {
+              const tiempoRef = doc(db, 'tiemposComida', editingTiempo.id);
+              const updatedData: Partial<TiempoComida> = {
+                  nombre: editTiempoNombre.trim(),
+                  dia: editTiempoDia,
+                  nombreGrupo: editTiempoGrupoNombre.trim(),
+                  ordenGrupo: editTiempoGrupoOrden,
+                  horaEstimada: editTiempoHoraEstimada || undefined,
+              };
+  
+              await updateDoc(tiempoRef, updatedData);
+              console.log("TiempoComida updated successfully:", editingTiempo.id);
+  
+              const updatedTiempoForState: TiempoComida = {
+                  ...editingTiempo,
+                  ...updatedData
+              };
+  
+              // Update local state and re-sort
+              setModalTiempos(prev => sortTiempos(
+                  prev.map(t => t.id === editingTiempo.id ? updatedTiempoForState : t)
+              ));
+  
+              toast({ title: "Success", description: `Meal Time "${editTiempoNombre}" updated.` });
+              setIsEditTiempoDialogOpen(false); // Close the edit dialog
+  
+          } catch (error) {
+               const errorMessage = `Failed to update Meal Time. ${error instanceof Error ? error.message : 'Unknown error'}`;
+              console.error("Error updating TiempoComida: ", error);
+              toast({ title: "Error", description: errorMessage, variant: "destructive" });
+          } finally {
+              setIsProcessingEditTiempo(false);
+          }
+      };
+  
+      // *** NEW: Edit TiempoComida Dialog Component ***
+      const EditTiempoDialog = () => (
+          <Dialog open={isEditTiempoDialogOpen} onOpenChange={(open) => {
+              setIsEditTiempoDialogOpen(open);
+              if (!open) {
+                  setEditingTiempo(null); // Clear editing state on close
+              }
+          }}>
+              <DialogContent className="sm:max-w-[550px]"> {/* Adjust size */}
+                  <DialogHeader>
+                      <DialogTitle>Edit Meal Time: {editingTiempo?.nombre}</DialogTitle>
+                      <DialogDescription>Modify the details for this meal time.</DialogDescription>
+                  </DialogHeader>
+                  {editingTiempo ? (
+                      <form onSubmit={handleUpdateTiempo} className="space-y-4 py-4">
+                          {/* Name */}
+                          <div className="space-y-1.5">
+                              <Label htmlFor="edit-tiempo-nombre">Meal Time Name</Label>
+                              <Input id="edit-tiempo-nombre" value={editTiempoNombre} onChange={(e) => setEditTiempoNombre(e.target.value)} disabled={isProcessingEditTiempo} />
+                          </div>
+                          {/* Day and Estimated Time */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                  <Label htmlFor="edit-tiempo-dia">Day of Week</Label>
+                                  <Select value={editTiempoDia} onValueChange={(value) => setEditTiempoDia(value as DayOfWeekKey)} disabled={isProcessingEditTiempo}>
+                                      <SelectTrigger id="edit-tiempo-dia"><SelectValue placeholder="Select day..." /></SelectTrigger>
+                                      <SelectContent>{daysOfWeek.map(day => (<SelectItem key={day.value} value={day.value}>{day.label} ({DayOfWeekMap[day.value]})</SelectItem>))}</SelectContent>
+                                  </Select>
+                              </div>
+                              <div className="space-y-1.5">
+                                  <Label htmlFor="edit-tiempo-hora">Estimated Time (Optional, HH:MM)</Label>
+                                  <Input id="edit-tiempo-hora" type="time" value={editTiempoHoraEstimada} onChange={(e) => setEditTiempoHoraEstimada(e.target.value)} disabled={isProcessingEditTiempo} step="900" />
+                              </div>
+                          </div>
+                          {/* Group Name and Order */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                  <Label htmlFor="edit-tiempo-grupo-nombre">Group Name</Label>
+                                  <Input id="edit-tiempo-grupo-nombre" value={editTiempoGrupoNombre} onChange={(e) => setEditTiempoGrupoNombre(e.target.value)} disabled={isProcessingEditTiempo} />
+                              </div>
+                              <div className="space-y-1.5">
+                                  <Label htmlFor="edit-tiempo-grupo-orden">Group Order</Label>
+                                  <Input id="edit-tiempo-grupo-orden" type="number" min="1" step="1" value={editTiempoGrupoOrden} onChange={(e) => setEditTiempoGrupoOrden(parseInt(e.target.value, 10) || 1)} disabled={isProcessingEditTiempo} />
+                              </div>
+                          </div>
+                          <DialogFooter>
+                              <DialogClose asChild>
+                                  <Button type="button" variant="outline" disabled={isProcessingEditTiempo}>Cancel</Button>
+                              </DialogClose>
+                              <Button type="submit" disabled={isProcessingEditTiempo}>
+                                  {isProcessingEditTiempo ? 'Saving...' : 'Save Changes'}
+                              </Button>
+                          </DialogFooter>
+                      </form>
+                  ) : (
+                      <p>Loading meal time data...</p>
+                  )}
+              </DialogContent>
+          </Dialog>
+      );
+  
+
     // --- Handlers for Comedores Tab ---
     const handleCreateComedor = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1425,6 +1565,7 @@ export default function ResidenciaAdminPage() {
          </DialogContent> {/* End DialogContent */}
          {/* --- Render the Edit Dialog (it will be controlled by isEditHorarioDialogOpen state) --- */}
          <EditHorarioDialog />
+         <EditTiempoDialog />
      </Dialog> // End Dialog component
    );
 }
