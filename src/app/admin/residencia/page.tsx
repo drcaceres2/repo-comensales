@@ -373,9 +373,14 @@ export default function ResidenciaAdminPage() {
 }, [toast]); // Keep dependency array minimal unless other state is needed
 
 
-
-  const handleManageSettings = (residencia: Residencia) => {/*...*/};
-
+  const handleManageSettings = (residencia: Residencia) => {
+    console.log(`handleManageSettings triggered for ${residencia.id}`); // <<< ADD THIS LOG
+    setManagingResidenciaId(residencia.id);
+    setManagingResidenciaNombre(residencia.nombre);
+    console.log(`handleManageSettings: Calling fetchModalData for ${residencia.id}`); // <<< ADD THIS LOG
+    fetchModalData(residencia.id);
+    setIsModalOpen(true);
+  }
 
   // *** UPDATED: handleModalOpenChange to reset Alternativa form state ***
    const handleModalOpenChange = (open: boolean) => {
