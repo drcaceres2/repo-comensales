@@ -57,7 +57,8 @@ import {
     orderBy, // Keep orderBy
     deleteDoc,
     updateDoc,
-    deleteField
+    deleteField,
+    FieldValue
 } from 'firebase/firestore';
 
 // Import ALL necessary types
@@ -222,6 +223,14 @@ export default function ResidenciaAdminPage() {
     const [editTiempoGrupoOrden, setEditTiempoGrupoOrden] = useState<number>(1);
     const [editTiempoHoraEstimada, setEditTiempoHoraEstimada] = useState('');
     const [isProcessingEditTiempo, setIsProcessingEditTiempo] = useState(false);
+
+    // *** NEW: State for Editing Comedor ***
+  const [editingComedor, setEditingComedor] = useState<Comedor | null>(null);
+  const [isEditComedorDialogOpen, setIsEditComedorDialogOpen] = useState(false);
+  // State for the edit form fields
+  const [editComedorNombre, setEditComedorNombre] = useState('');
+  const [editComedorDescripcion, setEditComedorDescripcion] = useState('');
+  const [isProcessingEditComedor, setIsProcessingEditComedor] = useState(false);
 
 
   useEffect(() => {
@@ -428,6 +437,11 @@ export default function ResidenciaAdminPage() {
             setEditingTiempo(null);
             setIsEditTiempoDialogOpen(false);
             setIsProcessingEditTiempo(false);
+            // Reset Edit Comedor state
+            setEditingComedor(null);
+            setIsEditComedorDialogOpen(false);
+            setIsProcessingEditComedor(false);
+            
 
             console.log("Modal closed, state reset.");
         }
@@ -892,9 +906,15 @@ export default function ResidenciaAdminPage() {
     };
 
     const handleEditComedor = (comedor: Comedor) => {
-        // TODO: Implement edit logic
-        console.log("TODO: Edit Comedor", comedor);
-        toast({ title: "TODO", description: `Implement edit for ${comedor.nombre}` });
+        if (!comedor) return;
+        console.log("Opening edit dialog for Comedor:", comedor);
+        setEditingComedor(comedor); // Store the object
+        // Pre-populate form state
+        setEditComedorNombre(comedor.nombre);
+        setEditComedorDescripcion(comedor.descripcion || ''); // Handle potentially undefined description
+        // Reset processing state
+        setIsProcessingEditComedor(false);
+        setIsEditComedorDialogOpen(true); // Open the dialog
     };
 
     const handleDeleteComedor = async (comedorId: string, comedorNombre: string) => {
@@ -915,6 +935,121 @@ export default function ResidenciaAdminPage() {
             toast({ title: "Error", description: errorMessage, variant: "destructive" });
         }
     };
+
+        // *** NEW: Handler for Updating a Comedor ***
+        const handleUpdateComedor = async (e: React.FormEvent) => {
+          e.preventDefault();
+          if (!editingComedor || !managingResidenciaId) {
+              toast({ title: "Error", description: "No Dining Hall selected for editing.", variant: "destructive" });
+              return;
+          }
+  
+          const trimmedName = editComedorNombre.trim();
+          if (!trimmedName) {
+               toast({ title: "Validation Error", description: "Dining Hall Name cannot be empty.", variant: "destructive" }); return;
+          }
+  
+          // Check for duplicate name (excluding the one being edited)
+          if (modalComedores.some(c => c.id !== editingComedor.id && c.nombre.toLowerCase() === trimmedName.toLowerCase())) {
+              toast({ title: "Validation Error", description: `Another dining hall named "${trimmedName}" already exists.`, variant: "destructive" });
+              return;
+          }
+  
+          setIsProcessingEditComedor(true);
+          try {
+              const comedorRef = doc(db, 'comedores', editingComedor.id);
+  
+              // --- Prepare data object specifically for Firestore update ---
+              const dataForFirestore: { [key: string]: string | FieldValue } = {
+                   nombre: trimmedName,
+                   // Use deleteField if description is cleared, otherwise update or add it
+                   descripcion: editComedorDescripcion.trim() ? editComedorDescripcion.trim() : deleteField(),
+              };
+              // -------------------------------------------------------------
+  
+              await updateDoc(comedorRef, dataForFirestore); // Use the specific object for update
+              console.log("Comedor updated successfully:", editingComedor.id);
+  
+              // --- Prepare data object specifically for local state update ---
+              // This object strictly adheres to the Comedor type
+              const updatedComedorForState: Comedor = {
+                  ...editingComedor, // Spread the original state
+                  nombre: trimmedName, // Apply the name change
+                  descripcion: editComedorDescripcion.trim() || undefined, // Apply description change (string or undefined)
+              };
+              // ------------------------------------------------------------
+  
+              // Update local state using the correctly typed object
+              setModalComedores(prev => sortComedores(
+                  prev.map(c => c.id === editingComedor.id ? updatedComedorForState : c)
+              ));
+  
+              toast({ title: "Success", description: `Dining Hall "${trimmedName}" updated.` });
+              setIsEditComedorDialogOpen(false); // Close the edit dialog
+  
+          } catch (error) {
+               const errorMessage = `Failed to update Dining Hall. ${error instanceof Error ? error.message : 'Unknown error'}`;
+              console.error("Error updating Comedor: ", error);
+              toast({ title: "Error", description: errorMessage, variant: "destructive" });
+          } finally {
+              setIsProcessingEditComedor(false);
+          }
+      };
+  
+  
+      // *** NEW: Edit Comedor Dialog Component ***
+      const EditComedorDialog = () => (
+          <Dialog open={isEditComedorDialogOpen} onOpenChange={(open) => {
+              setIsEditComedorDialogOpen(open);
+              if (!open) {
+                  setEditingComedor(null); // Clear editing state on close
+              }
+          }}>
+              <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                      <DialogTitle>Edit Dining Hall: {editingComedor?.nombre}</DialogTitle>
+                      <DialogDescription>Modify the details for this dining hall.</DialogDescription>
+                  </DialogHeader>
+                  {editingComedor ? (
+                      <form onSubmit={handleUpdateComedor} className="space-y-4 py-4">
+                          {/* Name Input */}
+                          <div className="space-y-1.5">
+                              <Label htmlFor="edit-comedor-nombre">Dining Hall Name</Label>
+                              <Input
+                                  id="edit-comedor-nombre"
+                                  value={editComedorNombre}
+                                  onChange={(e) => setEditComedorNombre(e.target.value)}
+                                  disabled={isProcessingEditComedor}
+                              />
+                          </div>
+                          {/* Description (Optional) */}
+                          <div className="space-y-1.5">
+                              <Label htmlFor="edit-comedor-descripcion">Description (Optional)</Label>
+                              <Textarea
+                                  id="edit-comedor-descripcion"
+                                  placeholder="Enter any relevant details..."
+                                  value={editComedorDescripcion}
+                                  onChange={(e) => setEditComedorDescripcion(e.target.value)}
+                                  disabled={isProcessingEditComedor}
+                                  rows={3}
+                              />
+                          </div>
+                          <DialogFooter>
+                              <DialogClose asChild>
+                                  <Button type="button" variant="outline" disabled={isProcessingEditComedor}>Cancel</Button>
+                              </DialogClose>
+                              <Button type="submit" disabled={isProcessingEditComedor}>
+                                  {isProcessingEditComedor ? 'Saving...' : 'Save Changes'}
+                              </Button>
+                          </DialogFooter>
+                      </form>
+                  ) : (
+                      <p>Loading dining hall data...</p>
+                  )}
+              </DialogContent>
+          </Dialog>
+      );
+  
 
     // *** NEW: Handlers for Alternativas Tab ***
     const handleCreateAlternativa = async (e: React.FormEvent) => {
@@ -1573,6 +1708,7 @@ export default function ResidenciaAdminPage() {
          {/* --- Render the Edit Dialog (it will be controlled by isEditHorarioDialogOpen state) --- */}
          <EditHorarioDialog />
          <EditTiempoDialog />
+         <EditComedorDialog />
      </Dialog> // End Dialog component
    );
 }
