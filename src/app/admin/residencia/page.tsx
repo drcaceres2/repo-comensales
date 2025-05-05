@@ -776,13 +776,10 @@ export default function ResidenciaAdminPage() {
                                 {/* Accordion for Creating New Schedule */}
                                 <Accordion type="single" collapsible className="w-full">
                                     <AccordionItem value="new-horario">
-                                        <AccordionTrigger asChild>
-                                        <span>
-                                            <Button variant="outline" size="sm">
-                                                <PlusCircle className="mr-2 h-4 w-4" /> Add New Schedule
-                                            </Button>
-                                            </span>
-                                        </AccordionTrigger>
+                                    <AccordionTrigger className="text-sm font-medium hover:underline [&[data-state=open]>svg]:rotate-180"> {/* Default trigger styling often looks like a link */}
+                                          <PlusCircle className="mr-2 h-4 w-4 inline" /> Add New Schedule {/* Icon and text directly inside */}
+                                          {/* The default trigger usually includes its own down chevron, remove if duplicating */}
+                                      </AccordionTrigger>
                                         <AccordionContent>
                                             <form onSubmit={handleCreateHorario} className="border p-4 rounded-md mt-2 space-y-4 bg-muted/30">
                                                  <h3 className="font-medium">New Schedule Details</h3>
@@ -884,12 +881,8 @@ export default function ResidenciaAdminPage() {
                                 {/* Accordion for Creating New Tiempo */}
                                 <Accordion type="single" collapsible className="w-full">
                                     <AccordionItem value="new-tiempo">
-                                        <AccordionTrigger asChild>
-                                        <span>
-                                            <Button variant="outline" size="sm">
-                                                <PlusCircle className="mr-2 h-4 w-4" /> Add New Meal Time
-                                            </Button>
-                                            </span>
+                                        <AccordionTrigger className="text-sm font-medium hover:underline [&[data-state=open]>svg]:rotate-180">
+                                            <PlusCircle className="mr-2 h-4 w-4 inline" /> Add New Meal Time
                                         </AccordionTrigger>
                                         <AccordionContent>
                                             <form onSubmit={handleCreateTiempo} className="border p-4 rounded-md mt-2 space-y-4 bg-muted/30">
@@ -980,12 +973,8 @@ export default function ResidenciaAdminPage() {
                                 {/* Accordion for Creating New Comedor */}
                                 <Accordion type="single" collapsible className="w-full">
                                     <AccordionItem value="new-comedor">
-                                        <AccordionTrigger asChild>
-                                        <span>
-                                            <Button variant="outline" size="sm">
-                                                <PlusCircle className="mr-2 h-4 w-4" /> Add New Dining Hall
-                                            </Button>
-                                            </span>
+                                        <AccordionTrigger className="text-sm font-medium hover:underline [&[data-state=open]>svg]:rotate-180">
+                                            <PlusCircle className="mr-2 h-4 w-4 inline" /> Add New Dining Hall
                                         </AccordionTrigger>
                                         <AccordionContent>
                                             <form onSubmit={handleCreateComedor} className="border p-4 rounded-md mt-2 space-y-4 bg-muted/30">
@@ -1063,18 +1052,24 @@ export default function ResidenciaAdminPage() {
                             <CardContent className="space-y-4">
                                 {/* Accordion for Creating New Alternativa */}
                                 <Accordion type="single" collapsible className="w-full">
-                                    <AccordionItem value="new-alternativa">
-                                        <AccordionTrigger asChild>
-                                        <span>
-                                            <Button variant="outline" size="sm" disabled={modalTiempos.length === 0 || modalHorarios.length === 0}>
-                                                <PlusCircle className="mr-2 h-4 w-4" /> Add New Meal Alternative
-                                            </Button>
-                                            </span>
-                                             {(modalTiempos.length === 0 || modalHorarios.length === 0) && (
-                                                <p className="text-xs text-destructive pl-2">Requires at least one Meal Time and Request Schedule to exist.</p>
-                                            )}
-                                        </AccordionTrigger>
-                                        <AccordionContent>
+                                   <AccordionItem value="new-alternativa">
+                                      {/* Container to hold trigger and optional message */}
+                                      <div className="flex items-center justify-between"> {/* Use flex to potentially place message beside */}
+                                          <AccordionTrigger
+                                              className="text-sm font-medium hover:underline [&[data-state=open]>svg]:rotate-180 flex-grow" // Use flex-grow to take up space
+                                              disabled={modalTiempos.length === 0 || modalHorarios.length === 0}
+                                          >
+                                                <PlusCircle className="mr-2 h-4 w-4 inline" /> Add New Meal Alternative
+                                                {/* Default chevron icon will likely be added by AccordionTrigger automatically */}
+                                          </AccordionTrigger>
+                                            {/* Conditional message placed *after* the trigger */}
+                                            {(modalTiempos.length === 0 || modalHorarios.length === 0) && (
+                                                    <p className="text-xs text-destructive pl-2 flex-shrink-0"> {/* Use flex-shrink-0 */}
+                                                        Se requiere al menos un Tiempo de Comida y un Horario de Solicitud.
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <AccordionContent>
                                             <form onSubmit={handleCreateAlternativa} className="border p-4 rounded-md mt-2 space-y-4 bg-muted/30">
                                                 <h3 className="font-medium">New Meal Alternative Details</h3>
 
