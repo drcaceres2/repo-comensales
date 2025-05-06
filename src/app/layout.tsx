@@ -1,21 +1,22 @@
 'use client'; // Make it a client component
 
+import { AuthProvider, useAuth } from '@/hooks/useAuth'; // Import the provider and hook
 import type { Metadata } from 'next';
 import { Inter, Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"; // Import Toaster
 
 // React and Next.js hooks
-import React, { useState, useEffect } from 'react';
+import React from 'react'; // No longer need useState, useEffect here
 import { useRouter } from 'next/navigation';
 
 // Firebase Auth
-import { getAuth, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, signOut } from 'firebase/auth'; // Keep signOut
 import { auth } from '@/lib/firebase'; // Your initialized auth instance
 
 // UI Components
 import { Button } from "@/components/ui/button";
-import { LogOut } from 'lucide-react'; // Logout icon
+import { LogOut, Loader2 } from 'lucide-react'; // Logout icon and Loader
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -29,25 +30,10 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+// Internal Header component that uses the Auth Context
+function LayoutHeader() {
+  const { user, loading } = useAuth(); // Use the hook to get user and loading state
   const router = useRouter();
-
-  // Listen for auth state changes
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('Layout Auth State Change:', user?.uid ?? 'No User');
-      setCurrentUser(user);
-      setIsLoadingAuth(false);
-    });
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, []);
 
   // Logout handler
   const handleLogout = async () => {
@@ -62,25 +48,54 @@ export default function RootLayout({
     }
   };
 
+  // Don't render header until auth state is determined
+  if (loading) {
+    // Optionally show a minimal loading state in the header area
+    return (
+         <header className="bg-muted text-muted-foreground p-2 flex justify-end items-center sticky top-0 z-50">
+             <Loader2 className="h-5 w-5 animate-spin" />
+         </header>
+    );
+  }
+
+  // Render header only if user is logged in
+  if (user) {
+    return (
+      <header className="bg-primary text-primary-foreground p-2 flex justify-end items-center sticky top-0 z-50">
+        <span className="mr-4 text-sm">{user.email}</span>
+        <Button variant="ghost" size="sm" onClick={handleLogout}>
+          <LogOut className="mr-2 h-4 w-4" />
+          Cerrar Sesión
+        </Button>
+      </header>
+    );
+  }
+
+  // Render nothing if no user is logged in and auth check is complete
+  return null;
+}
+
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  // Removed useState and useEffect for local auth handling
+
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {/* Simple Header for Logout Button */}
-        {!isLoadingAuth && currentUser && (
-          <header className="bg-primary text-primary-foreground p-2 flex justify-end items-center sticky top-0 z-50">
-            <span className="mr-4 text-sm">{currentUser.email}</span>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Cerrar Sesión
-            </Button>
-          </header>
-        )}
+        <AuthProvider> {/* Wrap everything that needs auth context */}
+          {/* Render Header using context */}
+          <LayoutHeader />
 
-        {/* Main Content */}
-        <main>{children}</main>
+          {/* Main Content */}
+          <main>{children}</main>
 
-        {/* Toaster for notifications */}
-        <Toaster />
+          {/* Toaster for notifications (can be outside or inside AuthProvider) */}
+          <Toaster />
+        </AuthProvider>
       </body>
     </html>
   );

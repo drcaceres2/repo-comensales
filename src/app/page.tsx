@@ -43,6 +43,12 @@ const redirectToDashboard = (profile: UserProfile, router: ReturnType<typeof use
       router.push(`/${residenciaId}/solicitar-comensales`); // Redirect director here
     } else if (roles.includes('residente' as UserRole) && residenciaId) {
       router.push(`/${residenciaId}/elegir-comidas`);
+    } else if (roles.includes('invitado' as UserRole) && residenciaId) {
+      router.push(`/${residenciaId}/bienvenida-invitados`);
+    } else if (roles.includes('asistente' as UserRole) && residenciaId) {
+      router.push(`/${residenciaId}/editar-invitados`);
+    } else if (roles.includes('auditor' as UserRole) && residenciaId) {
+      router.push(`/${residenciaId}/reporte-comidas`);
     } else {
       // Fallback if roles/residenciaId are missing or unexpected
       console.warn("User logged in but has undefined role/residenciaId or unknown role combination:", profile);

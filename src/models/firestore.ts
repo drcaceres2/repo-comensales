@@ -21,7 +21,7 @@ export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requ
 export type ModoEleccionUsuario = 'normal' | 'diario' | 'suspendido'; // User meal choice mode
 
 // <<< NEW: OrigenEleccion >>>
-export type OrigenEleccion = 'semanario' | 'excepcion' | 'excepcion_autorizada' | 'contingencia' | 'director';
+export type OrigenEleccion = 'semanario' | 'excepcion' | 'excepcion_autorizada' | 'contingencia' | 'director' | 'invitado_wizard'; // Added 'invitado_wizard'
 
 // <<< UPDATED: Specific Log Action Types >>>
 export type LogActionType =
@@ -57,7 +57,7 @@ export type LogActionType =
     'comentario_created' |
     'modo_eleccion_updated';
 
-export type UserRole = 'master' | 'admin' | 'director' | 'residente';
+export type UserRole = 'master' | 'admin' | 'director' | 'residente' | 'invitado' | 'asistente' | 'auditor';
 
 export const DayOfWeekMap: Record<DayOfWeekKey, string> = {
     lunes: 'Lunes',
@@ -177,12 +177,12 @@ export interface Semanario {
 // <<< UPDATED: Eleccion >>>
 // Represents a specific meal choice for a specific date, often overriding the semanario.
 export interface Eleccion {
-    id: string; // Firestore Document ID
+    id?: string; // Firestore Document ID, may be omitted on creation
     usuarioId: UserId;
     residenciaId: ResidenciaId;
     fecha: Timestamp; // The specific date of the meal
     tiempoComidaId: TiempoComidaId;
-    alternativaTiempoComidaId: AlternativaTiempoComidaId; // The chosen alternative
+    alternativaTiempoComidaId: AlternativaTiempoComidaId;
     dietaId?: DietaId; // Diet applicable at the time of choice (could be default or assigned)
     solicitado: boolean; // Generally true, indicates user made a choice (or system default)
     asistencia?: boolean; // Optional: Track if the user actually attended
