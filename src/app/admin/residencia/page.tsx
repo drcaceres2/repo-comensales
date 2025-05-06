@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { X, PlusCircle, Pencil, Trash2 } from 'lucide-react';
+import { X, PlusCircle, Pencil, Trash2, Loader2 } from 'lucide-react'; // Added Loader2
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 
@@ -41,7 +41,6 @@ import {
 } from "@/components/ui/dialog";
 
 import { Textarea } from "@/components/ui/textarea";
-// Checkbox import removed as it was only used for Alternativas
 
 // Firestore Imports
 import { db } from '@/lib/firebase';
@@ -61,7 +60,7 @@ import {
     FieldValue
 } from 'firebase/firestore';
 
-// Import necessary types (Removed TiempoComida, AlternativaTiempoComida related types)
+// Import necessary types
 import {
   Residencia,
   HorarioSolicitudComida, HorarioSolicitudComidaId,
@@ -69,8 +68,12 @@ import {
   Dieta,
   ResidenciaId,
   DayOfWeekKey, DayOfWeekMap,
-  // Removed TipoAlternativa, TipoAccesoAlternativa
+  UserProfile, // Added UserProfile for role check
+  UserRole,    // Added UserRole for role check
 } from '@/models/firestore';
+
+// Import the Auth Hook
+import { useAuth } from '@/hooks/useAuth'; // <-- Added Auth Hook import
 
 const daysOfWeek: { label: string; value: DayOfWeekKey }[] = [
     { label: 'Monday', value: 'lunes' }, { label: 'Tuesday', value: 'martes' }, { label: 'Wednesday', value: 'miercoles' }, { label: 'Thursday', value: 'jueves' }, { label: 'Friday', value: 'viernes' }, { label: 'Saturday', value: 'sabado' }, { label: 'Sunday', value: 'domingo' },
@@ -85,13 +88,11 @@ const sortHorarios = (horarios: HorarioSolicitudComida[]): HorarioSolicitudComid
         return a.horaSolicitud.localeCompare(b.horaSolicitud);
     });
 };
-// Removed sortTiempos
 const sortComedores = (comedores: Comedor[]): Comedor[] => {
     return [...comedores].sort((a, b) => a.nombre.localeCompare(b.nombre));
 };
-// Removed sortAlternativas
 
-// Type definition for props needed by EditHorarioDialog
+// Type definitions for props needed by EditHorarioDialog
 type EditHorarioDialogProps = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -108,8 +109,6 @@ type EditHorarioDialogProps = {
   onSubmit: (e: React.FormEvent) => Promise<void>;
 };
 
-// Removed EditTiempoDialogProps
-
 // Type definition for props needed by EditComedorDialog
 type EditComedorDialogProps = {
   isOpen: boolean;
@@ -123,8 +122,8 @@ type EditComedorDialogProps = {
 
 export default function ResidenciaAdminPage() {
     const router = useRouter();
-    const [isClient, setIsClient] = useState(false);
     const { toast } = useToast();
+    const { user, profile, loading: authLoading } = useAuth(); // <-- Use the auth hook, renamed loading to avoid conflict
 
     // --- State: New Residence Form ---
     const [newResidenceName, setNewResidenceName] = useState('');
@@ -135,34 +134,30 @@ export default function ResidenciaAdminPage() {
 
     // --- State: Existing Residences List ---
     const [residences, setResidences] = useState<Residencia[]>([]);
-    const [isLoadingResidences, setIsLoadingResidences] = useState(true);
+    const [isLoadingResidences, setIsLoadingResidences] = useState(true); // Keep this for the residence list fetch
     const [errorResidences, setErrorResidences] = useState<string | null>(null);
 
-  // --- State: Management Modal ---
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [managingResidenciaId, setManagingResidenciaId] = useState<ResidenciaId | null>(null);
-  const [managingResidenciaNombre, setManagingResidenciaNombre] = useState<string>('');
-  const [isLoadingModalData, setIsLoadingModalData] = useState(false);
-  const [errorModalData, setErrorModalData] = useState<string | null>(null);
+    // --- State: Management Modal ---  
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [managingResidenciaId, setManagingResidenciaId] = useState<ResidenciaId | null>(null);
+    const [managingResidenciaNombre, setManagingResidenciaNombre] = useState<string>('');
+    const [isLoadingModalData, setIsLoadingModalData] = useState(false);
+    const [errorModalData, setErrorModalData] = useState<string | null>(null);
 
-  // --- State: Modal - Horarios ---
-  const [modalHorarios, setModalHorarios] = useState<HorarioSolicitudComida[]>([]);
-  const [newHorarioNombre, setNewHorarioNombre] = useState('');
-  const [newHorarioDia, setNewHorarioDia] = useState<DayOfWeekKey | ''>('');
-  const [newHorarioHora, setNewHorarioHora] = useState('');
-  const [newHorarioIsPrimary, setNewHorarioIsPrimary] = useState(false);
-  const [newHorarioIsActive, setNewHorarioIsActive] = useState(true);
-  const [isProcessingNewHorario, setIsProcessingNewHorario] = useState(false);
+    // --- State: Modal - Horarios ---
+    const [modalHorarios, setModalHorarios] = useState<HorarioSolicitudComida[]>([]);
+    const [newHorarioNombre, setNewHorarioNombre] = useState('');
+    const [newHorarioDia, setNewHorarioDia] = useState<DayOfWeekKey | ''>('');
+    const [newHorarioHora, setNewHorarioHora] = useState('');
+    const [newHorarioIsPrimary, setNewHorarioIsPrimary] = useState(false);
+    const [newHorarioIsActive, setNewHorarioIsActive] = useState(true);
+    const [isProcessingNewHorario, setIsProcessingNewHorario] = useState(false);
 
-  // --- State: Modal - TiemposComida (REMOVED) ---
-
-  // --- State: Modal - Comedores ---
-  const [modalComedores, setModalComedores] = useState<Comedor[]>([]);
-  const [newComedorNombre, setNewComedorNombre] = useState('');
-  const [newComedorDescripcion, setNewComedorDescripcion] = useState(''); // Optional
-  const [isProcessingNewComedor, setIsProcessingNewComedor] = useState(false);
-
-  // --- State: Modal - Alternativas (REMOVED) ---
+    // --- State: Modal - Comedores ---   
+    const [modalComedores, setModalComedores] = useState<Comedor[]>([]);
+    const [newComedorNombre, setNewComedorNombre] = useState('');
+    const [newComedorDescripcion, setNewComedorDescripcion] = useState(''); // Optional
+    const [isProcessingNewComedor, setIsProcessingNewComedor] = useState(false);
 
     // *** State for Editing Horario ***
     const [editingHorario, setEditingHorario] = useState<HorarioSolicitudComida | null>(null);
@@ -173,20 +168,12 @@ export default function ResidenciaAdminPage() {
     const [editHorarioIsPrimary, setEditHorarioIsPrimary] = useState(false);
     const [isProcessingEditHorario, setIsProcessingEditHorario] = useState(false);
 
-    // *** State for Editing TiempoComida (REMOVED) ***
-
     // *** State for Editing Comedor ***
-  const [editingComedor, setEditingComedor] = useState<Comedor | null>(null);
-  const [isEditComedorDialogOpen, setIsEditComedorDialogOpen] = useState(false);
-  const [editComedorNombre, setEditComedorNombre] = useState('');
-  const [editComedorDescripcion, setEditComedorDescripcion] = useState('');
-  const [isProcessingEditComedor, setIsProcessingEditComedor] = useState(false);
-
-
-  useEffect(() => {
-    setIsClient(true);
-    fetchResidences();
-  }, []);
+    const [editingComedor, setEditingComedor] = useState<Comedor | null>(null);
+    const [isEditComedorDialogOpen, setIsEditComedorDialogOpen] = useState(false);
+    const [editComedorNombre, setEditComedorNombre] = useState('');
+    const [editComedorDescripcion, setEditComedorDescripcion] = useState('');
+    const [isProcessingEditComedor, setIsProcessingEditComedor] = useState(false);
 
   const fetchResidences = useCallback(async () => {
     setIsLoadingResidences(true);
@@ -209,6 +196,38 @@ export default function ResidenciaAdminPage() {
         setIsLoadingResidences(false);
     }
   }, [toast]);
+
+
+  // Fetch residences only when authenticated and profile is loaded with correct roles
+  useEffect(() => {
+    if (!authLoading && user && profile) { // Only run if auth check done, user logged in, and profile available
+         const userRoles = profile.roles || [];
+         // Check if user has Admin or Master role
+         const isAuthorized = userRoles.includes('admin') || userRoles.includes('master');
+
+
+         if (!isAuthorized) {
+             console.warn("User does not have admin/master role. Redirecting...");
+             toast({ title: "Acceso Denegado", description: "No tienes permiso para acceder a esta página.", variant: "destructive" });
+             router.replace('/'); // Use replace to prevent going back to this page
+             return; // Prevent fetching data
+         }
+         // User is authorized, proceed to fetch data
+         console.log("User authenticated and authorized. Fetching residences...");
+         if (residences.length === 0) { // Fetch only if not already fetched
+             fetchResidences();
+         } else {
+             setIsLoadingResidences(false); // Ensure loading state is false if data is already present
+         }
+
+    } else if (!authLoading && !user) {
+        // If auth check is done and there's no user, redirect to login
+        console.log("User not logged in. Redirecting to login...");
+        router.replace('/'); // Use replace
+    }
+     // If authLoading is true, the loading state below will handle the UI
+     // If !authLoading, user exists, but profile doesn't, the profile loading error state below handles UI
+  }, [authLoading, user, profile, router, toast, fetchResidences, residences.length]); // Added dependencies
 
 
   const handleTimeChange = (day: DayOfWeekKey, value: string) => {
@@ -294,7 +313,6 @@ export default function ResidenciaAdminPage() {
     }
   };
 
-  // *** UPDATED: fetchModalData (Removed Tiempos and Alternativas fetch) ***
   const fetchModalData = useCallback(async (residenciaId: ResidenciaId) => {
     if (!residenciaId) {
         console.log("fetchModalData: No residenciaId provided.");
@@ -303,29 +321,22 @@ export default function ResidenciaAdminPage() {
     console.log(`fetchModalData: Starting for residenceId: ${residenciaId}`);
     setIsLoadingModalData(true);
     setErrorModalData(null);
-    // Clear remaining modal data
     setModalHorarios([]); setModalComedores([]);
 
     try {
         console.log("fetchModalData: Fetching Horarios...");
-        // Fetch Horarios
         const horariosQuery = query(collection(db, 'horariosSolicitudComida'), where("residenciaId", "==", residenciaId));
         const horariosSnapshot = await getDocs(horariosQuery);
         let fetchedHorarios: HorarioSolicitudComida[] = horariosSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<HorarioSolicitudComida, 'id'>) }));
         console.log(`fetchModalData: Fetched ${fetchedHorarios.length} Horarios.`);
         setModalHorarios(sortHorarios(fetchedHorarios));
 
-        // Fetch TiemposComida (REMOVED)
-
         console.log("fetchModalData: Fetching Comedores...");
-        // Fetch Comedores
         const comedoresQuery = query(collection(db, 'comedores'), where("residenciaId", "==", residenciaId));
         const comedoresSnapshot = await getDocs(comedoresQuery);
         let fetchedComedores: Comedor[] = comedoresSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<Comedor, 'id'>) }));
         console.log(`fetchModalData: Fetched ${fetchedComedores.length} Comedores.`);
         setModalComedores(sortComedores(fetchedComedores));
-
-        // Fetch Alternativas (REMOVED)
 
         console.log("fetchModalData: Successfully fetched remaining data.");
 
@@ -338,7 +349,7 @@ export default function ResidenciaAdminPage() {
         setIsLoadingModalData(false);
         console.log("fetchModalData: Finished, setIsLoadingModalData(false) called.");
     }
-}, [toast]); // Keep dependency array minimal
+  }, [toast]);
 
 
   const handleManageSettings = (residencia: Residencia) => {
@@ -350,8 +361,7 @@ export default function ResidenciaAdminPage() {
     setIsModalOpen(true);
   }
 
-  // *** UPDATED: handleModalOpenChange (Removed Tiempo and Alternativa resets) ***
-   const handleModalOpenChange = (open: boolean) => {
+  const handleModalOpenChange = (open: boolean) => {
         setIsModalOpen(open);
         if (!open) {
             // Reset common state
@@ -361,15 +371,12 @@ export default function ResidenciaAdminPage() {
             setModalHorarios([]); setModalComedores([]);
             // Reset Horario form
             setNewHorarioNombre(''); setNewHorarioDia(''); setNewHorarioHora(''); setNewHorarioIsPrimary(false); setNewHorarioIsActive(true); setIsProcessingNewHorario(false);
-            // Reset Tiempo form (REMOVED)
             // Reset Comedor form
             setNewComedorNombre(''); setNewComedorDescripcion(''); setIsProcessingNewComedor(false);
-            // Reset Alternativa form (REMOVED)
             // Reset Edit Horario state
             setEditingHorario(null);
             setIsEditHorarioDialogOpen(false); // Ensure edit dialog is closed if main closes
             setIsProcessingEditHorario(false);
-            // Reset Edit Tiempo state (REMOVED)
             // Reset Edit Comedor state
             setEditingComedor(null);
             setIsEditComedorDialogOpen(false);
@@ -394,7 +401,6 @@ export default function ResidenciaAdminPage() {
 
     const handleDeleteHorario = async (horarioId: string, horarioNombre: string) => {
         if (!managingResidenciaId || !confirm(`Are you sure you want to delete the schedule \"${horarioNombre}\"? This might affect Meal Alternatives defined elsewhere.`)) return;
-        // Reminder: Check dependencies in the Horarios page before allowing deletion there.
         try {
             await deleteDoc(doc(db, 'horariosSolicitudComida', horarioId));
             toast({ title: "Success", description: `Schedule \"${horarioNombre}\" deleted.` });
@@ -492,13 +498,6 @@ export default function ResidenciaAdminPage() {
         }
     };
 
-    // --- Edit Horario Dialog Component (Defined at the bottom) ---
-
-    // --- Handlers for Tiempos Tab (REMOVED) ---
-    // Removed handleCreateTiempo, handleEditTiempo, handleDeleteTiempo, handleUpdateTiempo
-
-    // --- Edit TiempoComida Dialog Component (REMOVED) ---
-
 
     // --- Handlers for Comedores Tab ---
     const handleCreateComedor = async (e: React.FormEvent) => {
@@ -552,7 +551,6 @@ export default function ResidenciaAdminPage() {
             return;
         }
         console.log("Deleting Comedor", comedorId);
-        // Reminder: Check dependencies in the Horarios page before allowing deletion there.
         try {
             await deleteDoc(doc(db, 'comedores', comedorId));
             toast({ title: "Success", description: `Dining Hall \"${comedorNombre}\" deleted.` });
@@ -608,87 +606,128 @@ export default function ResidenciaAdminPage() {
         }
     };
 
-    // --- Edit Comedor Dialog Component (Defined at the bottom) ---
-
-    // --- Handlers for Alternativas Tab (REMOVED) ---
-    // Removed handleCreateAlternativa, handleEditAlternativa, handleDeleteAlternativa
-
 
     // --- Render Logic ---
-  return (
-     <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
-    <div className="container mx-auto p-4 space-y-6">
-        <h1 className="text-2xl font-bold">Manage Residences</h1>
-            <Tabs defaultValue="list" className="w-full">
-                <TabsList>
-                    <TabsTrigger value="create">Create New Residence</TabsTrigger>
-                    <TabsTrigger value="list">Existing Residences</TabsTrigger>
-                </TabsList>
-                <TabsContent value="create">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Create New Residence</CardTitle>
-                            <CardDescription>Enter the basic details and initial settings for the new residence.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            {!isClient ? (<Skeleton className="h-80 w-full" />) : (
-                                <>
-                                    <div className="space-y-2"> <Label htmlFor="residence-name">Residence Name</Label> <Input id="residence-name" placeholder="e.g., Residencia Central" value={newResidenceName} onChange={(e) => setNewResidenceName(e.target.value)} disabled={isProcessingCreate} /> </div>
-                                    <div className="space-y-2"> <Label>Primary Meal Request Submission Times</Label> <CardDescription>Set the main deadline time (HH:MM) for each day's meal requests.</CardDescription> <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"> {daysOfWeek.map(day => (<div key={day.value} className="grid gap-2"> <Label htmlFor={`time-${day.value}`}>{day.label}</Label> <Input id={`time-${day.value}`} type="time" value={newSubmissionTimes[day.value] || ''} onChange={(e) =>
-                                            handleTimeChange(day.value, e.target.value)} disabled={isProcessingCreate} step="900" /> </div>))} </div> </div>
-                                        {/* Initial Dining Halls Section */}
-                                        <div className="space-y-4"> <Label>Initial Dining Halls (Comedores)</Label> <CardDescription>Add the names of the dining halls available at this residence.</CardDescription> <div className="flex items-center space-x-2"> <div className="grid flex-1 gap-2"> <Label htmlFor="new-comedor-name" className="sr-only">New Dining Hall Name</Label> <Input id="new-comedor-name" placeholder="e.g., Comedor Principal" value={currentComedorName} onChange={(e) => setCurrentComedorName(e.target.value)} disabled={isProcessingCreate} /> </div> <Button type="button" size="sm" onClick={handleAddComedor} disabled={isProcessingCreate || !currentComedorName.trim()}> <PlusCircle className="mr-2 h-4 w-4" /> Add Hall </Button> </div> {newComedores.length > 0 && (<div className="space-y-2 pt-2"> <Label className="text-xs font-medium text-muted-foreground">Added Halls:</Label> <ul className="space-y-1"> {newComedores.map((name) => (<li key={name} className="flex items-center justify-between p-1.5 border rounded-md bg-secondary/30 text-sm"> <span>{name}</span> <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleRemoveComedor(name)} disabled={isProcessingCreate} aria-label={`Remove ${name}`}> <X className="h-3 w-3" /> </Button> </li>))} </ul> </div>)} </div>
-                                        {/* Create Button */}
-                                        <div className="pt-4"> <Button onClick={handleCreateResidence} disabled={isProcessingCreate}> {isProcessingCreate ? 'Creating...' : 'Create Residence'} </Button> </div>
-                                        </>
-                                        )}
+
+    // 1. Handle Auth Loading State
+    if (authLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="ml-2">Verificando sesión...</span>
+            </div>
+        );
+    }
+
+    // 2. Handle Not Logged In State (redirected by useEffect, but good fallback)
+    if (!user) {
+        return (
+             <div className="flex items-center justify-center min-h-screen">
+                <p>Redirigiendo al inicio de sesión...</p>
+            </div>
+        );
+    }
+
+     // 3. Handle Missing Profile or Unauthorized Role (redirected by useEffect, but good fallback)
+     if (!profile) {
+         // This might indicate an issue with profile fetching in AuthProvider
+         return (
+            <div className="flex items-center justify-center min-h-screen">
+                <Loader2 className="h-8 w-8 animate-spin text-destructive" />
+                <span className="ml-2 text-destructive">Error cargando perfil de usuario...</span>
+                {/* Consider adding a button to retry or contact support */}
+            </div>
+         );
+     }
+     const userRoles = profile.roles || [];
+     const isAuthorized = userRoles.includes('admin') || userRoles.includes('master');
+
+     if (!isAuthorized) {
+         // This should have been caught by useEffect, but included for robustness
+          return (
+            <div className="flex flex-col items-center justify-center min-h-screen text-center">
+                <h1 className="text-2xl font-bold text-destructive mb-4">Acceso Denegado</h1>
+                <p className="mb-4">No tienes los permisos necesarios para ver esta página.</p>
+                <Button onClick={() => router.push('/')}>Volver al Inicio</Button>
+            </div>
+        );
+     }
+
+    // 4. Render Page Content (only if loading is false, user exists, profile exists, and user is authorized)
+    return (
+         <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
+            <div className="container mx-auto p-4 space-y-6">
+                <h1 className="text-2xl font-bold">Manage Residences</h1>
+                <Tabs defaultValue="list" className="w-full">
+                    <TabsList>
+                        <TabsTrigger value="create">Create New Residence</TabsTrigger>
+                        <TabsTrigger value="list">Existing Residences</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="create">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Create New Residence</CardTitle>
+                                <CardDescription>Enter the basic details and initial settings for the new residence.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                {isLoadingResidences && residences.length === 0 ? (<Skeleton className="h-80 w-full" />) : (
+                                   <>
+                                        <div className="space-y-2"> <Label htmlFor="residence-name">Residence Name</Label> <Input id="residence-name" placeholder="e.g., Residencia Central" value={newResidenceName} onChange={(e) => setNewResidenceName(e.target.value)} disabled={isProcessingCreate} /> </div>
+                                        <div className="space-y-2"> <Label>Primary Meal Request Submission Times</Label> <CardDescription>Set the main deadline time (HH:MM) for each day's meal requests.</CardDescription> <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"> {daysOfWeek.map(day => (<div key={day.value} className="grid gap-2"> <Label htmlFor={`time-${day.value}`}>{day.label}</Label> <Input id={`time-${day.value}`} type="time" value={newSubmissionTimes[day.value] || ''} onChange={(e) =>
+                                                handleTimeChange(day.value, e.target.value)} disabled={isProcessingCreate} step="900" /> </div>))} </div> </div>
+                                            {/* Initial Dining Halls Section */}
+                                            <div className="space-y-4"> <Label>Initial Dining Halls (Comedores)</Label> <CardDescription>Add the names of the dining halls available at this residence.</CardDescription> <div className="flex items-center space-x-2"> <div className="grid flex-1 gap-2"> <Label htmlFor="new-comedor-name" className="sr-only">New Dining Hall Name</Label> <Input id="new-comedor-name" placeholder="e.g., Comedor Principal" value={currentComedorName} onChange={(e) => setCurrentComedorName(e.target.value)} disabled={isProcessingCreate} /> </div> <Button type="button" size="sm" onClick={handleAddComedor} disabled={isProcessingCreate || !currentComedorName.trim()}> <PlusCircle className="mr-2 h-4 w-4" /> Add Hall </Button> </div> {newComedores.length > 0 && (<div className="space-y-2 pt-2"> <Label className="text-xs font-medium text-muted-foreground">Added Halls:</Label> <ul className="space-y-1"> {newComedores.map((name) => (<li key={name} className="flex items-center justify-between p-1.5 border rounded-md bg-secondary/30 text-sm"> <span>{name}</span> <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => handleRemoveComedor(name)} disabled={isProcessingCreate} aria-label={`Remove ${name}`}> <X className="h-3 w-3" /> </Button> </li>))} </ul> </div>)} </div>
+                                            {/* Create Button */}
+                                            <div className="pt-4"> <Button onClick={handleCreateResidence} disabled={isProcessingCreate}> {isProcessingCreate ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : 'Create Residence'} </Button> </div>
+                                    </>
+                                )}
                             </CardContent>
-                    </Card>
-                </TabsContent>
-                {/* Existing Residences Tab */}
-                <TabsContent value="list">
-                    <Card>
-                        <CardHeader> <CardTitle>Existing Residences</CardTitle> <CardDescription>View existing residences and manage their settings.</CardDescription> </CardHeader>
-                        <CardContent>
-                            {isLoadingResidences ? (
-                            <div className="space-y-2">
-                                <Skeleton className="h-16 w-full" />
-                                <Skeleton className="h-16 w-full" />
-                            </div>
-                            ) : errorResidences ? (
-                            <p className="text-destructive">{errorResidences}</p>
-                            ) : !residences || residences.length === 0 ? (
-                            <p>No residences found. Create one using the 'Create New Residence' tab.</p>
-                            ) : (
-                            <ul className="space-y-3"> {residences.map((res) => (
-                                <li key={res.id} className="border p-4 rounded-md shadow-sm flex justify-between items-center">
-                                    <div>
-                                        <p className="font-semibold text-lg">{res.nombre}</p>
-                                        <p className="text-sm text-muted-foreground">ID: {res.id}</p>
-                                    </div>
-                                    {/* Trigger for Modal */}
-                                    <DialogTrigger asChild>
-                                        <Button
-                                            variant="secondary"
-                                            size="sm"
-                                            onClick={() => handleManageSettings(res)}
-                                        >
-                                            Manage Settings
-                                        </Button>
-                                    </DialogTrigger>
-                                </li>))}
-                            </ul>)}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs> {/* End Main Tabs */}
-        </div> {/* End Container Div */}
+                        </Card>
+                    </TabsContent>
+                    {/* Existing Residences Tab */}
+                    <TabsContent value="list">
+                        <Card>
+                            <CardHeader> <CardTitle>Existing Residences</CardTitle> <CardDescription>View existing residences and manage their settings.</CardDescription> </CardHeader>
+                            <CardContent>
+                                {isLoadingResidences ? (
+                                <div className="space-y-2">
+                                    <Skeleton className="h-16 w-full" />
+                                    <Skeleton className="h-16 w-full" />
+                                </div>
+                                ) : errorResidences ? (
+                                <p className="text-destructive">{errorResidences}</p>
+                                ) : !residences || residences.length === 0 ? (
+                                <p>No residences found. Create one using the 'Create New Residence' tab.</p>
+                                ) : (
+                                <ul className="space-y-3"> {residences.map((res) => (
+                                    <li key={res.id} className="border p-4 rounded-md shadow-sm flex justify-between items-center">
+                                        <div>
+                                            <p className="font-semibold text-lg">{res.nombre}</p>
+                                            <p className="text-sm text-muted-foreground">ID: {res.id}</p>
+                                        </div>
+                                        {/* Trigger for Modal */}
+                                        <DialogTrigger asChild>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => handleManageSettings(res)}
+                                            >
+                                                Manage Settings
+                                            </Button>
+                                        </DialogTrigger>
+                                    </li>))}
+                                </ul>)}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs> {/* End Main Tabs */}
+            </div> {/* End Container Div */}
 
             {/* --- MODAL CONTENT --- */}
-            <DialogContent className="sm:max-w-[600px] md:max-w-[800px] lg:max-w-[900px] max-h-[90vh] flex flex-col"> {/* Adjusted max-width */}
+            <DialogContent className="sm:max-w-[600px] md:max-w-[800px] lg:max-w-[900px] max-h-[90vh] flex flex-col">
             <DialogHeader>
             <DialogTitle>Manage Settings for: {managingResidenciaNombre || '...'}</DialogTitle>
-            <DialogDescription> Configure request schedules and dining halls for this residence. Meal times and alternatives are managed elsewhere.</DialogDescription>
+            <DialogDescription> Configure request schedules and dining halls for this residence.</DialogDescription>
             </DialogHeader>
 
             {/* Modal Tabs Container */}
@@ -696,9 +735,7 @@ export default function ResidenciaAdminPage() {
             <Tabs defaultValue="horarios" className="w-full">
             <TabsList className="mb-4 grid w-full grid-cols-2"> {/* Adjusted grid-cols */}
             <TabsTrigger value="horarios">Request Schedules</TabsTrigger>
-            {/* Removed Tiempos Trigger */}
             <TabsTrigger value="comedores">Dining Halls</TabsTrigger>
-            {/* Removed Alternativas Trigger */}
             </TabsList>
 
             {/* --- Horarios Tab Content --- */}
@@ -746,7 +783,7 @@ export default function ResidenciaAdminPage() {
                         </div>
                     </div>
                     <Button type="submit" size="sm" disabled={isProcessingNewHorario}>
-                            {isProcessingNewHorario ? 'Saving...' : 'Save New Schedule'}
+                            {isProcessingNewHorario ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save New Schedule'}
                     </Button>
                 </form>
             </AccordionContent>
@@ -805,9 +842,6 @@ export default function ResidenciaAdminPage() {
             </TabsContent>
 
 
-            {/* --- Tiempos Tab Content (REMOVED) --- */}
-
-
             {/* --- Comedores Tab Content --- */}
             <TabsContent value="comedores">
             <Card>
@@ -843,7 +877,7 @@ export default function ResidenciaAdminPage() {
                             />
                     </div>
                     <Button type="submit" size="sm" disabled={isProcessingNewComedor}>
-                            {isProcessingNewComedor ? 'Saving...' : 'Save New Dining Hall'}
+                            {isProcessingNewComedor ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save New Dining Hall'}
                     </Button>
                 </form>
             </AccordionContent>
@@ -888,8 +922,6 @@ export default function ResidenciaAdminPage() {
             </Card>
             </TabsContent>
 
-            {/* --- Alternativas Tab Content (REMOVED) --- */}
-
             </Tabs> {/* End Tabs component inside Dialog */}
             </div> {/* End flex-grow div */}
 
@@ -900,112 +932,115 @@ export default function ResidenciaAdminPage() {
 
             {/* --- Render the Edit Dialogs (they will be controlled by their respective isOpen state) --- */}
             <EditHorarioDialog
-            isOpen={isEditHorarioDialogOpen}
-            onOpenChange={(open) => { setIsEditHorarioDialogOpen(open); if (!open) setEditingHorario(null); }}
-            horario={editingHorario}
-            nombre={editHorarioNombre} setNombre={setEditHorarioNombre}
-            dia={editHorarioDia} setDia={setEditHorarioDia}
-            hora={editHorarioHora} setHora={setEditHorarioHora}
-            isPrimary={editHorarioIsPrimary} setIsPrimary={setEditHorarioIsPrimary}
-            isProcessing={isProcessingEditHorario}
-            onSubmit={handleUpdateHorario}
+                isOpen={isEditHorarioDialogOpen}
+                onOpenChange={(open) => { setIsEditHorarioDialogOpen(open); if (!open) setEditingHorario(null); }}
+                horario={editingHorario}
+                nombre={editHorarioNombre} setNombre={setEditHorarioNombre}
+                dia={editHorarioDia} setDia={setEditHorarioDia}
+                hora={editHorarioHora} setHora={setEditHorarioHora}
+                isPrimary={editHorarioIsPrimary} setIsPrimary={setEditHorarioIsPrimary}
+                isProcessing={isProcessingEditHorario}
+                onSubmit={handleUpdateHorario}
             />
-            {/* Removed EditTiempoDialog render */}
             <EditComedorDialog
-            isOpen={isEditComedorDialogOpen}
-            onOpenChange={(open) => { setIsEditComedorDialogOpen(open); if (!open) setEditingComedor(null); }}
-            comedor={editingComedor}
-            nombre={editComedorNombre} setNombre={setEditComedorNombre}
-            descripcion={editComedorDescripcion} setDescripcion={setEditComedorDescripcion}
-            isProcessing={isProcessingEditComedor}
-            onSubmit={handleUpdateComedor}
+                isOpen={isEditComedorDialogOpen}
+                onOpenChange={(open) => { setIsEditComedorDialogOpen(open); if (!open) setEditingComedor(null); }}
+                comedor={editingComedor}
+                nombre={editComedorNombre} setNombre={setEditComedorNombre}
+                descripcion={editComedorDescripcion} setDescripcion={setEditComedorDescripcion}
+                isProcessing={isProcessingEditComedor}
+                onSubmit={handleUpdateComedor}
             />
         </Dialog> // End Main Dialog component
     );
 } // End ResidenciaAdminPage Component
 
 // ==========================================================================
-// Separate Dialog Components (Moved outside the main component)
+// Separate Dialog Components (Defined outside the main component)
 // ==========================================================================
 
 const EditHorarioDialog: React.FC<EditHorarioDialogProps> = ({
-isOpen, onOpenChange, horario, nombre, setNombre, dia, setDia, hora, setHora, isPrimary, setIsPrimary, isProcessing, onSubmit
+    isOpen, onOpenChange, horario, nombre, setNombre, dia, setDia, hora, setHora, isPrimary, setIsPrimary, isProcessing, onSubmit
 }) => {
-return (
-<Dialog open={isOpen} onOpenChange={onOpenChange}>
-<DialogContent className="sm:max-w-[500px]">
-<DialogHeader>
-<DialogTitle>Edit Schedule: {horario?.nombre}</DialogTitle>
-<DialogDescription>Modify the details for this request schedule.</DialogDescription>
-</DialogHeader>
-{horario ? (
-<form onSubmit={onSubmit} className="space-y-4 py-4">
-{/* Name Input */}
-<div className="space-y-1.5">
-<Label htmlFor="edit-horario-nombre">Schedule Name</Label>
-<Input id="edit-horario-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={isProcessing} />
-</div>
-{/* Day and Time */}
-<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-<div className="space-y-1.5">
-<Label htmlFor="edit-horario-dia">Day of Week</Label>
-<Select value={dia} onValueChange={(value) => setDia(value as DayOfWeekKey)} disabled={isProcessing}>
-<SelectTrigger id="edit-horario-dia"><SelectValue placeholder="Select day..." /></SelectTrigger>
-<SelectContent>{daysOfWeek.map(day => (<SelectItem key={day.value} value={day.value}>{day.label} ({DayOfWeekMap[day.value]})</SelectItem>))}</SelectContent>
-</Select>
-</div>
-<div className="space-y-1.5">
-<Label htmlFor="edit-horario-hora">Deadline Time (HH:MM)</Label>
-<Input id="edit-horario-hora" type="time" value={hora} onChange={(e) => setHora(e.target.value)} disabled={isProcessing} step="900" />
-</div>
-</div>
-{/* Primary Switch */}
-<div className="flex items-center space-x-2 pt-2">
-<Switch id="edit-horario-primary" checked={isPrimary} onCheckedChange={setIsPrimary} disabled={isProcessing} />
-<Label htmlFor="edit-horario-primary">Primary Schedule?</Label>
-</div>
-<DialogFooter>
-<DialogClose asChild><Button type="button" variant="outline" disabled={isProcessing}>Cancel</Button></DialogClose>
-<Button type="submit" disabled={isProcessing}>{isProcessing ? 'Saving...' : 'Save Changes'}</Button>
-</DialogFooter>
-</form>
-) : ( <p>Loading schedule data...</p> )}
-</DialogContent>
-</Dialog>
-);
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                    <DialogTitle>Edit Schedule: {horario?.nombre}</DialogTitle>
+                    <DialogDescription>Modify the details for this request schedule.</DialogDescription>
+                </DialogHeader>
+                {horario ? (
+                    <form onSubmit={onSubmit} className="space-y-4 py-4">
+                        {/* Name Input */}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="edit-horario-nombre">Schedule Name</Label>
+                            <Input id="edit-horario-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={isProcessing} />
+                        </div>
+                        {/* Day and Time */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="edit-horario-dia">Day of Week</Label>
+                                <Select value={dia} onValueChange={(value) => setDia(value as DayOfWeekKey)} disabled={isProcessing}>
+                                    <SelectTrigger id="edit-horario-dia"><SelectValue placeholder="Select day..." /></SelectTrigger>
+                                    <SelectContent>{daysOfWeek.map(day => (<SelectItem key={day.value} value={day.value}>{day.label} ({DayOfWeekMap[day.value]})</SelectItem>))}</SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="edit-horario-hora">Deadline Time (HH:MM)</Label>
+                                <Input id="edit-horario-hora" type="time" value={hora} onChange={(e) => setHora(e.target.value)} disabled={isProcessing} step="900" />
+                            </div>
+                        </div>
+                        {/* Primary Switch */}
+                        <div className="flex items-center space-x-2 pt-2">
+                            <Switch id="edit-horario-primary" checked={isPrimary} onCheckedChange={setIsPrimary} disabled={isProcessing} />
+                            <Label htmlFor="edit-horario-primary">Primary Schedule?</Label>
+                        </div>
+                        <DialogFooter>
+                            <DialogClose asChild><Button type="button" variant="outline" disabled={isProcessing}>Cancel</Button></DialogClose>
+                            <Button type="submit" disabled={isProcessing}>{isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}</Button>
+                        </DialogFooter>
+                    </form>
+                ) : ( <p>Loading schedule data...</p> )}
+            </DialogContent>
+        </Dialog>
+    );
 };
-
-// Removed EditTiempoDialog Component
 
 const EditComedorDialog: React.FC<EditComedorDialogProps> = ({
-isOpen, onOpenChange, comedor, nombre, setNombre, descripcion, setDescripcion, isProcessing, onSubmit
+    isOpen, onOpenChange, comedor, nombre, setNombre, descripcion, setDescripcion, isProcessing, onSubmit
 }) => {
-return (
-<Dialog open={isOpen} onOpenChange={onOpenChange}>
-<DialogContent className="sm:max-w-[500px]">
-<DialogHeader>
-<DialogTitle>Edit Dining Hall: {comedor?.nombre}</DialogTitle>
-<DialogDescription>Modify the details for this dining hall.</DialogDescription>
-</DialogHeader>
-{comedor ? (
-<form onSubmit={onSubmit} className="space-y-4 py-4">
-{/* Name Input */}
-<div className="space-y-1.5">
-<Label htmlFor="edit-comedor-nombre">Dining Hall Name</Label>
-<Input id="edit-comedor-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={isProcessing}/>
-</div>
-{/* Description (Optional) */}
-<div className="space-y-1.5">
-<Label htmlFor="edit-comedor-descripcion">Description (Optional)</Label>
-<Textarea id="edit-comedor-descripcion" placeholder="Enter any relevant details..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} disabled={isProcessing} rows={3} />
-</div>
-<DialogFooter>
-<DialogClose asChild><Button type="button" variant="outline" disabled={isProcessing}>Cancel</Button></DialogClose>
-<Button type="submit" disabled={isProcessing}>{isProcessing ? 'Saving...' : 'Save Changes'}</Button>
-</DialogFooter>
-</form>
-) : ( <p>Loading dining hall data...</p> )}
-</DialogContent>
-</Dialog>
-);
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                    <DialogTitle>Edit Dining Hall: {comedor?.nombre}</DialogTitle>
+                    <DialogDescription>Modify the details for this dining hall.</DialogDescription>
+                </DialogHeader>
+                {comedor ? (
+                    <form onSubmit={onSubmit} className="space-y-4 py-4">
+                        {/* Name Input */}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="edit-comedor-nombre">Dining Hall Name</Label>
+                            <Input id="edit-comedor-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={isProcessing}/>
+                        </div>
+                        {/* Description (Optional) */}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="edit-comedor-descripcion">Description (Optional)</Label>
+                            <Textarea id="edit-comedor-descripcion" placeholder="Enter any relevant details..." value={descripcion} onChange={(e) => setDescripcion(e.target.value)} disabled={isProcessing} rows={3} />
+                        </div>
+                        <DialogFooter>
+                            <DialogClose asChild><Button type="button" variant="outline" disabled={isProcessing}>Cancel</Button></DialogClose>
+                            <Button type="submit" disabled={isProcessing}>{isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}</Button>
+                        </DialogFooter>
+                    </form>
+                ) : ( <p>Loading dining hall data...</p> )}
+            </DialogContent>
+        </Dialog>
+    );
 };
+
+// Ensure UserRole enum/type is correctly defined/imported from @/models/firestore
+// Example:
+// export enum UserRole { Admin = 'admin', Master = 'master', Director = 'director', ... }
+// or
+// export type UserRole = 'admin' | 'master' | 'director' | ... ;

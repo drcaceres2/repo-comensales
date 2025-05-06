@@ -1,22 +1,23 @@
 'use client'; // Make it a client component
 
-import { AuthProvider, useAuth } from '@/hooks/useAuth'; // Import the provider and hook
+// Removed AuthProvider and useAuth imports
 import type { Metadata } from 'next';
 import { Inter, Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"; // Import Toaster
 
 // React and Next.js hooks
-import React from 'react'; // No longer need useState, useEffect here
+import React from 'react';
 import { useRouter } from 'next/navigation';
 
 // Firebase Auth
-import { getAuth, signOut } from 'firebase/auth'; // Keep signOut
+import { signOut } from 'firebase/auth'; // Keep signOut
 import { auth } from '@/lib/firebase'; // Your initialized auth instance
+import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
 
 // UI Components
 import { Button } from "@/components/ui/button";
-import { LogOut, Loader2 } from 'lucide-react'; // Logout icon and Loader
+import { LogOut, Loader2, AlertCircle } from 'lucide-react'; // Logout icon, Loader, and Error icon
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -30,12 +31,13 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-// Internal Header component that uses the Auth Context
+// Internal Header component using useAuthState
 function LayoutHeader() {
-  const { user, loading } = useAuth(); // Use the hook to get user and loading state
+  // Use the hook to get user, loading state, and error
+  const [user, loading, error] = useAuthState(auth);
   const router = useRouter();
 
-  // Logout handler
+  // Logout handler (remains the same)
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -45,25 +47,37 @@ function LayoutHeader() {
     } catch (error) {
       console.error("Error signing out: ", error);
       // Optionally show a toast message for logout error
+      // You might need access to useToast here if you want to show a toast
     }
   };
 
-  // Don't render header until auth state is determined
+  // Show loading state while checking auth
   if (loading) {
-    // Optionally show a minimal loading state in the header area
     return (
-         <header className="bg-muted text-muted-foreground p-2 flex justify-end items-center sticky top-0 z-50">
+         <header className="bg-muted text-muted-foreground p-2 h-10 flex justify-end items-center sticky top-0 z-50">
              <Loader2 className="h-5 w-5 animate-spin" />
          </header>
     );
   }
 
-  // Render header only if user is logged in
+  // Show error state if auth check failed
+  if (error) {
+      console.error("Auth Error in Header:", error);
+      return (
+           <header className="bg-destructive text-destructive-foreground p-2 h-10 flex justify-end items-center sticky top-0 z-50">
+               <AlertCircle className="h-5 w-5 mr-2" />
+               <span className="text-sm">Error de autenticación</span>
+               {/* Optionally add a retry or logout button here */}
+           </header>
+      );
+  }
+
+  // Render header with user info and logout button if user is logged in
   if (user) {
     return (
-      <header className="bg-primary text-primary-foreground p-2 flex justify-end items-center sticky top-0 z-50">
-        <span className="mr-4 text-sm">{user.email}</span>
-        <Button variant="ghost" size="sm" onClick={handleLogout}>
+      <header className="bg-primary text-primary-foreground p-2 h-10 flex justify-end items-center sticky top-0 z-50">
+        <span className="mr-4 text-sm truncate">{user.email}</span>
+        <Button variant="ghost" size="sm" onClick={handleLogout} className="hover:bg-primary/90">
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión
         </Button>
@@ -71,8 +85,9 @@ function LayoutHeader() {
     );
   }
 
-  // Render nothing if no user is logged in and auth check is complete
-  return null;
+  // Render nothing (or perhaps an empty placeholder header) if no user is logged in
+  // An empty div can help prevent layout shifts if the header appears/disappears
+  return <header className="h-10 sticky top-0 z-50"></header>; // Placeholder to maintain height
 }
 
 
@@ -81,21 +96,18 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Removed useState and useEffect for local auth handling
 
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AuthProvider> {/* Wrap everything that needs auth context */}
-          {/* Render Header using context */}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans`}>
+          {/* LayoutHeader now manages its own auth state */}
           <LayoutHeader />
 
           {/* Main Content */}
           <main>{children}</main>
 
-          {/* Toaster for notifications (can be outside or inside AuthProvider) */}
+          {/* Toaster for notifications */}
           <Toaster />
-        </AuthProvider>
       </body>
     </html>
   );
