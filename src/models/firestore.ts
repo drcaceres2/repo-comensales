@@ -69,7 +69,7 @@ export const DayOfWeekMap: Record<DayOfWeekKey, string> = {
     domingo: 'Domingo'
   };
 
-export type TipoAlternativa = 'comedor' | 'paraLlevar';
+export type TipoAlternativa = 'comedor' | 'paraLlevar' | 'ayuno';
 
 // --- Interfaces ---
 
@@ -86,6 +86,7 @@ export interface Comedor {
     nombre: string;
     residenciaId: ResidenciaId;
     descripcion?: string;
+    isVirtual: boolean;
 }
 
 // <<< UPDATED: TiempoComida >>>
@@ -114,7 +115,6 @@ export interface AlternativaTiempoComida {
     residenciaId: ResidenciaId;
     comedorId?: ComedorId; // If 'tipo' is 'comedor', link to the dining hall
     isActive: boolean; // Can this alternative be chosen?
-    isContingencia?: boolean; // Is this the fallback/contingency option?
 }
 
 // <<< UPDATED: HorarioSolicitudComida >>>

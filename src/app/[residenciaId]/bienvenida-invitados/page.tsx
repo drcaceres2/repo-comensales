@@ -10,11 +10,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
-import { format, addDays, eachDayOfInterval, isSameDay, parseISO, differenceInDays } from 'date-fns';
-import { es } from 'date-fns/locale'; // Spanish locale for date formatting
-import { getDocs, collection, query, where, writeBatch, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+// Added Loader2, AlertCircle, Info
+import { Calendar as CalendarIcon, Loader2, AlertCircle, Info } from "lucide-react";
+import { format, addDays, eachDayOfInterval, isSameDay, parseISO, differenceInDays, getDay, Day } from 'date-fns';
+import { es } from 'date-fns/locale';
+// Added doc, getDoc
+import { getDocs, collection, query, where, writeBatch, doc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
+// Added UserProfile, UserRole
 import {
     TiempoComida,
     AlternativaTiempoComida,
@@ -26,11 +29,10 @@ import {
     HorarioSolicitudComidaId,
     TiempoComidaId,
     DayOfWeekMap,
-    UserProfile, 
-    UserRole, 
+    UserProfile,
+    UserRole,
     ResidenciaId
 } from '@/models/firestore';
-import { getDay, Day } from 'date-fns'; // To get day of week number
 import {
     Dialog,
     DialogContent,
@@ -38,28 +40,26 @@ import {
     DialogTitle,
     DialogDescription,
     DialogFooter,
-    DialogClose // Added for explicit close button if needed, or use onOpenChange
+    DialogClose
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area"; // Useful if many meal times exist
-import { Textarea } from "@/components/ui/textarea"; // For Step 5
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-// Tooltip imports
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Info } from 'lucide-react'; // Import Info icon
 
-// --- Firebase Imports ---
-import { useAuth } from '@/hooks/useAuth'; // Assuming you have a custom hook for auth state and profile
+// --- Firebase Auth Hook Import ---
+import { useAuthState } from 'react-firebase-hooks/auth'; // New Auth Hook
 
-// Define allowed roles
-const ALLOWED_ROLES: UserRole[] = ['invitado'];
+// Define allowed roles (though check is more specific now)
+// const ALLOWED_ROLES: UserRole[] = ['invitado']; // Keep for reference if needed
 
-// --- Define the MealSelectionModal component (can be inside or outside BienvenidaInvitadosPage) ---
+// --- MealSelectionModal component (no changes needed here) ---
 interface MealSelectionModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -70,8 +70,7 @@ interface MealSelectionModalProps {
     onSave: (daySelections: Record<TiempoComidaId, string>) => void;
     horariosSolicitud: Map<HorarioSolicitudComidaId, HorarioSolicitudComida>;
 }
-
-function MealSelectionModal({
+function MealSelectionModal({     
     isOpen,
     onClose,
     selectedDate,
@@ -79,9 +78,9 @@ function MealSelectionModal({
     alternativas,
     currentSelections,
     onSave,
-    horariosSolicitud
+    horariosSolicitud 
 }: MealSelectionModalProps) {
-
+    // ... (Implementation remains the same)
     // Local state to manage selections within the modal before saving
     const [daySelections, setDaySelections] = useState<Record<TiempoComidaId, string>>(currentSelections);
 
@@ -203,122 +202,122 @@ function MealSelectionModal({
     );
 }
 
-export default function BienvenidaInvitadosPage() {
+export default function BienvenidaInvitadosPage(): JSX.Element | null { // Allow null return
     const router = useRouter();
     const params = useParams();
     const { toast } = useToast();
-    const { user, profile, loading: authLoading } = useAuth(); // Use your auth hook
-
     const residenciaId = params.residenciaId as ResidenciaId;
-    
-    // --- Wizard State ---
-    const TOTAL_STEPS = 5; // Now 0 to 5
-    const [currentStep, setCurrentStep] = useState(1);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isInitialized, setIsInitialized] = useState(false); // Keep for initial auth check
 
-    // --- Step 1 State: Dates ---
+    // --- New Auth & Profile State ---
+    const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+    const [guestUserProfile, setGuestUserProfile] = useState<UserProfile | null>(null);
+    const [guestProfileLoading, setGuestProfileLoading] = useState<boolean>(true);
+    const [guestProfileError, setGuestProfileError] = useState<string | null>(null);
+    const [isAuthorized, setIsAuthorized] = useState<boolean>(false); // Authorization status
+
+    // --- Wizard State ---
+    const TOTAL_STEPS = 5;
+    const [currentStep, setCurrentStep] = useState(1);
+    const [isLoading, setIsLoading] = useState(false); // For final submission
+
+    // --- Step States (remain the same) ---
+    // Step 1: Dates
     const [isOneDay, setIsOneDay] = useState(false);
     const [startDate, setStartDate] = useState<Date | undefined>();
     const [endDate, setEndDate] = useState<Date | undefined>();
-
-    // --- Step 2 State: Day Selection ---
-    // Store selected days as ISO date strings (YYYY-MM-DD) for easier comparison and storage
+    // Step 2: Day Selection
     const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
-
-    // --- Step 3 State: Detail Preference ---
+    // Step 3: Detail Preference
     const [detailPreference, setDetailPreference] = useState<'si' | 'horarios' | 'no_ahora' | undefined>();
-
-    // --- Step 4 State: Meal Data & Selections
+    // Step 4: Meal Data & Selections
     const [tiemposComida, setTiemposComida] = useState<Map<DayOfWeekKey, TiempoComida[]>>(new Map());
     const [alternativas, setAlternativas] = useState<AlternativaTiempoComida[]>([]);
-    const [dataLoading, setDataLoading] = useState(false);
+    const [dataLoading, setDataLoading] = useState(false); // For Step 4 data
     const [dataError, setDataError] = useState<string | null>(null);
     const [selectedDayForModal, setSelectedDayForModal] = useState<Date | null>(null);
     const [mealSelections, setMealSelections] = useState<Record<string, Record<TiempoComidaId, string>>>({});
     const [horariosSolicitud, setHorariosSolicitud] = useState<Map<HorarioSolicitudComidaId, HorarioSolicitudComida>>(new Map());
-
-    // --- Step 5 State: Comments ---
+    // Step 5: Comments
     const [commentText, setCommentText] = useState('');
 
-    // Map date-fns day index (0=Sun, 1=Mon...) to DayOfWeekKey
-    const dayIndexToKey: Record<number, DayOfWeekKey> = {
-        0: 'domingo', 1: 'lunes', 2: 'martes', 3: 'miercoles', 4: 'jueves', 5: 'viernes', 6: 'sabado'
-    };
+    const dayIndexToKey: Record<number, DayOfWeekKey> = { 0: 'domingo', 1: 'lunes', 2: 'martes', 3: 'miercoles', 4: 'jueves', 5: 'viernes', 6: 'sabado' };
 
-    // --- Authorization Check ---
-    const isAuthorized = useMemo(() => {
-        if (authLoading || !profile || !user) return false;
-        // Check if user IS an 'invitado' AND belongs to the current residencia
-        return profile.residenciaId === residenciaId &&
-               profile.roles.includes('invitado' as UserRole);
-    }, [profile, user, authLoading, residenciaId]);
-
-    // useEffect for fetching Step 4 data
+    // --- useEffect: Handle Auth State & Fetch Guest's Profile ---
     useEffect(() => {
-        if (currentStep === 4 && residenciaId && isAuthorized) {
+        if (authFirebaseLoading) { setGuestProfileLoading(true); setIsAuthorized(false); return; }
+        if (authFirebaseError) { console.error("Auth Error:", authFirebaseError); toast({ title: "Error Autenticación", description: authFirebaseError.message, variant: "destructive" }); setGuestProfileLoading(false); setGuestUserProfile(null); setGuestProfileError(authFirebaseError.message); setIsAuthorized(false); router.replace('/'); return; }
+        if (!authUser) { console.log("No user, redirecting."); setGuestProfileLoading(false); setGuestUserProfile(null); setGuestProfileError(null); setIsAuthorized(false); router.replace('/'); return; }
+
+        console.log("User authenticated (UID:", authUser.uid,"). Fetching profile...");
+        setGuestProfileLoading(true); setGuestProfileError(null);
+        const guestDocRef = doc(db, "users", authUser.uid);
+        getDoc(guestDocRef)
+            .then((docSnap) => {
+                if (docSnap.exists()) { setGuestUserProfile(docSnap.data() as UserProfile); console.log("Guest profile fetched."); }
+                else { console.error("Guest profile not found:", authUser.uid); setGuestUserProfile(null); setGuestProfileError("Perfil de invitado no encontrado."); toast({ title: "Error Perfil", description: "No se encontró tu perfil.", variant: "destructive" }); }
+            })
+            .catch((error) => { console.error("Error fetching guest profile:", error); setGuestUserProfile(null); setGuestProfileError(`Error cargando perfil: ${error.message}`); toast({ title: "Error Perfil", description: `No se pudo cargar tu perfil: ${error.message}`, variant: "destructive" }); })
+            .finally(() => setGuestProfileLoading(false));
+    }, [authUser, authFirebaseLoading, authFirebaseError, router, toast]);
+
+    // --- useEffect: Handle Authorization ---
+    useEffect(() => {
+        if (guestProfileLoading) { setIsAuthorized(false); return; } // Wait for profile
+        if (guestProfileError || !guestUserProfile) { setIsAuthorized(false); return; } // No profile or error fetching
+
+        // Authorization Check: Must be 'invitado' AND belong to the current residencia
+        const isGuest = guestUserProfile.roles.includes('invitado' as UserRole);
+        const belongsToResidencia = guestUserProfile.residenciaId === residenciaId;
+
+        if (isGuest && belongsToResidencia) {
+            console.log("User authorized as guest for this residencia.");
+            setIsAuthorized(true);
+        } else {
+            console.warn("User is not an authorized guest for this residencia.", { isGuest, belongsToResidencia, profileResId: guestUserProfile.residenciaId, urlResId: residenciaId });
+            setIsAuthorized(false);
+            // Set error or rely on render logic to show Access Denied
+            setGuestProfileError("No autorizado como invitado para esta residencia.");
+        }
+    }, [guestUserProfile, guestProfileLoading, guestProfileError, residenciaId]);
+
+
+    // useEffect for fetching Step 4 data (Now depends on isAuthorized)
+    useEffect(() => {
+        if (currentStep === 4 && residenciaId && isAuthorized) { // Only fetch if authorized
             const fetchData = async () => {
-                setDataLoading(true);
-                setDataError(null);
+                setDataLoading(true); setDataError(null);
                 console.log("Fetching data for Step 4...");
                 try {
-                    // Fetch active TiemposComida for the residencia
-                    const tiemposQuery = query(
-                        collection(db, `residencias/${residenciaId}/tiemposComida`)
-                        // Add isActive filter if needed, depends on your data model
-                    );
-                    const tiemposSnapshot = await getDocs(tiemposQuery);
-                    const fetchedTiempos = tiemposSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TiempoComida));
+                    const [tiemposSnap, alternativasSnap, horariosSnap] = await Promise.all([
+                        getDocs(query(collection(db, `tiemposComida`), where("residenciaId", "==", residenciaId))), // Query top-level
+                        getDocs(query(collection(db, `alternativas`), where("residenciaId", "==", residenciaId), where('isActive', '==', true))), // Query top-level
+                        getDocs(query(collection(db, `horariosSolicitud`), where("residenciaId", "==", residenciaId), where('isActive', '==', true))) // Query top-level
+                    ]);
 
-                     // Group tiempos by DayOfWeekKey
+                    const fetchedTiempos = tiemposSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TiempoComida));
                     const tiemposMap = new Map<DayOfWeekKey, TiempoComida[]>();
-                    fetchedTiempos.forEach(tc => {
-                        const key = tc.dia; // Assuming 'dia' is already DayOfWeekKey
-                        const list = tiemposMap.get(key) || [];
-                        list.push(tc);
-                        // Optional: Sort by ordenGrupo if needed
-                        list.sort((a, b) => (a.ordenGrupo ?? 0) - (b.ordenGrupo ?? 0));
-                        tiemposMap.set(key, list);
-                    });
+                    fetchedTiempos.forEach(tc => { const key = tc.dia; const list = tiemposMap.get(key) || []; list.push(tc); list.sort((a, b) => (a.ordenGrupo ?? 0) - (b.ordenGrupo ?? 0)); tiemposMap.set(key, list); });
                     setTiemposComida(tiemposMap);
-                    console.log("Fetched TiemposComida:", tiemposMap);
 
-                    // Fetch active AlternativaTiempoComida for the residencia
-                    const alternativasQuery = query(
-                        collection(db, `residencias/${residenciaId}/alternativasTiempoComida`),
-                        where('isActive', '==', true) // Assuming you have an isActive flag
-                    );
-                    const alternativasSnapshot = await getDocs(alternativasQuery);
-                    const fetchedAlternativas = alternativasSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AlternativaTiempoComida));
+                    const fetchedAlternativas = alternativasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AlternativaTiempoComida));
                     setAlternativas(fetchedAlternativas);
-                    console.log("Fetched Alternativas:", fetchedAlternativas);
 
-                    // --- Fetch HorarioSolicitudComida (NEW) ---
-                    const horariosQuery = query(
-                        collection(db, `residencias/${residenciaId}/horariosSolicitudComida`),
-                        where('isActive', '==', true) // Fetch only active schedules
-                    );
-                    const horariosSnapshot = await getDocs(horariosQuery);
                     const horariosMap = new Map<HorarioSolicitudComidaId, HorarioSolicitudComida>();
-                    horariosSnapshot.docs.forEach(doc => {
-                        horariosMap.set(doc.id, { id: doc.id, ...doc.data() } as HorarioSolicitudComida);
-                    });
+                    horariosSnap.docs.forEach(doc => { horariosMap.set(doc.id, { id: doc.id, ...doc.data() } as HorarioSolicitudComida); });
                     setHorariosSolicitud(horariosMap);
-                    console.log("Fetched HorariosSolicitud:", horariosMap);
 
+                    console.log("Step 4 data fetched.");
                 } catch (error) {
                     console.error("Error fetching step 4 data:", error);
-                    setDataError("No se pudieron cargar los horarios o alternativas. Intenta recargar la página.");
-                    toast({ title: "Error de Carga", description: "No se pudieron cargar los datos necesarios.", variant: "destructive" });
-                } finally {
-                    setDataLoading(false);
-                }
+                    setDataError("No se pudieron cargar los horarios o alternativas.");
+                    toast({ title: "Error Carga", description: "No se pudieron cargar datos necesarios.", variant: "destructive" });
+                } finally { setDataLoading(false); }
             };
             fetchData();
         }
-    }, [currentStep, residenciaId, toast, isAuthorized]);
+    }, [currentStep, residenciaId, toast, isAuthorized]); // Added isAuthorized dependency
 
-    // Effect to initialize selected days when dates are set
+    // Effect to initialize selected days (remains the same)
     useEffect(() => {
         if (startDate && endDate && !isOneDay) {
             const intervalDays = eachDayOfInterval({ start: startDate, end: endDate });
@@ -330,62 +329,46 @@ export default function BienvenidaInvitadosPage() {
         }
     }, [startDate, endDate, isOneDay]);
 
-    // --- Event Handlers ---
-    const handleNextStep = () => {
-        // Add validation per step if needed
-        if (currentStep === 1) {
-            if (!startDate) {
-                toast({ title: "Falta información", description: "Por favor, selecciona la fecha de inicio.", variant: "destructive" });
-                return;
-            }
-            if (!isOneDay && !endDate) {
-                toast({ title: "Falta información", description: "Por favor, selecciona la fecha de fin.", variant: "destructive" });
-                return;
-            }
-             if (!isOneDay && endDate && startDate && differenceInDays(endDate, startDate) < 0) {
-                toast({ title: "Error en fechas", description: "La fecha de fin no puede ser anterior a la fecha de inicio.", variant: "destructive" });
-                return;
-            }
+
+    // --- Event Handlers (remain largely the same, validation/submit updated) ---
+    const handleNextStep = () => { /* ... (same validation, step logic) ... */
+        if (currentStep === 1) { 
+            if (!startDate) { 
+                toast({ title: "Info", description: "Selecciona fecha inicio.", variant: "destructive" }); 
+                return; 
+            } 
+            if (!isOneDay && !endDate) { 
+                toast({ title: "Info", description: "Selecciona fecha fin.", variant: "destructive" }); 
+                return; 
+            } 
+            if (!isOneDay && endDate && startDate && differenceInDays(endDate, startDate) < 0) { 
+                toast({ title: "Error", description: "Fecha fin anterior a inicio.", variant: "destructive" }); 
+                return; 
+            } 
         }
-        if (currentStep === 2) {
-             if (selectedDays.size === 0) {
-                toast({ title: "Falta información", description: "Debes seleccionar al menos un día.", variant: "destructive" });
-                return;
-            }
-            // Automatically populate selection if "only one day" was chosen in step 1
-            if (isOneDay && startDate && selectedDays.size === 0) {
-                setSelectedDays(new Set([format(startDate, 'yyyy-MM-dd')]));
-            }
+        if (currentStep === 2) { 
+            if (selectedDays.size === 0) { 
+                toast({ title: "Info", description: "Selecciona al menos un día.", variant: "destructive" }); 
+                return; 
+            } 
+            if (isOneDay && startDate && selectedDays.size === 0) { 
+                setSelectedDays(new Set([format(startDate, 'yyyy-MM-dd')])); 
+            } 
         }
-         if (currentStep === 3) {
-             if (!detailPreference) {
-                 toast({ title: "Falta información", description: "Por favor, selecciona una opción sobre los detalles.", variant: "destructive" });
-                 return;
-             }
-             // If 'no_ahora', maybe finish here or go to a summary step?
-             if (detailPreference === 'no_ahora') {
-                 // TODO: Implement final submission logic or redirect
-                 console.log("User chose not to provide details now. Saving basic info...");
-                 handleSubmitWizard(); // Example: Trigger save
-                 return; // Skip step 4
-             }
-              if (detailPreference === 'horarios') {
-                 // TODO: Show horarios then proceed to step 4 or allow proceeding
-                 console.log("User wants to see schedules first...");
-                 // For now, just proceed to step 4, display logic TBD
-             }
-         }
-         if (currentStep < TOTAL_STEPS) { // Go up to Step 5 (Comments)
-            // Skip logic from Step 3 remains
-            if (currentStep === 3 && detailPreference === 'no_ahora') {
-                console.log("Skipping meal details, going to comments step.");
-                setCurrentStep(5); // Go directly to Comments
-                return;
-            }
-            setCurrentStep(prev => prev + 1);
+        if (currentStep === 3) { 
+            if (!detailPreference) { 
+                toast({ title: "Info", description: "Selecciona una opción sobre detalles.", variant: "destructive" }); 
+                return; 
+            } 
+            if (detailPreference === 'no_ahora') { 
+                setCurrentStep(5); 
+                return; 
+            } 
+        } // Go direct to comments
+        if (currentStep < TOTAL_STEPS) { 
+            setCurrentStep(prev => prev + 1); 
         }
     };
-
     const handlePreviousStep = () => {
         if (currentStep > 1) { // Can go back down to Step 1
             // Skip logic when going back from Step 5 remains
@@ -433,202 +416,121 @@ export default function BienvenidaInvitadosPage() {
         });
     };
 
-    // AQUI
-
+    // Final Submit - UPDATED to use new auth state
     const handleSubmitWizard = async () => {
-        // --- Validation ---
-        if (!user || !profile || !isAuthorized) { // Check isAuthorized again
-            toast({ title: "Error", description: "Usuario no autorizado o no identificado.", variant: "destructive" });
-            return;
+        if (!authUser || !guestUserProfile || !isAuthorized) { // Use new state
+            toast({ title: "Error", description: "Usuario no autorizado o no identificado.", variant: "destructive" }); return;
         }
-        if (!startDate) {
-            toast({ title: "Faltan Datos", description: "Falta la fecha de inicio.", variant: "destructive" });
-            return; // Should have been caught earlier, but good safeguard
-        }
-        // Ensure endDate is set if not a one-day stay
+        if (!startDate) { toast({ title: "Faltan Datos", description: "Falta fecha inicio.", variant: "destructive" }); return; }
         const finalEndDate = isOneDay ? startDate : endDate;
-        if (!finalEndDate) {
-            toast({ title: "Faltan Datos", description: "Falta la fecha de fin.", variant: "destructive" });
-            return;
-        }
-    
-        setIsLoading(true);
-        console.log("Submitting FINAL wizard data for guest:", user.uid);
-        console.log("Dates:", startDate, endDate);
-        console.log("Selected Days:", Array.from(selectedDays));
-        console.log("Detail Preference:", detailPreference);
-        console.log("Meal Selections:", mealSelections); // Include meal selections
-        console.log("Comment Text:", commentText);
+        if (!finalEndDate) { toast({ title: "Faltan Datos", description: "Falta fecha fin.", variant: "destructive" }); return; }
 
-         // --- Define needed variables HERE ---
-         const batch = writeBatch(db); // Create a Firestore batch
-         const nowServer = serverTimestamp(); // <<< DEFINE nowServer HERE
-         const guestDietaId = profile.dietaId; // <<< DEFINE guestDietaId HERE (using logged-in guest's profile)
-         console.log("Using Dieta ID for guest:", guestDietaId || "Not set in profile");
-         // --- End variable definitions ---
+        setIsLoading(true);
+        console.log("Submitting FINAL wizard data for guest:", authUser.uid);
+        const batch = writeBatch(db);
+        const nowServer = serverTimestamp();
+        const guestDietaId = guestUserProfile.dietaId; // Get from fetched profile
+        console.log("Using Dieta ID:", guestDietaId || "Not set");
 
         try {
-            // --- Step 1: (Optional) Save overall stay info ---
-            // Decide where/if to store this. Perhaps a new 'invitadoStays' collection?
-            // Or maybe link elecciones using a common 'stayId'?
-            // For now, we focus on creating the Eleccion documents directly.
-            // Example: If saving stay info
-            /*
-            const stayDocRef = doc(collection(db, `residencias/${residenciaId}/invitadoStays`)); // Auto-generate ID
-            batch.set(stayDocRef, {
-                usuarioId: user.uid, // The logged-in user (invitado, asistente, director?)
-                residenciaId: residenciaId,
-                fechaInicio: Timestamp.fromDate(startDate),
-                fechaFin: Timestamp.fromDate(finalEndDate),
-                diasSeleccionados: Array.from(selectedDays), // Store ISO strings
-                fechaCreacion: now,
-                creadoPor: user.uid, // User who filled the form
-            });
-            const stayId = stayDocRef.id; // Can use this to link elecciones if needed
-            */
-
-
-            // --- Step 2: Create Eleccion documents from mealSelections ---
+            // Save Elecciones (only if details were provided)
             if (detailPreference !== 'no_ahora') {
                 for (const dayISO of Object.keys(mealSelections)) {
-                    const daySelections = mealSelections[dayISO];
-                    const fecha = Timestamp.fromDate(parseISO(dayISO)); // Convert ISO string to Date, then Timestamp
-
+                    const daySelections = mealSelections[dayISO]; const fecha = Timestamp.fromDate(parseISO(dayISO));
                     for (const tiempoId of Object.keys(daySelections)) {
                         const alternativaIdOrPendiente = daySelections[tiempoId];
-
-                        // --- Skip 'pendiente' selections ---
-                        // Decision: Do not create Eleccion documents for meals marked 'pendiente'.
-                        // They can be added later by an asistente or director if needed.
-                        if (alternativaIdOrPendiente === 'pendiente') {
-                            console.log(`Skipping 'pendiente' for ${dayISO}, tiempo ${tiempoId}`);
-                            continue;
-                        }
-
+                        if (alternativaIdOrPendiente === 'pendiente') continue;
                         const alternativaId = alternativaIdOrPendiente;
-
-                        // Find the corresponding AlternativaTiempoComida object to check 'requiereAprobacion'
                         const selectedAlternativa = alternativas.find(alt => alt.id === alternativaId);
-                        if (!selectedAlternativa) {
-                            console.warn(`Alternativa ${alternativaId} not found for ${dayISO}, tiempo ${tiempoId}. Skipping.`);
-                            continue; // Should not happen if data is consistent
-                        }
-
-                        // Determine initial approval status
-                        const estadoAprobacion: EstadoAprobacion = selectedAlternativa.requiereAprobacion
-                            ? 'pendiente'
-                            : 'no_requerido';
-
-                        // Define the Eleccion document data
+                        if (!selectedAlternativa) continue;
+                        const estadoAprobacion: EstadoAprobacion = selectedAlternativa.requiereAprobacion ? 'pendiente' : 'no_requerido';
                         const eleccionData: Omit<Eleccion, 'id'> = {
-                            usuarioId: user.uid, // <<< Use logged-in user's ID
-                            residenciaId: residenciaId,
-                            fecha: fecha,
-                            tiempoComidaId: tiempoId,
-                            alternativaTiempoComidaId: alternativaId,
-                            dietaId: guestDietaId || undefined, // <<< Use logged-in user's profile diet
-                            solicitado: true,
-                            fechaSolicitud: nowServer as Timestamp,
-                            estadoAprobacion: estadoAprobacion,
+                            usuarioId: authUser.uid, // Use authUser UID
+                            residenciaId: residenciaId, fecha: fecha, tiempoComidaId: tiempoId, alternativaTiempoComidaId: alternativaId,
+                            dietaId: guestDietaId || undefined, solicitado: true, fechaSolicitud: nowServer as Timestamp, estadoAprobacion: estadoAprobacion,
                             origen: 'invitado_wizard' as OrigenEleccion,
                         };
-
-                        // Create a new document reference in the 'elecciones' subcollection
-                        // Using residenciaId in the path for easier top-level queries if needed
-                        const eleccionDocRef = doc(collection(db, `residencias/${residenciaId}/elecciones`));
-
-                        // Add the set operation to the batch
+                        // Use top-level elecciones collection
+                        const eleccionDocRef = doc(collection(db, `elecciones`));
                         batch.set(eleccionDocRef, eleccionData);
-                        console.log(`Adding Eleccion to batch: ${dayISO}, Tiempo: ${tiempoId}, Alt: ${alternativaId}`);
                     }
                 }
-            } else {
-                console.log("Skipping Eleccion creation as 'no_ahora' was selected.");
             }
-             // --- Create Comentario document ---
-             if (commentText.trim()) {
-                console.log("Adding comment to batch for guest:", user.uid);
-                const comentarioDocRef = doc(collection(db, `residencias/${residenciaId}/comentarios`));
+
+            // Save Comment
+            if (commentText.trim()) {
+                 // Use top-level comentarios collection
+                const comentarioDocRef = doc(collection(db, `comentarios`));
                 batch.set(comentarioDocRef, {
-                    usuarioId: user.uid, // Guest is writing the comment about themselves
-                    destinatarioId: null, // For directors to see
-                    residenciaId: residenciaId,
-                    texto: commentText.trim(),
-                    fechaEnvio: nowServer,
-                    leido: false,
-                    archivado: false,
-                    relacionadoA: {
-                        coleccion: 'usuario',
-                        documentoId: user.uid // Link comment to the guest user writing it
-                    }
+                    usuarioId: authUser.uid, destinatarioId: null, residenciaId: residenciaId, texto: commentText.trim(),
+                    fechaEnvio: nowServer, leido: false, archivado: false,
+                    relacionadoA: { coleccion: 'usuario', documentoId: authUser.uid }
                 });
             }
-            // --- Commit the batch ---
-            console.log("Committing batch...");
+
             await batch.commit();
-            console.log("Batch commit successful!");
-
-            toast({ title: "Estancia Registrada", description: "Los detalles de la estadía y las comidas seleccionadas han sido guardados correctamente." });
-
-            // --- Reset state and potentially redirect ---
-            setCurrentStep(1);
-            setStartDate(undefined); setEndDate(undefined); setIsOneDay(false); setSelectedDays(new Set());
-            setDetailPreference(undefined); setMealSelections({}); // Reset selections
-            setCommentText('');
-            // Consider redirecting to a confirmation page or back to a relevant dashboard
-            // router.push(`/${residenciaId}/invitado-confirmacion`); // Example redirect
-
+            toast({ title: "Estancia Registrada", description: "Detalles guardados correctamente." });
+            // Reset state and redirect
+            setCurrentStep(1); setStartDate(undefined); setEndDate(undefined); setIsOneDay(false); setSelectedDays(new Set());
+            setDetailPreference(undefined); setMealSelections({}); setCommentText('');
+            // Redirect to a confirmation or dashboard page if needed
+            // router.push(...);
         } catch (error) {
             console.error("Error committing wizard data batch:", error);
-            toast({
-                title: "Error al Guardar",
-                description: `No se pudo guardar toda la información (${error instanceof Error ? error.message : 'Error desconocido'}). Revisa las selecciones e intenta de nuevo.`,
-                variant: "destructive",
-                duration: 7000
-            });
+            toast({ title: "Error al Guardar", description: `No se pudo guardar (${error instanceof Error ? error.message : 'Error desconocido'}).`, variant: "destructive", duration: 7000 });
         } finally {
             setIsLoading(false);
         }
     };
 
+
     // --- Render Logic ---
-    if (authLoading) {
+
+    // 1. Auth/Profile Loading
+    if (authFirebaseLoading || guestProfileLoading) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="ml-2">Verificando autorización...</span>
+            <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+                <p className="text-lg font-medium text-muted-foreground">
+                    {authFirebaseLoading ? 'Verificando sesión...' : "Cargando tu perfil..."}
+                </p>
             </div>
         );
     }
 
-    if (!user) {
-        // Should not happen if redirected correctly, but good fallback
-        router.push('/'); // Redirect to login if not authenticated
-        return null; // Render nothing while redirecting
-    }
-
-    if (!isInitialized || !isAuthorized) { // Check after initialization completes
-        // Show Access Denied only if initialization is done and still not authorized
-        if (isInitialized) {
-            return (
-                <div className="container mx-auto p-4 text-center">
-                    <h1 className="text-2xl font-bold mb-4 text-destructive">Acceso Denegado</h1>
-                    <p>Debes ser un invitado registrado en esta residencia ({residenciaId}) para acceder a esta página.</p>
-                    <Button onClick={() => router.push('/')} className="mt-4">Ir al Inicio</Button>
-                </div>
-            );
-        }
-        // Otherwise, still loading auth or initializing, show loader or null
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="ml-2">Verificando autorización...</span>
+    // 2. Auth/Profile Error
+    if (authFirebaseError || guestProfileError) {
+         // Handle specific profile error for unauthorized guest
+        const message = guestProfileError === "No autorizado como invitado para esta residencia."
+                        ? "No estás autorizado como invitado para esta residencia."
+                        : (authFirebaseError?.message || guestProfileError || 'Ocurrió un error crítico.');
+         return (
+            <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+                <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+                <h1 className="text-2xl font-bold text-destructive mb-2">Error</h1>
+                <p className="mb-4 text-destructive max-w-md">{message}</p>
+                <Button onClick={() => router.replace('/')}>Ir al Inicio</Button>
             </div>
         );
     }
 
-    // Calculate days for Step 2 calendar display
-    const daysInRange = useMemo(() => {
+    // 3. Not Authorized (Profile loaded, no errors, but role/residencia mismatch)
+    // This should technically be caught by guestProfileError check above now, but keep as fallback
+    if (!isAuthorized) {
+         return (
+             <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+                <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+               <h1 className="text-2xl font-bold text-destructive mb-2">Acceso Denegado</h1>
+               <p className="mb-4 text-muted-foreground max-w-md">
+                   Debes ser un invitado registrado y asignado a esta residencia ({residenciaId}) para usar esta función.
+                </p>
+                <Button onClick={() => router.replace('/')}>Ir al Inicio</Button>
+             </div>
+           );
+     }
+
+     // --- User is Authorized: Render Wizard ---
+     const daysInRange = useMemo(() => {
         if (!startDate || (!endDate && !isOneDay)) return [];
         const end = isOneDay ? startDate : endDate!;
          // Ensure end date is not before start date before generating interval
@@ -637,85 +539,58 @@ export default function BienvenidaInvitadosPage() {
     }, [startDate, endDate, isOneDay]);
 
     return (
-        <div className="container mx-auto p-4 flex justify-center">
-            <Card className="w-full max-w-2xl">
+        <div className="container mx-auto p-4 sm:p-6 md:p-8 flex justify-center">
+            <Card className="w-full max-w-3xl shadow-lg"> {/* Increased max-width */}
                 <CardHeader>
-                <CardTitle>Bienvenida de Invitado - {profile?.nombre} {profile?.apellido}</CardTitle>
-                    <CardDescription>Paso {currentStep} de {TOTAL_STEPS}: Indica los detalles de tu estancia.</CardDescription>
-                    {/* TODO: Add a progress bar/indicator here */}
+                    <CardTitle className="text-2xl sm:text-3xl">Bienvenida, {guestUserProfile?.nombre || 'Invitado'}!</CardTitle> {/* Use profile name */}
+                    <CardDescription>Paso {currentStep} de {TOTAL_STEPS}: Completa los detalles de tu estancia.</CardDescription>
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mt-2">
+                        <div className="bg-primary h-2.5 rounded-full" style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}></div>
+                    </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="min-h-[300px]"> {/* Set min-height */}
                     {/* --- Step 1: Select Dates --- */}
-                    {currentStep === 1 && (
-                        <div className="space-y-6">
-                             <div className="flex items-center space-x-2">
-                                 <Checkbox
-                                     id="oneDay"
-                                     checked={isOneDay}
-                                     onCheckedChange={handleOneDayChange}
-                                 />
-                                 <Label htmlFor="oneDay" className="cursor-pointer">Es solo por un día</Label>
+                    {currentStep === 1 && ( /* ... Step 1 JSX remains the same ... */
+                         <div className="space-y-6"> 
+                            <div className="flex items-center space-x-2"> 
+                                <Checkbox id="oneDay" checked={isOneDay} onCheckedChange={handleOneDayChange} /> 
+                                <Label htmlFor="oneDay" className="cursor-pointer">Es solo por un día</Label> 
+                            </div> 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
+                                <div className="space-y-2"> 
+                                    <Label htmlFor="startDate">Fecha de {isOneDay ? 'la visita' : 'Inicio'}</Label> 
+                                    <Popover> 
+                                        <PopoverTrigger asChild> 
+                                            <Button variant={"outline"} className={`w-full justify-start text-left font-normal ${!startDate && "text-muted-foreground"}`}> 
+                                                <CalendarIcon className="mr-2 h-4 w-4" /> {startDate ? format(startDate, 'PPP', { locale: es }) : <span>Selecciona fecha</span>} 
+                                            </Button> 
+                                        </PopoverTrigger> 
+                                        <PopoverContent className="w-auto p-0"> 
+                                            <Calendar mode="single" selected={startDate} onSelect={(date) => handleDateSelect(date, 'start')} initialFocus disabled={(date) => date < new Date(new Date().setHours(0,0,0,0)) } /> 
+                                        </PopoverContent> 
+                                    </Popover> 
+                                </div> 
+                                {!isOneDay && ( 
+                                    <div className="space-y-2"> 
+                                        <Label htmlFor="endDate">Fecha de Fin</Label> 
+                                        <Popover> 
+                                            <PopoverTrigger asChild> 
+                                                <Button variant={"outline"} className={`w-full justify-start text-left font-normal ${!endDate && "text-muted-foreground"}`} disabled={!startDate} > <CalendarIcon className="mr-2 h-4 w-4" /> 
+                                                    {endDate ? format(endDate, 'PPP', { locale: es }) : <span>Selecciona fecha</span>} 
+                                                </Button> 
+                                            </PopoverTrigger> 
+                                            <PopoverContent className="w-auto p-0"> 
+                                                <Calendar mode="single" selected={endDate} onSelect={(date) => handleDateSelect(date, 'end')} initialFocus disabled={(date) => (startDate && date < startDate) || date < new Date(new Date().setHours(0,0,0,0))} /> 
+                                            </PopoverContent> 
+                                        </Popover> 
+                                    </div> )} 
+                                </div> 
                             </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="startDate">Fecha de {isOneDay ? 'la visita' : 'Inicio'}</Label>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <Button
-                                                variant={"outline"}
-                                                className={`w-full justify-start text-left font-normal ${!startDate && "text-muted-foreground"}`}
-                                            >
-                                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                                {startDate ? format(startDate, 'PPP', { locale: es }) : <span>Selecciona fecha</span>}
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0">
-                                            <Calendar
-                                                mode="single"
-                                                selected={startDate}
-                                                onSelect={(date) => handleDateSelect(date, 'start')}
-                                                initialFocus
-                                                disabled={(date) => date < new Date(new Date().setHours(0,0,0,0)) } // Disable past dates
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
-                                </div>
-                                {!isOneDay && (
-                                    <div className="space-y-2">
-                                        <Label htmlFor="endDate">Fecha de Fin</Label>
-                                         <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant={"outline"}
-                                                    className={`w-full justify-start text-left font-normal ${!endDate && "text-muted-foreground"}`}
-                                                    disabled={!startDate} // Disable if start date is not set
-                                                >
-                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                    {endDate ? format(endDate, 'PPP', { locale: es }) : <span>Selecciona fecha</span>}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0">
-                                                <Calendar
-                                                    mode="single"
-                                                    selected={endDate}
-                                                    onSelect={(date) => handleDateSelect(date, 'end')}
-                                                    initialFocus
-                                                    disabled={(date) => // Disable dates before start date or past dates
-                                                        (startDate && date < startDate) ||
-                                                        date < new Date(new Date().setHours(0,0,0,0))
-                                                    }
-                                                />
-                                            </PopoverContent>
-                                        </Popover>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
+                        )}
 
                     {/* --- Step 2: Select Days of Stay --- */}
-                     {currentStep === 2 && (
+                    {currentStep === 2 && (
                         <div className="space-y-4">
                              <Label>{isOneDay ? 'Confirma el día de tu visita' : '¿Estarás todos estos días? (Desmarca los días que NO estarás)'}</Label>
                              {daysInRange.length > 0 ? (
@@ -743,7 +618,6 @@ export default function BienvenidaInvitadosPage() {
                              )}
                          </div>
                      )}
-
 
                     {/* --- Step 3: Detail Preference --- */}
                     {currentStep === 3 && (
@@ -845,35 +719,57 @@ export default function BienvenidaInvitadosPage() {
                             )}
                         </div>
                     )}
+                    {/* --- Step 5: Comments --- */}
+                    {currentStep === 5 && (
+                        <div className="space-y-2">
+                            <Label htmlFor="comments" className="text-lg">¿Algún comentario adicional?</Label>
+                            <CardDescription>
+                                Si tienes alguna restricción alimentaria adicional, alergia, u otra información relevante
+                                que el personal de cocina deba conocer, por favor indícalo aquí.
+                            </CardDescription>
+                            <Textarea
+                                id="comments"
+                                value={commentText}
+                                onChange={(e) => setCommentText(e.target.value)}
+                                placeholder="Escribe tus comentarios aquí..."
+                                rows={5}
+                                disabled={isLoading}
+                            />
+                        </div>
+                    )}
                 </CardContent>
 
-                <CardFooter className="flex justify-between">
-                        <Button variant="outline" onClick={handlePreviousStep} disabled={currentStep === 1 || isLoading}>
-                            Anterior
-                        </Button>
+                <CardFooter className="flex justify-between border-t pt-6">
+                    {/* Previous Button */}
+                    <Button
+                        variant="outline"
+                        onClick={handlePreviousStep}
+                        disabled={currentStep === 1 || isLoading}
+                    >
+                        Anterior
+                    </Button>
 
-                        {/* Case 1: On Step 3 and 'no_ahora' is selected -> Show "Continue", calls handleNextStep */}
-                        {currentStep === 3 && detailPreference === 'no_ahora' ? (
-                            <Button onClick={handleNextStep} disabled={isLoading || dataLoading}>
-                                {/* Changed Label slightly */}
-                                Continuar a Comentarios
-                            </Button>
-                        ) : /* Case 2: On any step BEFORE the last step (and NOT the special Step 3 case) -> Show "Siguiente", calls handleNextStep */
-                          currentStep < TOTAL_STEPS ? (
-                            <Button onClick={handleNextStep} disabled={isLoading || dataLoading}>
-                                Siguiente
-                            </Button>
-                        ) : /* Case 3: On the LAST step (Step 5) -> Show "Finalize", calls handleSubmitWizard */
-                          currentStep === TOTAL_STEPS ? (
-                            <Button onClick={handleSubmitWizard} disabled={isLoading || dataLoading}>
-                                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                {/* Consistent label */}
-                                Finalizar y Guardar Todo
-                            </Button>
-                        ) : null /* Should not happen */}
-                    </CardFooter>
+                    {/* Next/Submit Button Logic */}
+                    {/* Case 1: On Step 3 and 'no_ahora' is selected -> Show "Continue", calls handleNextStep which goes to Step 5 */}
+                    {currentStep === 3 && detailPreference === 'no_ahora' ? (
+                        <Button onClick={handleNextStep} disabled={isLoading || dataLoading}>
+                            Continuar a Comentarios
+                        </Button>
+                    ) : /* Case 2: On any step BEFORE the last step (and NOT the special Step 3 case) -> Show "Siguiente", calls handleNextStep */
+                      currentStep < TOTAL_STEPS ? (
+                        <Button onClick={handleNextStep} disabled={isLoading || (currentStep === 4 && dataLoading)}> {/* Disable next on Step 4 if data is loading */}
+                            Siguiente
+                        </Button>
+                    ) : /* Case 3: On the LAST step (Step 5) -> Show "Finalize", calls handleSubmitWizard */
+                      currentStep === TOTAL_STEPS ? (
+                        <Button onClick={handleSubmitWizard} disabled={isLoading || dataLoading}>
+                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Finalizar y Guardar Todo
+                        </Button>
+                    ) : null /* Should not happen */}
+                </CardFooter>
             </Card>
         </div>
-    );
-}
+    ); // This should be the end of the main return
 
+} // End of BienvenidaInvitadosPage component

@@ -1,8 +1,8 @@
 'use client'; // Make it a client component
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation'; // Import useRouter
-import { Loader2 } from 'lucide-react'; // For loading state
+import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { useRouter } from 'next/navigation';
+import { Loader2, AlertCircle } from 'lucide-react'; // Added AlertCircle
 
 // UI Components (Keep existing imports)
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,142 +34,69 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Firebase Imports
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, User, createUserWithEmailAndPassword } from "firebase/auth"; // Add createUserWithEmailAndPassword
-import { doc, getDoc, getDocs, Timestamp, addDoc, collection, setDoc, updateDoc, deleteDoc } from 'firebase/firestore'; // Add deleteDoc
+// --- Firebase & New Auth Hook Imports ---
+import { useAuthState } from 'react-firebase-hooks/auth'; // New auth hook
+import { User } from "firebase/auth"; // Keep User type if needed elsewhere, though useAuthState provides it
+import { createUserWithEmailAndPassword } from "firebase/auth"; // For user creation
+import { doc, getDoc, getDocs, Timestamp, addDoc, collection, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase'; // Your initialized instances
 
-// Model Imports (Ensure these match your firestore.ts)
+// Model Imports
 import { UserProfile, UserRole, ResidenciaId, DietaId, LogEntry, LogActionType } from '@/models/firestore';
 
-// Component Definition & Initial State for Auth/Authz
-export default function UserManagementPage() {
-    // Helper type for form state, using roles array
+export default function UserManagementPage(): JSX.Element | null {
+    // Helper type for form state
     type UserFormData = Partial<Omit<UserProfile, 'id' | 'roles'>> & {
         roles: UserRole[];
         residenciaId?: ResidenciaId | '';
         dietaId?: DietaId | '';
-        // Add other fields from UserProfile that are part of the form but optional in the type
         numeroDeRopa?: string;
         habitacion?: string;
         universidad?: string;
         carrera?: string;
         dni?: string;
-        // isActive should be included if it's managed in the form directly
         isActive?: boolean;
-        // --- ADD/VERIFY THESE LINES ---
         password?: string;
         confirmPassword?: string;
-        // --- END ADD/VERIFY ---
     };
 
-    
     const router = useRouter();
-    const { toast } = useToast(); // Keep toast hook
+    const { toast } = useToast();
 
-    // State for Authentication & Authorization
-    const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [isLoadingAuth, setIsLoadingAuth] = useState(true); // Renamed for clarity
-    const [isAuthorized, setIsAuthorized] = useState(false);
+    // --- New Auth and Profile State ---
+    const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+    const [adminUserProfile, setAdminUserProfile] = useState<UserProfile | null>(null); // Profile of the admin using the page
+    const [adminProfileLoading, setAdminProfileLoading] = useState<boolean>(true);
+    const [adminProfileError, setAdminProfileError] = useState<string | null>(null);
+    const [isAuthorized, setIsAuthorized] = useState<boolean>(false); // Will be set based on adminUserProfile
 
-    // --- Authentication & Authorization Effect ---
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-          if (user) {
-            setCurrentUser(user);
-            // User is signed in, check authorization
-            try {
-              const userDocRef = doc(db, "users", user.uid);
-              const userDocSnap = await getDoc(userDocRef);
-  
-              if (userDocSnap.exists()) {
-                const userProfile = userDocSnap.data() as UserProfile;
-                const roles = userProfile.roles || [];
-  
-                // Authorization Check: Must be admin or master
-                if (roles.includes('admin' as UserRole) || roles.includes('master' as UserRole)) {
-                  console.log(`User ${user.uid} authorized as admin/master.`);
-                  setIsAuthorized(true);
-                } else {
-                  console.warn(`User ${user.uid} is not an authorized admin/master. Roles:`, roles);
-                  setIsAuthorized(false);
-                  // Redirect non-admins away (optional, could show Access Denied instead)
-                  // router.push('/');
-                }
-              } else {
-                // No profile found in Firestore for logged-in user
-                console.error(`No Firestore profile found for authenticated user ${user.uid}.`);
-                setIsAuthorized(false);
-                // Redirecting is crucial here as they have an auth account but no profile/roles
-                // router.push('/');
-              }
-            } catch (error) {
-              console.error("Error fetching user profile for authorization:", error);
-              setIsAuthorized(false);
-              // Redirect on error? Maybe safer
-              // router.push('/');
-            } finally {
-              setIsLoadingAuth(false); // Auth check finished
-            }
-          } else {
-            // No user is signed in
-            setCurrentUser(null);
-            setIsAuthorized(false);
-            setIsLoadingAuth(false); // Auth check finished
-            console.log("No user signed in, redirecting to login.");
-            router.push('/'); // Redirect to login page
-          }
-        });
-  
-        // Cleanup subscription on unmount
-        return () => unsubscribe();
-      }, [router]); // Depend on router
-  
+    // --- Page Specific State (existing state) ---
     const [formData, setFormData] = useState<UserFormData>({
-        nombre: '',
-        apellido: '',
-        email: '',
-        isActive: true, 
-        roles: [], 
-        residenciaId: '',
-        dietaId: '',
-        numeroDeRopa: '',
-        habitacion: '',
-        universidad: '',
-        carrera: '',
-        dni: '',
-        password: '',
-        confirmPassword: ''
+        nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
+        numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
+        password: '', confirmPassword: ''
     });
     const [isSaving, setIsSaving] = useState(false);
-    const [users, setUsers] = useState<UserProfile[]>([]);
-    const [isLoadingUsers, setIsLoadingUsers] = useState(true); // Keep this for loading user list
+    const [users, setUsers] = useState<UserProfile[]>([]); // List of users being managed
+    const [isLoadingUsers, setIsLoadingUsers] = useState(true);
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
     const [userToDeleteId, setUserToDeleteId] = useState<string | null>(null);
 
-    // Define available roles for the checkboxes
-    const availableRoles: UserRole[] = ['residente', 'director', 'admin', 'master']; // Add/remove roles as needed
-
-    // Initially empty
+    const availableRoles: UserRole[] = ['residente', 'director', 'admin', 'master', 'invitado', 'asistente', 'auditor']; // Expanded roles
     const [residences, setResidences] = useState<Record<ResidenciaId, { nombre: string }>>({});
-
-    // Initially empty
     const [dietas, setDietas] = useState<Record<DietaId, { nombre: string }>>({});
 
-    // --- Fetch Residences from Firestore ---
-    useEffect(() => {
-        const fetchResidences = async () => {
-            console.log("Fetching residences from Firestore...");
-            try {
+    // --- Fetch Residences (Memoized) ---
+    const fetchResidences = useCallback(async () => {
+        console.log("Fetching residences from Firestore...");
+        try {
             const residencesCol = collection(db, "residencias");
             const querySnapshot = await getDocs(residencesCol);
             const residencesData: Record<ResidenciaId, { nombre: string }> = {};
             querySnapshot.forEach((doc) => {
-                // Assuming each residence doc has a 'nombre' field
                 const data = doc.data();
                 if (data.nombre) {
-                    // Use the document ID as the key
                     residencesData[doc.id] = { nombre: data.nombre };
                 } else {
                     console.warn(`Residence document ${doc.id} is missing the 'nombre' field.`);
@@ -176,145 +104,218 @@ export default function UserManagementPage() {
             });
             console.log("Fetched residences:", residencesData);
             setResidences(residencesData);
-            } catch (error) {
+        } catch (error) {
             console.error("Error fetching residences:", error);
             toast({
                 title: "Error al Cargar Residencias",
                 description: "No se pudieron obtener los datos de las residencias.",
                 variant: "destructive",
             });
-            }
-        };
-    
-        // Fetch only if authorized (to avoid unnecessary calls if access denied)
-        if (isAuthorized) {
-            fetchResidences();
         }
-    // Run only when authorization status changes to true
-    }, [isAuthorized, toast]); // Add toast as dependency
-    
-    // --- Fetch Dietas from Firestore ---
-    useEffect(() => {
-        const fetchDietas = async () => {
-          console.log("Fetching dietas from Firestore...");
-          try {
+    }, [toast]); // toast is a stable dependency
+
+    // --- Fetch Dietas (Memoized) ---
+    const fetchDietas = useCallback(async () => {
+        console.log("Fetching dietas from Firestore...");
+        try {
             const dietasCol = collection(db, "dietas");
             const querySnapshot = await getDocs(dietasCol);
             const dietasData: Record<DietaId, { nombre: string }> = {};
             querySnapshot.forEach((doc) => {
-              // Assuming each dieta doc has a 'nombre' field
-              const data = doc.data();
-              if (data.nombre) {
-                  // Use the document ID as the key
-                  dietasData[doc.id] = { nombre: data.nombre };
-              } else {
-                  console.warn(`Dieta document ${doc.id} is missing the 'nombre' field.`);
-              }
+                const data = doc.data();
+                if (data.nombre) {
+                    dietasData[doc.id] = { nombre: data.nombre };
+                } else {
+                    console.warn(`Dieta document ${doc.id} is missing the 'nombre' field.`);
+                }
             });
             console.log("Fetched dietas:", dietasData);
             setDietas(dietasData);
-          } catch (error) {
+        } catch (error) {
             console.error("Error fetching dietas:", error);
             toast({
-              title: "Error al Cargar Dietas",
-              description: "No se pudieron obtener los datos de las dietas.",
-              variant: "destructive",
+                title: "Error al Cargar Dietas",
+                description: "No se pudieron obtener los datos de las dietas.",
+                variant: "destructive",
             });
-          }
-        };
-  
-        // Fetch only if authorized
-        if (isAuthorized) {
-          fetchDietas();
         }
-        // Run only when authorization status changes to true
-    }, [isAuthorized, toast]); // Add toast as dependency
-  
-    // --- Fetch Users from Firestore ---
-    useEffect(() => {
-        const fetchUsers = async () => {
-          console.log("Fetching users from Firestore...");
-          setIsLoadingUsers(true); // Set loading state for the user list
-          try {
+    }, [toast]); // toast is a stable dependency
+
+    // --- Fetch Users to Manage (Memoized) ---
+    const fetchUsersToManage = useCallback(async () => {
+        console.log("Fetching users to manage from Firestore...");
+        setIsLoadingUsers(true);
+        try {
             const usersCol = collection(db, "users");
             const querySnapshot = await getDocs(usersCol);
             const usersData: UserProfile[] = [];
             querySnapshot.forEach((doc) => {
-              // Important: Map Firestore data to UserProfile, include the doc ID
-              // Ensure all fields match your UserProfile interface
-              const data = doc.data();
-              usersData.push({
-                  id: doc.id, // Use the document ID as the user ID
-                  nombre: data.nombre || '',
-                  apellido: data.apellido || '',
-                  email: data.email || '',
-                  roles: data.roles || [],
-                  isActive: data.isActive === undefined ? true : data.isActive, // Default to true if missing
-                  residenciaId: data.residenciaId || null,
-                  dietaId: data.dietaId || null,
-                  numeroDeRopa: data.numeroDeRopa || null,
-                  habitacion: data.habitacion || null,
-                  universidad: data.universidad || null,
-                  carrera: data.carrera || null,
-                  dni: data.dni || null,
-                  // Add other fields from UserProfile if they exist in Firestore
-                  // fechaDeCumpleanos: data.fechaDeCumpleanos // Example if you store this
-              });
+                const data = doc.data();
+                usersData.push({
+                    id: doc.id,
+                    nombre: data.nombre || '',
+                    apellido: data.apellido || '',
+                    email: data.email || '',
+                    roles: data.roles || [],
+                    isActive: data.isActive === undefined ? true : data.isActive,
+                    residenciaId: data.residenciaId || undefined, // Use undefined for clarity if null
+                    dietaId: data.dietaId || undefined,
+                    numeroDeRopa: data.numeroDeRopa || undefined,
+                    habitacion: data.habitacion || undefined,
+                    universidad: data.universidad || undefined,
+                    carrera: data.carrera || undefined,
+                    dni: data.dni || undefined,
+                });
             });
-            console.log("Fetched users:", usersData);
-            setUsers(usersData); // Update state with real users
-          } catch (error) {
-            console.error("Error fetching users:", error);
+            console.log("Fetched users to manage:", usersData);
+            setUsers(usersData.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre))); // Sort users
+        } catch (error) {
+            console.error("Error fetching users to manage:", error);
             toast({
-              title: "Error al Cargar Usuarios",
-              description: "No se pudieron obtener los datos de los usuarios.",
-              variant: "destructive",
+                title: "Error al Cargar Usuarios",
+                description: "No se pudieron obtener los datos de los usuarios.",
+                variant: "destructive",
             });
-            setUsers([]); // Clear users on error
-          } finally {
-            setIsLoadingUsers(false); // Loading finished
-          }
-        };
-  
-        // Fetch only if authorized
-        if (isAuthorized) {
-          fetchUsers();
-        } else {
-           // If not authorized, ensure user list isn't stuck loading
-           setIsLoadingUsers(false);
-           setUsers([]); // Clear any potentially stale user data
+            setUsers([]);
+        } finally {
+            setIsLoadingUsers(false);
         }
-        // Run when authorization status changes
-      }, [isAuthorized, toast]); // Add toast dependency
-  
-    // --- Handler Functions ---
+    }, [toast]); // toast is a stable dependency
+
+    // --- useEffect: Handle Firebase Auth State & Fetch Admin's Profile ---
+    useEffect(() => {
+        if (authFirebaseLoading) {
+            console.log("Auth state loading (useAuthState)...");
+            setAdminProfileLoading(true);
+            setIsAuthorized(false);
+            return;
+        }
+
+        if (authFirebaseError) {
+            console.error("Firebase Auth Error (useAuthState):", authFirebaseError);
+            toast({ title: "Error de Autenticación", description: authFirebaseError.message, variant: "destructive" });
+            setAdminProfileLoading(false);
+            setAdminUserProfile(null);
+            setAdminProfileError(authFirebaseError.message);
+            setIsAuthorized(false);
+            router.replace('/'); // Redirect on critical auth error
+            return;
+        }
+
+        if (!authUser) {
+            console.log("No Firebase user (authUser is null). Redirecting to login.");
+            setAdminProfileLoading(false);
+            setAdminUserProfile(null);
+            setAdminProfileError(null); // Clear previous errors
+            setIsAuthorized(false);
+            router.replace('/');
+            return;
+        }
+
+        // authUser is available, fetch the admin's own profile
+        console.log("Admin user authenticated via Firebase (UID:", authUser.uid,"). Fetching admin's profile...");
+        setAdminProfileLoading(true);
+        setAdminProfileError(null);
+        const adminDocRef = doc(db, "users", authUser.uid);
+
+        getDoc(adminDocRef)
+            .then((docSnap) => {
+                if (docSnap.exists()) {
+                    setAdminUserProfile(docSnap.data() as UserProfile);
+                    console.log("Admin's profile fetched:", docSnap.data());
+                } else {
+                    console.error("Admin's profile not found in Firestore for UID:", authUser.uid);
+                    setAdminUserProfile(null);
+                    setAdminProfileError("Perfil de administrador no encontrado. No estás autorizado.");
+                    toast({ title: "Error de Perfil", description: "No se encontró tu perfil de administrador.", variant: "destructive" });
+                }
+            })
+            .catch((error) => {
+                console.error("Error fetching admin's profile:", error);
+                setAdminUserProfile(null);
+                setAdminProfileError(`Error al cargar tu perfil: ${error.message}`);
+                toast({ title: "Error Cargando Perfil Administrador", description: `No se pudo cargar tu perfil: ${error.message}`, variant: "destructive" });
+            })
+            .finally(() => {
+                setAdminProfileLoading(false);
+                console.log("Admin profile fetch attempt finished.");
+            });
+    }, [authUser, authFirebaseLoading, authFirebaseError, router, toast]);
+
+    // --- useEffect: Handle Authorization & Fetch Page-Specific Data ---
+    useEffect(() => {
+        // Wait for admin profile loading to complete
+        if (adminProfileLoading) {
+            setIsAuthorized(false); // Not authorized until profile is checked
+            return;
+        }
+
+        // Handle profile fetch error or missing profile for the admin
+        if (adminProfileError || !adminUserProfile) {
+            console.log("Admin authorization check failed: Profile error or profile missing.");
+            setIsAuthorized(false);
+            // Render logic will show error/redirect based on adminProfileError or !isAuthorized
+            return;
+        }
+
+        // Check admin's roles
+        const roles = adminUserProfile.roles || [];
+        const isAdminAuthorized = roles.includes('admin') || roles.includes('master');
+
+        if (isAdminAuthorized) {
+            console.log("Admin user is authorized. Proceeding with fetching page data.");
+            setIsAuthorized(true);
+            // Fetch data needed for the user management page
+            if (Object.keys(residences).length === 0) fetchResidences();
+            if (Object.keys(dietas).length === 0) fetchDietas();
+            if (users.length === 0 && !isLoadingUsers) fetchUsersToManage(); // Fetch users if not already loaded/loading
+        } else {
+            console.warn("Admin user does not have admin/master role. Access denied.");
+            setIsAuthorized(false);
+            toast({ title: "Acceso Denegado", description: "No tienes los permisos (admin/master) para acceder a esta página.", variant: "destructive" });
+            // Redirect if not authorized. The render logic below also handles this.
+            // Consider if router.replace('/') is needed here or if render logic is sufficient.
+            // router.replace('/');
+        }
+    }, [
+        adminUserProfile,
+        adminProfileLoading,
+        adminProfileError,
+        fetchResidences,
+        fetchDietas,
+        fetchUsersToManage,
+        residences, // To re-trigger if somehow cleared
+        dietas,     // To re-trigger if somehow cleared
+        users,      // To re-trigger if somehow cleared
+        isLoadingUsers,
+        toast // router not needed here as redirect is handled by render logic or auth effect
+    ]);
+
+    // --- Form and UI Handler Functions ---
 
     const handleFormChange = (field: keyof Omit<UserFormData, 'roles'>, value: string | boolean) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-    // Handler for role checkboxes
     const handleRoleChange = (role: UserRole, checked: boolean) => {
         setFormData(prev => {
             const currentRoles = prev.roles || [];
             let updatedRoles: UserRole[];
             if (checked) {
-                // Add role if not already present
                 updatedRoles = [...new Set([...currentRoles, role])];
             } else {
-                // Remove role
                 updatedRoles = currentRoles.filter(r => r !== role);
             }
             // Automatically clear dieta if 'residente' role is removed
             const dietaId = updatedRoles.includes('residente') ? prev.dietaId : '';
-            // Automatically clear residencia if neither 'residente' nor 'director' is present
-             const residenciaId = updatedRoles.includes('residente') || updatedRoles.includes('director') ? prev.residenciaId : '';
+            // Automatically clear residencia if not 'residente', 'director', 'asistente' or 'auditor'
+            const residenciaRequiredForRole = updatedRoles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r));
+            const residenciaId = residenciaRequiredForRole ? prev.residenciaId : '';
 
             return { ...prev, roles: updatedRoles, dietaId, residenciaId };
         });
     };
 
-    // Handler for Residencia and Dieta Selects
     const handleSelectChange = (field: 'residenciaId' | 'dietaId', value: string) => {
          setFormData(prev => ({ ...prev, [field]: value }));
     };
@@ -323,122 +324,86 @@ export default function UserManagementPage() {
         event.preventDefault();
         setIsSaving(true);
 
-        // --- Validation ---
         let validationError: string | null = null;
         const roles = formData.roles || [];
-        // Add password checks
+
         if (!formData.password || !formData.confirmPassword) validationError = "Contraseña inicial y confirmación son requeridas.";
-        else if (formData.password.length < 6) validationError = "La contraseña debe tener al menos 6 caracteres."; // Basic Firebase requirement
+        else if (formData.password.length < 6) validationError = "La contraseña debe tener al menos 6 caracteres.";
         else if (formData.password !== formData.confirmPassword) validationError = "Las contraseñas no coinciden.";
-        // Keep existing checks
         else if (!formData.nombre?.trim()) validationError = "Nombre es requerido.";
         else if (!formData.apellido?.trim()) validationError = "Apellido es requerido.";
         else if (!formData.email?.trim()) validationError = "Email es requerido.";
         else if (roles.length === 0) validationError = "Al menos un Rol es requerido.";
-        else if ((roles.includes('residente') || roles.includes('director')) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para Directores y/o Residentes.";
+        else if (roles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r)) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para el rol seleccionado.";
         else if (roles.includes('residente') && !formData.dietaId) validationError = "Dieta Predeterminada es requerida para Residentes.";
         else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) validationError = "Número de Ropa es requerido para Residentes.";
-    
+
         if (validationError) {
             toast({ title: "Error de Validación", description: validationError, variant: "destructive" });
             setIsSaving(false);
             return;
         }
-        // --- End Validation ---
-    
-        let newUserAuthUid: string | null = null; // To store the UID from Auth creation
-    
+
+        let newUserAuthUid: string | null = null;
         try {
-            // 1. Create Firebase Auth User
             console.log(`Attempting to create Auth user for ${formData.email}...`);
             const userCredential = await createUserWithEmailAndPassword(auth, formData.email!, formData.password!);
             newUserAuthUid = userCredential.user.uid;
             console.log(`Auth user created successfully with UID: ${newUserAuthUid}`);
-    
-                    // 2. Prepare Firestore User Profile Data (excluding passwords!)
-            const userProfileData: Omit<UserProfile, 'id'> = { // Exclude ID as it's the doc ID
+
+            const userProfileData: Omit<UserProfile, 'id'> = {
                 nombre: formData.nombre!.trim(),
                 apellido: formData.apellido!.trim(),
                 email: formData.email!.trim(),
                 roles: formData.roles!,
                 isActive: true, // New users active by default
-                // Conditionally add fields only if they have a value
-                ...( (roles.includes('residente') || roles.includes('director')) && formData.residenciaId ? { residenciaId: formData.residenciaId } : {} ),
+                ...( (roles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r))) && formData.residenciaId ? { residenciaId: formData.residenciaId } : {} ),
                 ...( roles.includes('residente') && formData.dietaId ? { dietaId: formData.dietaId } : {} ),
                 ...( formData.numeroDeRopa?.trim() ? { numeroDeRopa: formData.numeroDeRopa.trim() } : {} ),
                 ...( formData.habitacion?.trim() ? { habitacion: formData.habitacion.trim() } : {} ),
                 ...( formData.universidad?.trim() ? { universidad: formData.universidad.trim() } : {} ),
                 ...( formData.carrera?.trim() ? { carrera: formData.carrera.trim() } : {} ),
                 ...( formData.dni?.trim() ? { dni: formData.dni.trim() } : {} ),
-                // passwordChangeRequired: true, // Add this if/when implementing force password change
             };
 
-    
-            // 3. Create Firestore User Document using the Auth UID
             console.log(`Attempting to create Firestore document users/${newUserAuthUid}...`);
             const userDocRef = doc(db, "users", newUserAuthUid);
             await setDoc(userDocRef, userProfileData);
             console.log(`Firestore document created successfully for user ${newUserAuthUid}`);
-    
-            // 4. Update Local UI State
-            const newUserForUI: UserProfile = {
-                ...userProfileData,
-                id: newUserAuthUid, // Use the real UID
-            };
-            setUsers(prevUsers => [newUserForUI, ...prevUsers]); // Add to local state
-    
-            toast({
-                title: "Usuario Creado",
-                description: `Se ha creado el usuario ${newUserForUI.nombre} ${newUserForUI.apellido}.`,
-            });
-    
-            // 5. Reset Form
+
+            const newUserForUI: UserProfile = { ...userProfileData, id: newUserAuthUid };
+            setUsers(prevUsers => [newUserForUI, ...prevUsers].sort((a,b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre)));
+
+
+            toast({ title: "Usuario Creado", description: `Se ha creado el usuario ${newUserForUI.nombre} ${newUserForUI.apellido}.` });
+
             setFormData({
                 nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
                 numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
-                password: '', confirmPassword: '' // Clear password fields
+                password: '', confirmPassword: ''
             });
-    
+
         } catch (error: any) {
             console.error("Error creating user:", error);
             let errorTitle = "Error al Crear Usuario";
             let errorMessage = "Ocurrió un error inesperado.";
-    
             if (error.code) {
                 switch (error.code) {
-                    case 'auth/email-already-in-use':
-                        errorTitle = "Error de Autenticación";
-                        errorMessage = "Este correo electrónico ya está registrado.";
+                    case 'auth/email-already-in-use': errorTitle = "Error de Autenticación"; errorMessage = "Este correo electrónico ya está registrado."; break;
+                    case 'auth/invalid-email': errorTitle = "Error de Autenticación"; errorMessage = "El formato del correo electrónico no es válido."; break;
+                    case 'auth/weak-password': errorTitle = "Error de Autenticación"; errorMessage = "La contraseña es demasiado débil (mínimo 6 caracteres)."; break;
+                    case 'permission-denied': errorTitle = "Error de Permisos"; errorMessage = "No tienes permiso para crear este usuario en Firestore.";
+                        if (newUserAuthUid) console.warn(`Firestore failed after Auth user ${newUserAuthUid} created. Consider manual cleanup.`);
                         break;
-                    case 'auth/invalid-email':
-                        errorTitle = "Error de Autenticación";
-                        errorMessage = "El formato del correo electrónico no es válido.";
-                        break;
-                    case 'auth/weak-password':
-                        errorTitle = "Error de Autenticación";
-                        errorMessage = "La contraseña es demasiado débil (debe tener al menos 6 caracteres).";
-                        break;
-                    case 'permission-denied': // Firestore error
-                        errorTitle = "Error de Permisos";
-                        errorMessage = "No tienes permiso para crear este documento de usuario en Firestore.";
-                         // If Auth user was created but Firestore failed, we might need to delete the Auth user
-                         if (newUserAuthUid) {
-                             console.warn(`Firestore failed after Auth user ${newUserAuthUid} created. Consider manual cleanup or rollback function.`);
-                             // Ideally, delete the auth user here if possible from client, or flag for admin cleanup
-                         }
-                        break;
-                    default:
-                        errorMessage = `Error: ${error.message} (Code: ${error.code})`;
+                    default: errorMessage = `Error: ${error.message} (Code: ${error.code})`;
                 }
             }
-    
             toast({ title: errorTitle, description: errorMessage, variant: "destructive" });
-    
         } finally {
             setIsSaving(false);
         }
       };
-    
+
       const handleEditUser = (userId: string) => {
         const userToEdit = users.find(u => u.id === userId);
         if (!userToEdit) {
@@ -447,12 +412,11 @@ export default function UserManagementPage() {
         }
         console.log("Editing user:", userToEdit);
         setEditingUserId(userId);
-        // Populate form - handle potentially undefined fields from model
         setFormData({
             nombre: userToEdit.nombre || '',
             apellido: userToEdit.apellido || '',
             email: userToEdit.email || '',
-            isActive: userToEdit.isActive === undefined ? true : userToEdit.isActive, // Handle undefined isActive
+            isActive: userToEdit.isActive === undefined ? true : userToEdit.isActive,
             roles: userToEdit.roles || [],
             residenciaId: userToEdit.residenciaId || '',
             dietaId: userToEdit.dietaId || '',
@@ -461,22 +425,16 @@ export default function UserManagementPage() {
             universidad: userToEdit.universidad || '',
             carrera: userToEdit.carrera || '',
             dni: userToEdit.dni || '',
-            // DO NOT populate password fields when editing
-            password: '',
-            confirmPassword: ''
+            password: '', confirmPassword: '' // Clear password fields
         });
-        // Optionally scroll form into view
-        // window.scrollTo({ top: 0, behavior: 'smooth' });
       };
-    
-      // Cancel Edit Mode
+
       const handleCancelEdit = () => {
           setEditingUserId(null);
-          // Reset form to initial state
           setFormData({
             nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
             numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
-            password: '', confirmPassword: '' // Ensure passwords are cleared
+            password: '', confirmPassword: ''
         });
           console.log("Cancelled edit.");
       };
@@ -484,70 +442,45 @@ export default function UserManagementPage() {
       const handleDeleteUser = (userId: string) => {
         const user = users.find(u => u.id === userId);
         if (!user) { toast({ title: "Error", description: "Usuario no encontrado.", variant: "destructive" }); return; }
-        console.log("Requesting delete confirmation for user:", userId, user.nombre);
-        setUserToDeleteId(userId); // Set the ID of the user targeted for deletion
-        setIsConfirmingDelete(true); // Open the confirmation dialog
+        setUserToDeleteId(userId);
+        setIsConfirmingDelete(true);
     };
 
-    // Performs delete after confirmation in the dialog
     const confirmDeleteUser = async () => {
-      if (!userToDeleteId) return; // Should not happen if dialog is open, but safe check
-      const userToDelete = users.find(u => u.id === userToDeleteId); // Get user info for toast message before deleting
+      if (!userToDeleteId) return;
+      const userToDeleteInfo = users.find(u => u.id === userToDeleteId);
       console.log("Confirmed delete for user ID:", userToDeleteId);
-
-      // Set saving state maybe? Or handle loading specifically for delete
-      // setIsSaving(true); // Optional: Show loading indicator
-
       try {
-          // Get Firestore document reference
           const userDocRef = doc(db, "users", userToDeleteId);
-
-          // Delete Firestore document
-          console.log(`Attempting to delete Firestore document users/${userToDeleteId}...`);
           await deleteDoc(userDocRef);
           console.log(`Firestore document deleted successfully for user ${userToDeleteId}`);
+          // TODO: Implement Auth user deletion (Requires backend function). For now, only Firestore profile is deleted.
+          // This means the auth account still exists and can log in, but will likely hit profile errors.
+          // A more robust solution would be a Firebase Function to delete the Auth user.
 
-          // TODO: Implement Auth user deletion (Requires backend function or careful handling)
-          // For now, we only delete the Firestore profile. The Auth user remains.
-
-           // Update local state ONLY after successful Firestore deletion
-           setUsers(prevUsers => prevUsers.filter(user => user.id !== userToDeleteId));
-           toast({ title: "Usuario Eliminado", description: `El perfil de Firestore para ${userToDelete?.nombre || userToDeleteId} ha sido eliminado.` }); // Adjusted message
-
+          setUsers(prevUsers => prevUsers.filter(user => user.id !== userToDeleteId));
+          toast({ title: "Perfil de Usuario Eliminado", description: `El perfil de Firestore para ${userToDeleteInfo?.nombre || userToDeleteId} ha sido eliminado. La cuenta de autenticación puede requerir eliminación manual/backend.` });
       } catch (error: any) {
           console.error("Error deleting user profile from Firestore:", error);
-          toast({
-              title: "Error al Eliminar",
-              description: `No se pudo eliminar el perfil de Firestore. ${error.message}`,
-              variant: "destructive",
-          });
-          // Don't proceed with UI updates if Firestore deletion fails
-          // We still close the dialog and reset the ID in finally block
+          toast({ title: "Error al Eliminar", description: `No se pudo eliminar el perfil de Firestore. ${error.message}`, variant: "destructive" });
       } finally {
-           // Close dialog and reset state regardless of success/failure
            setIsConfirmingDelete(false);
            setUserToDeleteId(null);
-           // setIsSaving(false); // Optional: Reset saving state
       }
     };
 
-    // const handleUpdateUser = async (event: React.FormEvent<HTMLFormElement>) => { ... keep this ...
-
-    
     const handleUpdateUser = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (!editingUserId) return; // Should not happen if form submit logic is correct
-
+        if (!editingUserId) return;
         setIsSaving(true);
 
-        // --- Validation (similar to create) ---
         let validationError: string | null = null;
         const roles = formData.roles || [];
         if (!formData.nombre?.trim()) validationError = "Nombre es requerido.";
         else if (!formData.apellido?.trim()) validationError = "Apellido es requerido.";
-        else if (!formData.email?.trim()) validationError = "Email es requerido.";
+        else if (!formData.email?.trim()) validationError = "Email es requerido."; // Email should generally not be editable in Firestore profile if it's linked to Auth. This could be complex.
         else if (roles.length === 0) validationError = "Al menos un Rol es requerido.";
-        else if ((roles.includes('residente') || roles.includes('director')) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para Directores y/o Residentes.";
+        else if (roles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r)) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para el rol seleccionado.";
         else if (roles.includes('residente') && !formData.dietaId) validationError = "Dieta Predeterminada es requerida para Residentes.";
         else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) validationError = "Número de Ropa es requerido para Residentes.";
 
@@ -556,415 +489,340 @@ export default function UserManagementPage() {
             setIsSaving(false);
             return;
         }
-        // --- End Validation ---
 
         try {
-            // Prepare data object for Firestore update
-            // Include only fields that have values or are being explicitly set (like isActive)
-            const updatedData: { [key: string]: any } = {}; // Start with a less strict type temporarily
-
-            if (formData.nombre?.trim()) updatedData.nombre = formData.nombre.trim(); else updatedData.nombre = ''; // Explicitly set empty if needed
-            if (formData.apellido?.trim()) updatedData.apellido = formData.apellido.trim(); else updatedData.apellido = ''; // Explicitly set empty if needed
-            if (formData.email?.trim()) updatedData.email = formData.email.trim(); // Update email in profile doc
-            updatedData.roles = formData.roles!; // Always update roles
-            updatedData.isActive = formData.isActive ?? true; // Always update isActive status
-
-            // Conditionally add/update fields based on roles and form data
-            if (roles.includes('residente') || roles.includes('director')) {
-                // Add residenciaId only if it has a value, otherwise omit it (updateDoc won't change it)
-                if(formData.residenciaId) {
-                   updatedData.residenciaId = formData.residenciaId;
-                }
-                // Note: To *explicitly remove* residenciaId if roles change, you'd need FieldValue.delete() which is more complex.
-                // Omitting the field in updateDoc leaves it unchanged if it exists.
-            }
-            // Consider if you need to explicitly REMOVE residenciaId if roles change (using FieldValue.delete())
-
-            if (roles.includes('residente')) {
-                // Add dietaId only if it has a value
-                 if(formData.dietaId) {
-                   updatedData.dietaId = formData.dietaId;
-                }
-            }
-             // Consider if you need to explicitly REMOVE dietaId if role changes
+            const updatedData: Partial<UserProfile> = { // Use Partial<UserProfile> for update object
+                nombre: formData.nombre!.trim(),
+                apellido: formData.apellido!.trim(),
+                // email: formData.email!.trim(), // Be cautious updating email; it's tied to Firebase Auth identity. Typically done via Auth SDK.
+                roles: formData.roles!,
+                isActive: formData.isActive ?? true,
+                // Conditionally set fields, ensure `undefined` if not applicable or empty to remove/leave unchanged.
+                residenciaId: (roles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r)) && formData.residenciaId) ? formData.residenciaId : undefined,
+                dietaId: (roles.includes('residente') && formData.dietaId) ? formData.dietaId : undefined,
+                numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
+                habitacion: formData.habitacion?.trim() || undefined,
+                universidad: formData.universidad?.trim() || undefined,
+                carrera: formData.carrera?.trim() || undefined,
+                dni: formData.dni?.trim() || undefined,
+            };
+            // Remove undefined keys to prevent Firestore from creating them with null or erroring
+            Object.keys(updatedData).forEach(key => updatedData[key as keyof UserProfile] === undefined && delete updatedData[key as keyof UserProfile]);
 
 
-            // Add other optional fields only if they have a trimmed value
-            if (formData.numeroDeRopa?.trim()) updatedData.numeroDeRopa = formData.numeroDeRopa.trim();
-            if (formData.habitacion?.trim()) updatedData.habitacion = formData.habitacion.trim();
-            if (formData.universidad?.trim()) updatedData.universidad = formData.universidad.trim();
-            if (formData.carrera?.trim()) updatedData.carrera = formData.carrera.trim();
-            if (formData.dni?.trim()) updatedData.dni = formData.dni.trim();
-
-            // NOTE: This logic does NOT explicitly clear fields in Firestore if they are emptied in the form.
-            // To clear fields like 'habitacion', you would need to send { habitacion: null } or { habitacion: FieldValue.delete() }
-            // For now, we only update fields that have new values in the form.
-
-        
-            // Get Firestore document reference
             const userDocRef = doc(db, "users", editingUserId);
-        
-            // Update Firestore document
-            console.log(`Attempting to update Firestore document users/${editingUserId}...`);
             await updateDoc(userDocRef, updatedData);
             console.log(`Firestore document updated successfully for user ${editingUserId}`);
-        
+
+            const originalUser = users.find(u => u.id === editingUserId)!; // Should exist
+            const updatedUserInState: UserProfile = {
+                ...originalUser,
+                ...updatedData, // Apply successfully updated fields
+                id: editingUserId // ensure id is present
+            };
+
+            setUsers(prevUsers => prevUsers.map(user =>
+                user.id === editingUserId ? updatedUserInState : user
+            ).sort((a,b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre)));
+
+
+            toast({ title: "Usuario Actualizado", description: `Se ha actualizado el usuario ${updatedUserInState.nombre} ${updatedUserInState.apellido}.` });
+            handleCancelEdit();
         } catch (error: any) {
             console.error("Error updating user profile in Firestore:", error);
-            toast({
-                title: "Error al Actualizar",
-                description: `No se pudo guardar el perfil en Firestore. ${error.message}`,
-                variant: "destructive",
-            });
-            setIsSaving(false); // Stop saving state on error
-            return; // Exit the function on Firestore error
-        }
-
-        // Find the original user to preserve ID and potentially other immutable fields
-        const originalUser = users.find(u => u.id === editingUserId);
-        if (!originalUser) {
-            toast({ title: "Error", description: "No se encontró el usuario original para actualizar.", variant: "destructive" });
+            toast({ title: "Error al Actualizar", description: `No se pudo guardar el perfil en Firestore. ${error.message}`, variant: "destructive" });
+        } finally {
             setIsSaving(false);
-            return;
         }
-
-
-        // Create the updated user object
-        const updatedUser: UserProfile = {
-            ...originalUser, // Preserve original ID, etc.
-            // Update fields from form data
-            nombre: formData.nombre!.trim(),
-            apellido: formData.apellido!.trim(),
-            isActive: formData.isActive ?? true, // Save the form's isActive state
-            email: formData.email!.trim(),
-            roles: formData.roles!,
-            residenciaId: (roles.includes('residente') || roles.includes('director')) ? formData.residenciaId || undefined : undefined,
-            dietaId: roles.includes('residente') ? formData.dietaId || undefined : undefined,
-            numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
-            habitacion: formData.habitacion?.trim() || undefined,
-            universidad: formData.universidad?.trim() || undefined,
-            carrera: formData.carrera?.trim() || undefined,
-            dni: formData.dni?.trim() || undefined,
-        };
-
-        // Update the user in the state array
-        setUsers(prevUsers => prevUsers.map(user =>
-            user.id === editingUserId ? updatedUser : user
-        ));
-
-        toast({
-            title: "Usuario Actualizado (Simulado)",
-            description: `Se ha actualizado el usuario ${updatedUser.nombre} ${updatedUser.apellido}.`
-        });
-
-        handleCancelEdit(); // Reset form and exit edit mode
-        setIsSaving(false);
     };
 
-    // Helper functions for display
+    // --- Helper display functions ---
     const getResidenciaName = (id?: ResidenciaId): string => {
         if (!id) return 'N/A';
         return residences[id]?.nombre || 'Desconocida';
     };
 
-     const getDietaName = (id?: DietaId): string => {
+    const getDietaName = (id?: DietaId): string => {
         if (!id) return 'N/A';
         return dietas[id]?.nombre || 'Desconocida';
     };
 
-    const getUserToDeleteName = () => {
+    const getUserToDeleteName = (): string => {
         const user = users.find(u => u.id === userToDeleteId);
-        // Return full name or empty string if not found
-        return user ? `${user.nombre} ${user.apellido}` : '';
+        return user ? `${user.nombre} ${user.apellido}`.trim() : 'este usuario';
     };
 
-    // Helper to format a single role name for display
     const formatSingleRoleName = (role: UserRole): string => {
-        switch (role) {
-            case 'residente': return 'Residente';
-            case 'director': return 'Director';
-            case 'admin': return 'Admin';
-            case 'master': return 'Master';
-            default: return role; // Return raw value if unknown
-        }
+        const roleMap: Record<UserRole, string> = {
+            'residente': 'Residente', 'director': 'Director', 'admin': 'Admin', 'master': 'Master',
+            'invitado': 'Invitado', 'asistente': 'Asistente', 'auditor': 'Auditor'
+        };
+        return roleMap[role] || role;
     };
 
-    // Calculate conditional requirements for the form
-    const isResidenciaRequired = formData.roles.includes('residente') || formData.roles.includes('director');
-    const isDietaApplicable = formData.roles.includes('residente');
-    const isNumeroDeRopaRequired = formData.roles.includes('residente');
+    // --- Calculate conditional requirements for the form for better UX ---
+    const isResidenciaConditionallyRequired = formData.roles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r));
+    const isDietaConditionallyRequired = formData.roles.includes('residente');
+    const isNumeroDeRopaConditionallyRequired = formData.roles.includes('residente');
 
-    // --- Conditional Rendering Logic ---
+    // =========================================================================
+    // Conditional Rendering Logic (New Auth Flow)
+    // =========================================================================
 
-    if (isLoadingAuth) {
-        // Show loading indicator while checking authentication/authorization
+    // 1. Handle Initial Loading (Firebase Auth or Admin's Profile)
+    if (authFirebaseLoading || (authUser && adminProfileLoading)) {
         return (
-          <div className="flex items-center justify-center min-h-screen">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <span className="ml-2">Verificando acceso...</span>
-          </div>
+            <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+                <p className="text-lg font-medium text-muted-foreground">
+                    {authFirebaseLoading ? 'Verificando sesión...' : "Cargando perfil de administrador..."}
+                </p>
+            </div>
         );
-      }
-  
-      if (!isAuthorized) {
-        // Show access denied if user is logged in but not admin/master
+    }
+
+    // 2. Handle Firebase Auth Error or Admin's Profile Fetch Error
+    if (authFirebaseError || adminProfileError) {
         return (
-          <div className="container mx-auto p-4 text-center">
-            <h1 className="text-2xl font-bold text-destructive mb-4">Acceso Denegado</h1>
-            <p className="text-muted-foreground">No tienes permiso para acceder a esta página.</p>
-             <button onClick={() => router.push('/')} className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90">
-                Ir al Inicio
-             </button>
-          </div>
+            <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+                <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+                <h1 className="text-2xl font-bold text-destructive mb-2">Error Crítico</h1>
+                <p className="mb-4 text-destructive max-w-md">
+                    {authFirebaseError?.message || adminProfileError || 'Ocurrió un error al cargar la información de autenticación o tu perfil.'}
+                </p>
+                <Button onClick={() => router.replace('/')}>Volver al Inicio</Button>
+            </div>
         );
-      }
-  
-      // --- Render actual page content if authorized ---
-      return (
+    }
+
+    // 3. Handle Not Authorized (Admin doesn't have 'admin' or 'master' role)
+    // This check runs after auth and profile loading are complete and no errors occurred.
+    if (!isAuthorized) {
+        // authUser should exist here if we got past the initial checks without redirecting,
+        // but isAuthorized is false due to role check.
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+                <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+                <h1 className="text-2xl font-bold text-destructive mb-2">Acceso Denegado</h1>
+                <p className="mb-4 text-muted-foreground max-w-md">
+                    No tienes los permisos necesarios (administrador o master) para acceder a esta página.
+                </p>
+                <Button onClick={() => router.replace('/')}>Volver al Inicio</Button>
+            </div>
+        );
+    }
+
+    // 4. Render Actual Page Content (If all checks above passed, user is authorized)
+    // At this point, authUser and adminUserProfile should be non-null.
+    return (
         <div className="container mx-auto p-4 space-y-6">
-          <h1 className="text-2xl font-bold">Gestión de Usuarios</h1>
-  
-          {/* --- Form Card --- */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{editingUserId ? 'Editar Usuario' : 'Crear Nuevo Usuario'}</CardTitle>
-              <CardDescription>{editingUserId ? 'Modifique los detalles del usuario.' : 'Complete los detalles para añadir un nuevo usuario.'}</CardDescription>
-            </CardHeader>
-            <form onSubmit={editingUserId ? handleUpdateUser : handleCreateUser}>
-                <CardContent className="space-y-4">
-                    {/* Nombre y Apellido */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <div className="space-y-1">
-                            <Label htmlFor="nombre">Nombre *</Label>
-                            <Input id="nombre" value={formData.nombre || ''} onChange={(e) => handleFormChange('nombre', e.target.value)} placeholder="Ej. Juan" disabled={isSaving} />
-                        </div>
-                         <div className="space-y-1">
-                            <Label htmlFor="apellido">Apellido *</Label>
-                            <Input id="apellido" value={formData.apellido || ''} onChange={(e) => handleFormChange('apellido', e.target.value)} placeholder="Ej. Pérez" disabled={isSaving} />
-                        </div>
-                    </div>
-  
-                    {/* Email */}
-                    <div className="space-y-1">
-                        <Label htmlFor="email">Email *</Label>
-                        <Input id="email" type="email" value={formData.email || ''} onChange={(e) => handleFormChange('email', e.target.value)} placeholder="ej. juan.perez@email.com" disabled={isSaving} />
-                    </div>
+            <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
 
-                    {/* Password Fields (Only for Create Mode) */}
-                    {!editingUserId && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <Label htmlFor="password">Contraseña Inicial *</Label>
-                                <Input
-                                    id="password"
-                                    type="password"
-                                    value={formData.password || ''}
-                                    onChange={(e) => handleFormChange('password', e.target.value)}
-                                    placeholder="********"
-                                    disabled={isSaving}
-                                    autoComplete="new-password" // Helps browser suggest strong passwords
-                                />
+            {/* --- Form Card --- */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>{editingUserId ? 'Editar Usuario' : 'Crear Nuevo Usuario'}</CardTitle>
+                    <CardDescription>
+                        {editingUserId ? 'Modifique los detalles del usuario seleccionado.' : 'Complete los detalles para añadir un nuevo usuario al sistema.'}
+                    </CardDescription>
+                </CardHeader>
+                <form onSubmit={editingUserId ? handleUpdateUser : handleCreateUser}>
+                    <CardContent className="space-y-6"> {/* Adjusted padding from p-6 to space-y-6 for consistency */}
+                        {/* Nombre y Apellido */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {/* Increased gap */}
+                           <div className="space-y-1.5"> {/* Standardized spacing */}
+                                <Label htmlFor="nombre">Nombre *</Label>
+                                <Input id="nombre" value={formData.nombre || ''} onChange={(e) => handleFormChange('nombre', e.target.value)} placeholder="Ej. Juan" disabled={isSaving} />
                             </div>
-                            <div className="space-y-1">
-                                <Label htmlFor="confirmPassword">Confirmar Contraseña *</Label>
-                                <Input
-                                    id="confirmPassword"
-                                    type="password"
-                                    value={formData.confirmPassword || ''}
-                                    onChange={(e) => handleFormChange('confirmPassword', e.target.value)}
-                                    placeholder="********"
-                                    disabled={isSaving}
-                                    autoComplete="new-password"
-                                />
+                             <div className="space-y-1.5">
+                                <Label htmlFor="apellido">Apellido *</Label>
+                                <Input id="apellido" value={formData.apellido || ''} onChange={(e) => handleFormChange('apellido', e.target.value)} placeholder="Ej. Pérez" disabled={isSaving} />
                             </div>
                         </div>
-                    )}
 
-                    {/* Roles Checkboxes */}
-                    <div className="space-y-2">
-                        <Label>Roles *</Label>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
-                            {availableRoles.map((role) => (
-                                <div key={role} className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id={`role-${role}`}
-                                        checked={(formData.roles || []).includes(role)}
-                                        onCheckedChange={(checked) => handleRoleChange(role, !!checked)} // Pass boolean
-                                        disabled={isSaving}
-                                    />
-                                    <Label htmlFor={`role-${role}`} className="font-normal capitalize">
-                                        {formatSingleRoleName(role)}
-                                    </Label>
+                        {/* Email */}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="email">Email *</Label>
+                            <Input id="email" type="email" value={formData.email || ''} onChange={(e) => handleFormChange('email', e.target.value)} placeholder="ej. juan.perez@email.com" disabled={isSaving || !!editingUserId} />
+                            {editingUserId && <p className="text-xs text-muted-foreground pt-1">El email no se puede cambiar después de la creación.</p>}
+                        </div>
+
+                        {/* Password Fields (Only for Create Mode) */}
+                        {!editingUserId && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="password">Contraseña Inicial *</Label>
+                                    <Input id="password" type="password" value={formData.password || ''} onChange={(e) => handleFormChange('password', e.target.value)} placeholder="Mínimo 6 caracteres" disabled={isSaving} autoComplete="new-password" />
                                 </div>
-                            ))}
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="confirmPassword">Confirmar Contraseña *</Label>
+                                    <Input id="confirmPassword" type="password" value={formData.confirmPassword || ''} onChange={(e) => handleFormChange('confirmPassword', e.target.value)} placeholder="Repetir contraseña" disabled={isSaving} autoComplete="new-password"/>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Roles Checkboxes */}
+                        <div className="space-y-2">
+                            <Label className="font-medium">Roles *</Label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2 pt-1">
+                                {availableRoles.map((role) => (
+                                    <div key={role} className="flex items-center space-x-2">
+                                        <Checkbox id={`role-${role}`} checked={(formData.roles || []).includes(role)} onCheckedChange={(checked) => handleRoleChange(role, !!checked)} disabled={isSaving} />
+                                        <Label htmlFor={`role-${role}`} className="font-normal capitalize text-sm">{formatSingleRoleName(role)}</Label>
+                                    </div>
+                                ))}
+                            </div>
+                             {formData.roles.length === 0 && <p className="text-xs text-destructive mt-1">Seleccione al menos un rol.</p> }
                         </div>
-                         {formData.roles.length === 0 && <p className="text-xs text-destructive mt-1">Seleccione al menos un rol.</p> }
-                    </div>
-  
-                    {/* --- Is Active Switch (Only show when editing) --- */}
-                    {editingUserId && (
-                        <div className="flex items-center space-x-2 pt-2">
-                            <Switch
-                                id="isActive"
-                                checked={formData.isActive}
-                                onCheckedChange={(checked) => handleFormChange('isActive', checked)} // Use handleFormChange
-                                disabled={isSaving}
-                            />
-                            <Label htmlFor="isActive">Usuario Activo</Label>
-                        </div>
-                    )}
-  
-                    {/* Residencia y Dieta Selects (conditional) */}
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         {/* Residencia Asignada */}
-                         <div className="space-y-1">
-                             <Label htmlFor="residencia">Residencia Asignada {isResidenciaRequired ? '*' : '(Opcional)'}</Label>
-                             <Select
-                                 value={formData.residenciaId || ''}
-                                 onValueChange={(value) => handleSelectChange('residenciaId', value)}
-                                 disabled={isSaving || !isResidenciaRequired} // Disable if not required
-                             >
-                                 <SelectTrigger id="residencia"><SelectValue placeholder={isResidenciaRequired ? "Seleccione residencia..." : "N/A"} /></SelectTrigger>
-                                 <SelectContent>
-                                     {Object.entries(residences).map(([id, res]) => ( <SelectItem key={id} value={id}>{res.nombre}</SelectItem> ))}
-                                 </SelectContent>
-                             </Select>
-                              {isResidenciaRequired && !formData.residenciaId && <p className="text-xs text-destructive mt-1">Requerido para Residente/Director.</p>}
+
+                        {/* Is Active Switch (Only show when editing) */}
+                        {editingUserId && (
+                            <div className="flex items-center space-x-2 pt-3">
+                                <Switch id="isActive" checked={formData.isActive} onCheckedChange={(checked) => handleFormChange('isActive', checked)} disabled={isSaving} />
+                                <Label htmlFor="isActive" className="text-sm">Usuario Activo</Label>
+                            </div>
+                        )}
+
+                        {/* Residencia y Dieta Selects (conditional) */}
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                             <div className="space-y-1.5">
+                                 <Label htmlFor="residencia">Residencia Asignada {isResidenciaConditionallyRequired ? '*' : ''}</Label>
+                                 <Select value={formData.residenciaId || ''} onValueChange={(value) => handleSelectChange('residenciaId', value)} disabled={isSaving || !isResidenciaConditionallyRequired} >
+                                     <SelectTrigger id="residencia"><SelectValue placeholder={isResidenciaConditionallyRequired ? "Seleccione residencia..." : "N/A (Opcional)"} /></SelectTrigger>
+                                     <SelectContent>
+                                         {Object.entries(residences).map(([id, res]) => ( <SelectItem key={id} value={id}>{res.nombre}</SelectItem> )) }
+                                         {Object.keys(residences).length === 0 && <SelectItem value="loading" disabled>Cargando residencias...</SelectItem>}
+                                     </SelectContent>
+                                 </Select>
+                                  {isResidenciaConditionallyRequired && !formData.residenciaId && <p className="text-xs text-destructive mt-1">Requerido para el rol seleccionado.</p>}
+                             </div>
+                             <div className="space-y-1.5">
+                                 <Label htmlFor="dieta">Dieta Predet. {isDietaConditionallyRequired ? '*' : ''}</Label>
+                                 <Select value={formData.dietaId || ''} onValueChange={(value) => handleSelectChange('dietaId', value)} disabled={isSaving || !isDietaConditionallyRequired} >
+                                     <SelectTrigger id="dieta"><SelectValue placeholder={isDietaConditionallyRequired ? "Seleccione dieta..." : "N/A (Solo Residentes)"} /></SelectTrigger>
+                                     <SelectContent>
+                                         {Object.entries(dietas).map(([id, d]) => ( <SelectItem key={id} value={id}>{d.nombre}</SelectItem> )) }
+                                         {Object.keys(dietas).length === 0 && <SelectItem value="loading" disabled>Cargando dietas...</SelectItem>}
+                                     </SelectContent>
+                                 </Select>
+                                 {isDietaConditionallyRequired && !formData.dietaId && <p className="text-xs text-destructive mt-1">Requerido para Residente.</p>}
+                             </div>
                          </div>
-                         {/* Dieta Predeterminada */}
-                         <div className="space-y-1">
-                             <Label htmlFor="dieta">Dieta Predet. {isDietaApplicable ? '*' : '(Solo Residentes)'}</Label>
-                             <Select
-                                 value={formData.dietaId || ''}
-                                 onValueChange={(value) => handleSelectChange('dietaId', value)}
-                                 disabled={isSaving || !isDietaApplicable} // Disable if not applicable
-                             >
-                                 <SelectTrigger id="dieta"><SelectValue placeholder={isDietaApplicable ? "Seleccione dieta..." : "N/A"} /></SelectTrigger>
-                                 <SelectContent>
-                                     {Object.entries(dietas).map(([id, d]) => ( <SelectItem key={id} value={id}>{d.nombre}</SelectItem> ))}
-                                 </SelectContent>
-                             </Select>
-                             {isDietaApplicable && !formData.dietaId && <p className="text-xs text-destructive mt-1">Requerido para Residente.</p>}
-                         </div>
-                     </div>
-  
-                    {/* --- Optional Fields --- */}
-                    <Card className="p-4 bg-gray-50/50 border-dashed">
-                         <h4 className="text-sm font-medium mb-3 text-gray-600">Detalles Adicionales (Opcional)</h4>
-                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                             <div className="space-y-1">
-                                 <Label htmlFor="dni">DNI</Label>
-                                 <Input id="dni" value={formData.dni || ''} onChange={(e) => handleFormChange('dni', e.target.value)} placeholder="Ej. 12345678" disabled={isSaving} />
-                             </div>
-                             <div className="space-y-1">
-                                 <Label htmlFor="habitacion">Habitación</Label>
-                                 <Input id="habitacion" value={formData.habitacion || ''} onChange={(e) => handleFormChange('habitacion', e.target.value)} placeholder="Ej. 101" disabled={isSaving} />
-                             </div>
-                              <div className="space-y-1">
-                                 <Label htmlFor="numeroDeRopa">Nº Ropa {isNumeroDeRopaRequired ? '*' : ''}</Label>
-                                 <Input id="numeroDeRopa" value={formData.numeroDeRopa || ''} onChange={(e) => handleFormChange('numeroDeRopa', e.target.value)} placeholder="Ej. 55" disabled={isSaving} />
-                                 {/* Add visual feedback if required and empty */}
-                                 {isNumeroDeRopaRequired && !formData.numeroDeRopa?.trim() &&
-                                     <p className="text-xs text-destructive mt-1">Número de Ropa es requerido para Residentes.</p>}
-                             </div>
-                        </div>
-                    </Card>
-  
-                </CardContent>
-                <CardFooter>
-                    {/* --- Dynamically update Submit button text --- */}
-                    <Button type="submit" disabled={isSaving} className="mr-2">
-                        {isSaving ? (editingUserId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Loader2 className="mr-2 h-4 w-4 animate-spin" />) : null}
-                        {isSaving ? (editingUserId ? 'Guardando...' : 'Creando...') : (editingUserId ? 'Guardar Cambios' : 'Crear Usuario')}
-                    </Button>
-                     {/* --- Add Cancel button for Edit mode --- */}
-                    {editingUserId && (
-                        <Button type="button" variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
-                            Cancelar
+
+                        {/* Optional Fields Group */}
+                        <Card className="p-4 mt-4 bg-slate-50 dark:bg-slate-800/30 border-dashed">
+                             <h4 className="text-base font-medium mb-3 text-slate-700 dark:text-slate-300">Detalles Adicionales (Opcional)</h4>
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                 <div className="space-y-1.5">
+                                     <Label htmlFor="dni">DNI</Label>
+                                     <Input id="dni" value={formData.dni || ''} onChange={(e) => handleFormChange('dni', e.target.value)} placeholder="Ej. 12345678" disabled={isSaving} />
+                                 </div>
+                                 <div className="space-y-1.5">
+                                     <Label htmlFor="habitacion">Habitación</Label>
+                                     <Input id="habitacion" value={formData.habitacion || ''} onChange={(e) => handleFormChange('habitacion', e.target.value)} placeholder="Ej. 101A" disabled={isSaving} />
+                                 </div>
+                                  <div className="space-y-1.5">
+                                     <Label htmlFor="numeroDeRopa">Nº Ropa {isNumeroDeRopaConditionallyRequired ? '*' : ''}</Label>
+                                     <Input id="numeroDeRopa" value={formData.numeroDeRopa || ''} onChange={(e) => handleFormChange('numeroDeRopa', e.target.value)} placeholder="Ej. 55" disabled={isSaving} />
+                                     {isNumeroDeRopaConditionallyRequired && !formData.numeroDeRopa?.trim() &&
+                                         <p className="text-xs text-destructive mt-1">Requerido para Residentes.</p>}
+                                 </div>
+                            </div>
+                        </Card>
+
+                    </CardContent>
+                    <CardFooter className="border-t pt-6"> {/* Added border and padding */}
+                        <Button type="submit" disabled={isSaving} className="mr-3">
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            {isSaving ? (editingUserId ? 'Guardando Cambios...' : 'Creando Usuario...') : (editingUserId ? 'Guardar Cambios' : 'Crear Usuario')}
                         </Button>
+                        {editingUserId && (
+                            <Button type="button" variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
+                                Cancelar Edición
+                            </Button>
+                        )}
+                    </CardFooter>
+                </form>
+            </Card>
+
+            {/* --- Existing Users List Card --- */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Usuarios Existentes</CardTitle>
+                    <CardDescription>Lista de todos los usuarios registrados en el sistema.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoadingUsers ? (
+                        <div className="space-y-4">
+                           <Skeleton className="h-12 w-full" />
+                           <Skeleton className="h-12 w-full" />
+                           <Skeleton className="h-12 w-full" />
+                        </div>
+                    ) : users.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[150px]">Nombre</TableHead>
+                                        <TableHead className="w-[150px]">Apellido</TableHead>
+                                        <TableHead>Email</TableHead>
+                                        <TableHead>Roles</TableHead>
+                                        <TableHead>Residencia</TableHead>
+                                        <TableHead>Dieta</TableHead>
+                                        <TableHead className="text-center">Estado</TableHead>
+                                        <TableHead className="text-right w-[180px]">Acciones</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {users.map((user) => (
+                                        <TableRow key={user.id} className={editingUserId === user.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''}>
+                                            <TableCell className="font-medium">{user.nombre}</TableCell>
+                                            <TableCell>{user.apellido}</TableCell>
+                                            <TableCell>{user.email}</TableCell>
+                                            <TableCell className="capitalize text-xs">
+                                                {(user.roles || []).map(formatSingleRoleName).join(', ')}
+                                            </TableCell>
+                                            <TableCell>{getResidenciaName(user.residenciaId)}</TableCell>
+                                            <TableCell>{getDietaName(user.dietaId)}</TableCell>
+                                            <TableCell className="text-center">
+                                                <Badge variant={user.isActive ? 'default' : 'outline'} className={user.isActive ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700' : 'bg-red-100 text-red-700 border-red-300 dark:bg-red-700/30 dark:text-red-300 dark:border-red-700'}>
+                                                    {user.isActive ? 'Activo' : 'Inactivo'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right space-x-2">
+                                                <Button variant="outline" size="sm" onClick={() => handleEditUser(user.id)} disabled={isSaving || (!!editingUserId && editingUserId !== user.id)}>Editar</Button>
+                                                <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={isSaving || !!editingUserId}>Eliminar</Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    ) : (
+                        <p className="text-muted-foreground text-center py-8">No hay usuarios registrados.</p>
                     )}
-                </CardFooter>
-            </form>
-        </Card>
-  
-        {/* --- Existing Users List Card --- */}
-        <Card>
-            <CardHeader>
-                <CardTitle>Usuarios Existentes</CardTitle>
-                <CardDescription>Lista de usuarios registrados en el sistema.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isLoadingUsers ? (
-                    <div className="space-y-3">
-                       <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
-                    </div>
-                ) : users.length > 0 ? (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Nombre</TableHead>
-                                <TableHead>Apellido</TableHead>
-                                <TableHead>Email</TableHead>
-                                <TableHead>Roles</TableHead>
-                                <TableHead>Residencia</TableHead>
-                                <TableHead>Dieta</TableHead>
-                                <TableHead>Estado</TableHead>
-                                <TableHead className="text-right">Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {users.map((user) => (
-                                <TableRow key={user.id}>
-                                    <TableCell className="font-medium">{user.nombre}</TableCell>
-                                    <TableCell>{user.apellido}</TableCell>
-                                    <TableCell>{user.email}</TableCell>
-                                    <TableCell className="capitalize">
-                                        {(user.roles || []).map(formatSingleRoleName).join(', ')}
-                                    </TableCell>
-                                    <TableCell>{getResidenciaName(user.residenciaId)}</TableCell>
-                                    <TableCell>{getDietaName(user.dietaId)}</TableCell>
-                                    <TableCell>
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                            {user.isActive ? 'Activo' : 'Inactivo'}
-                                        </span>
-                                    </TableCell>
-                                    <TableCell className="text-right space-x-2">
-                                        {/* Disable table actions if editing another user */}
-                                        <Button variant="outline" size="sm" onClick={() => handleEditUser(user.id)} disabled={isSaving || !!editingUserId}>Editar</Button>
-                                        <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={isSaving || !!editingUserId}>Eliminar</Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                ) : (
-                    <p className="text-muted-foreground text-center">No hay usuarios registrados.</p>
-                )}
-            </CardContent>
-        </Card>
-  
-        {/* --- Delete Confirmation Dialog --- */}
-        <AlertDialog open={isConfirmingDelete} onOpenChange={setIsConfirmingDelete}>
-             <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>¿Está realmente seguro?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario
-                        <span className="font-medium"> {getUserToDeleteName()} </span>
-                        del sistema.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setUserToDeleteId(null)}>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                        onClick={confirmDeleteUser}
-                         // Apply destructive variant styling
-                        className={buttonVariants({ variant: "destructive" })}
-                    >Confirmar Eliminación</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-    </div>
+                </CardContent>
+            </Card>
+
+            {/* --- Delete Confirmation Dialog --- */}
+            <AlertDialog open={isConfirmingDelete} onOpenChange={setIsConfirmingDelete}>
+                 <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Está realmente seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción eliminará el perfil de Firestore del usuario <span className="font-semibold">{getUserToDeleteName()}</span>.
+                            La cuenta de autenticación de Firebase asociada <strong className="text-amber-600 dark:text-amber-400">NO</strong> se eliminará automáticamente y podría requerir una limpieza manual o mediante una función de backend.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setUserToDeleteId(null)}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmDeleteUser}
+                            className={buttonVariants({ variant: "destructive" })}
+                        >Confirmar Eliminación de Perfil</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
     );
-  }
-  
+}
