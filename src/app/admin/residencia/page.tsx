@@ -179,6 +179,7 @@ export default function ResidenciaAdminPage() {
     const [editComedorNombre, setEditComedorNombre] = useState('');
     const [editComedorDescripcion, setEditComedorDescripcion] = useState('');
     const [isProcessingEditComedor, setIsProcessingEditComedor] = useState(false);
+    const [hasAttemptedFetchResidences, setHasAttemptedFetchResidences] = useState(false);
 
 
     // --- Fetch Residences Function ---
@@ -201,8 +202,9 @@ export default function ResidenciaAdminPage() {
             toast({ title: "Error", description: "Could not fetch residences from Firestore.", variant: "destructive" });
         } finally {
             setIsLoadingResidences(false);
+            setHasAttemptedFetchResidences(true); // <<< ADD THIS LINE
         }
-    }, [toast]);
+    }, [toast, setHasAttemptedFetchResidences]); // <<< ADD setHasAttemptedFetchResidences
 
 
     // --- useEffect: Handle Auth State & Fetch Profile ---
@@ -273,16 +275,20 @@ export default function ResidenciaAdminPage() {
         const userIsAuthorized = roles.includes('admin') || roles.includes('master');
 
         if (userIsAuthorized) {
+            // Inside the if (userIsAuthorized) block:
             console.log("Authorization check passed. User has required roles.");
             setIsAuthorized(true);
-            // Fetch residences if authorized and not already loaded/loading
-            if (residences.length === 0 && !isLoadingResidences) {
-                 console.log("User authorized, initiating fetchResidences...");
-                 fetchResidences();
-            } else {
-                 console.log("User authorized, residences already loading or loaded.");
-                 // Ensure loading state reflects reality if data is already present
-                 setIsLoadingResidences(residences.length === 0);
+
+            // Fetch residences if authorized, not yet attempted, and not currently loading
+            if (!hasAttemptedFetchResidences && !isLoadingResidences) {
+                console.log("User authorized, initiating fetchResidences...");
+                fetchResidences();
+            } else if (isLoadingResidences) {
+                console.log("User authorized, but residences are currently loading.");
+            } else if (hasAttemptedFetchResidences && residences.length === 0) {
+                console.log("User authorized, fetch previously attempted, no residences found.");
+            } else if (hasAttemptedFetchResidences && residences.length > 0) {
+                console.log("User authorized, residences already fetched.");
             }
         } else {
             console.warn("Authorization check failed: User lacks admin/master role.");
@@ -290,8 +296,19 @@ export default function ResidenciaAdminPage() {
             toast({ title: "Acceso Denegado", description: "No tienes permiso para ver esta página.", variant: "destructive" });
             router.replace('/'); // Redirect if not authorized
         }
-    }, [userProfile, profileLoading, profileError, authFirebaseLoading, router, toast, fetchResidences, residences.length, isLoadingResidences]); // Ensure all relevant states trigger re-check
-
+    }, [
+        userProfile,
+        profileLoading,
+        profileError,
+        authFirebaseLoading,
+        router,
+        toast,
+        fetchResidences,
+        // residences.length, // <<< REMOVE THIS
+        isLoadingResidences,   // <<< ENSURE THIS IS PRESENT
+        hasAttemptedFetchResidences, // <<< ADD THIS
+        isAuthorized           // <<< ENSURE THIS IS PRESENT
+    ]);
 
     // --- Form Handlers: Create Residence ---
     const handleTimeChange = (day: DayOfWeekKey, value: string) => {
