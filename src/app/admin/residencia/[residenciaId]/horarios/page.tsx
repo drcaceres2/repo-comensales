@@ -9,9 +9,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 // Models: Added UserProfile, UserRole
-import { Residencia, TiempoComida, AlternativaTiempoComida, Comedor, DayOfWeekKey, DayOfWeekMap, TipoAccesoAlternativa, LogEntry, LogActionType, ResidenciaId, ComedorId, HorarioSolicitudComida, HorarioSolicitudComidaId, UserProfile, UserRole } from '@/models/firestore';
+import { Residencia, TiempoComida, AlternativaTiempoComida, Comedor, DayOfWeekKey, DayOfWeekMap, TipoAccesoAlternativa, LogEntry, LogActionType, ResidenciaId, ComedorId, HorarioSolicitudComida, HorarioSolicitudComidaId, UserProfile, UserRole, TipoAlternativa } from '@/models/firestore';
 // Firestore: Added writeBatch (just in case, though not used here yet)
-import { Timestamp, addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { Timestamp, addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 // Auth Hook: Added useAuthState
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -47,67 +47,115 @@ function AlternativaForm({
     formTitle,
     submitButtonText
 }: AlternativaFormProps) {
-    // ... (AlternativaForm implementation - keeping it collapsed for brevity)
     const tipoAccesoOptions: { value: TipoAccesoAlternativa, label: string }[] = [
         { value: 'abierto', label: 'Abierto (Todos)' },
         { value: 'autorizado', label: 'Autorizado (Específico - Lógica Futura)' },
         { value: 'cerrado', label: 'Cerrado (Nadie)' }
     ];
 
+    // Determine if ayuno type is selected
+    const isAyuno = formData.tipo === 'ayuno';
+
     return (
         <div className="mt-4 p-4 border rounded bg-gray-50 dark:bg-gray-800/30 space-y-4">
             <h4 className="font-semibold text-lg">{formTitle}</h4>
-            {/* Nombre */}
+
+            {/* Tipo (Comedor / Para Llevar / Ayuno) */}
             <div>
-                <Label htmlFor="alt-nombre">Nombre Alternativa</Label>
-                <Input id="alt-nombre" value={formData.nombre || ''} onChange={(e) => onFormChange('nombre', e.target.value)} placeholder="Ej. Almuerzo Comedor Principal" disabled={isSaving} />
-            </div>
-            {/* Tipo (Comedor / Para Llevar) */}
-            <div>
-                <Label>Tipo</Label>
-                <RadioGroup value={formData.tipo || 'comedor'} onValueChange={(value) => onFormChange('tipo', value as 'comedor' | 'paraLlevar')} className="flex space-x-4 mt-1" disabled={isSaving} >
-                    <div className="flex items-center space-x-2"> <RadioGroupItem value="comedor" id="tipo-comedor" disabled={isSaving}/> <Label htmlFor="tipo-comedor">Comedor</Label> </div>
-                    <div className="flex items-center space-x-2"> <RadioGroupItem value="paraLlevar" id="tipo-llevar" disabled={isSaving}/> <Label htmlFor="tipo-llevar">Para Llevar</Label> </div>
+                <Label>Tipo *</Label>
+                <RadioGroup
+                    value={formData.tipo || 'comedor'} // Default to 'comedor' if undefined
+                    onValueChange={(value) => onFormChange('tipo', value as TipoAlternativa)}
+                    className="flex flex-wrap gap-x-4 gap-y-2 mt-1" // Use flex-wrap for smaller screens
+                    disabled={isSaving}
+                >
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="comedor" id="tipo-comedor" disabled={isSaving}/>
+                        <Label htmlFor="tipo-comedor" className="font-normal">Comedor</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="paraLlevar" id="tipo-llevar" disabled={isSaving}/>
+                        <Label htmlFor="tipo-llevar" className="font-normal">Para Llevar</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="ayuno" id="tipo-ayuno" disabled={isSaving}/>
+                        <Label htmlFor="tipo-ayuno" className="font-normal">Ayuno (No Comer)</Label>
+                    </div>
                 </RadioGroup>
             </div>
-             {/* Comedor (Conditional) */}
-             {formData.tipo === 'comedor' && (
+
+            {/* Nombre */}
+            <div>
+                <Label htmlFor="alt-nombre">Nombre Alternativa *</Label>
+                <Input
+                    id="alt-nombre"
+                    value={formData.nombre || ''}
+                    onChange={(e) => onFormChange('nombre', e.target.value)}
+                    placeholder={isAyuno ? "Ej. Ayuno, Descanso Digestivo" : "Ej. Menú Principal, Opción Ligera"}
+                    disabled={isSaving}
+                />
+                 <p className="text-xs text-muted-foreground mt-1">Nombre descriptivo para esta opción.</p>
+            </div>
+
+             {/* Comedor (Conditional - NOT shown for ayuno) */}
+             {formData.tipo === 'comedor' && !isAyuno && ( // Hide if ayuno
                 <div>
-                    <Label htmlFor="alt-comedor">Comedor Específico</Label>
-                    <Select value={formData.comedorId || ''} onValueChange={(value) => onFormChange('comedorId', value)} disabled={isSaving || availableComedores.length === 0} >
+                    <Label htmlFor="alt-comedor">Comedor Específico *</Label>
+                    <Select
+                        value={formData.comedorId || ''}
+                        onValueChange={(value) => onFormChange('comedorId', value)}
+                        disabled={isSaving || availableComedores.length === 0}
+                    >
                         <SelectTrigger id="alt-comedor"><SelectValue placeholder="Seleccione un comedor..." /></SelectTrigger>
                         <SelectContent>
-                            {availableComedores.length === 0 ? (<SelectItem value="-" disabled>No hay comedores definidos</SelectItem>) : (availableComedores.map(com => (<SelectItem key={com.id} value={com.id}>{com.nombre}</SelectItem>)))}
+                            {availableComedores.length === 0 ? (<SelectItem value="-" disabled>No hay comedores definidos</SelectItem>) : (availableComedores.map(com => (<SelectItem key={com.id} value={com.id}>{com.nombre}</SelectItem>))) }
                         </SelectContent>
                     </Select>
-                     {availableComedores.length === 0 && <p className="text-xs text-red-500 mt-1">Defina comedores en la configuración general.</p>}
+                    {availableComedores.length === 0 && <p className="text-xs text-red-500 mt-1">Defina comedores en la configuración general.</p>}
+                     {!formData.comedorId && <p className="text-xs text-destructive mt-1">Requerido para tipo 'Comedor'.</p>}
                 </div>
             )}
-            {/* Tipo Acceso */}
-            <div>
-                <Label htmlFor="alt-acceso">Acceso Permitido</Label>
-                <Select value={formData.tipoAcceso || 'abierto'} onValueChange={(value) => onFormChange('tipoAcceso', value as TipoAccesoAlternativa)} disabled={isSaving} >
-                    <SelectTrigger id="alt-acceso"><SelectValue placeholder="Seleccione acceso..." /></SelectTrigger>
-                    <SelectContent> {tipoAccesoOptions.map(opt => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))} </SelectContent>
-                </Select>
-            </div>
-            {/* Ventana Horaria */}
-            <div className="grid grid-cols-2 gap-4">
+
+            {/* Tipo Acceso (Hidden & Forced for Ayuno) */}
+            {!isAyuno && (
                 <div>
-                    <Label htmlFor="alt-ventana-inicio">Ventana Inicio (HH:mm)</Label>
-                    <Input id="alt-ventana-inicio" type="time" value={formData.ventanaInicio || ''} onChange={(e) => onFormChange('ventanaInicio', e.target.value)} disabled={isSaving}/>
-                     <div className="flex items-center space-x-2 mt-1"> <Checkbox id="alt-inicia-dia-anterior" checked={formData.iniciaDiaAnterior || false} onCheckedChange={(checked) => onFormChange('iniciaDiaAnterior', Boolean(checked))} disabled={isSaving}/> <Label htmlFor="alt-inicia-dia-anterior" className="text-xs">¿Inicia día anterior?</Label> </div>
+                    <Label htmlFor="alt-acceso">Acceso Permitido</Label>
+                    <Select
+                        value={formData.tipoAcceso || 'abierto'}
+                        onValueChange={(value) => onFormChange('tipoAcceso', value as TipoAccesoAlternativa)}
+                        disabled={isSaving}
+                    >
+                        <SelectTrigger id="alt-acceso"><SelectValue placeholder="Seleccione acceso..." /></SelectTrigger>
+                        <SelectContent> {tipoAccesoOptions.map(opt => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))} </SelectContent>
+                    </Select>
                 </div>
-                <div>
-                    <Label htmlFor="alt-ventana-fin">Ventana Fin (HH:mm)</Label>
-                    <Input id="alt-ventana-fin" type="time" value={formData.ventanaFin || ''} onChange={(e) => onFormChange('ventanaFin', e.target.value)} disabled={isSaving}/>
-                     <div className="flex items-center space-x-2 mt-1"> <Checkbox id="alt-termina-dia-siguiente" checked={formData.terminaDiaSiguiente || false} onCheckedChange={(checked) => onFormChange('terminaDiaSiguiente', Boolean(checked))} disabled={isSaving}/> <Label htmlFor="alt-termina-dia-siguiente" className="text-xs">¿Termina día siguiente?</Label> </div>
+            )}
+
+            {/* Ventana Horaria (Hidden & Forced for Ayuno) */}
+            {!isAyuno && (
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <Label htmlFor="alt-ventana-inicio">Ventana Inicio (HH:mm)</Label>
+                        <Input id="alt-ventana-inicio" type="time" value={formData.ventanaInicio || ''} onChange={(e) => onFormChange('ventanaInicio', e.target.value)} disabled={isSaving}/>
+                        <div className="flex items-center space-x-2 mt-1"> <Checkbox id="alt-inicia-dia-anterior" checked={formData.iniciaDiaAnterior || false} onCheckedChange={(checked) => onFormChange('iniciaDiaAnterior', Boolean(checked))} disabled={isSaving}/> <Label htmlFor="alt-inicia-dia-anterior" className="text-xs font-normal">¿Inicia día ant.?</Label> </div>
+                    </div>
+                    <div>
+                        <Label htmlFor="alt-ventana-fin">Ventana Fin (HH:mm)</Label>
+                        <Input id="alt-ventana-fin" type="time" value={formData.ventanaFin || ''} onChange={(e) => onFormChange('ventanaFin', e.target.value)} disabled={isSaving}/>
+                        <div className="flex items-center space-x-2 mt-1"> <Checkbox id="alt-termina-dia-siguiente" checked={formData.terminaDiaSiguiente || false} onCheckedChange={(checked) => onFormChange('terminaDiaSiguiente', Boolean(checked))} disabled={isSaving}/> <Label htmlFor="alt-termina-dia-siguiente" className="text-xs font-normal">¿Termina día sig.?</Label> </div>
+                    </div>
                 </div>
-            </div>
-            {/* Horario Solicitud Dropdown */}
+            )}
+
+            {/* Horario Solicitud Dropdown (ALWAYS required) */}
             <div>
                 <Label htmlFor="alt-horario-solicitud">Regla de Solicitud Asociada *</Label>
-                <Select value={formData.horarioSolicitudComidaId || ''} onValueChange={(value) => onFormChange('horarioSolicitudComidaId', value)} disabled={isSaving || availableHorarios.length === 0} >
+                <Select
+                    value={formData.horarioSolicitudComidaId || ''}
+                    onValueChange={(value) => onFormChange('horarioSolicitudComidaId', value)}
+                    // Enable even for ayuno, as it dictates *when* the choice (even ayuno) must be made
+                    disabled={isSaving || availableHorarios.length === 0}
+                >
                     <SelectTrigger id="alt-horario-solicitud"><SelectValue placeholder="Seleccione una regla..." /></SelectTrigger>
                     <SelectContent>
                         {availableHorarios.length === 0 ? (<SelectItem value="-" disabled>No hay reglas de solicitud</SelectItem>) : (availableHorarios.map(h => (<SelectItem key={h.id} value={h.id}>{h.nombre} ({DayOfWeekMap[h.dia]} {h.horaSolicitud})</SelectItem>)))}
@@ -116,6 +164,20 @@ function AlternativaForm({
                 {availableHorarios.length === 0 && <p className="text-xs text-red-500 mt-1">Defina (y active) reglas de solicitud en la config. general.</p>}
                 {!formData.horarioSolicitudComidaId && <p className="text-xs text-destructive mt-1">Este campo es requerido.</p>}
             </div>
+
+            {/* isActive is only shown during EDIT */}
+             {formTitle.startsWith("Editando") && (
+                 <div className="flex items-center space-x-2 pt-2">
+                     <Checkbox
+                         id="alt-isActive"
+                         checked={formData.isActive === undefined ? true : formData.isActive}
+                         onCheckedChange={(checked) => onFormChange('isActive', Boolean(checked))}
+                         disabled={isSaving}
+                     />
+                     <Label htmlFor="alt-isActive" className="font-normal">Alternativa Activa</Label>
+                 </div>
+             )}
+
             {/* Action Buttons */}
             <div className="flex space-x-2 pt-2">
                 <Button onClick={onSubmit} disabled={isSaving}> {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} {isSaving ? 'Guardando...' : submitButtonText} </Button>
@@ -211,6 +273,54 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
             return timeA.localeCompare(timeB);
         });
     };
+
+    // --- NEW: Check for missing fasting options ---
+    const checkAndWarnMissingFastingOptions = useCallback(() => {
+        if (!tiemposComida || tiemposComida.length === 0 || !alternativas) {
+            return;
+        }
+
+        const missingFastingDetails: string[] = [];
+
+        tiemposComida.forEach(tc => {
+            const hasActiveFastingOption = alternativas.some(alt =>
+                alt.tiempoComidaId === tc.id &&
+                alt.tipo === 'ayuno' &&
+                alt.isActive
+            );
+
+            if (!hasActiveFastingOption) {
+                missingFastingDetails.push(`- ${tc.nombreGrupo} (${DayOfWeekMap[tc.dia]}): ${tc.nombre}`);
+            }
+        });
+
+        if (missingFastingDetails.length > 0) {
+            toast({
+                title: "Advertencia: Opciones de Ayuno Faltantes",
+                description: (
+                    <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                        <p className="mb-2">Los siguientes tiempos de comida no tienen una opción de 'ayuno' activa asociada:</p>
+                        <ul className="list-disc pl-5">
+                            {missingFastingDetails.map((detail, index) => (
+                                <li key={index} className="text-xs">{detail}</li>
+                            ))}
+                        </ul>
+                        <p className="mt-2 text-xs">Considere añadir o activar una alternativa de tipo 'ayuno' para cada uno para asegurar que los residentes siempre puedan optar por no comer.</p>
+                    </div>
+                ),
+                variant: "default", // Or your warning variant if you have one
+                duration: 15000, // Longer duration for readability
+            });
+        }
+    }, [tiemposComida, alternativas, toast]);
+
+    // --- useEffect: Trigger warning check when data changes ---
+    useEffect(() => {
+        // Only run the check if page data is loaded to avoid premature warnings
+        if (!isLoadingPageData) {
+            checkAndWarnMissingFastingOptions();
+        }
+    }, [tiemposComida, alternativas, isLoadingPageData, checkAndWarnMissingFastingOptions]);
 
     // --- Fetch Page Data Function (Now includes Residencia name) ---
     const fetchData = useCallback(async () => {
@@ -317,32 +427,51 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
 
 
     // --- CRUD Handlers for TiempoComida (Updated to use authUser.uid for logs) ---
-    const handleAddTiempoComida = async () => { /* ... */
-        // <<< UPDATED Validation to include group fields >>>
-        const ordenGrupoNum = Number(newTiempoComidaOrdenGrupo); // Parse here for validation
-        if (!newTiempoComidaName.trim()) { toast({ title: "Error", description: "El Nombre específico es requerido.", variant: "destructive" }); return; }
+    const handleAddTiempoComida = async () => {
+        const ordenGrupoNum = Number(newTiempoComidaOrdenGrupo);
+        const trimmedNombreGrupo = newTiempoComidaNombreGrupo.trim();
+        const trimmedNombreEspecifico = newTiempoComidaName.trim();
+
+        // Basic Validations (as before)
+        if (!trimmedNombreEspecifico) { toast({ title: "Error", description: "El Nombre específico es requerido.", variant: "destructive" }); return; }
         if (!newTiempoComidaDia) { toast({ title: "Error", description: "El Día es requerido.", variant: "destructive" }); return; }
-        if (!newTiempoComidaNombreGrupo.trim()) { toast({ title: "Error", description: "El Nombre de Grupo es requerido.", variant: "destructive" }); return; }
+        if (!trimmedNombreGrupo) { toast({ title: "Error", description: "El Nombre de Grupo es requerido.", variant: "destructive" }); return; }
         if (!Number.isInteger(ordenGrupoNum) || ordenGrupoNum <= 0) { toast({ title: "Error", description: "El Orden de Grupo debe ser un número entero positivo.", variant: "destructive" }); return; }
         if (newTiempoComidaHoraEstimada && !/^\d{2}:\d{2}$/.test(newTiempoComidaHoraEstimada)) { toast({ title: "Error", description: "La Hora Estimada debe tener el formato HH:MM.", variant: "destructive" }); return; }
+
+        // --- NEW: Uniqueness Validation for nombreGrupo and dia ---
+        const existingTiempoComida = tiemposComida.find(
+            tc => tc.nombreGrupo.toLowerCase() === trimmedNombreGrupo.toLowerCase() &&
+                  tc.dia === newTiempoComidaDia
+        );
+
+        if (existingTiempoComida) {
+            toast({
+                title: "Conflicto de Horario",
+                description: `Ya existe un tiempo de comida para el grupo "${trimmedNombreGrupo}" el día ${DayOfWeekMap[newTiempoComidaDia]}. Solo se permite uno.`,
+                variant: "destructive",
+                duration: 7000,
+            });
+            return;
+        }
+        // --- END NEW ---
 
         setIsAddingTiempo(true);
         const nuevoTiempoData: Omit<TiempoComida, 'id'> = {
             residenciaId: residenciaId,
-            nombre: newTiempoComidaName.trim(),
+            nombre: trimmedNombreEspecifico,
             dia: newTiempoComidaDia,
             horaEstimada: newTiempoComidaHoraEstimada || undefined,
-            nombreGrupo: newTiempoComidaNombreGrupo.trim(),
-            ordenGrupo: ordenGrupoNum, // Use parsed number
+            nombreGrupo: trimmedNombreGrupo,
+            ordenGrupo: ordenGrupoNum,
         };
 
         try {
             const docRef = await addDoc(collection(db, "tiemposComida"), nuevoTiempoData);
             const newTiempoWithId: TiempoComida = { id: docRef.id, ...nuevoTiempoData };
-            console.log("TiempoComida added with ID:", docRef.id);
             await createLogEntry('tiempo_comida_created', residenciaId, authUser?.uid || null, `Created tiempo: ${nuevoTiempoData.nombre}`, docRef.path);
             setTiemposComida(prev => sortTiemposComida([...prev, newTiempoWithId]));
-            // <<< Reset group fields >>>
+            
             setNewTiempoComidaName('');
             setNewTiempoComidaDia('');
             setNewTiempoComidaHoraEstimada('');
@@ -356,43 +485,63 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
             setIsAddingTiempo(false);
         }
     };
-    const handleSaveEditTiempoComida = async () => { /* ... */
+
+    const handleSaveEditTiempoComida = async () => {
         if (!editingTiempoComidaId) return;
-        // <<< UPDATED Validation to include group fields >>>
-        const ordenGrupoNum = Number(editTiempoComidaOrdenGrupo); // Parse here
-        if (!editTiempoComidaName.trim()) { toast({ title: "Error", description: "Nombre específico requerido.", variant: "destructive" }); return; }
+
+        const ordenGrupoNum = Number(editTiempoComidaOrdenGrupo);
+        const trimmedEditNombreGrupo = editTiempoComidaNombreGrupo.trim();
+        const trimmedEditNombreEspecifico = editTiempoComidaName.trim();
+
+        // Basic Validations (as before)
+        if (!trimmedEditNombreEspecifico) { toast({ title: "Error", description: "Nombre específico requerido.", variant: "destructive" }); return; }
         if (!editTiempoComidaDia) { toast({ title: "Error", description: "Día requerido.", variant: "destructive" }); return; }
-        if (!editTiempoComidaNombreGrupo.trim()) { toast({ title: "Error", description: "Nombre de Grupo requerido.", variant: "destructive" }); return; }
+        if (!trimmedEditNombreGrupo) { toast({ title: "Error", description: "Nombre de Grupo requerido.", variant: "destructive" }); return; }
         if (!Number.isInteger(ordenGrupoNum) || ordenGrupoNum <= 0) { toast({ title: "Error", description: "Orden de Grupo debe ser número entero positivo.", variant: "destructive" }); return; }
         if (editTiempoComidaHoraEstimada && !/^\d{2}:\d{2}$/.test(editTiempoComidaHoraEstimada)) { toast({ title: "Error", description: "Hora Estimada formato HH:MM.", variant: "destructive" }); return; }
 
-        setIsSavingEditTiempo(true);
+        // --- NEW: Uniqueness Validation for nombreGrupo and dia (excluding self) ---
+        const conflictingTiempoComida = tiemposComida.find(
+            tc => tc.id !== editingTiempoComidaId && // Exclude the current item being edited
+                  tc.nombreGrupo.toLowerCase() === trimmedEditNombreGrupo.toLowerCase() &&
+                  tc.dia === editTiempoComidaDia
+        );
 
+        if (conflictingTiempoComida) {
+            toast({
+                title: "Conflicto de Horario",
+                description: `Ya existe otro tiempo de comida para el grupo "${trimmedEditNombreGrupo}" el día ${DayOfWeekMap[editTiempoComidaDia]}. Solo se permite uno.`,
+                variant: "destructive",
+                duration: 7000,
+            });
+            return;
+        }
+        // --- END NEW ---
+
+        setIsSavingEditTiempo(true);
         const tiempoRef = doc(db, "tiemposComida", editingTiempoComidaId);
-        // <<< UPDATED Data Preparation to include group fields >>>
         const updatedTiempoData: Partial<TiempoComida> = {
-            nombre: editTiempoComidaName.trim(),
+            nombre: trimmedEditNombreEspecifico,
             dia: editTiempoComidaDia,
             horaEstimada: editTiempoComidaHoraEstimada || undefined,
-            nombreGrupo: editTiempoComidaNombreGrupo.trim(),
-            ordenGrupo: ordenGrupoNum, // Use parsed number
+            nombreGrupo: trimmedEditNombreGrupo,
+            ordenGrupo: ordenGrupoNum,
         };
 
         try {
             await updateDoc(tiempoRef, updatedTiempoData);
-            console.log(`TiempoComida updated: ${editingTiempoComidaId}`);
             await createLogEntry('tiempo_comida_updated', residenciaId, authUser?.uid || null, `Updated tiempo: ${updatedTiempoData.nombre}`, tiempoRef.path);
-             // <<< Update state AFTER successful update >>>
-             setTiemposComida(prev =>
+            
+            setTiemposComida(prev =>
                 sortTiemposComida(
                     prev.map(t =>
                         t.id === editingTiempoComidaId
-                            ? { ...t, ...updatedTiempoData } // Merge original with updated fields
+                            ? { ...t, ...updatedTiempoData } 
                             : t
                     )
                 )
             );
-            handleCancelEdit(); // Close form
+            handleCancelEdit();
             toast({ title: "Éxito", description: `Tiempo "${updatedTiempoData.nombre}" actualizado.` });
         } catch (error) {
             console.error("Error updating TiempoComida: ", error);
@@ -401,6 +550,7 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
             setIsSavingEditTiempo(false);
         }
     };
+
     const handleDeleteTiempoComida = async (id: string, nombre: string) => { /* ... */
             // Check for associated alternatives (using current state - assumes state is up-to-date)
             const hasAnyAlternativas = alternativas.some(alt => alt.tiempoComidaId === id);
@@ -439,110 +589,126 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
     // --- CRUD Handlers for Alternativa (Updated to use authUser.uid for logs) ---
     const handleAddAlternativa = async () => {
         if (!addingAlternativaTo) return;
-        // <<< Add validation for horarioSolicitudComidaId >>>
-        if (!alternativeFormData.nombre?.trim()) { /* ... */ return; }
-        if (!alternativeFormData.tipo) { /* ... */ return; }
-        if (!alternativeFormData.tipoAcceso) { /* ... */ return; }
-        if (!alternativeFormData.ventanaInicio || !/^\d\d:\d\d$/.test(alternativeFormData.ventanaInicio)) { /* ... */ return; }
-        if (!alternativeFormData.ventanaFin || !/^\d\d:\d\d$/.test(alternativeFormData.ventanaFin)) { /* ... */ return; }
-        if (alternativeFormData.tipo === 'comedor' && !alternativeFormData.comedorId) { /* ... */ return; }
-        // <<< ADDED validation >>>
-        if (!alternativeFormData.horarioSolicitudComidaId) {
-            toast({ title: "Error", description: "Debe seleccionar una Regla de Solicitud.", variant: "destructive" });
-            return;
-        }
+
+        // Validation
+        const tipoSeleccionado = alternativeFormData.tipo;
+        if (!tipoSeleccionado) { toast({ title: "Error", description: "Debe seleccionar un Tipo.", variant: "destructive" }); return; }
+        if (!alternativeFormData.nombre?.trim()) { toast({ title: "Error", description: "Nombre es requerido.", variant: "destructive" }); return; }
+        if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaInicio || !/^\\d\\d:\\d\\d$/.test(alternativeFormData.ventanaInicio))) { toast({ title: "Error", description: "Ventana Inicio es requerida (HH:MM).", variant: "destructive" }); return; }
+        if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaFin || !/^\\d\\d:\\d\\d$/.test(alternativeFormData.ventanaFin))) { toast({ title: "Error", description: "Ventana Fin es requerida (HH:MM).", variant: "destructive" }); return; }
+        if (tipoSeleccionado === 'comedor' && !alternativeFormData.comedorId) { toast({ title: "Error", description: "Comedor Específico es requerido para tipo 'Comedor'.", variant: "destructive" }); return; }
+        if (!alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Regla de Solicitud es requerida.", variant: "destructive" }); return; }
+        // tipoAcceso defaults if not set for non-ayuno, so validation might not be needed unless specific logic required
 
         setIsSavingAlternativa(true);
 
-        // <<< Include horarioSolicitudComidaId in data object >>>
+        // Prepare data - Enforce ayuno rules
+        const isAyuno = tipoSeleccionado === 'ayuno';
         const nuevaAlternativaData: Omit<AlternativaTiempoComida, 'id'> = {
             residenciaId: residenciaId,
             tiempoComidaId: addingAlternativaTo,
             nombre: alternativeFormData.nombre!.trim(),
-            tipo: alternativeFormData.tipo!,
-            tipoAcceso: alternativeFormData.tipoAcceso!,
-            requiereAprobacion: alternativeFormData.requiereAprobacion ?? false,
-            ventanaInicio: alternativeFormData.ventanaInicio!,
-            ventanaFin: alternativeFormData.ventanaFin!,
-            // <<< ADDED field >>>
+            tipo: tipoSeleccionado,
+            tipoAcceso: isAyuno ? 'abierto' : (alternativeFormData.tipoAcceso || 'abierto'),
+            requiereAprobacion: isAyuno ? false : (alternativeFormData.tipoAcceso === 'autorizado'),
+            ventanaInicio: isAyuno ? '00:00' : alternativeFormData.ventanaInicio!,
+            ventanaFin: isAyuno ? '00:00' : alternativeFormData.ventanaFin!,
             horarioSolicitudComidaId: alternativeFormData.horarioSolicitudComidaId!,
-            comedorId: alternativeFormData.tipo === 'comedor' ? alternativeFormData.comedorId : undefined,
+            comedorId: isAyuno ? undefined : (tipoSeleccionado === 'comedor' ? alternativeFormData.comedorId : undefined),
             isActive: true, // Default to active
-            iniciaDiaAnterior: alternativeFormData.iniciaDiaAnterior ?? false,
-            terminaDiaSiguiente: alternativeFormData.terminaDiaSiguiente ?? false,
+            iniciaDiaAnterior: isAyuno ? false : (alternativeFormData.iniciaDiaAnterior ?? false),
+            terminaDiaSiguiente: isAyuno ? false : (alternativeFormData.terminaDiaSiguiente ?? false),
         };
 
         try {
-            // <<< Use addDoc >>>
             const docRef = await addDoc(collection(db, "alternativas"), nuevaAlternativaData);
             const newAlternativaWithId: AlternativaTiempoComida = { id: docRef.id, ...nuevaAlternativaData };
-            console.log("Alternativa added with ID:", docRef.id);
-
-            await createLogEntry('alternativa_created', residenciaId, authUser?.uid || null, `Created alternativa: ${nuevaAlternativaData.nombre} for tiempo ID ${addingAlternativaTo}`, docRef.path);
-
+            await createLogEntry('alternativa_created', residenciaId, authUser?.uid || null, `Created alternativa: ${nuevaAlternativaData.nombre}`, docRef.path);
             // <<< Update state AFTER successful add >>>
-            setAlternativas(prev => [...prev, newAlternativaWithId]);
+            setAlternativas(prev => [...prev, newAlternativaWithId].sort((a,b) => a.nombre.localeCompare(b.nombre))); // Sort here too
             handleCancelAlternativaForm(); // Close form
             toast({ title: "Éxito", description: `Alternativa "${nuevaAlternativaData.nombre}" añadida.` });
         } catch (error) {
              console.error("Error adding Alternativa: ", error);
              toast({ title: "Error", description: `No se pudo añadir la Alternativa. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
-        } finally {
-            setIsSavingAlternativa(false);
+        } finally { 
+            setIsSavingAlternativa(false); 
         }
-    };    
+    };
 
     const handleSaveAlternativa = async () => {
         if (!editingAlternativaId) return;
-        // <<< Add validation for horarioSolicitudComidaId >>>
-        if (!alternativeFormData.nombre?.trim()) { /* ... */ return; }
-        if (!alternativeFormData.tipo) { /* ... */ return; }
-        if (!alternativeFormData.tipoAcceso) { /* ... */ return; }
-        if (!alternativeFormData.ventanaInicio || !/^\d\d:\d\d$/.test(alternativeFormData.ventanaInicio)) { /* ... */ return; }
-        if (!alternativeFormData.ventanaFin || !/^\d\d:\d\d$/.test(alternativeFormData.ventanaFin)) { /* ... */ return; }
-        if (alternativeFormData.tipo === 'comedor' && !alternativeFormData.comedorId) { /* ... */ return; }
-        // <<< ADDED validation >>>
-        if (!alternativeFormData.horarioSolicitudComidaId) {
-            toast({ title: "Error", description: "Debe seleccionar una Regla de Solicitud.", variant: "destructive" });
-            return;
-        }
+
+        // Validation (as before)
+        const tipoSeleccionado = alternativeFormData.tipo;
+        if (!tipoSeleccionado) { toast({ title: "Error", description: "Debe seleccionar un Tipo.", variant: "destructive" }); return; }
+        if (!alternativeFormData.nombre?.trim()) { toast({ title: "Error", description: "Nombre es requerido.", variant: "destructive" }); return; }
+        if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaInicio || !/^\d{2}:\d{2}$/.test(alternativeFormData.ventanaInicio))) { toast({ title: "Error", description: "Ventana Inicio requerida (HH:MM).", variant: "destructive" }); return; }
+        if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaFin || !/^\d{2}:\d{2}$/.test(alternativeFormData.ventanaFin))) { toast({ title: "Error", description: "Ventana Fin requerida (HH:MM).", variant: "destructive" }); return; }
+        if (tipoSeleccionado === 'comedor' && !alternativeFormData.comedorId) { toast({ title: "Error", description: "Comedor Específico requerido para tipo 'Comedor'.", variant: "destructive" }); return; }
+        if (!alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Regla de Solicitud requerida.", variant: "destructive" }); return; }
 
         setIsSavingAlternativa(true);
-
         const altRef = doc(db, "alternativas", editingAlternativaId);
-        // <<< Include horarioSolicitudComidaId in data object >>>
-        const updatedAlternativaData: Partial<AlternativaTiempoComida> = {
+        const originalAlt = alternativas.find(a => a.id === editingAlternativaId);
+
+        const isAyuno = tipoSeleccionado === 'ayuno';
+
+        // Prepare data for Firestore (can include deleteField())
+        const updatedAlternativaDataForFirestore: any = { // Use 'any' or a more specific type if you create one for Firestore updates
             nombre: alternativeFormData.nombre!.trim(),
-            tipo: alternativeFormData.tipo!,
-            tipoAcceso: alternativeFormData.tipoAcceso!,
-            requiereAprobacion: alternativeFormData.requiereAprobacion ?? false,
-            ventanaInicio: alternativeFormData.ventanaInicio!,
-            ventanaFin: alternativeFormData.ventanaFin!,
-            // <<< ADDED field >>>
+            tipo: tipoSeleccionado,
+            tipoAcceso: isAyuno ? 'abierto' : (alternativeFormData.tipoAcceso || 'abierto'),
+            requiereAprobacion: isAyuno ? false : (alternativeFormData.tipoAcceso === 'autorizado'),
+            ventanaInicio: isAyuno ? '00:00' : alternativeFormData.ventanaInicio!,
+            ventanaFin: isAyuno ? '00:00' : alternativeFormData.ventanaFin!,
             horarioSolicitudComidaId: alternativeFormData.horarioSolicitudComidaId!,
-            comedorId: alternativeFormData.tipo === 'comedor' ? alternativeFormData.comedorId : undefined,
-            isActive: alternativeFormData.isActive ?? true,
-            iniciaDiaAnterior: alternativeFormData.iniciaDiaAnterior ?? false,
-            terminaDiaSiguiente: alternativeFormData.terminaDiaSiguiente ?? false,
+            isActive: alternativeFormData.isActive === undefined ? originalAlt?.isActive ?? true : alternativeFormData.isActive,
+            iniciaDiaAnterior: isAyuno ? false : (alternativeFormData.iniciaDiaAnterior ?? false),
+            terminaDiaSiguiente: isAyuno ? false : (alternativeFormData.terminaDiaSiguiente ?? false),
         };
 
+        if (isAyuno) {
+            updatedAlternativaDataForFirestore.comedorId = deleteField();
+        } else if (tipoSeleccionado === 'comedor') {
+            updatedAlternativaDataForFirestore.comedorId = alternativeFormData.comedorId;
+        } else { // paraLlevar or other types that don't use comedorId
+            updatedAlternativaDataForFirestore.comedorId = deleteField();
+        }
+        
+        // Clean up undefined fields that are not meant to be deleted (e.g. optional fields not being set)
+        // This loop should run on a copy that doesn't have deleteField() if you want to be very precise,
+        // but Firestore handles `undefined` values by not updating those fields.
+        // deleteField() is explicit.
+        // For this scenario, directly using updatedAlternativaDataForFirestore is fine.
+
         try {
-            // <<< Use updateDoc >>>
-            await updateDoc(altRef, updatedAlternativaData);
-            console.log(`Alternativa updated: ${editingAlternativaId}`);
+            await updateDoc(altRef, updatedAlternativaDataForFirestore);
+            await createLogEntry('alternativa_updated', residenciaId, authUser?.uid || null, `Updated alternativa: ${updatedAlternativaDataForFirestore.nombre}`, altRef.path);
 
-            await createLogEntry('alternativa_updated', residenciaId, authUser?.uid || null, `Updated alternativa: ${updatedAlternativaData.nombre}`, altRef.path);
+            // Prepare data for local state update (ensure comedorId is string | undefined)
+            const updatedAlternativaDataForState: Partial<AlternativaTiempoComida> = {
+                ...updatedAlternativaDataForFirestore, // Spread the Firestore data first
+            };
+            
+            // If comedorId was set to deleteField(), ensure it's undefined in the local state
+            if (updatedAlternativaDataForFirestore.comedorId && typeof updatedAlternativaDataForFirestore.comedorId !== 'string') {
+                 // We check if it's not a string because deleteField() is an object.
+                 // This means deleteField() was used.
+                updatedAlternativaDataForState.comedorId = undefined;
+            }
 
-            // <<< Update state AFTER successful update >>>
+
             setAlternativas(prev =>
                 prev.map(alt =>
                     alt.id === editingAlternativaId
-                        ? { ...alt, ...updatedAlternativaData } // Merge existing with updated
+                        ? { ...alt, ...updatedAlternativaDataForState } // Use the state-compatible data
                         : alt
-                )
+                ).sort((a, b) => a.nombre.localeCompare(b.nombre))
             );
-            handleCancelAlternativaForm(); // Close form
-            toast({ title: "Éxito", description: `Alternativa "${updatedAlternativaData.nombre}" actualizada.` });
+
+            handleCancelAlternativaForm();
+            toast({ title: "Éxito", description: `Alternativa "${updatedAlternativaDataForFirestore.nombre}" actualizada.` });
         } catch (error) {
             console.error("Error updating Alternativa: ", error);
             toast({ title: "Error", description: `No se pudo actualizar la Alternativa. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
@@ -550,6 +716,7 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
             setIsSavingAlternativa(false);
         }
     };
+
               
     const handleDeleteAlternativa = async (id: string, nombre: string) => {
         const altRef = doc(db, "alternativas", id);
@@ -628,9 +795,38 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
     const handleAlternativaFormChange = (field: keyof AlternativaTiempoComida, value: any) => {
         console.log("Form change:", field, value);
         setAlternativeFormData(prev => {
-            const updatedData = { ...prev, [field]: value };
-            if (field === 'tipoAcceso') updatedData.requiereAprobacion = (value === 'autorizado');
-            if (field === 'tipo' && value === 'paraLlevar') updatedData.comedorId = undefined;
+            let updatedData = { ...prev, [field]: value };
+
+            // --- Logic for 'ayuno' type ---
+            if (field === 'tipo' && value === 'ayuno') {
+                // When 'ayuno' is selected, prefill/force specific fields
+                updatedData.nombre = prev.nombre || "Ayuno"; // Prefill name if empty, keep if user typed something
+                updatedData.tipoAcceso = 'abierto';
+                updatedData.requiereAprobacion = false;
+                updatedData.ventanaInicio = '00:00';
+                updatedData.ventanaFin = '00:00';
+                updatedData.comedorId = undefined; // Ensure comedor is cleared
+                updatedData.iniciaDiaAnterior = false;
+                updatedData.terminaDiaSiguiente = false;
+            } else if (field === 'tipo' && value !== 'ayuno' && prev.tipo === 'ayuno') {
+                // If switching *away* from ayuno, clear the forced fields
+                // so user can select new values (keep name)
+                 updatedData.tipoAcceso = prev.tipoAcceso === 'abierto' ? undefined : prev.tipoAcceso; // Reset if it was forced
+                 updatedData.ventanaInicio = prev.ventanaInicio === '00:00' ? undefined : prev.ventanaInicio;
+                 updatedData.ventanaFin = prev.ventanaFin === '00:00' ? undefined : prev.ventanaFin;
+            }
+
+            // Auto-set requiereAprobacion based on tipoAcceso (unless it's ayuno)
+            if (updatedData.tipo !== 'ayuno' && field === 'tipoAcceso') {
+                 updatedData.requiereAprobacion = (value === 'autorizado');
+            }
+
+            // Clear comedorId if tipo is not 'comedor' (and not ayuno)
+            if (updatedData.tipo !== 'comedor' && updatedData.tipo !== 'ayuno') {
+                 updatedData.comedorId = undefined;
+            }
+
+
             return updatedData;
         });
     };

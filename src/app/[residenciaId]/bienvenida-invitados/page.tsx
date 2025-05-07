@@ -562,7 +562,7 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null { // Allow
                                     <Label htmlFor="startDate">Fecha de {isOneDay ? 'la visita' : 'Inicio'}</Label> 
                                     <Popover> 
                                         <PopoverTrigger asChild> 
-                                            <Button variant={"outline"} className={`w-full justify-start text-left font-normal ${!startDate && "text-muted-foreground"}`}> 
+                                            <Button variant={"outline"} className={`w-full justify-start text-left font-nnoteormal ${!startDate && "text-muted-foreground"}`}> 
                                                 <CalendarIcon className="mr-2 h-4 w-4" /> {startDate ? format(startDate, 'PPP', { locale: es }) : <span>Selecciona fecha</span>} 
                                             </Button> 
                                         </PopoverTrigger> 
