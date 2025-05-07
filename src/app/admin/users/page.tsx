@@ -70,6 +70,12 @@ export default function UserManagementPage(): JSX.Element | null {
     const [adminProfileError, setAdminProfileError] = useState<string | null>(null);
     const [isAuthorized, setIsAuthorized] = useState<boolean>(false); // Will be set based on adminUserProfile
 
+    // States from preventing re-fetching when no residences {}
+    const [hasAttemptedFetchResidences, setHasAttemptedFetchResidences] = useState(false);
+    const [hasAttemptedFetchDietas, setHasAttemptedFetchDietas] = useState(false);
+    const [hasAttemptedFetchUsers, setHasAttemptedFetchUsers] = useState(false);
+
+
     // --- Page Specific State (existing state) ---
     const [formData, setFormData] = useState<UserFormData>({
         nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
@@ -111,6 +117,8 @@ export default function UserManagementPage(): JSX.Element | null {
                 description: "No se pudieron obtener los datos de las residencias.",
                 variant: "destructive",
             });
+        } finally { // <<< ADDED finally
+            setHasAttemptedFetchResidences(true); // <<< ADDED
         }
     }, [toast]); // toast is a stable dependency
 
@@ -138,6 +146,8 @@ export default function UserManagementPage(): JSX.Element | null {
                 description: "No se pudieron obtener los datos de las dietas.",
                 variant: "destructive",
             });
+        } finally { // <<< ADDED finally
+            setHasAttemptedFetchDietas(true); // <<< ADDED
         }
     }, [toast]); // toast is a stable dependency
 
@@ -179,6 +189,7 @@ export default function UserManagementPage(): JSX.Element | null {
             setUsers([]);
         } finally {
             setIsLoadingUsers(false);
+            setHasAttemptedFetchUsers(true); // <<< ADDED
         }
     }, [toast]); // toast is a stable dependency
 
@@ -266,9 +277,9 @@ export default function UserManagementPage(): JSX.Element | null {
             console.log("Admin user is authorized. Proceeding with fetching page data.");
             setIsAuthorized(true);
             // Fetch data needed for the user management page
-            if (Object.keys(residences).length === 0) fetchResidences();
-            if (Object.keys(dietas).length === 0) fetchDietas();
-            if (users.length === 0 && !isLoadingUsers) fetchUsersToManage(); // Fetch users if not already loaded/loading
+            if (!hasAttemptedFetchResidences) fetchResidences();
+            if (!hasAttemptedFetchDietas) fetchDietas();
+            if (!hasAttemptedFetchUsers && !isLoadingUsers) fetchUsersToManage(); // Fetch users if not already loaded/loading
         } else {
             console.warn("Admin user does not have admin/master role. Access denied.");
             setIsAuthorized(false);
@@ -284,9 +295,9 @@ export default function UserManagementPage(): JSX.Element | null {
         fetchResidences,
         fetchDietas,
         fetchUsersToManage,
-        residences, // To re-trigger if somehow cleared
-        dietas,     // To re-trigger if somehow cleared
-        users,      // To re-trigger if somehow cleared
+        hasAttemptedFetchResidences, // <<< ADDED
+        hasAttemptedFetchDietas,     // <<< ADDED
+        hasAttemptedFetchUsers,      // <<< ADDED
         isLoadingUsers,
         toast // router not needed here as redirect is handled by render logic or auth effect
     ]);
