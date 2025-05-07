@@ -280,7 +280,7 @@ export default function ResidenciaAdminPage() {
             setIsAuthorized(true);
 
             // Fetch residences if authorized, not yet attempted, and not currently loading
-            if (!hasAttemptedFetchResidences && !isLoadingResidences) {
+if (!hasAttemptedFetchResidences) {
                 console.log("User authorized, initiating fetchResidences...");
                 fetchResidences();
             } else if (isLoadingResidences) {
