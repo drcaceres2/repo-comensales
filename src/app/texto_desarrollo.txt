@@ -76,3 +76,91 @@ Por ahora, solo se mostrarán cumpleaños de usuarios registrados. El título de
   TCP    127.0.0.1:8080         127.0.0.1:61021        TIME_WAIT       0
   TCP    127.0.0.1:8080         127.0.0.1:61066        ESTABLISHED     17156
   TCP    127.0.0.1:61066        127.0.0.1:8080         ESTABLISHED     3972
+
+
+
+  C:\src\comensales\repo-comensales>npm run dev
+
+> nextn@0.1.0 dev
+> next dev -p 3001
+
+   ▲ Next.js 15.2.3
+   - Local:        http://localhost:3001
+   - Network:      http://192.168.0.15:3001
+   - Environments: .env.local, .env
+
+ ✓ Starting...
+ ✓ Ready in 2.7s
+ ○ Compiling /_not-found ...
+ ⨯ ./src/app/globals.css
+Module parse failed: Unexpected character '@' (1:0)
+You may need an appropriate loader to handle this file type, currently no loaders are configured to process this file. See https://webpack.js.org/concepts#loaders
+> @tailwind base;
+| @tailwind components;
+| @tailwind utilities;
+
+Import trace for requested module:
+./src/app/globals.css
+./src/app/layout.tsx
+ ⨯ ./src/app/globals.css
+Module parse failed: Unexpected character '@' (1:0)
+You may need an appropriate loader to handle this file type, currently no loaders are configured to process this file. See https://webpack.js.org/concepts#loaders
+> @tailwind base;
+| @tailwind components;
+| @tailwind utilities;
+
+Import trace for requested module:
+./src/app/globals.css
+./src/app/layout.tsx
+ ⨯ ./src/app/globals.css
+Module parse failed: Unexpected character '@' (1:0)
+You may need an appropriate loader to handle this file type, currently no loaders are configured to process this file. See https://webpack.js.org/concepts#loaders
+> @tailwind base;
+| @tailwind components;
+| @tailwind utilities;
+
+Import trace for requested module:
+./src/app/globals.css
+./src/app/layout.tsx
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ShadowPortal (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\components\shadow-portal.tsx:5:32)
+    at DevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\dev-overlay.tsx:14:3)
+    at ReactDevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\server\dev\next-dev-server.ts:82:10)
+    at div
+    at Body (C:\src\comensales\repo-comensales\node_modules\next\src\server\render.tsx:1263:19)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ShadowPortal (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\components\shadow-portal.tsx:5:32)
+    at DevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\dev-overlay.tsx:14:3)
+    at ReactDevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\server\dev\next-dev-server.ts:82:10)
+    at div
+    at Body (C:\src\comensales\repo-comensales\node_modules\next\src\server\render.tsx:1263:19)
+ GET /_next/static/webpack/06e6a9d343294917.webpack.hot-update.json 500 in 6484ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 200 in 1910ms
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ShadowPortal (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\components\shadow-portal.tsx:5:32)
+    at DevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\dev-overlay.tsx:14:3)
+    at ReactDevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\server\dev\next-dev-server.ts:82:10)
+    at div
+    at Body (C:\src\comensales\repo-comensales\node_modules\next\src\server\render.tsx:1263:19)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ShadowPortal (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\components\shadow-portal.tsx:5:32)
+    at DevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\dev-overlay.tsx:14:3)
+    at ReactDevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\server\dev\next-dev-server.ts:82:10)
+    at div
+    at Body (C:\src\comensales\repo-comensales\node_modules\next\src\server\render.tsx:1263:19)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ShadowPortal (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\components\shadow-portal.tsx:5:32)
+    at DevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\dev-overlay.tsx:14:3)
+    at ReactDevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\server\dev\next-dev-server.ts:82:10)
+    at div
+    at Body (C:\src\comensales\repo-comensales\node_modules\next\src\server\render.tsx:1263:19)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at ShadowPortal (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\components\shadow-portal.tsx:5:32)
+    at DevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\client\components\react-dev-overlay\ui\dev-overlay.tsx:14:3)
+    at ReactDevOverlay (C:\src\comensales\repo-comensales\node_modules\next\src\server\dev\next-dev-server.ts:82:10)
+    at div
+    at Body (C:\src\comensales\repo-comensales\node_modules\next\src\server\render.tsx:1263:19)
+ GET / 500 in 16ms
+ ✓ Compiled /favicon.ico in 295ms (779 modules)
+ GET /favicon.ico 500 in 306ms

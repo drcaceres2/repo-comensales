@@ -1,18 +1,11 @@
 import type {NextConfig} from 'next';
 
-import withTM from 'next-transpile-modules';
-
-const withTranspileModules = withTM([
-  '@fullcalendar/common',
-  '@fullcalendar/react',
-  '@fullcalendar/daygrid',
-  '@fullcalendar/interaction',
-]);
+// We will remove next-transpile-modules
 
 /** @type {import('next').NextConfig} */
 const nextConfig: NextConfig = {
   /* config options here */
-  reactStrictMode: false, // Added this line
+  reactStrictMode: false,
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -36,8 +29,15 @@ const nextConfig: NextConfig = {
     ],
   },
   allowedDevOrigins: [
-    'http://localhost:3000'
-  ]
+    'http://localhost:3001'
+  ],
+  // Add the transpilePackages option here
+  transpilePackages: [
+    '@fullcalendar/common',
+    '@fullcalendar/react',
+    '@fullcalendar/daygrid',
+    '@fullcalendar/interaction',
+  ],
 };
 
 export default nextConfig;
