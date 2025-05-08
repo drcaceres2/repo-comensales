@@ -1,9 +1,9 @@
-@import '@fullcalendar/common/main.css';
-@import '@fullcalendar/daygrid/main.css';
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@import '@fullcalendar/common/main.css';
+@import '@fullcalendar/daygrid/main.css';
 
 @layer base {
   :root {
