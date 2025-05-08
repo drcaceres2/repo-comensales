@@ -80,6 +80,14 @@ export default function ResidenciaAdminPage() {
       });
   }, [authUser, authFirebaseLoading, authFirebaseError, toast]); // Removed router, it's stable
 
+  // Handle redirection if user is not authenticated (profile effect sets profileLoading to false)
+  useEffect(() => {
+    if (!authFirebaseLoading && !profileLoading && !authUser) {
+        console.log("RENDER_REDIRECT: No authUser after loads, redirecting to /");
+        router.replace('/');
+    }
+}, [authFirebaseLoading, profileLoading, authUser, router]);
+
   // --- Fetch Residences Function ---
   const fetchResidences = useCallback(async () => {
     console.log("AUTH_RESIDENCIA_EFFECT: fetchResidences called.");
@@ -181,13 +189,7 @@ export default function ResidenciaAdminPage() {
   if (authFirebaseError) { /* ... error handling ... */ }
   if (profileError && !profileLoading) { /* ... error handling ... */ }
   
-  // Handle redirection if user is not authenticated (profile effect sets profileLoading to false)
-    useEffect(() => {
-        if (!authFirebaseLoading && !profileLoading && !authUser) {
-            console.log("RENDER_REDIRECT: No authUser after loads, redirecting to /");
-            router.replace('/');
-        }
-    }, [authFirebaseLoading, profileLoading, authUser, router]);
+
 
    if (!authFirebaseLoading && !profileLoading && !authUser) {
         return ( // Fallback UI during redirection
