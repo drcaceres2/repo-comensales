@@ -16,6 +16,7 @@ export type CentroCostoId = string;
 export type ActividadId = string; 
 export type InscripcionActividadId = string; 
 export type ActividadMealDefinitionId = string; 
+export type FeedbackId = string; 
 
 // --- Enum-like Types ---
 export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
@@ -82,7 +83,8 @@ export type LogActionType =
     'inscripcion_actividad_cancelada' |  
     'inscripcion_invitacion_enviada' |   
     'inscripcion_invitacion_aceptada' |  
-    'inscripcion_invitacion_rechazada';  
+    'inscripcion_invitacion_rechazada' | 
+    'feedback_submitted'; 
 
 export type UserRole = 'master' | 'admin' | 'director' | 'residente' | 'invitado' | 'asistente' | 'auditor';
 
@@ -105,6 +107,25 @@ export interface Residencia {
     logoUrl?: string;
     nombreEtiquetaCentroCosto?: string; 
     antelacionActividadesDefault?: number; 
+
+    // Definición de campos personalizables para UserProfile
+    campoPersonalizado1_etiqueta?: string;
+    campoPersonalizado1_isActive?: boolean;
+    campoPersonalizado1_necesitaValidacion?: boolean;
+    campoPersonalizado1_regexValidacion?: string;
+    campoPersonalizado1_tamanoTexto?: 'text' | 'textArea';
+
+    campoPersonalizado2_etiqueta?: string;
+    campoPersonalizado2_isActive?: boolean;
+    campoPersonalizado2_necesitaValidacion?: boolean;
+    campoPersonalizado2_regexValidacion?: string;
+    campoPersonalizado2_tamanoTexto?: 'text' | 'textArea';
+
+    campoPersonalizado3_etiqueta?: string;
+    campoPersonalizado3_isActive?: boolean;
+    campoPersonalizado3_necesitaValidacion?: boolean;
+    campoPersonalizado3_regexValidacion?: string;
+    campoPersonalizado3_tamanoTexto?: 'text' | 'textArea';
   }
 
 export interface CentroCosto {
@@ -183,13 +204,13 @@ export interface Actividad {
 export interface InscripcionActividad {
   id: InscripcionActividadId; 
   actividadId: ActividadId;
-  userId: UserId; // Can be a real UserId or a placeholder like "guest_..."
+  userId: UserId; 
   residenciaId: ResidenciaId;     
   estadoInscripcion: EstadoInscripcionActividad;
   fechaEstado: Timestamp;        
   invitadoPorUserId?: UserId;     
   fechaInvitacionOriginal?: Timestamp; 
-  nombreInvitadoNoAutenticado?: string; // <<< NEW: For display name of non-auth guests
+  nombreInvitadoNoAutenticado?: string; 
 }
 
 export interface HorarioSolicitudComida {
@@ -235,8 +256,13 @@ export interface UserProfile {
     universidad?: string;
     carrera?: string;
     dni?: string;
-    fechaDeCumpleanos?: Timestamp;
+    fechaDeNacimiento?: Timestamp; // Confirmado
     asistentePermisos?: AsistentePermisos; 
+
+    // Valores para los campos personalizables (definidos en Residencia)
+    valorCampoPersonalizado1?: string;
+    valorCampoPersonalizado2?: string;
+    valorCampoPersonalizado3?: string;
 }
 
 export interface SemanarioAlternativaSeleccion {
@@ -259,7 +285,7 @@ export interface Semanario {
 
 export interface Eleccion {
     id?: string; 
-    usuarioId: UserId; // Can be a real UserId or a placeholder like "guest_..."
+    usuarioId: UserId; 
     residenciaId: ResidenciaId;
     fecha: Timestamp; 
     tiempoComidaId?: TiempoComidaId;
@@ -275,7 +301,6 @@ export interface Eleccion {
     processedForBilling?: boolean; 
     actividadId?: ActividadId; 
     actividadMealId?: ActividadMealDefinitionId; 
-    // nombreInvitadoNoAutenticadoEleccion?: string; // Optional: Denormalize guest name here if needed frequently
 }
 
 export interface MealCount {
@@ -332,4 +357,19 @@ export interface LogEntry {
     actionType: LogActionType;
     relatedDocPath?: string; 
     details?: string | object; 
+}
+
+export interface Feedback {
+  id?: FeedbackId; 
+  userId: UserId; 
+  userEmail: string; 
+  residenciaId?: ResidenciaId; 
+  text: string; 
+  createdAt: Timestamp; 
+  page?: string; 
+  userAgent?: string; 
+  ipAddress?: string; 
+  screenResolution?: string; 
+  viewportSize?: string; 
+  status?: 'nuevo' | 'leido' | 'procesado'; 
 }

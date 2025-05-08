@@ -8,7 +8,8 @@ import { Toaster } from "@/components/ui/toaster"; // Import Toaster
 
 // React and Next.js hooks
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation'; // Import usePathname
+import Link from 'next/link'; // Import Link for navigation
 
 // Firebase Auth
 import { signOut } from 'firebase/auth'; // Keep signOut
@@ -90,6 +91,24 @@ function LayoutHeader() {
   return <header className="h-10 sticky top-0 z-50"></header>; // Placeholder to maintain height
 }
 
+// Footer component with conditional Feedback Link
+function LayoutFooter() {
+  const pathname = usePathname();
+  const showFeedbackLink = pathname !== '/'; // Condición para mostrar el enlace
+
+  if (!showFeedbackLink) {
+    return null; // No renderizar nada si estamos en la página principal
+  }
+
+  return (
+    <footer className="p-4 text-center border-t mt-auto">
+      <Link href="/feedback" className="text-sm text-muted-foreground hover:text-primary">
+        Dejar feedback sobre la aplicación
+      </Link>
+    </footer>
+  );
+}
+
 
 export default function RootLayout({
   children,
@@ -98,13 +117,16 @@ export default function RootLayout({
 }>) {
 
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans`}>
+    <html lang="en" className="h-full">
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans flex flex-col min-h-full`}>
           {/* LayoutHeader now manages its own auth state */}
           <LayoutHeader />
 
           {/* Main Content */}
-          <main>{children}</main>
+          <main className="flex-grow">{children}</main>
+          
+          {/* Footer with conditional feedback link */}
+          <LayoutFooter />
 
           {/* Toaster for notifications */}
           <Toaster />

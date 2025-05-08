@@ -29,7 +29,7 @@ import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
 import { UserProfile, UserRole } from '@/models/firestore'; // Keep UserProfile and UserRole
 
 // --- LOGO URL ---
-const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/imagenes%2Fcomensales-logo.png?alt=media&token=d8d50163-1817-45b1-be6e-b43541118347";
+const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/public%2Flogo_web_app_1024x1024.jpg?alt=media&token=3d7a3f7c-71a1-403a-b858-bd0ec567dd10";
 
 // Helper function to redirect based on profile (remains the same)
 const redirectToDashboard = (profile: UserProfile, router: ReturnType<typeof useRouter>) => {

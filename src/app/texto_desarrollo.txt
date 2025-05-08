@@ -1,0 +1,71 @@
+DOCUMENTO DE DISEÑO PARA LA PÁGINA DE SOLICITUD DE COMIDAS
+==========================================================
+
+Descripción general de la app web
+---------------------------------
+
+Esta web app tiene el propósito de servir de canal de comunicación entre los residentes y los directores de algunas residencias universitarias. En estas residencias la prioridad es la formación integral de los jóvenes. Los residentes viven en la misma, y los directores están encargados de formales, y ayudarles en su proceso de crecimiento como personas.
+
+El enfoque de la aplicación son los horarios de comidas. La residencia ofrece por cada tiempo de comida distintas alternativas para que los residentes elijan: por ejemplo el tiempo de comida "almuerzo" puede tener "almuerzo en bolsa" (para llevar), "almuerzo normal", "almuerzo tarde", etc.
+
+Los directores están encargados de hablar con la administración de la cocina que es una entidad aparte. Las personas de la administración de la cocina no tendrán usuario en esta aplicación.
+
+
+Hoja de Ruta general de la aplicación
+-------------------------------------
+
+v1.0: app web en https://comensales.app
+v2.0: integración con Google Calendar, autenticación mediante enlaces en correos
+v3.0: conversión a PWA
+
+
+Descripción de la página de solicitud de comidas (/src/app/[residenciaId]/solicitar-comensales/page.tsx)
+--------------------------------------------------------------------------------------------------------
+
+Hemos llegado al punto más importante de toda la aplicación. Esta página prioriza la funcionalidad sobre el diseño UI/UX. Los directores son los usuarios que más probablemente usarán la app web, por lo que podemos permitirnos una página que requiera cierta explicación; eventualmente aprenderán a gestionarla.
+
+El propósito de la página es mostrar todo lo que el director necesita saber para solicitar comidas. Prácticamente toda la información recolectada en las demás páginas de la aplicación (elecciones de residentes, excepciones, comidas aprobadas, comentarios, invitados, actividades) debe presentarse en el espacio concentrado de un teléfono móvil.
+
+El diseño inicial es una página larga y desplazable (abierto a sugerencias), con las siguientes secciones:
+
+1) Título: muestra la fecha y hora actuales.
+
+2) Visualizador pequeño de cumpleaños: muestra tres días —hoy, mañana y pasado mañana— con los títulos “Hoy”, “Mañana” y “Pasado mañana”. Este será un elemento de UI personalizado. Explicación detallada del componente de UI necesario más abajo. Por ahora, solo muestra cumpleaños de usuarios registrados, pero en la versión 2 mostrará información extraida de Google Calendar. 
+
+3) Dashboard con íconos pequeños: bajo el visualizador de cumpleaños hay un panel de íconos:
+    - Comentarios: ícono tipo burbujas superpuestas o sobre un sobre; debajo, un contador de comentarios no leídos. Fondo verde si es 0, naranja si es >0, rojo si hay un comentario de invitado.
+    - Autorizaciones: muestra la cantidad de autorizaciones pendientes. Verde si no hay pendiente y rojo si lo hay. El rojo es porque el director debería aprobar (o rechazar) antes de pedir las comidas.
+    - Invitados presentes ese día. Solo mostrar el número. verde si es cero, naranja o amarillo si es más de uno.
+    - Actividades en curso: el número incluye actividades con estado distinto de "cancelada" o "confirmada_finalizada" (también debe incluir las confirmadas en curso). Mismo criterio de colores que los invitados.
+
+4) Cálculo de comidas para ese día: separado por Alternativa y por dieta. Columnas = dietas, filas = Alternativas. Opción de usar acordeones donde Alternativas se agrupen por TiempoComida. Opcional: colores por TiempoComida. Cada celda es clicable y muestra la lista de usuarios que recibirán esa comida. Al hacer clic en un usuario, se redirige a elegir-comidas de ese usuario.
+
+Actividades actuales: se calculan las comidas por dieta y TiempoComida para los asistentes a cada actividad. Puede haber más de una actividad en paralelo para un mismo día.
+
+Mensajes de la administración de cocina: sección de solo lectura. Requiere una nueva entidad en la base de datos para estos mensajes, que deberán ser reconocidos por los directores.
+
+El título puede deslizarse (en móvil) para cambiar de día. Cambiar el día actualiza toda la información mostrada. En computadora se muestran botones de día siguiente y día anterior (pequeños botones con una flecha junto a la fecha mostrada en el título)
+
+Consideraciones técnicas
+
+No puedo prescindir de ninguna de las secciones de esta interfaz. Tal vez se pueda prescindir del gesto de swipe. Tal vez pueda cambiarse la distribución, o mover el dashboard de íconos al header de layout.tsx. No lo sé, pero toda la información debe estar presente.
+
+Para resolver la gran cantidad de información, podemos usar técnicas como la desnormalización. El flujo podría ser: al ingresar a la página se muestra la fecha/hora actual y un botón como “hacer cálculos y congelar la información”, es decir, desnormalizar los datos. Desde ese momento los usuarios no pueden modificar información relacionada (elecciones de comida, inscripciones a actividades, etc.).
+
+Una vez mostrada la información congelada, puede haber un campo adicional en las elecciones que indique que solo los directores pueden modificar. Y cuando se envía la solicitud, nadie más debería poder modificarla.
+
+La desnormalización aplicaría para el día actual (único que se congela), cuatro días hacia adelante y tres días atrás. El gesto de swipe funcionaría solo dentro de ese rango.
+
+Plan de implementación
+
+Hacer los cambios necesarios en firestore.ts
+
+Descripción de UI del pequeño calendario
+
+Bajo cada título de día hay un cuadro de esquinas redondeadas con los nombres de quienes cumplen años. A futuro se integrará con Google Calendar. Posiblemente usemos una cuenta de servicio para acceso solo lectura a un conjunto de calendarios.
+
+La idea es que la residencia tenga un calendario donde se coloque toda la información importante de la vida residencial y fechas académicas relevantes. Esta UI debe poder mostrar eventos de varios días. Estos se representan con cuadros de colores y esquinas redondeadas con el nombre del evento. Si el evento empieza antes del día visible (“hoy”), el cuadro se verá saliendo del calendario, para dar la impresión de que empezó antes.
+
+Por ahora, solo se mostrarán cumpleaños de usuarios registrados. El título del calendario podrá deslizarse (en móvil) para cambiar de día, actualizando toda la información correspondiente.
+
+https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/public%2Flogo_web_app_1024x1024.jpg?alt=media&token=3d7a3f7c-71a1-403a-b858-bd0ec567dd10
