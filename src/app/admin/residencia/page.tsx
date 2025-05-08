@@ -301,102 +301,68 @@ export default function ResidenciaAdminPage() {
     }, [toast, setHasAttemptedFetchResidences]); // <<< ADD setHasAttemptedFetchResidences
 
 
-    // --- useEffect: Handle Auth State & Fetch Profile ---
-    useEffect(() => {
-        if (authFirebaseLoading) {
-            setProfileLoading(true);
-            setIsAuthorized(false);
-            return;
-        }
-        if (authFirebaseError) {
-            console.error("Firebase Auth Error:", authFirebaseError);
-            toast({ title: "Error de Autenticación", description: authFirebaseError.message, variant: "destructive" });
-            setProfileLoading(false); setIsAuthorized(false); setUserProfile(null); setProfileError(authFirebaseError.message);
-            router.replace('/');
-            return;
-        }
-        if (!authUser) {
-            console.log("User not logged in. Redirecting...");
-            setProfileLoading(false); setIsAuthorized(false); setUserProfile(null); setProfileError(null);
-            router.replace('/');
-            return;
-        }
-
-        // User logged in, fetch profile
-        console.log("Auth state confirmed (User:", authUser.uid,"), fetching profile...");
-        setProfileLoading(true); setProfileError(null);
-        const userDocRef = doc(db, "users", authUser.uid);
-        getDoc(userDocRef)
-            .then((docSnap) => {
-                if (docSnap.exists()) {
-                    setUserProfile(docSnap.data() as UserProfile);
-                    console.log("Profile fetched:", docSnap.data());
-                } else {
-                    console.error("Profile not found for UID:", authUser.uid);
-                    setUserProfile(null); setProfileError("User profile document not found in Firestore.");
-                    toast({ title: "Error de Perfil", description: "No se encontró tu perfil de usuario.", variant: "destructive" });
-                }
-            })
-            .catch((error) => {
-                console.error("Error fetching profile:", error);
-                setUserProfile(null); setProfileError(`Failed to fetch profile: ${error.message}`);
-                toast({ title: "Error al Cargar Perfil", description: `No se pudo cargar tu perfil: ${error.message}`, variant: "destructive" });
-            })
-            .finally(() => {
-                setProfileLoading(false);
-                console.log("Profile fetch attempt finished.");
-            });
-    }, [authUser, authFirebaseLoading, authFirebaseError, router, toast]);
-
-
     // --- useEffect: Handle Authorization & Fetch Page Data ---
     useEffect(() => {
-        // Wait until profile loading is complete and auth check is done (authUser exists or is null)
+        // Wait until profile loading is complete and auth check is done
         if (profileLoading || authFirebaseLoading) {
-            setIsAuthorized(false);
+            setIsAuthorized(false); // Not authorized while critical info is loading
             return;
         }
-        // If there was an error fetching profile, user can't be authorized
+
+        // If there was an error fetching profile, or no profile, user can't be authorized
         if (profileError || !userProfile) {
             console.log("Authorization check failed: Profile error or profile missing.");
             setIsAuthorized(false);
-            // Redirect if needed, handled by render logic based on profileError
+            // The main render logic will show an error page or redirect based on profileError or !isAuthorized
             return;
         }
 
-        // Check roles
+        // Check roles from the successfully fetched userProfile
         const roles = userProfile.roles || [];
-        const userIsAuthorized = roles.includes('admin') || roles.includes('master');
+        const userCanViewPage = roles.includes('master') || roles.includes('admin');
 
-        if (!isLoadingResidences && !hasAttemptedFetchResidences) {
-            console.log("FETCH_LOGIC: Authorized. Not loading AND not attempted. Initiating fetch.");
-            fetchResidences(); // This will set isLoadingResidences = true first thing
-        } else if (isLoadingResidences) {
-            console.log("FETCH_LOGIC: Authorized. But a fetch is currently in progress (isLoadingResidences is true).");
-        } else if (hasAttemptedFetchResidences) {
-            if (residences.length === 0) {
-                console.log("FETCH_LOGIC: Authorized. Fetch completed, no residences found.");
-            } else {
-                console.log("FETCH_LOGIC: Authorized. Fetch completed, residences are available.");
+        if (userCanViewPage) {
+            setIsAuthorized(true); // Authorize if roles permit viewing
+
+            // Proceed to fetch residences data only if authorized and not already fetched/fetching
+            if (!isLoadingResidences && !hasAttemptedFetchResidences) {
+                console.log("FETCH_LOGIC: User is Authorized. Not loading residences AND not attempted fetch yet. Initiating fetch.");
+                fetchResidences(); // This will set isLoadingResidences = true internally
+            } else if (isLoadingResidences) {
+                console.log("FETCH_LOGIC: User is Authorized. Residence fetch is currently in progress.");
+            } else if (hasAttemptedFetchResidences) {
+                // This means fetchResidences was called and completed (successfully or not)
+                console.log(`FETCH_LOGIC: User is Authorized. Residence fetch attempt completed. Residences found: ${residences.length}`);
+                 if (residences.length === 0) {
+                    // You might want to inform the user if they are authorized but no residences were found/loaded
+                    // For example, if an admin has no assigned residenciaId, or master sees an empty list.
+                    // toast({ title: "Información", description: "No se encontraron residencias." });
+                }
             }
         } else {
-            console.warn("Authorization check failed: User lacks admin/master role.");
+            // User's roles do not grant access to this page
+            console.warn("Authorization check failed: User lacks 'master' or 'admin' role for this page.");
             setIsAuthorized(false);
-            toast({ title: "Acceso Denegado", description: "No tienes permiso para ver esta página.", variant: "destructive" });
-            router.replace('/'); // Redirect if not authorized
+            toast({
+                title: "Acceso Denegado",
+                description: "No tienes los permisos (master o admin) para acceder a esta página.",
+                variant: "destructive"
+            });
+            // The main render logic (further down) will display an "Acceso Denegado" view
+            // based on isAuthorized === false. A router.replace('/') here could be too abrupt.
         }
     }, [
         userProfile,
         profileLoading,
         profileError,
         authFirebaseLoading,
-        router,
-        toast,
-        fetchResidences,
-        // residences.length, // <<< REMOVE THIS
-        isLoadingResidences,   // <<< ENSURE THIS IS PRESENT
-        hasAttemptedFetchResidences, // <<< ADD THIS
-        isAuthorized           // <<< ENSURE THIS IS PRESENT
+        toast, // Stable dependency from useToast
+        fetchResidences, // useCallback wrapped function
+        isLoadingResidences,
+        hasAttemptedFetchResidences,
+        residences.length // Added to re-evaluate if residences list changes (e.g. after creation)
+        // DO NOT include 'isAuthorized' in dependencies if it's set within this effect.
+        // 'router' is not strictly needed here if redirects are handled by render logic.
     ]);
 
     // --- Form Handlers: Create Residence ---
