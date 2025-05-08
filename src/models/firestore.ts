@@ -17,6 +17,7 @@ export type ActividadId = string;
 export type InscripcionActividadId = string; 
 export type ActividadMealDefinitionId = string; 
 export type FeedbackId = string; 
+export type RecordatorioId = string;
 
 // --- Enum-like Types ---
 export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
@@ -97,6 +98,8 @@ export const DayOfWeekMap: Record<DayOfWeekKey, string> = {
     sabado: 'Sábado',
     domingo: 'Domingo'
   };
+export type TipoRecurrente = 'semanal' | 'quincenal' | 'mensual-diasemana' | 'mensual-diames' | 'anual';
+
 
 // --- Interfaces ---
 
@@ -238,7 +241,9 @@ export interface AsistentePermisos {
   activ_gest_propias?: boolean; 
   activ_gest_todas?: boolean;   
   invit_elecc_act_propias?: boolean; 
-  invit_elecc_act_todas?: boolean;   
+  invit_elecc_act_todas?: boolean;
+  recor_gest_propias?: boolean; // True if asistente can manage their own reminders
+  recor_gest_todas?: boolean;   // True if asistente can manage all reminders in the residencia
 }
 
 export interface UserProfile {
@@ -372,4 +377,18 @@ export interface Feedback {
   screenResolution?: string; 
   viewportSize?: string; 
   status?: 'nuevo' | 'leido' | 'procesado'; 
+}
+
+export interface Recordatorio {
+    id: RecordatorioId;
+    residenciaId: ResidenciaId; // Or your specific ResidenciaId type
+    userId: UserId;       // UID of the user who created the reminder
+    fechaInicio: Timestamp;
+    fechaFin: Timestamp;
+    isSingleDay: boolean;
+    isRecurrente: boolean;
+    tipoRecurrente?: TipoRecurrente; // Should be present if isRecurrente is true
+    titulo: string;
+    descripcion?: string;
+    color: string; // Hex color string, e.g., "#3B82F6"
 }
