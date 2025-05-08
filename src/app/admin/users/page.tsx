@@ -320,7 +320,7 @@ export default function UserManagementPage(): JSX.Element | null {
             // Automatically clear dieta if 'residente' role is removed
             const dietaId = updatedRoles.includes('residente') ? prev.dietaId : '';
             // Automatically clear residencia if not 'residente', 'director', 'asistente' or 'auditor'
-            const residenciaRequiredForRole = updatedRoles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r));
+            const residenciaRequiredForRole = updatedRoles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r));
             const residenciaId = residenciaRequiredForRole ? prev.residenciaId : '';
 
             return { ...prev, roles: updatedRoles, dietaId, residenciaId };
@@ -345,7 +345,7 @@ export default function UserManagementPage(): JSX.Element | null {
         else if (!formData.apellido?.trim()) validationError = "Apellido es requerido.";
         else if (!formData.email?.trim()) validationError = "Email es requerido.";
         else if (roles.length === 0) validationError = "Al menos un Rol es requerido.";
-        else if (roles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r)) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para el rol seleccionado.";
+        else if (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para el rol seleccionado.";
         else if (roles.includes('residente') && !formData.dietaId) validationError = "Dieta Predeterminada es requerida para Residentes.";
         else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) validationError = "Número de Ropa es requerido para Residentes.";
 
@@ -368,7 +368,7 @@ export default function UserManagementPage(): JSX.Element | null {
                 email: formData.email!.trim(),
                 roles: formData.roles!,
                 isActive: true, // New users active by default
-                ...( (roles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r))) && formData.residenciaId ? { residenciaId: formData.residenciaId } : {} ),
+                ...( (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r))) && formData.residenciaId ? { residenciaId: formData.residenciaId } : {} ),
                 ...( roles.includes('residente') && formData.dietaId ? { dietaId: formData.dietaId } : {} ),
                 ...( formData.numeroDeRopa?.trim() ? { numeroDeRopa: formData.numeroDeRopa.trim() } : {} ),
                 ...( formData.habitacion?.trim() ? { habitacion: formData.habitacion.trim() } : {} ),
@@ -491,7 +491,7 @@ export default function UserManagementPage(): JSX.Element | null {
         else if (!formData.apellido?.trim()) validationError = "Apellido es requerido.";
         else if (!formData.email?.trim()) validationError = "Email es requerido."; // Email should generally not be editable in Firestore profile if it's linked to Auth. This could be complex.
         else if (roles.length === 0) validationError = "Al menos un Rol es requerido.";
-        else if (roles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r)) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para el rol seleccionado.";
+        else if (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para el rol seleccionado.";
         else if (roles.includes('residente') && !formData.dietaId) validationError = "Dieta Predeterminada es requerida para Residentes.";
         else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) validationError = "Número de Ropa es requerido para Residentes.";
 
@@ -509,7 +509,7 @@ export default function UserManagementPage(): JSX.Element | null {
                 roles: formData.roles!,
                 isActive: formData.isActive ?? true,
                 // Conditionally set fields, ensure `undefined` if not applicable or empty to remove/leave unchanged.
-                residenciaId: (roles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r)) && formData.residenciaId) ? formData.residenciaId : undefined,
+                residenciaId: (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && formData.residenciaId) ? formData.residenciaId : undefined,
                 dietaId: (roles.includes('residente') && formData.dietaId) ? formData.dietaId : undefined,
                 numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
                 habitacion: formData.habitacion?.trim() || undefined,
@@ -572,7 +572,7 @@ export default function UserManagementPage(): JSX.Element | null {
     };
 
     // --- Calculate conditional requirements for the form for better UX ---
-    const isResidenciaConditionallyRequired = formData.roles.some(r => ['residente', 'director', 'asistente', 'auditor'].includes(r));
+    const isResidenciaConditionallyRequired = formData.roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r));
     const isDietaConditionallyRequired = formData.roles.includes('residente');
     const isNumeroDeRopaConditionallyRequired = formData.roles.includes('residente');
 
