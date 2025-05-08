@@ -1,3 +1,6 @@
+@import '@fullcalendar/common/main.css';
+@import '@fullcalendar/daygrid/main.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -51,8 +54,7 @@
   }
 
   .dark {
-    /* Dark theme remains unchanged for now */
-    /* Update --background here if needed for dark mode gradient */
+    /* Dark theme adjusted for FullCalendar */
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
     --card: 240 10% 3.9%;
@@ -106,4 +108,39 @@
     background-repeat: no-repeat;
     background-attachment: fixed;
   }
+}
+
+/* Estilos personalizados para FullCalendar */
+.fc-container {
+  background-color: hsl(var(--background));
+}
+.fc-daygrid-day {
+  background-color: hsl(var(--background)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+}
+.fc-daygrid-day-top {
+  color: hsl(var(--foreground)) !important;
+  font-size: 0.875rem;
+}
+.fc-event {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  border-radius: 0.25rem;
+  padding: 2px 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.dark .fc-container {
+  background-color: hsl(var(--background));
+}
+.dark .fc-daygrid-day {
+  background-color: hsl(var(--background)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+}
+.dark .fc-daygrid-day-top {
+  color: hsl(var(--foreground)) !important;
+}
+.dark .fc-event {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
 }

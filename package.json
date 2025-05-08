@@ -12,6 +12,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fullcalendar/core": "^5.11.5",
+    "@fullcalendar/daygrid": "^5.11.5",
+    "@fullcalendar/interaction": "^5.11.5",
+    "@fullcalendar/react": "^5.11.5",
     "@genkit-ai/googleai": "^1.0.4",
     "@genkit-ai/next": "^1.0.4",
     "@hookform/resolvers": "^4.1.3",
@@ -45,6 +49,7 @@
     "genkit": "^1.0.4",
     "lucide-react": "^0.475.0",
     "next": "15.2.3",
+    "next-transpile-modules": "^10.0.1",
     "patch-package": "^8.0.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",

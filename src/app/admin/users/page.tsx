@@ -279,7 +279,7 @@ export default function UserManagementPage(): JSX.Element | null {
             // Fetch data needed for the user management page
             if (!hasAttemptedFetchResidences) fetchResidences();
             if (!hasAttemptedFetchDietas) fetchDietas();
-            if (!hasAttemptedFetchUsers && !isLoadingUsers) fetchUsersToManage(); // Fetch users if not already loaded/loading
+            if (!hasAttemptedFetchUsers) fetchUsersToManage(); // Fetch users if not already loaded/loading
         } else {
             console.warn("Admin user does not have admin/master role. Access denied.");
             setIsAuthorized(false);
