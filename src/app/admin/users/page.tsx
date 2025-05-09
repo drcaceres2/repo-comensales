@@ -58,6 +58,7 @@ export default function UserManagementPage(): JSX.Element | null {
         isActive?: boolean;
         password?: string;
         confirmPassword?: string;
+        telefonoMovil?: string;
     };
 
     const router = useRouter();
@@ -80,7 +81,7 @@ export default function UserManagementPage(): JSX.Element | null {
     const [formData, setFormData] = useState<UserFormData>({
         nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
         numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
-        password: '', confirmPassword: ''
+        password: '', confirmPassword: '', telefonoMovil: ''
     });
     const [isSaving, setIsSaving] = useState(false);
     const [users, setUsers] = useState<UserProfile[]>([]); // List of users being managed
@@ -337,18 +338,46 @@ export default function UserManagementPage(): JSX.Element | null {
 
         let validationError: string | null = null;
         const roles = formData.roles || [];
+        const generalPhoneRegex = /^\+?[0-9\s-]{7,15}$/;
+        // Regex para Honduras:
+        const hondurasPhoneRegex = /^(\+?504)?[0-9]{3}[ -]?[0-9]{4}[ -]?[0-9]{1}$/;
 
-        if (!formData.password || !formData.confirmPassword) validationError = "Contraseña inicial y confirmación son requeridas.";
-        else if (formData.password.length < 6) validationError = "La contraseña debe tener al menos 6 caracteres.";
-        else if (formData.password !== formData.confirmPassword) validationError = "Las contraseñas no coinciden.";
-        else if (!formData.nombre?.trim()) validationError = "Nombre es requerido.";
-        else if (!formData.apellido?.trim()) validationError = "Apellido es requerido.";
-        else if (!formData.email?.trim()) validationError = "Email es requerido.";
-        else if (roles.length === 0) validationError = "Al menos un Rol es requerido.";
-        else if (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para el rol seleccionado.";
-        else if (roles.includes('residente') && !formData.dietaId) validationError = "Dieta Predeterminada es requerida para Residentes.";
-        else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) validationError = "Número de Ropa es requerido para Residentes.";
-
+        const telefono = formData.telefonoMovil?.trim();
+        if (!formData.password || !formData.confirmPassword) {
+            validationError = "Contraseña inicial y confirmación son requeridas.";
+        } else if (formData.password.length < 6) {
+            validationError = "La contraseña debe tener al menos 6 caracteres.";
+        } else if (formData.password !== formData.confirmPassword) {
+            validationError = "Las contraseñas no coinciden.";
+        } else if (!formData.nombre?.trim()) {
+            validationError = "Nombre es requerido.";
+        } else if (!formData.apellido?.trim()) {
+            validationError = "Apellido es requerido.";
+            } else if (!formData.email?.trim()) {
+                validationError = "Email es requerido.";
+            } else if (telefono && telefono.length > 0) { // Check if telefono has a value
+                // Now that we know telefono is a non-empty string, we can use startsWith and test
+                if (
+                    (telefono.startsWith("+504") || telefono.startsWith("504"))
+                        ? !hondurasPhoneRegex.test(telefono)
+                        : !generalPhoneRegex.test(telefono)
+                ) {
+                    validationError = "Formato de teléfono no válido para el país ingresado o general.";
+                }
+            } else if (roles.length === 0) {
+            validationError = "Al menos un Rol es requerido.";
+        } else if (
+            roles.some(r =>
+                ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)
+            ) && !formData.residenciaId
+        ) {
+            validationError = "Residencia Asignada es requerida para el rol seleccionado.";
+        } else if (roles.includes('residente') && !formData.dietaId) {
+            validationError = "Dieta Predeterminada es requerida para Residentes.";
+        } else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) {
+            validationError = "Número de Ropa es requerido para Residentes.";
+        }
+        
         if (validationError) {
             toast({ title: "Error de Validación", description: validationError, variant: "destructive" });
             setIsSaving(false);
@@ -375,6 +404,7 @@ export default function UserManagementPage(): JSX.Element | null {
                 ...( formData.universidad?.trim() ? { universidad: formData.universidad.trim() } : {} ),
                 ...( formData.carrera?.trim() ? { carrera: formData.carrera.trim() } : {} ),
                 ...( formData.dni?.trim() ? { dni: formData.dni.trim() } : {} ),
+                ...( formData.telefonoMovil?.trim() ? { telefonoMovil: formData.telefonoMovil.trim() } : {} ),
             };
 
             console.log(`Attempting to create Firestore document users/${newUserAuthUid}...`);
@@ -391,7 +421,7 @@ export default function UserManagementPage(): JSX.Element | null {
             setFormData({
                 nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
                 numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
-                password: '', confirmPassword: ''
+                password: '', confirmPassword: '', telefonoMovil: ''
             });
 
         } catch (error: any) {
@@ -650,7 +680,22 @@ export default function UserManagementPage(): JSX.Element | null {
                                 <Input id="apellido" value={formData.apellido || ''} onChange={(e) => handleFormChange('apellido', e.target.value)} placeholder="Ej. Pérez" disabled={isSaving} />
                             </div>
                         </div>
-
+                        <div>
+                        <Label htmlFor="telefonoMovil">Teléfono Móvil (Opcional)</Label>
+                        <Input
+                            id="telefonoMovil"
+                            name="telefonoMovil"
+                            type="tel" // Using type="tel" can be helpful for mobile browsers
+                            value={formData.telefonoMovil || ''}
+                            onChange={(e) => handleFormChange('telefonoMovil', e.target.value)} // Assuming you have a generic input change handler
+                            placeholder="Ej: +34600123456"
+                            // disabled={formLoading} // Or your loading state variable
+                        />
+                        {/* Optional: Add a small description for the expected format */}
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Incluir prefijo de país si es necesario (ej. +34).
+                        </p>
+                        </div>
                         {/* Email */}
                         <div className="space-y-1.5">
                             <Label htmlFor="email">Email *</Label>

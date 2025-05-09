@@ -109,6 +109,7 @@ export interface Residencia {
     direccion?: string;
     logoUrl?: string;
     nombreEtiquetaCentroCosto?: string; 
+    modoDeCosteo?: 'por-usuario' | 'por-comedor' | 'por-eleccion';
     antelacionActividadesDefault?: number; 
 
     // Definición de campos personalizables para UserProfile
@@ -261,6 +262,7 @@ export interface UserProfile {
     universidad?: string;
     carrera?: string;
     dni?: string;
+    telefonoMovil?: string;
     fechaDeNacimiento?: Timestamp; // Confirmado
     asistentePermisos?: AsistentePermisos; 
 
@@ -289,23 +291,24 @@ export interface Semanario {
 }
 
 export interface Eleccion {
-    id?: string; 
-    usuarioId: UserId; 
+    id?: string;
+    usuarioId: UserId;
     residenciaId: ResidenciaId;
-    fecha: Timestamp; 
+    fecha: Timestamp;
     tiempoComidaId?: TiempoComidaId;
     alternativaTiempoComidaId?: AlternativaTiempoComidaId;
-    dietaId?: DietaId; 
-    solicitado: boolean; 
-    asistencia?: boolean; 
-    fechaSolicitud: Timestamp; 
-    estadoAprobacion: EstadoAprobacion; 
-    origen: OrigenEleccion; 
-    centroCostoId?: CentroCostoId; 
-    comentario?: string; 
-    processedForBilling?: boolean; 
-    actividadId?: ActividadId; 
-    actividadMealId?: ActividadMealDefinitionId; 
+    dietaId?: DietaId;
+    solicitado: boolean;
+    congelado: boolean; // <--- ADD THIS LINE
+    asistencia?: boolean;
+    fechaSolicitud: Timestamp;
+    estadoAprobacion: EstadoAprobacion;
+    origen: OrigenEleccion;
+    centroCostoId?: CentroCostoId;
+    comentario?: string;
+    processedForBilling?: boolean;
+    actividadId?: ActividadId;
+    actividadMealId?: ActividadMealDefinitionId;
 }
 
 export interface MealCount {
