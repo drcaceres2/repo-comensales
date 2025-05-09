@@ -48,7 +48,7 @@ const getNewResidenciaDefaults = (): Omit<Residencia, 'id'> => ({
   logoUrl: '',
   nombreEtiquetaCentroCosto: 'Centro de Costo',
   modoDeCosteo: 'por-eleccion',
-  antelacionActividadesDefault: 2,
+  antelacionActividadesDefault: 7,
   campoPersonalizado1_etiqueta: '',
   campoPersonalizado1_isActive: false,
   campoPersonalizado1_necesitaValidacion: false,
@@ -87,6 +87,7 @@ export default function CrearResidenciaAdminPage() {
   const [currentResidencia, setCurrentResidencia] = useState<Partial<Residencia>>(getNewResidenciaDefaults());
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [formLoading, setFormLoading] = useState<boolean>(false);
+  const [antelacionError, setAntelacionError] = useState<string | null>(null);
 
   // --- useEffect: Handle Auth State & Fetch Profile ---
   useEffect(() => {
@@ -199,14 +200,27 @@ export default function CrearResidenciaAdminPage() {
   // --- Form Handling ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    let val: string | number | boolean = value;
+    // Define val with a type that can be assigned to fields in Residencia
+    // Let's assume Residencia fields are string, number, or boolean (not undefined for form purposes)
+    let processedValue: string | number | boolean | undefined;
+
     if (type === 'checkbox') {
-      val = (e.target as HTMLInputElement).checked;
+      processedValue = (e.target as HTMLInputElement).checked;
+    } else if (type === 'number') {
+      if (value.trim() === '') {
+        processedValue = undefined; // Use empty string for visual clearing
+      } else {
+        const parsed = parseFloat(value);
+        processedValue = isNaN(parsed) ? undefined : parsed; // If not a valid number, treat as empty string for now
+      }
+    } else { // For text, textarea, select (not type='number')
+      processedValue = value;
     }
-    if (type === 'number') {
-      val = parseFloat(value) || 0;
-    }
-    setCurrentResidencia(prev => ({ ...prev, [name]: val }));
+    
+    setCurrentResidencia(prev => ({ 
+      ...prev, 
+      [name]: processedValue 
+    }));
   };
 
   const handleCreateNew = () => {
@@ -233,27 +247,63 @@ export default function CrearResidenciaAdminPage() {
     setShowCreateForm(false);
     setIsEditing(false);
     setCurrentResidencia(getNewResidenciaDefaults());
+    setAntelacionError(null);
   };
 
   const handleSubmitForm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setAntelacionError(null);
+
     if (!userProfile || (!isMasterUser && !isEditing)) {
       toast({ title: "Acción no permitida", description: "No tienes permisos para esta acción.", variant: "destructive" });
       return;
     }
-    if (!currentResidencia.nombre) {
-            toast({ title: "Campo requerido", description: "El nombre de la residencia es obligatorio.", variant: "default"});
+    if (typeof currentResidencia.nombre !== 'string' || !currentResidencia.nombre.trim()) {
+        toast({ title: "Campo requerido", description: "El nombre de la residencia es obligatorio.", variant: "default"});
         return;
     }
 
+    setAntelacionError(null); // Clear previous error
+
+    const antelacionValueInput = currentResidencia.antelacionActividadesDefault; // This is of type number | ''
+    let antelacionNum: number;
+
+    if (antelacionValueInput === undefined) {
+      // This means the input was empty or contained invalid text (which handleInputChange converted to '')
+      const errorMsg = "Antelación de actividades es requerida y debe ser un número.";
+      setAntelacionError(errorMsg);
+      toast({ title: "Error de Validación", description: errorMsg, variant: "destructive" });
+      return;
+    } else {
+      // If antelacionValueInput is not an empty string, it must be a number
+      // because handleInputChange ensures this.
+      antelacionNum = antelacionValueInput; // It's already a number type
+    }
+
+    // Additional check (e.g., for negative numbers) - This part (lines 289-294) should remain as is.
+    if (antelacionNum < 0) { 
+      const errorMsg = "Antelación de actividades no puede ser un número negativo.";
+      setAntelacionError(errorMsg);
+      toast({ title: "Error de Validación", description: errorMsg, variant: "destructive" });
+      return;
+    }
+    // Now, antelacionNum is a valid, non-negative number.
+
     setFormLoading(true);
     try {
+      // Prepare the data to save, ensuring antelacionActividadesDefault is a number
+      const residenciaDataForSubmit = {
+        ...currentResidencia,
+        antelacionActividadesDefault: antelacionNum, // Use the validated and converted number
+      };
       if (isEditing && currentResidencia.id) {
         // UPDATE
-        if (!isMasterUser && !(isAdminUser && userProfile?.residenciaId === currentResidencia.id)) {
-            toast({ title: "Acción no permitida", description: "No tienes permisos para editar esta residencia.", variant: "destructive" });
-            setFormLoading(false);
-            return;
+        const existingResidenciaId = currentResidencia.id; 
+
+        if (!isMasterUser && !(isAdminUser && userProfile?.residenciaId === existingResidenciaId)) {
+          toast({ title: "Acción no permitida", description: "No tienes permisos para editar esta residencia.", variant: "destructive" });
+          setFormLoading(false);
+          return;
         }
         /* SECURITY NOTE: Server-side validation is crucial here to ensure
            an admin user can only update their assigned residenciaId and
@@ -261,22 +311,23 @@ export default function CrearResidenciaAdminPage() {
            Master users should also be validated server-side.
         */
         const residenciaRef = doc(db, 'residencias', currentResidencia.id);
+
         // Ensure we don't try to write the 'id' field itself into the document data
-        const { id, ...dataToUpdate } = currentResidencia;
+        const { id, ...dataToUpdate } = residenciaDataForSubmit; // Use residenciaDataForSubmit
         await updateDoc(residenciaRef, dataToUpdate);
-        toast({ title: "Residencia Actualizada", description: `Residencia '${currentResidencia.nombre}' actualizada con éxito.` });
+        toast({ title: "Residencia Actualizada", description: `Residencia '${residenciaDataForSubmit.nombre}' actualizada con éxito.` });
       } else if (!isEditing && isMasterUser) {
-        // CREATE
+        // CREATE  
         /* SECURITY NOTE: Server-side validation is CRUCIAL here.
            Only 'master' users should be able to create new residencias.
            This must be enforced by Firestore security rules and/or backend functions.
         */
-        const newResidenciaData = { ...currentResidencia };
-        delete newResidenciaData.id; // Remove id if it was somehow set for a new object
+        const { id, ...newResidenciaData } = residenciaDataForSubmit; // Use residenciaDataForSubmit
+        // delete newResidenciaData.id; // This might be redundant if residenciaDataForSubmit doesn't have id for new items
         const docRef = await addDoc(collection(db, 'residencias'), newResidenciaData);
         // Firestore automatically generates an ID. We can update our state if we want to immediately edit.
         // For simplicity, we'll just refetch or let the user see it in the list.
-        toast({ title: "Residencia Creada", description: `Residencia '${currentResidencia.nombre}' creada con ID: ${docRef.id}.` });
+        toast({ title: "Residencia Creada", description: `Residencia '${residenciaDataForSubmit.nombre}' creada con ID: ${docRef.id}.` });
       } else {
         toast({ title: "Acción no válida", description: "No se pudo determinar la acción a realizar.", variant: "destructive" });
         setFormLoading(false);
@@ -284,6 +335,7 @@ export default function CrearResidenciaAdminPage() {
       }
       setShowCreateForm(false);
       setIsEditing(false);
+      setAntelacionError(null);
       fetchResidences(); // Refresh the list
     } catch (error) {
       const errorMessage = `Error al guardar la residencia. ${error instanceof Error ? error.message : 'Error desconocido'}`;
@@ -428,7 +480,22 @@ export default function CrearResidenciaAdminPage() {
               </div>
               <div>
                 <Label htmlFor="antelacionActividadesDefault">Antelación Actividades Default (días)</Label>
-                <Input id="antelacionActividadesDefault" name="antelacionActividadesDefault" type="number" value={currentResidencia.antelacionActividadesDefault || 0} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
+                <Input 
+                    id="antelacionActividadesDefault" 
+                    name="antelacionActividadesDefault" 
+                    type="number" 
+                    value={currentResidencia.antelacionActividadesDefault ?? ''} 
+                    onChange={handleInputChange} 
+                    placeholder="Ej: 7" 
+                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}
+                    aria-invalid={antelacionError ? "true" : "false"}
+                    aria-describedby={antelacionError ? "antelacion-error-message" : undefined}
+                  />
+                  {antelacionError && (
+                    <p id="antelacion-error-message" className="text-xs text-destructive mt-1">
+                      {antelacionError}
+                    </p>
+                  )}
               </div>
 
               {/* Campos Personalizados - Ejemplo con el 1, replicar para 2 y 3 si es necesario */}
