@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { UserProfile, Residencia, UserRole } from '@/models/firestore';
+import { UserProfile, Residencia, UserRole, Dieta } from '@/models/firestore';
 import {
   doc,
   getDoc,
@@ -331,6 +331,33 @@ export default function CrearResidenciaAdminPage() {
         const docRef = await addDoc(collection(db, 'residencias'), newResidenciaData);
         // Firestore automatically generates an ID. We can update our state if we want to immediately edit.
         // For simplicity, we'll just refetch or let the user see it in the list.
+
+        // Creating a Default Dieta
+        try {
+          const defaultDieta: Omit<Dieta, 'id' | 'createdAt' | 'updatedAt'> = {
+            nombre: "Normal",
+            descripcion: "Ningún régimen especial",
+            isDefault: true,
+            isActive: true,
+            residenciaId: docRef.id, // CORRECTED: Use docRef.id here
+          };
+          await addDoc(collection(db, 'dietas'), defaultDieta);
+          toast({
+            title: "Éxito",
+            // CORRECTED: Use docRef.id here for the toast message
+            description: `Residencia '${residenciaDataForSubmit.nombre}' (ID: ${docRef.id}) y Dieta 'Normal' por defecto creadas con éxito.`,
+          });
+        } catch (dietaError) {
+          console.error("Error creating default dieta:", dietaError);
+          toast({
+            title: "Advertencia: Dieta por Defecto Falló",
+            // CORRECTED: Use docRef.id here for the error toast message
+            description: `Residencia '${residenciaDataForSubmit.nombre}' (ID: ${docRef.id}) creada, pero falló la creación de la dieta por defecto. Por favor, créela manualmente desde la sección de Dietas. Error: ${dietaError instanceof Error ? dietaError.message : String(dietaError)}`,
+            variant: "destructive",
+            duration: 10000,
+          });
+        }
+
         toast({ title: "Residencia Creada", description: `Residencia '${residenciaDataForSubmit.nombre}' creada con ID: ${docRef.id}.` });
       } else {
         toast({ title: "Acción no válida", description: "No se pudo determinar la acción a realizar.", variant: "destructive" });

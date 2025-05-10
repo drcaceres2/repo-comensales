@@ -370,8 +370,11 @@ export default function DietasResidenciaPage(): JSX.Element | null {
     };
 
     const handleDeleteDieta = async (dietaToDelete: Dieta) => {
-        if (dietaToDelete.isDefault) { 
-            toast({ title: t('dietasPage.toastAccionNoPermitidaTitle'), description: t('dietasPage.toastErrorEliminarDefaultDescription'), variant: "destructive" }); return; 
+        if (dietaToDelete.isDefault) {
+            toast({ title: t('dietasPage.toastAccionNoPermitidaTitle'), description: t('dietasPage.toastErrorEliminarDefaultDescription'), variant: "destructive" }); return;
+        }
+        if (dietas.length <= 1) {
+            toast({ title: t('dietasPage.toastAccionNoPermitidaTitle'), description: t('dietasPage.toastErrorEliminarUltimaDietaDescription', 'No se puede eliminar la última dieta. Una residencia debe tener al menos una dieta.'), variant: "destructive" }); return;
         }
         setIsSaving(true);
         try {
@@ -385,6 +388,7 @@ export default function DietasResidenciaPage(): JSX.Element | null {
             toast({ title: t('dietasPage.toastErrorNombreRequeridoTitle'), description: t('dietasPage.toastErrorEliminarDietaDescription'), variant: "destructive" });
         } finally { setIsSaving(false); }
     };
+
 
 
     // =========================================================================

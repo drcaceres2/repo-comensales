@@ -80,6 +80,7 @@
     "accesoDenegadoDescriptionNoVerificado": "No se pudo verificar tu autorización para esta página.",
     "accesoDenegadoButtonSeleccionarResidencia": "Seleccionar otra Residencia",
     "errorCargarDietasTitle": "Error al Cargar Dietas",
-    "errorReintentarButton": "Reintentar"
+    "errorReintentarButton": "Reintentar",
+    "toastErrorEliminarUltimaDietaDescription": "No se puede eliminar la última dieta. Una residencia debe tener al menos una dieta."
   }
 }

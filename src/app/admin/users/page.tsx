@@ -43,7 +43,7 @@ import { doc, getDoc, getDocs, Timestamp, addDoc, collection, setDoc, updateDoc,
 import { auth, db } from '@/lib/firebase'; // Your initialized instances
 
 // Model Imports
-import { UserProfile, UserRole, ResidenciaId, DietaId, LogEntry, LogActionType } from '@/models/firestore';
+import { UserProfile, UserRole, ResidenciaId, DietaId, LogEntry, LogActionType, Dieta } from '@/models/firestore'; // Added Dieta
 
 export default function UserManagementPage(): JSX.Element | null {
     // Helper type for form state
@@ -93,7 +93,7 @@ export default function UserManagementPage(): JSX.Element | null {
 
     const availableRoles: UserRole[] = ['residente', 'director', 'admin', 'master', 'invitado', 'asistente', 'auditor']; // Expanded roles
     const [residences, setResidences] = useState<Record<ResidenciaId, { nombre: string }>>({});
-    const [dietas, setDietas] = useState<Record<DietaId, { nombre: string }>>({});
+    const [dietas, setDietas] = useState<Dieta[]>([]);
 
     // --- Fetch Residences (Memoized) ---
     const fetchResidences = useCallback(async () => {
@@ -126,32 +126,38 @@ export default function UserManagementPage(): JSX.Element | null {
 
     // --- Fetch Dietas (Memoized) ---
     const fetchDietas = useCallback(async () => {
-        console.log("Fetching dietas from Firestore...");
+        console.log("Fetching all dietas from Firestore...");
         try {
             const dietasCol = collection(db, "dietas");
             const querySnapshot = await getDocs(dietasCol);
-            const dietasData: Record<DietaId, { nombre: string }> = {};
+            const fetchedDietas: Dieta[] = [];
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-                if (data.nombre) {
-                    dietasData[doc.id] = { nombre: data.nombre };
-                } else {
-                    console.warn(`Dieta document ${doc.id} is missing the 'nombre' field.`);
-                }
+                fetchedDietas.push({
+                    id: doc.id,
+                    nombre: data.nombre || 'Nombre no disponible',
+                    descripcion: data.descripcion || '',
+                    isDefault: data.isDefault === true, // Ensure boolean
+                    isActive: data.isActive === true,   // Ensure boolean
+                    residenciaId: data.residenciaId,
+                    // Add any other Dieta fields if necessary
+                } as Dieta); // Make sure your Dieta type matches this structure
             });
-            console.log("Fetched dietas:", dietasData);
-            setDietas(dietasData);
+            console.log("Fetched all dietas:", fetchedDietas);
+            setDietas(fetchedDietas.sort((a, b) => a.nombre.localeCompare(b.nombre)));
         } catch (error) {
-            console.error("Error fetching dietas:", error);
+            console.error("Error fetching all dietas:", error);
             toast({
-                title: "Error al Cargar Dietas",
-                description: "No se pudieron obtener los datos de las dietas.",
+                title: "Error al Cargar Dietas Globales",
+                description: "No se pudieron obtener los datos de todas las dietas.",
                 variant: "destructive",
             });
-        } finally { // <<< ADDED finally
-            setHasAttemptedFetchDietas(true); // <<< ADDED
+            setDietas([]);
+        } finally {
+            setHasAttemptedFetchDietas(true);
         }
-    }, [toast]); // toast is a stable dependency
+    }, [toast]);
+
 
     // --- Fetch Users to Manage (Memoized) ---
     const fetchUsersToManage = useCallback(async () => {
@@ -319,19 +325,66 @@ export default function UserManagementPage(): JSX.Element | null {
             } else {
                 updatedRoles = currentRoles.filter(r => r !== role);
             }
-            // Automatically clear dieta if 'residente' role is removed
-            const dietaId = updatedRoles.includes('residente') ? prev.dietaId : '';
-            // Automatically clear residencia if not 'residente', 'director', 'asistente' or 'auditor'
+
+            let dietaId = prev.dietaId; // Keep current dietaId by default
+
+            // Determine if residencia is required and its value
             const residenciaRequiredForRole = updatedRoles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r));
             const residenciaId = residenciaRequiredForRole ? prev.residenciaId : '';
+
+            if (role === 'residente') {
+                if (checked && residenciaId && dietas.length > 0) { // 'residente' added, and a residencia is selected
+                    const defaultDieta = dietas.find(d => d.residenciaId === residenciaId && d.isDefault && d.isActive);
+                    if (defaultDieta) {
+                        dietaId = defaultDieta.id;
+                    } else {
+                        dietaId = ''; // Clear if no active default found, user must select
+                        toast({
+                            title: "Atención",
+                            description: `No se encontró una dieta por defecto (y activa) para la residencia ${residences[residenciaId]?.nombre || residenciaId}. Por favor, seleccione una dieta manualmente.`,
+                            variant: "default",
+                            duration: 7000
+                        });
+                    }
+                } else if (!checked) { // 'residente' role removed
+                    dietaId = ''; // Clear dietaId
+                }
+            }
+            
+            // If residenciaId was cleared because no role requires it, also clear dietaId
+            if (prev.residenciaId && !residenciaId) {
+                dietaId = '';
+            }
 
             return { ...prev, roles: updatedRoles, dietaId, residenciaId };
         });
     };
 
     const handleSelectChange = (field: 'residenciaId' | 'dietaId', value: string) => {
-         setFormData(prev => ({ ...prev, [field]: value }));
+        setFormData(prev => {
+            const updatedFormData = { ...prev, [field]: value };
+
+            if (field === 'residenciaId') {
+                // If residencia changes, clear the current dietaId first, then attempt to set default
+                updatedFormData.dietaId = '';
+                if (updatedFormData.roles.includes('residente') && value) { // value is the new residenciaId
+                    const defaultDieta = dietas.find(d => d.residenciaId === value && d.isDefault && d.isActive);
+                    if (defaultDieta) {
+                        updatedFormData.dietaId = defaultDieta.id;
+                    } else {
+                        toast({
+                            title: "Atención",
+                            description: `No se encontró una dieta por defecto (y activa) para la residencia seleccionada. Por favor, seleccione una dieta manualmente si es necesaria.`,
+                            variant: "default",
+                            duration: 7000
+                        });
+                    }
+                }
+            }
+            return updatedFormData;
+        });
     };
+
 
     const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -586,8 +639,10 @@ export default function UserManagementPage(): JSX.Element | null {
 
     const getDietaName = (id?: DietaId): string => {
         if (!id) return 'N/A';
-        return dietas[id]?.nombre || 'Desconocida';
+        const dieta = dietas.find(d => d.id === id);
+        return dieta?.nombre || 'Desconocida';
     };
+
 
     const getUserToDeleteName = (): string => {
         const user = users.find(u => u.id === userToDeleteId);
@@ -757,10 +812,28 @@ export default function UserManagementPage(): JSX.Element | null {
                                  <Label htmlFor="dieta">Dieta Predet. {isDietaConditionallyRequired ? '*' : ''}</Label>
                                  <Select value={formData.dietaId || ''} onValueChange={(value) => handleSelectChange('dietaId', value)} disabled={isSaving || !isDietaConditionallyRequired} >
                                      <SelectTrigger id="dieta"><SelectValue placeholder={isDietaConditionallyRequired ? "Seleccione dieta..." : "N/A (Solo Residentes)"} /></SelectTrigger>
-                                     <SelectContent>
-                                         {Object.entries(dietas).map(([id, d]) => ( <SelectItem key={id} value={id}>{d.nombre}</SelectItem> )) }
-                                         {Object.keys(dietas).length === 0 && <SelectItem value="loading" disabled>Cargando dietas...</SelectItem>}
-                                     </SelectContent>
+                                        <SelectContent>
+                                            {formData.residenciaId ? (
+                                                dietas
+                                                    .filter(d => d.residenciaId === formData.residenciaId && d.isActive) // Only show active dietas for the selected residencia
+                                                    .map(d => (
+                                                        <SelectItem key={d.id} value={d.id}>
+                                                            {d.nombre} {d.isDefault ? '(Default)' : ''}
+                                                        </SelectItem>
+                                                    ))
+                                            ) : (
+                                                <SelectItem value="no-residencia" disabled>Seleccione una residencia primero</SelectItem>
+                                            )}
+                                            {formData.residenciaId && dietas.filter(d => d.residenciaId === formData.residenciaId && d.isActive).length === 0 && (
+                                                <SelectItem value="no-dietas" disabled>No hay dietas activas para esta residencia</SelectItem>
+                                            )}
+                                            {!formData.residenciaId && Object.keys(residences).length > 0 && (
+                                                <SelectItem value="placeholder-select-res" disabled>Seleccione residencia para ver dietas</SelectItem>
+                                            )}
+                                            {!hasAttemptedFetchDietas && !formData.residenciaId && (
+                                                <SelectItem value="loading-all-dietas" disabled>Cargando lista de dietas...</SelectItem>
+                                            )}
+                                        </SelectContent>
                                  </Select>
                                  {isDietaConditionallyRequired && !formData.dietaId && <p className="text-xs text-destructive mt-1">Requerido para Residente.</p>}
                              </div>
