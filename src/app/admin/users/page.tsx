@@ -969,13 +969,13 @@ export default function UserManagementPage(): JSX.Element | null {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="min-w-[200px] py-3 px-4">Usuario</TableHead>
-                                            <TableHead className="py-3 px-4">Roles</TableHead>
-                                            <TableHead className="text-center py-3 px-4">Estado</TableHead>
-                                            <TableHead className="text-right min-w-[140px] py-3 px-4">Acciones</TableHead>
+                                            <TableHead className="py-3 px-4">Usuario</TableHead> {/* REMOVED min-w */}
+                                            <TableHead className="py-3 px-4">Roles</TableHead>   {/* No min-w */}
+                                            <TableHead className="text-center py-3 px-4">Estado</TableHead> {/* No min-w */}
+                                            <TableHead className="text-right py-3 px-4">Acciones</TableHead> {/* REMOVED min-w */}
                                         </TableRow>
                                     </TableHeader>
-                                    <TableBody>
+                                   <TableBody>
                                         {filteredUsers.map((user) => (
                                             <TableRow key={user.id} className={editingUserId === user.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''}>
                                                 <TableCell className="font-medium py-3 px-4">
@@ -990,9 +990,11 @@ export default function UserManagementPage(): JSX.Element | null {
                                                         {user.isActive ? 'Activo' : 'Inactivo'}
                                                     </Badge>
                                                 </TableCell>
-                                                <TableCell className="text-right space-x-2 py-3 px-4">
-                                                    <Button variant="outline" size="sm" onClick={() => handleEditUser(user.id)} disabled={isSaving || (!!editingUserId && editingUserId !== user.id)}>Editar</Button>
-                                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={isSaving || !!editingUserId}>Eliminar</Button>
+                                                <TableCell className="text-right py-3 px-4"> {/* Removed space-x-2 from here */}
+                                                    <div className="flex flex-col space-y-1 items-end sm:flex-row sm:space-y-0 sm:space-x-2 sm:items-center"> {/* New wrapper div */}
+                                                        <Button variant="outline" size="sm" onClick={() => handleEditUser(user.id)} disabled={isSaving || (!!editingUserId && editingUserId !== user.id)} className="w-full sm:w-auto">Editar</Button>
+                                                        <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={isSaving || !!editingUserId} className="w-full sm:w-auto">Eliminar</Button>
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
