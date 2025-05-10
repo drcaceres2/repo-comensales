@@ -268,8 +268,8 @@ export function Navigation() {
       {authUser && !authLoading && !profileLoading && (
         <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg">
           <UiSheetHeader className="p-4 border-b dark:border-gray-700 text-left">
-            <SheetTitle>
-              <h2 className="text-lg font-semibold">Menú Principal</h2>
+            <SheetTitle className="text-lg font-semibold">
+              Menú Principal
             </SheetTitle>
             {userProfile?.email && (
               <SheetDescription className="sr-only">
