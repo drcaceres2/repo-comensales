@@ -64,6 +64,7 @@ const getNewResidenciaDefaults = (): Omit<Residencia, 'id'> => ({
   campoPersonalizado3_necesitaValidacion: false,
   campoPersonalizado3_regexValidacion: '',
   campoPersonalizado3_tamanoTexto: 'text',
+  textProfile: 'espanol-honduras',
 });
 
 
@@ -88,6 +89,9 @@ export default function CrearResidenciaAdminPage() {
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [formLoading, setFormLoading] = useState<boolean>(false);
   const [antelacionError, setAntelacionError] = useState<string | null>(null);
+
+  const [formData, setFormData] = useState<Partial<Omit<Residencia, 'id'>>>(getNewResidenciaDefaults());
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // --- useEffect: Handle Auth State & Fetch Profile ---
   useEffect(() => {
@@ -496,6 +500,24 @@ export default function CrearResidenciaAdminPage() {
                       {antelacionError}
                     </p>
                   )}
+              </div>
+              <div>
+                <Label htmlFor="textProfile" className="text-sm font-medium">
+                  Perfil de Textos (Opcional)
+                </Label>
+                <Input
+                  id="textProfile"
+                  type="text"
+                  placeholder="Ej. espanol-alternativo, ingles-FL"
+                  value={formData.textProfile || ''}
+                  onChange={handleInputChange}
+                  className="mt-1"
+                  aria-describedby="textprofile-description"
+                />
+                <p id="textprofile-description" className="text-xs text-muted-foreground mt-1">
+                  Nombre del archivo JSON (sin la extensión .json) que se usará para los textos de esta residencia.
+                  Debe estar ubicado en /src/app/textos/. Si se deja vacío, se usará el comportamiento por defecto.
+                </p>
               </div>
 
               {/* Campos Personalizados - Ejemplo con el 1, replicar para 2 y 3 si es necesario */}

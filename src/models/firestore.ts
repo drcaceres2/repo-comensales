@@ -111,6 +111,7 @@ export interface Residencia {
     nombreEtiquetaCentroCosto?: string; 
     modoDeCosteo?: 'por-usuario' | 'por-comedor' | 'por-eleccion';
     antelacionActividadesDefault?: number; 
+    textProfile?: string;
 
     // Definición de campos personalizables para UserProfile
     campoPersonalizado1_etiqueta?: string;
