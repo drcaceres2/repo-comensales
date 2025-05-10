@@ -7,7 +7,7 @@ import {
   Sidebar,
   SidebarTrigger,
   SidebarContent,
-  SidebarHeader,
+  SidebarHeader, // This is from ./ui/sidebar
   SidebarMenu,
   SidebarMenuItem,
   SidebarFooter,
@@ -19,6 +19,9 @@ import {
   AccordionTrigger,
 } from './ui/accordion';
 import { Menu, Users, Building, Settings, ListChecks, CalendarDays, UsersRound, Bell, FileText, Home, PlusCircle, MessageSquare, Loader2, ShieldCheck, UserCog, LucideIcon } from 'lucide-react';
+
+// Import SheetTitle and SheetDescription for accessibility
+import { SheetTitle, SheetDescription } from '@/components/ui/sheet';
 
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
@@ -201,12 +204,13 @@ export function Navigation() {
     if (typeof item.href === 'string') {
       hrefPath = item.href;
     } else if (typeof item.href === 'function') {
-      const relativePath = item.id === 'elegirComidas' ? '/elegir-comidas' :
+      // Corrected href assignment for functions
+      const pathTemplate = item.id === 'elegirComidas' ? '/elegir-comidas' :
                          item.id === 'actividades' ? '/actividades' :
                          item.id === 'invitados' ? '/bienvenida-invitados' :
                          item.id === 'recordatorios' ? '/recordatorios' :
                          item.id === 'reporteComensales' ? '/solicitar-comensales' : '';
-      hrefPath = userProfile?.residenciaId ? item.href(relativePath) : '#';
+      hrefPath = userProfile?.residenciaId ? item.href(pathTemplate) : '#';
     }
 
     if (item.isAccordion) {
@@ -262,8 +266,14 @@ export function Navigation() {
         <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg">
           <SidebarHeader className="p-4 border-b dark:border-gray-700">
             <div className="flex flex-col">
-              <h2 className="text-lg font-semibold">Menú Principal</h2>
-              {userProfile?.email && <span className='text-xs text-gray-500'>{userProfile.email}</span>}
+              <SheetTitle>
+                <h2 className="text-lg font-semibold">Menú Principal</h2>
+              </SheetTitle>
+              {userProfile?.email && (
+                <SheetDescription className="sr-only">
+                   {`Menú de navegación para ${userProfile.email}`}
+                </SheetDescription>
+              )}
             </div>
           </SidebarHeader>
           <SidebarMenu className="flex-grow p-4 space-y-2">
