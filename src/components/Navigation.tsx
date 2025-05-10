@@ -18,7 +18,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from './ui/accordion';
-import { Menu, Users, Building, Settings, ListChecks, CalendarDays, UsersRound, Bell, FileText, Home, PlusCircle, MessageSquare, Loader2, ShieldCheck, UserCog, LucideIcon } from 'lucide-react';
+// Ensure Info icon is imported
+import { Menu, Users, Building, Settings, ListChecks, CalendarDays, UsersRound, Bell, FileText, Home, PlusCircle, MessageSquare, Loader2, ShieldCheck, UserCog, LucideIcon, Info } from 'lucide-react';
 
 // Import SheetTitle, SheetDescription, and SheetHeader for accessibility
 import {
@@ -56,11 +57,12 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
   };
 
   return [
-    {
-      id: 'home',
-      label: 'Página principal',
-      icon: Home,
-      href: '/',
+    // Home item removed
+    { 
+      id: 'aboutPage',
+      label: 'Acerca de',
+      icon: Info, 
+      href: '/about',
     },
     {
       id: 'createResidencia',
