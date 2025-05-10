@@ -1,7 +1,7 @@
 // admin/users/page.tsx
 'use client'; // Make it a client component
 
-import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import React, { useState, useEffect, useCallback, useMemo } from 'react'; // Added useMemo
 import { useRouter } from 'next/navigation';
 import { Loader2, AlertCircle } from 'lucide-react'; // Added AlertCircle
 
@@ -46,6 +46,9 @@ import { auth, db } from '@/lib/firebase'; // Your initialized instances
 import { UserProfile, UserRole, ResidenciaId, DietaId, LogEntry, LogActionType, Dieta } from '@/models/firestore'; // Added Dieta
 
 export default function UserManagementPage(): JSX.Element | null {
+    const ALL_RESIDENCIAS_FILTER_KEY = 'all_residencias';
+    const NO_RESIDENCIA_FILTER_KEY = 'no_residencia_assigned';
+
     // Helper type for form state
     type UserFormData = Partial<Omit<UserProfile, 'id' | 'roles'>> & {
         roles: UserRole[];
@@ -90,6 +93,8 @@ export default function UserManagementPage(): JSX.Element | null {
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
     const [userToDeleteId, setUserToDeleteId] = useState<string | null>(null);
+    const [selectedResidenciaFilter, setSelectedResidenciaFilter] = useState<string>(ALL_RESIDENCIAS_FILTER_KEY);
+
 
     const availableRoles: UserRole[] = ['residente', 'director', 'admin', 'master', 'invitado', 'asistente', 'auditor']; // Expanded roles
     const [residences, setResidences] = useState<Record<ResidenciaId, { nombre: string }>>({});
@@ -284,10 +289,23 @@ export default function UserManagementPage(): JSX.Element | null {
         if (isAdminAuthorized) {
             console.log("Admin user is authorized. Proceeding with fetching page data.");
             setIsAuthorized(true);
-            // Fetch data needed for the user management page
+
+            // --- BEGIN: Initialize selectedResidenciaFilter ---
+            if (adminUserProfile.roles.includes('master')) {
+                // Master users can see all or filter
+                setSelectedResidenciaFilter(ALL_RESIDENCIAS_FILTER_KEY); // Default to all
+            } else if (adminUserProfile.roles.includes('admin') && adminUserProfile.residenciaId) {
+                // Admin users are locked to their own residencia
+                setSelectedResidenciaFilter(adminUserProfile.residenciaId);
+            } else {
+                // Fallback or other roles that might get here (though authorization should prevent most)
+                setSelectedResidenciaFilter(NO_RESIDENCIA_FILTER_KEY); // Or some other sensible default
+            }
+            // --- END: Initialize selectedResidenciaFilter ---
+
             if (!hasAttemptedFetchResidences) fetchResidences();
             if (!hasAttemptedFetchDietas) fetchDietas();
-            if (!hasAttemptedFetchUsers) fetchUsersToManage(); // Fetch users if not already loaded/loading
+            if (!hasAttemptedFetchUsers) fetchUsersToManage();
         } else {
             console.warn("Admin user does not have admin/master role. Access denied.");
             setIsAuthorized(false);
@@ -711,6 +729,30 @@ export default function UserManagementPage(): JSX.Element | null {
 
     // 4. Render Actual Page Content (If all checks above passed, user is authorized)
     // At this point, authUser and adminUserProfile should be non-null.
+    const filteredUsers = useMemo(() => {
+        if (!adminUserProfile) return [];
+
+        let usersToDisplay = [...users]; // Start with a copy of all users
+
+        if (adminUserProfile.roles.includes('master')) {
+            if (selectedResidenciaFilter === ALL_RESIDENCIAS_FILTER_KEY) {
+                // No additional filtering, master sees all (or could be refined more if needed)
+            } else if (selectedResidenciaFilter === NO_RESIDENCIA_FILTER_KEY) {
+                usersToDisplay = usersToDisplay.filter(user => !user.residenciaId);
+            } else { // A specific residenciaId is selected
+                usersToDisplay = usersToDisplay.filter(user => user.residenciaId === selectedResidenciaFilter);
+            }
+        } else if (adminUserProfile.roles.includes('admin') && adminUserProfile.residenciaId) {
+            // Non-master admin is always filtered by their own residenciaId
+            usersToDisplay = usersToDisplay.filter(user => user.residenciaId === adminUserProfile.residenciaId);
+        } else {
+        // If admin has no residenciaId or other roles, show users without residencia by default
+        // This case should ideally be handled by authorization logic preventing access or specific view definition
+        usersToDisplay = usersToDisplay.filter(user => !user.residenciaId);
+        }
+        return usersToDisplay.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre));
+    }, [users, selectedResidenciaFilter, adminUserProfile]);
+
     return (
         <div className="container mx-auto p-4 space-y-6">
             <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
@@ -882,55 +924,92 @@ export default function UserManagementPage(): JSX.Element | null {
                     <CardDescription>Lista de todos los usuarios registrados en el sistema.</CardDescription>
                 </CardHeader>
                 <CardContent>
+                    {/* --- BEGIN Residencia Filter for Master Users --- */}
+                    {adminUserProfile?.roles?.includes('master') && Object.keys(residences).length > 0 && (
+                        <div className="mb-4 p-1 max-w-sm">
+                            <Label htmlFor="residenciaFilter" className="text-sm font-medium">Filtrar por Residencia:</Label>
+                            <Select
+                                value={selectedResidenciaFilter}
+                                onValueChange={setSelectedResidenciaFilter}
+                            >
+                                <SelectTrigger id="residenciaFilter" className="mt-1">
+                                    <SelectValue placeholder="Seleccionar residencia..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={ALL_RESIDENCIAS_FILTER_KEY}>
+                                        Todas las Residencias
+                                    </SelectItem>
+                                    <SelectItem value={NO_RESIDENCIA_FILTER_KEY}>
+                                        Usuarios Sin Residencia
+                                    </SelectItem>
+                                    {Object.entries(residences).map(([id, res]) => (
+                                        <SelectItem key={id} value={id}>
+                                            {res.nombre}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    {/* --- END Residencia Filter --- */}
+
+                    {/* --- BEGIN User List Display Logic --- */}
                     {isLoadingUsers ? (
                         <div className="space-y-4">
                            <Skeleton className="h-12 w-full" />
                            <Skeleton className="h-12 w-full" />
                            <Skeleton className="h-12 w-full" />
                         </div>
-                    ) : users.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[150px]">Nombre</TableHead>
-                                        <TableHead className="w-[150px]">Apellido</TableHead>
-                                        <TableHead>Email</TableHead>
-                                        <TableHead>Roles</TableHead>
-                                        <TableHead>Residencia</TableHead>
-                                        <TableHead>Dieta</TableHead>
-                                        <TableHead className="text-center">Estado</TableHead>
-                                        <TableHead className="text-right w-[180px]">Acciones</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {users.map((user) => (
-                                        <TableRow key={user.id} className={editingUserId === user.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''}>
-                                            <TableCell className="font-medium">{user.nombre}</TableCell>
-                                            <TableCell>{user.apellido}</TableCell>
-                                            <TableCell>{user.email}</TableCell>
-                                            <TableCell className="capitalize text-xs">
-                                                {(user.roles || []).map(formatSingleRoleName).join(', ')}
-                                            </TableCell>
-                                            <TableCell>{getResidenciaName(user.residenciaId)}</TableCell>
-                                            <TableCell>{getDietaName(user.dietaId)}</TableCell>
-                                            <TableCell className="text-center">
-                                                <Badge variant={user.isActive ? 'default' : 'outline'} className={user.isActive ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700' : 'bg-red-100 text-red-700 border-red-300 dark:bg-red-700/30 dark:text-red-300 dark:border-red-700'}>
-                                                    {user.isActive ? 'Activo' : 'Inactivo'}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right space-x-2">
-                                                <Button variant="outline" size="sm" onClick={() => handleEditUser(user.id)} disabled={isSaving || (!!editingUserId && editingUserId !== user.id)}>Editar</Button>
-                                                <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={isSaving || !!editingUserId}>Eliminar</Button>
-                                            </TableCell>
+                    ) : ( // This is the "else" branch for isLoadingUsers:
+                        filteredUsers.length > 0 ? (
+                            // If there are users to display (after filtering)
+                            <div> {/* This div should NOT have overflow-x-auto */}
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="min-w-[250px]">Usuario</TableHead>
+                                            <TableHead>Roles</TableHead>
+                                            <TableHead className="text-center">Estado</TableHead>
+                                            <TableHead className="text-right min-w-[160px]">Acciones</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    ) : (
-                        <p className="text-muted-foreground text-center py-8">No hay usuarios registrados.</p>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {filteredUsers.map((user) => (
+                                            <TableRow key={user.id} className={editingUserId === user.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''}>
+                                                <TableCell className="font-medium">
+                                                    <div>{user.nombre} {user.apellido}</div>
+                                                    <div className="text-xs text-muted-foreground">({user.email})</div>
+                                                </TableCell>
+                                                <TableCell className="capitalize text-xs">
+                                                    {(user.roles || []).map(formatSingleRoleName).join(', ')}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <Badge variant={user.isActive ? 'default' : 'outline'} className={user.isActive ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700' : 'bg-red-100 text-red-700 border-red-300 dark:bg-red-700/30 dark:text-red-300 dark:border-red-700'}>
+                                                        {user.isActive ? 'Activo' : 'Inactivo'}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right space-x-2">
+                                                    <Button variant="outline" size="sm" onClick={() => handleEditUser(user.id)} disabled={isSaving || (!!editingUserId && editingUserId !== user.id)}>Editar</Button>
+                                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={isSaving || !!editingUserId}>Eliminar</Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div> // This div closes the table container
+                        ) : users.length > 0 && filteredUsers.length === 0 ? (
+                            // If there are users in the system, but the current filter yields no results
+                            <p className="text-muted-foreground text-center py-8">
+                                No hay usuarios que coincidan con el filtro seleccionado.
+                            </p>
+                        ) : (
+                            // If there are no users in the system at all (users array is empty)
+                            <p className="text-muted-foreground text-center py-8">
+                                No hay usuarios registrados en el sistema.
+                            </p>
+                        )
                     )}
+                    {/* --- END User List Display Logic --- */}
                 </CardContent>
             </Card>
 
