@@ -605,6 +605,7 @@ export default function ResidenciaHorariosComedoresPage() {
                       type="number"
                       value={currentComedor.capacidad || 0}
                       onChange={handleInputChangeComedor}
+                      onFocus={(event) => event.target.select()}
                       disabled={formLoadingComedor}
                       min="0"
                     />

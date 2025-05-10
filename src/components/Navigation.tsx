@@ -7,10 +7,10 @@ import {
   Sidebar,
   SidebarTrigger,
   SidebarContent,
-  // SidebarHeader, // We will use SheetHeader from ui/sheet for the title section
   SidebarMenu,
   SidebarMenuItem,
   SidebarFooter,
+  useSidebar, // <--- ADD THIS
 } from './ui/sidebar';
 import {
   Accordion,
@@ -19,7 +19,7 @@ import {
   AccordionTrigger,
 } from './ui/accordion';
 // Ensure Info icon is imported
-import { Menu, Users, Building, Settings, ListChecks, CalendarDays, UsersRound, Bell, FileText, Home, PlusCircle, MessageSquare, Loader2, ShieldCheck, UserCog, LucideIcon, Info } from 'lucide-react';
+import { Menu, Users, Building, Settings, ListChecks, CalendarDays, UsersRound, Bell, FileText, Home, PlusCircle, MessageSquare, Loader2, ShieldCheck, UserCog, LucideIcon, Info, Clock } from 'lucide-react';
 
 // Import SheetTitle, SheetDescription, and SheetHeader for accessibility
 import {
@@ -76,7 +76,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       label: 'Administrar',
       icon: UserCog,
       isAccordion: true,
-      roles: ['admin', 'master'],
+      roles: ['admin', 'master', 'director'],
       children: [
         {
           id: 'adminUsers',
@@ -91,6 +91,14 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           icon: Building,
           href: '/admin/residencia',
           roles: ['admin', 'master'],
+        },
+        {
+          id: 'adminResidenciaHorarios',
+          label: 'Horarios de Comida', // Label can be more specific
+          icon: Clock,
+          href: `/admin/residencia/[residenciaId]/horarios`, // Path with placeholder
+          roles: ['admin', 'director'], // Visible to admin and master
+          requiresResidenciaIdForHref: true, // Only rendered if userProfile.residenciaId is available
         },
       ],
     },
@@ -123,7 +131,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           id: 'invitados',
           label: 'Invitados',
           icon: UsersRound,
-          href: rLink,
+          href: '/about',
           requiresResidenciaIdForHref: true,
           roles: ['residente', 'director', 'invitado', 'asistente'],
         },
@@ -139,7 +147,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           id: 'reporteComensales',
           label: 'Reporte Comensales',
           icon: FileText,
-          href: rLink,
+          href: '/about',
           requiresResidenciaIdForHref: true,
           roles: ['director', 'auditor'],
         },
@@ -175,6 +183,7 @@ export function Navigation() {
   const [authUser, authLoading] = useAuthState(auth);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
+  const { isMobile, setOpenMobile } = useSidebar();
 
   useEffect(() => {
     if (authLoading) {
@@ -206,18 +215,42 @@ export function Navigation() {
   const renderNavItem = (item: NavItem): ReactNode => {
     if (!isItemVisible(item, userProfile)) return null;
 
-    let hrefPath = '';
+    let hrefPath = '#'; // Default to '#' if construction fails or not applicable
+
     if (typeof item.href === 'string') {
-      hrefPath = item.href;
-    } else if (typeof item.href === 'function') {
+      if (item.requiresResidenciaIdForHref && item.href.includes('[residenciaId]')) {
+        // This item is visible (due to isItemVisible check),
+        // so userProfile and userProfile.residenciaId should be available.
+        if (userProfile?.residenciaId) {
+          hrefPath = item.href.replace('[residenciaId]', userProfile.residenciaId);
+        } else {
+          // Fallback: Should not be hit if isItemVisible works as expected for requiresResidenciaIdForHref.
+          // console.warn(`NavItem '${item.id}' requires residenciaId but it's missing from profile for href construction.`);
+          hrefPath = '#'; // Link will be effectively disabled or lead nowhere useful
+        }
+      } else {
+        // Standard string href, or one that requiresResidenciaId but doesn't use the placeholder
+        // (implying isItemVisible already confirmed its validity or it's a static path)
+        hrefPath = item.href;
+      }
+    } else if (typeof item.href === 'function') { // Handles rLink for "Mi Residencia" items
       const pathTemplate = item.id === 'elegirComidas' ? '/elegir-comidas' :
                          item.id === 'actividades' ? '/actividades' :
                          item.id === 'invitados' ? '/bienvenida-invitados' :
                          item.id === 'recordatorios' ? '/recordatorios' :
                          item.id === 'reporteComensales' ? '/solicitar-comensales' : '';
-      hrefPath = userProfile?.residenciaId ? item.href(pathTemplate) : '#';
+      
+      if (userProfile?.residenciaId && pathTemplate) { // Ensure pathTemplate is found for known rLink items
+        hrefPath = item.href(pathTemplate); // item.href is rLink
+      } else if (userProfile?.residenciaId && !pathTemplate && item.id !== 'aboutPage' && item.id !== 'createResidencia' && item.id !== 'adminUsers' && item.id !== 'adminResidencias' && item.id !== 'feedback') {
+         // This condition might indicate an rLink item whose ID is not mapped above.
+         // console.warn(`NavItem '${item.id}' uses a function href (rLink) but no pathTemplate was found.`);
+         hrefPath = '#';
+      } else if (!userProfile?.residenciaId && item.requiresResidenciaIdForHref) {
+         hrefPath = '#'; // Already handled by isItemVisible, but as a safeguard.
+      }
+      // If it's an href function that doesn't require residenciaId (none currently), it would need separate handling or just execute.
     }
-
     if (item.isAccordion) {
       const visibleChildren = item.children?.filter(child => isItemVisible(child, userProfile)) || [];
       if (visibleChildren.length === 0) return null;
@@ -239,12 +272,26 @@ export function Navigation() {
 
     return (
       <SidebarMenuItem key={item.id}>
-        <Link href={hrefPath} className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md text-sm">
+        <Link
+          href={hrefPath}
+          className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md text-sm"
+          onClick={() => {
+            if (isMobile) {
+              setOpenMobile(false);
+            }
+            // If you also want to close the desktop sidebar when it's collapsible and an item is clicked,
+            // you could potentially add:
+            // if (!isMobile && setOpen) { // Assuming 'setOpen' is for desktop from context
+            //   setOpen(false); // This might be too aggressive for desktop depending on UX preference
+            // }
+          }}
+        >
           <item.icon size={item.isFeedbackLink ? 18 : 16} />
           <span>{item.label}</span>
         </Link>
       </SidebarMenuItem>
     );
+
   };
 
   let triggerContent: ReactNode = null;

@@ -492,7 +492,7 @@ export default function CrearResidenciaAdminPage() {
               </div>
               <div>
                 <Label htmlFor="nombreEtiquetaCentroCosto">Etiqueta Centro de Costo</Label>
-                <Input id="nombreEtiquetaCentroCosto" name="nombreEtiquetaCentroCosto" value={currentResidencia.nombreEtiquetaCentroCosto || 'Centro de Costo'} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
+                <Input id="nombreEtiquetaCentroCosto" name="nombreEtiquetaCentroCosto" value={currentResidencia.nombreEtiquetaCentroCosto || 'Centro de Costo'} onChange={handleInputChange} onFocus={(event) => event.target.select()} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
               </div>
                <div>
                 <Label htmlFor="modoDeCosteo">Modo de Costeo</Label>
