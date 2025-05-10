@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -29,12 +30,12 @@ interface NavItem {
   label: string;
   icon: LucideIcon;
   href?: string | ((residenciaId: string) => string);
-  roles?: UserRole[]; // Roles that can see this. Undefined = visible to all authenticated.
-  requiresResidenciaIdForHref?: boolean; // True if href is a function needing residenciaId
+  roles?: UserRole[]; 
+  requiresResidenciaIdForHref?: boolean; 
   isAccordion?: boolean;
   children?: NavItem[];
   isFeedbackLink?: boolean;
-  checkVisibility?: (profile: UserProfile | null) => boolean; // Custom visibility check
+  checkVisibility?: (profile: UserProfile | null) => boolean;
 }
 
 const getNavConfig = (profile: UserProfile | null): NavItem[] => {
@@ -43,7 +44,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
 
   const hasRole = (role: UserRole) => userRoles.includes(role);
   const rLink = (path: string) => {
-    if (!residenciaId) return '#'; // Should be filtered by requiresResidenciaId check anyway
+    if (!residenciaId) return '#'; 
     return `/${residenciaId}${path}`;
   };
 
@@ -90,7 +91,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       icon: ShieldCheck,
       isAccordion: true,
       roles: ['residente', 'director', 'invitado', 'asistente', 'auditor'],
-      requiresResidenciaIdForHref: true, // The group itself needs this to be meaningful
+      requiresResidenciaIdForHref: true, 
       checkVisibility: (p) => !!p?.residenciaId && (hasRole('residente') || hasRole('director') || hasRole('invitado') || hasRole('asistente') || hasRole('auditor')),
       children: [
         {
@@ -155,7 +156,6 @@ const isItemVisible = (item: NavItem, profile: UserProfile | null): boolean => {
   if (item.requiresResidenciaIdForHref && !residenciaId) return false;
   if (item.roles && !item.roles.some(role => userRoles.includes(role))) return false;
   
-  // For accordions, check if any child is visible
   if (item.isAccordion && item.children) {
     return item.children.some(child => isItemVisible(child, profile));
   }
@@ -240,26 +240,40 @@ export function Navigation() {
 
   // Determine if the trigger should be a loading button or the menu button
   let triggerContent: ReactNode = null;
-  // --- ULTRA SIMPLIFIED TEMPORARY TEST ---
+  // --- TEMPORARY TEST ---
+  // Force triggerContent to be the hamburger menu for diagnostic purposes
   triggerContent = (
-    <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
-      {/* <Menu size={24} />  -- Icon temporarily removed -- */}
-      <span style={{ color: 'yellow', fontWeight: 'bold' }}>SIMPLE BUTTON TEST</span>
-    </button>
+    <SidebarTrigger asChild>
+      <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
+        <Menu size={24} />
+      </button>
+    </SidebarTrigger>
   );
-  // --- END ULTRA SIMPLIFIED TEMPORARY TEST ---
+  // --- END TEMPORARY TEST ---
 
-  /* Original logic commented out or to be restored later
+  /* Original logic:
   if (authLoading || (!authUser && profileLoading)) {
-    // ... loader ...
+    // Show loader if auth is loading, or if no authUser but profile still says loading
+    triggerContent = (
+      <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" disabled>
+        <Loader2 size={24} className="animate-spin" />
+      </button>
+    );
   } else if (authUser) {
-    // ... SidebarTrigger with button ...
+    // Show menu trigger only if authenticated and not loading
+    triggerContent = (
+      <SidebarTrigger asChild>
+        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
+          <Menu size={24} />
+        </button>
+      </SidebarTrigger>
+    );
   }
   */
 
   return (
     <Sidebar>
-      {triggerContent}
+      {triggerContent} 
       {authUser && !authLoading && !profileLoading && (
         <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg">
           <SidebarHeader className="p-4 border-b dark:border-gray-700">
@@ -280,8 +294,7 @@ export function Navigation() {
           )}
         </SidebarContent>
       )}
-      {/* Optionally, show a loading state or minimal content for SidebarContent when loading */}
-      {(authLoading || (!authUser && profileLoading)) && authUser && ( // Only show if there was an authUser expected
+      {(authLoading || (!authUser && profileLoading)) && authUser && ( 
         <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg">
            <div className="flex items-center justify-center h-full">
             <Loader2 size={32} className="animate-spin" />

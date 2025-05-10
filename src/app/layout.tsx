@@ -91,16 +91,18 @@ function LayoutFooter() {
 }
 
 function AppShell({ children }: { children: React.ReactNode }) {
-  // const { state: sidebarState, isMobile } = useSidebar(); // Temporarily comment out
-  // const mainContentMarginClass = ... // Temporarily comment out
+  const { state: sidebarState, isMobile } = useSidebar();
+
+  const mainContentMarginClass = !isMobile
+    ? sidebarState === 'expanded'
+      ? 'md:ml-64'
+      : 'md:ml-12'
+    : '';
 
   return (
     <>
       <Navigation />
-      <span>APPSHELL TEST TEXT</span> {/* Add a simple span to see if AppShell itself is rendering */}
-      
-      {/* Temporarily comment out the rest of AppShell's usual content
-      <div 
+      <div
         className={`flex-1 flex flex-col min-h-0 transition-all duration-200 ease-in-out ${mainContentMarginClass}`}
       >
         <LayoutHeader />
@@ -112,7 +114,6 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <Toaster />
-      */}
     </>
   );
 }
