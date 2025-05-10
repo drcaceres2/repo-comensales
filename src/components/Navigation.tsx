@@ -240,6 +240,18 @@ export function Navigation() {
 
   // Determine if the trigger should be a loading button or the menu button
   let triggerContent: ReactNode = null;
+  // --- TEMPORARY TEST ---
+  // Force triggerContent to be the hamburger menu for diagnostic purposes
+  triggerContent = (
+    <SidebarTrigger asChild>
+      <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
+        <Menu size={24} />
+      </button>
+    </SidebarTrigger>
+  );
+  // --- END TEMPORARY TEST ---
+
+  /* Original logic:
   if (authLoading || (!authUser && profileLoading)) {
     // Show loader if auth is loading, or if no authUser but profile still says loading
     triggerContent = (
@@ -257,6 +269,7 @@ export function Navigation() {
       </SidebarTrigger>
     );
   }
+  */
   // If !authUser and not loading, triggerContent remains null, so no trigger is rendered.
 
   return (
