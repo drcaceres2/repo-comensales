@@ -240,15 +240,14 @@ export function Navigation() {
 
   // Determine if the trigger should be a loading button or the menu button
   let triggerContent: ReactNode = null;
-  // --- NEW SIMPLIFIED TEMPORARY TEST ---
-  // Force triggerContent to be just the button and icon, no SidebarTrigger
+  // --- ULTRA SIMPLIFIED TEMPORARY TEST ---
   triggerContent = (
     <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
-      <Menu size={24} />
-      <span style={{ marginLeft: '5px', color: 'yellow' }}>BTN TEST</span> {/* Added visible text */}
+      {/* <Menu size={24} />  -- Icon temporarily removed -- */}
+      <span style={{ color: 'yellow', fontWeight: 'bold' }}>SIMPLE BUTTON TEST</span>
     </button>
   );
-  // --- END NEW SIMPLIFIED TEMPORARY TEST ---
+  // --- END ULTRA SIMPLIFIED TEMPORARY TEST ---
 
   /* Original logic commented out or to be restored later
   if (authLoading || (!authUser && profileLoading)) {
