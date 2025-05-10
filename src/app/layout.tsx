@@ -6,6 +6,7 @@ import { Inter, Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"; // Import Toaster
 import { Navigation } from '@/components/Navigation'; // Import Navigation
+import { SidebarProvider } from "@/components/ui/sidebar"; // Import SidebarProvider
 
 // React and Next.js hooks
 import React from 'react';
@@ -90,6 +91,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans flex flex-col min-h-full`}>
+        <SidebarProvider> {/* Wrap Navigation and children with SidebarProvider */}
           <Navigation /> {/* Add Navigation component here */}
           <LayoutHeader />
           <main className="flex-grow pt-10">{/* Added pt-10 to account for header height */}
@@ -97,6 +99,7 @@ export default function RootLayout({
           </main>
           {/* LayoutFooter removed as feedback link is in Navigation */}
           <Toaster />
+        </SidebarProvider>
       </body>
     </html>
   );
