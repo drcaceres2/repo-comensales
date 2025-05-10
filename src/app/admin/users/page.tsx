@@ -969,29 +969,35 @@ export default function UserManagementPage(): JSX.Element | null {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="py-3 px-4">Usuario</TableHead> {/* REMOVED min-w */}
-                                            <TableHead className="py-3 px-4">Roles</TableHead>   {/* No min-w */}
-                                            <TableHead className="text-center py-3 px-4">Estado</TableHead> {/* No min-w */}
-                                            <TableHead className="text-right py-3 px-4">Acciones</TableHead> {/* REMOVED min-w */}
+                                            <TableHead className="py-3 px-4">Usuario</TableHead>
+                                            <TableHead className="py-3 px-4">Info</TableHead> {/* New "Info" column */}
+                                            <TableHead className="text-right py-3 px-4">Acciones</TableHead>
                                         </TableRow>
                                     </TableHeader>
-                                   <TableBody>
+                                    <TableBody>
                                         {filteredUsers.map((user) => (
                                             <TableRow key={user.id} className={editingUserId === user.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''}>
+                                                {/* Column 1: Usuario (remains the same) */}
                                                 <TableCell className="font-medium py-3 px-4">
                                                     <div className="break-words">{user.nombre} {user.apellido}</div>
                                                     <div className="text-xs text-muted-foreground break-all">({user.email})</div>
                                                 </TableCell>
-                                                <TableCell className="capitalize text-xs py-3 px-4 break-words">
-                                                    {(user.roles || []).map(formatSingleRoleName).join(', ')}
+
+                                                {/* Column 2: Info (New combined column) */}
+                                                <TableCell className="py-3 px-4">
+                                                    <div className="capitalize text-xs break-words">
+                                                        {(user.roles || []).map(formatSingleRoleName).join(', ')}
+                                                    </div>
+                                                    <div className="mt-1"> {/* Add a little space above the badge */}
+                                                        <Badge variant={user.isActive ? 'default' : 'outline'} className={`text-xs ${user.isActive ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700' : 'bg-red-100 text-red-700 border-red-300 dark:bg-red-700/30 dark:text-red-300 dark:border-red-700'}`}>
+                                                            {user.isActive ? 'Activo' : 'Inactivo'}
+                                                        </Badge>
+                                                    </div>
                                                 </TableCell>
-                                                <TableCell className="text-center py-3 px-4">
-                                                    <Badge variant={user.isActive ? 'default' : 'outline'} className={user.isActive ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700' : 'bg-red-100 text-red-700 border-red-300 dark:bg-red-700/30 dark:text-red-300 dark:border-red-700'}>
-                                                        {user.isActive ? 'Activo' : 'Inactivo'}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-right py-3 px-4"> {/* Removed space-x-2 from here */}
-                                                    <div className="flex flex-col space-y-1 items-end sm:flex-row sm:space-y-0 sm:space-x-2 sm:items-center"> {/* New wrapper div */}
+
+                                                {/* Column 3: Acciones (remains the same, including the flex wrapper for responsive buttons) */}
+                                                <TableCell className="text-right py-3 px-4">
+                                                    <div className="flex flex-col space-y-1 items-end sm:flex-row sm:space-y-0 sm:space-x-2 sm:items-center">
                                                         <Button variant="outline" size="sm" onClick={() => handleEditUser(user.id)} disabled={isSaving || (!!editingUserId && editingUserId !== user.id)} className="w-full sm:w-auto">Editar</Button>
                                                         <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={isSaving || !!editingUserId} className="w-full sm:w-auto">Eliminar</Button>
                                                     </div>
