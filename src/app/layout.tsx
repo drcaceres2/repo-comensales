@@ -91,30 +91,28 @@ function LayoutFooter() {
 }
 
 function AppShell({ children }: { children: React.ReactNode }) {
-  const { state: sidebarState, isMobile } = useSidebar();
-
-  const mainContentMarginClass = !isMobile
-    ? sidebarState === 'expanded'
-      ? 'md:ml-64'
-      : 'md:ml-12'
-    : '';
+  // const { state: sidebarState, isMobile } = useSidebar(); // Temporarily comment out
+  // const mainContentMarginClass = ... // Temporarily comment out
 
   return (
     <>
       <Navigation />
-      <div
+      <span>APPSHELL TEST TEXT</span> {/* Add a simple span to see if AppShell itself is rendering */}
+      
+      {/* Temporarily comment out the rest of AppShell's usual content
+      <div 
         className={`flex-1 flex flex-col min-h-0 transition-all duration-200 ease-in-out ${mainContentMarginClass}`}
       >
         <LayoutHeader />
-        {/* Ensure main content area can shrink and grow correctly */}
         <main className="flex-1 flex flex-col overflow-y-auto bg-background">
-          <div className="flex-grow p-4 md:p-6"> {/* Use flex-grow here for the content itself */}
+          <div className="flex-grow p-4 md:p-6">
             {children}
           </div>
-          <LayoutFooter /> {/* Footer added here, it will be at the bottom of the scrollable main area */}
+          <LayoutFooter />
         </main>
       </div>
       <Toaster />
+      */}
     </>
   );
 }
