@@ -100,6 +100,30 @@ export default function UserManagementPage(): JSX.Element | null {
     const [residences, setResidences] = useState<Record<ResidenciaId, { nombre: string }>>({});
     const [dietas, setDietas] = useState<Dieta[]>([]);
 
+    const filteredUsers = useMemo(() => {
+        if (!adminUserProfile) return [];
+
+        let usersToDisplay = [...users]; // Start with a copy of all users
+
+        if (adminUserProfile.roles.includes('master')) {
+            if (selectedResidenciaFilter === ALL_RESIDENCIAS_FILTER_KEY) {
+                // No additional filtering, master sees all (or could be refined more if needed)
+            } else if (selectedResidenciaFilter === NO_RESIDENCIA_FILTER_KEY) {
+                usersToDisplay = usersToDisplay.filter(user => !user.residenciaId);
+            } else { // A specific residenciaId is selected
+                usersToDisplay = usersToDisplay.filter(user => user.residenciaId === selectedResidenciaFilter);
+            }
+        } else if (adminUserProfile.roles.includes('admin') && adminUserProfile.residenciaId) {
+            // Non-master admin is always filtered by their own residenciaId
+            usersToDisplay = usersToDisplay.filter(user => user.residenciaId === adminUserProfile.residenciaId);
+        } else {
+        // If admin has no residenciaId or other roles, show users without residencia by default
+        // This case should ideally be handled by authorization logic preventing access or specific view definition
+        usersToDisplay = usersToDisplay.filter(user => !user.residenciaId);
+        }
+        return usersToDisplay.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre));
+    }, [users, selectedResidenciaFilter, adminUserProfile]);
+
     // --- Fetch Residences (Memoized) ---
     const fetchResidences = useCallback(async () => {
         console.log("Fetching residences from Firestore...");
@@ -162,7 +186,6 @@ export default function UserManagementPage(): JSX.Element | null {
             setHasAttemptedFetchDietas(true);
         }
     }, [toast]);
-
 
     // --- Fetch Users to Manage (Memoized) ---
     const fetchUsersToManage = useCallback(async () => {
@@ -329,7 +352,6 @@ export default function UserManagementPage(): JSX.Element | null {
     ]);
 
     // --- Form and UI Handler Functions ---
-
     const handleFormChange = (field: keyof Omit<UserFormData, 'roles'>, value: string | boolean) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
@@ -729,29 +751,6 @@ export default function UserManagementPage(): JSX.Element | null {
 
     // 4. Render Actual Page Content (If all checks above passed, user is authorized)
     // At this point, authUser and adminUserProfile should be non-null.
-    const filteredUsers = useMemo(() => {
-        if (!adminUserProfile) return [];
-
-        let usersToDisplay = [...users]; // Start with a copy of all users
-
-        if (adminUserProfile.roles.includes('master')) {
-            if (selectedResidenciaFilter === ALL_RESIDENCIAS_FILTER_KEY) {
-                // No additional filtering, master sees all (or could be refined more if needed)
-            } else if (selectedResidenciaFilter === NO_RESIDENCIA_FILTER_KEY) {
-                usersToDisplay = usersToDisplay.filter(user => !user.residenciaId);
-            } else { // A specific residenciaId is selected
-                usersToDisplay = usersToDisplay.filter(user => user.residenciaId === selectedResidenciaFilter);
-            }
-        } else if (adminUserProfile.roles.includes('admin') && adminUserProfile.residenciaId) {
-            // Non-master admin is always filtered by their own residenciaId
-            usersToDisplay = usersToDisplay.filter(user => user.residenciaId === adminUserProfile.residenciaId);
-        } else {
-        // If admin has no residenciaId or other roles, show users without residencia by default
-        // This case should ideally be handled by authorization logic preventing access or specific view definition
-        usersToDisplay = usersToDisplay.filter(user => !user.residenciaId);
-        }
-        return usersToDisplay.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre));
-    }, [users, selectedResidenciaFilter, adminUserProfile]);
 
     return (
         <div className="container mx-auto p-4 space-y-6">
