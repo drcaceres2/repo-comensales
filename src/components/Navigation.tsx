@@ -163,6 +163,9 @@ const isItemVisible = (item: NavItem, profile: UserProfile | null): boolean => {
 };
 
 export function Navigation() {
+  return <span>NAVIGATION TEST TEXT</span>;
+
+  // Original code below this line will be temporarily bypassed
   const [authUser, authLoading] = useAuthState(auth);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
