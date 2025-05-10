@@ -266,7 +266,7 @@ export function Navigation() {
     <Sidebar>
       {triggerContent} 
       {authUser && !authLoading && !profileLoading && (
-        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg">
+        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100">
           <UiSheetHeader className="p-4 border-b dark:border-gray-700 text-left">
             <SheetTitle className="text-lg font-semibold">
               Menú Principal
@@ -290,7 +290,7 @@ export function Navigation() {
         </SidebarContent>
       )}
       {(authLoading || (!authUser && profileLoading)) && authUser && ( 
-        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg">
+        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100">
            <div className="flex items-center justify-center h-full">
             <Loader2 size={32} className="animate-spin" />
           </div>
