@@ -164,12 +164,12 @@ const Sidebar = React.forwardRef<
   ) => {
     const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 
-    let trigger: React.ReactNode = null;
+    let parentProvidedTrigger: React.ReactNode = null; // Explicitly ReactNode
     const actualContent: React.ReactNode[] = [];
     React.Children.forEach(children, (child) => {
       if (React.isValidElement(child) && (child.type === SidebarTrigger || (child.type as any)?.displayName === SidebarTrigger.displayName)) {
-        trigger = child;
-      } else {
+        parentProvidedTrigger = child;
+      } else if (child) { 
         actualContent.push(child);
       }
     });
@@ -184,47 +184,67 @@ const Sidebar = React.forwardRef<
           ref={ref}
           {...props}
         >
-          {children} 
+          {children}
         </div>
       )
     }
 
     if (isMobile) {
-      if (!trigger) {
-        console.warn("Sidebar: No SidebarTrigger found for mobile view. Rendering a default trigger.");
-        trigger = (
+      let finalMobileTriggerElement: React.ReactElement | null = null;
+
+      if (parentProvidedTrigger && React.isValidElement(parentProvidedTrigger)) {
+        finalMobileTriggerElement = parentProvidedTrigger;
+      } else { // No trigger provided by parent, or it's not a valid element
+        if (actualContent.length > 0) { // But there IS content for the sheet
+          console.warn("Sidebar (Mobile): No valid trigger provided by parent, but content exists. Rendering default trigger.");
+          finalMobileTriggerElement = ( // Assigning a ReactElement
             <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="fixed top-4 left-4 z-50 md:hidden"> 
-                    <PanelLeft /> 
-                    <span className="sr-only">Open Menu</span>
-                </Button>
+              <Button variant="ghost" size="icon" className="fixed top-4 left-4 z-50 md:hidden">
+                <PanelLeft />
+                <span className="sr-only">Abrir Menú</span>
+              </Button>
             </SheetTrigger>
-        );
+          );
+        } else { // No trigger from parent AND no content for the sheet
+          console.log("Sidebar (Mobile): No trigger and no content provided by parent. Rendering nothing for mobile sidebar.");
+          return null; 
+        }
       }
+      
+      // At this point, if actualContent.length > 0, finalMobileTriggerElement MUST be a valid ReactElement.
+      // If actualContent.length === 0 and no parentProvidedTrigger, we would have returned null above.
+      // If finalMobileTriggerElement is still null here, it implies parentProvidedTrigger was null AND actualContent was empty.
+      
+      if (!finalMobileTriggerElement) {
+          // This case should ideally be covered if no content led to 'return null'.
+          // If we reach here and it's null, it means there was no parent trigger and no content.
+          console.log("Sidebar (Mobile): finalMobileTriggerElement is null and no content. Rendering nothing.");
+          return null;
+      }
+
       return (
         <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-          {trigger} 
+          {finalMobileTriggerElement} {/* This should now always be a ReactElement if we proceed */}
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
-            className="w-[var(--sidebar-width-mobile,18rem)] bg-sidebar p-0 text-sidebar-foreground"
-            style={{
-              "--sidebar-width-mobile": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties}
+            className="w-[var(--sidebar-width-mobile,18rem)] bg-sidebar p-0 text-sidebar-foreground flex flex-col"
+            style={{ "--sidebar-width-mobile": SIDEBAR_WIDTH_MOBILE } as React.CSSProperties}
             side={side}
           >
             <div className="flex h-full w-full flex-col">{actualContent}</div>
           </SheetContent>
         </Sheet>
-      )
+      );
     }
 
+    // Desktop sidebar logic (remains the same)
     return (
       <div
         ref={ref}
         className={cn(
             "group peer hidden md:block text-sidebar-foreground",
-            className 
+            className
         )}
         data-state={state}
         data-collapsible={state === "collapsed" ? collapsible : ""}
@@ -265,6 +285,7 @@ const Sidebar = React.forwardRef<
   }
 )
 Sidebar.displayName = "Sidebar"
+
 
 const SidebarTrigger = React.forwardRef<
   React.ElementRef<typeof Button>,
