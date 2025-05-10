@@ -190,16 +190,6 @@ export function Navigation() {
     }
   }, [authUser, authLoading]);
 
-  if (authLoading || (!authUser && profileLoading)) { // Show loader if auth is loading, or if no authUser but profile still says loading
-    return (
-      <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
-        <Loader2 size={24} className="animate-spin" />
-      </button>
-    );
-  }
-
-  if (!authUser) return null; // No menu if not logged in
-
   const navConfig = getNavConfig(userProfile);
   const feedbackLink = navConfig.find(item => item.isFeedbackLink);
   const menuItems = navConfig.filter(item => !item.isFeedbackLink);
@@ -211,8 +201,6 @@ export function Navigation() {
     if (typeof item.href === 'string') {
       hrefPath = item.href;
     } else if (typeof item.href === 'function') {
-      // For functions like rLink, paths are relative to residenciaId (e.g. /elegir-comidas)
-      // The href function itself (rLink) prepends the residenciaId
       const relativePath = item.id === 'elegirComidas' ? '/elegir-comidas' :
                          item.id === 'actividades' ? '/actividades' :
                          item.id === 'invitados' ? '/bienvenida-invitados' :
@@ -223,7 +211,7 @@ export function Navigation() {
 
     if (item.isAccordion) {
       const visibleChildren = item.children?.filter(child => isItemVisible(child, userProfile)) || [];
-      if (visibleChildren.length === 0) return null; // Don't render accordion if no children are visible
+      if (visibleChildren.length === 0) return null;
 
       return (
         <AccordionItem value={item.id} key={item.id}>
@@ -250,31 +238,58 @@ export function Navigation() {
     );
   };
 
-  return (
-    <Sidebar>
+  // Determine if the trigger should be a loading button or the menu button
+  let triggerContent: ReactNode = null;
+  if (authLoading || (!authUser && profileLoading)) {
+    // Show loader if auth is loading, or if no authUser but profile still says loading
+    triggerContent = (
+      <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" disabled>
+        <Loader2 size={24} className="animate-spin" />
+      </button>
+    );
+  } else if (authUser) {
+    // Show menu trigger only if authenticated and not loading
+    triggerContent = (
       <SidebarTrigger asChild>
         <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
           <Menu size={24} />
         </button>
       </SidebarTrigger>
-      <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg">
-        <SidebarHeader className="p-4 border-b dark:border-gray-700">
-          <div className="flex flex-col">
-            <h2 className="text-lg font-semibold">Menú Principal</h2>
-            {userProfile?.email && <span className='text-xs text-gray-500'>{userProfile.email}</span>}
+    );
+  }
+  // If !authUser and not loading, triggerContent remains null, so no trigger is rendered.
+
+  return (
+    <Sidebar>
+      {triggerContent}
+      {authUser && !authLoading && !profileLoading && (
+        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg">
+          <SidebarHeader className="p-4 border-b dark:border-gray-700">
+            <div className="flex flex-col">
+              <h2 className="text-lg font-semibold">Menú Principal</h2>
+              {userProfile?.email && <span className='text-xs text-gray-500'>{userProfile.email}</span>}
+            </div>
+          </SidebarHeader>
+          <SidebarMenu className="flex-grow p-4 space-y-2">
+            <Accordion type="multiple" className="w-full">
+              {menuItems.map(item => renderNavItem(item))}
+            </Accordion>
+          </SidebarMenu>
+          {feedbackLink && isItemVisible(feedbackLink, userProfile) && (
+            <SidebarFooter className="p-4 border-t dark:border-gray-700">
+              {renderNavItem(feedbackLink)}
+            </SidebarFooter>
+          )}
+        </SidebarContent>
+      )}
+      {/* Optionally, show a loading state or minimal content for SidebarContent when loading */}
+      {(authLoading || (!authUser && profileLoading)) && authUser && ( // Only show if there was an authUser expected
+        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg">
+           <div className="flex items-center justify-center h-full">
+            <Loader2 size={32} className="animate-spin" />
           </div>
-        </SidebarHeader>
-        <SidebarMenu className="flex-grow p-4 space-y-2">
-          <Accordion type="multiple" className="w-full">
-            {menuItems.map(item => renderNavItem(item))}
-          </Accordion>
-        </SidebarMenu>
-        {feedbackLink && isItemVisible(feedbackLink, userProfile) && (
-          <SidebarFooter className="p-4 border-t dark:border-gray-700">
-            {renderNavItem(feedbackLink)}
-          </SidebarFooter>
-        )}
-      </SidebarContent>
+        </SidebarContent>
+      )}
     </Sidebar>
   );
 }
