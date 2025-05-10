@@ -817,15 +817,18 @@ export default function UserManagementPage(): JSX.Element | null {
                         {/* Roles Checkboxes */}
                         <div className="space-y-2">
                             <Label className="font-medium">Roles *</Label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-2 pt-1">
+                            {/* Adjusted grid columns for better responsiveness */}
+                            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2 pt-1">
                                 {availableRoles.map((role) => (
                                     <div key={role} className="flex items-center space-x-2">
                                         <Checkbox id={`role-${role}`} checked={(formData.roles || []).includes(role)} onCheckedChange={(checked) => handleRoleChange(role, !!checked)} disabled={isSaving} />
-                                        <Label htmlFor={`role-${role}`} className="font-normal capitalize text-sm">{formatSingleRoleName(role)}</Label>
+                                        <Label htmlFor={`role-${role}`} className="font-normal capitalize text-sm whitespace-nowrap"> {/* Added whitespace-nowrap to prevent label text from breaking too early, but the grid should handle overall item width */}
+                                            {formatSingleRoleName(role)}
+                                        </Label>
                                     </div>
                                 ))}
                             </div>
-                             {formData.roles.length === 0 && <p className="text-xs text-destructive mt-1">Seleccione al menos un rol.</p> }
+                            {formData.roles.length === 0 && <p className="text-xs text-destructive mt-1">Seleccione al menos un rol.</p> }
                         </div>
 
                         {/* Is Active Switch (Only show when editing) */}
@@ -966,28 +969,28 @@ export default function UserManagementPage(): JSX.Element | null {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="min-w-[250px]">Usuario</TableHead>
-                                            <TableHead>Roles</TableHead>
-                                            <TableHead className="text-center">Estado</TableHead>
-                                            <TableHead className="text-right min-w-[160px]">Acciones</TableHead>
+                                            <TableHead className="min-w-[200px] py-3 px-4">Usuario</TableHead>
+                                            <TableHead className="py-3 px-4">Roles</TableHead>
+                                            <TableHead className="text-center py-3 px-4">Estado</TableHead>
+                                            <TableHead className="text-right min-w-[140px] py-3 px-4">Acciones</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {filteredUsers.map((user) => (
                                             <TableRow key={user.id} className={editingUserId === user.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''}>
-                                                <TableCell className="font-medium">
-                                                    <div>{user.nombre} {user.apellido}</div>
-                                                    <div className="text-xs text-muted-foreground">({user.email})</div>
+                                                <TableCell className="font-medium py-3 px-4">
+                                                    <div className="break-words">{user.nombre} {user.apellido}</div>
+                                                    <div className="text-xs text-muted-foreground break-all">({user.email})</div>
                                                 </TableCell>
-                                                <TableCell className="capitalize text-xs">
+                                                <TableCell className="capitalize text-xs py-3 px-4 break-words">
                                                     {(user.roles || []).map(formatSingleRoleName).join(', ')}
                                                 </TableCell>
-                                                <TableCell className="text-center">
+                                                <TableCell className="text-center py-3 px-4">
                                                     <Badge variant={user.isActive ? 'default' : 'outline'} className={user.isActive ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700' : 'bg-red-100 text-red-700 border-red-300 dark:bg-red-700/30 dark:text-red-300 dark:border-red-700'}>
                                                         {user.isActive ? 'Activo' : 'Inactivo'}
                                                     </Badge>
                                                 </TableCell>
-                                                <TableCell className="text-right space-x-2">
+                                                <TableCell className="text-right space-x-2 py-3 px-4">
                                                     <Button variant="outline" size="sm" onClick={() => handleEditUser(user.id)} disabled={isSaving || (!!editingUserId && editingUserId !== user.id)}>Editar</Button>
                                                     <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={isSaving || !!editingUserId}>Eliminar</Button>
                                                 </TableCell>
