@@ -7,7 +7,7 @@ import {
   Sidebar,
   SidebarTrigger,
   SidebarContent,
-  SidebarHeader, // This is from ./ui/sidebar
+  // SidebarHeader, // We will use SheetHeader from ui/sheet for the title section
   SidebarMenu,
   SidebarMenuItem,
   SidebarFooter,
@@ -20,8 +20,12 @@ import {
 } from './ui/accordion';
 import { Menu, Users, Building, Settings, ListChecks, CalendarDays, UsersRound, Bell, FileText, Home, PlusCircle, MessageSquare, Loader2, ShieldCheck, UserCog, LucideIcon } from 'lucide-react';
 
-// Import SheetTitle and SheetDescription for accessibility
-import { SheetTitle, SheetDescription } from '@/components/ui/sheet';
+// Import SheetTitle, SheetDescription, and SheetHeader for accessibility
+import {
+  SheetTitle,
+  SheetDescription,
+  SheetHeader as UiSheetHeader, // Aliased to avoid name conflict if any
+} from '@/components/ui/sheet';
 
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
@@ -204,7 +208,6 @@ export function Navigation() {
     if (typeof item.href === 'string') {
       hrefPath = item.href;
     } else if (typeof item.href === 'function') {
-      // Corrected href assignment for functions
       const pathTemplate = item.id === 'elegirComidas' ? '/elegir-comidas' :
                          item.id === 'actividades' ? '/actividades' :
                          item.id === 'invitados' ? '/bienvenida-invitados' :
@@ -264,18 +267,16 @@ export function Navigation() {
       {triggerContent} 
       {authUser && !authLoading && !profileLoading && (
         <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg">
-          <SidebarHeader className="p-4 border-b dark:border-gray-700">
-            <div className="flex flex-col">
-              <SheetTitle>
-                <h2 className="text-lg font-semibold">Menú Principal</h2>
-              </SheetTitle>
-              {userProfile?.email && (
-                <SheetDescription className="sr-only">
-                   {`Menú de navegación para ${userProfile.email}`}
-                </SheetDescription>
-              )}
-            </div>
-          </SidebarHeader>
+          <UiSheetHeader className="p-4 border-b dark:border-gray-700 text-left">
+            <SheetTitle>
+              <h2 className="text-lg font-semibold">Menú Principal</h2>
+            </SheetTitle>
+            {userProfile?.email && (
+              <SheetDescription className="sr-only">
+                 {`Menú de navegación para ${userProfile.email}`}
+              </SheetDescription>
+            )}
+          </UiSheetHeader>
           <SidebarMenu className="flex-grow p-4 space-y-2">
             <Accordion type="multiple" className="w-full">
               {menuItems.map(item => renderNavItem(item))}
