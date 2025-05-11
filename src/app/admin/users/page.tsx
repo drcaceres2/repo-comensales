@@ -43,14 +43,16 @@ import { doc, getDoc, getDocs, Timestamp, addDoc, collection, setDoc, updateDoc,
 import { auth, db } from '@/lib/firebase'; // Your initialized instances
 
 // Model Imports
-import { UserProfile, UserRole, ResidenciaId, DietaId, LogEntry, LogActionType, Dieta } from '@/models/firestore'; // Added Dieta
+// MODIFIED: Added ModoEleccionUsuario and CentroCostoId
+import { UserProfile, UserRole, ResidenciaId, DietaId, LogEntry, LogActionType, Dieta, ModoEleccionUsuario, CentroCostoId } from '@/models/firestore';
 
 export default function UserManagementPage(): JSX.Element | null {
     const ALL_RESIDENCIAS_FILTER_KEY = 'all_residencias';
     const NO_RESIDENCIA_FILTER_KEY = 'no_residencia_assigned';
 
     // Helper type for form state
-    type UserFormData = Partial<Omit<UserProfile, 'id' | 'roles'>> & {
+    // MODIFIED: UserFormData to include new fields
+    type UserFormData = Partial<Omit<UserProfile, 'id' | 'roles' | 'fechaDeNacimiento'>> & {
         roles: UserRole[];
         residenciaId?: ResidenciaId | '';
         dietaId?: DietaId | '';
@@ -63,6 +65,13 @@ export default function UserManagementPage(): JSX.Element | null {
         password?: string;
         confirmPassword?: string;
         telefonoMovil?: string;
+        fechaDeNacimiento?: string; // For form input, UserProfile has Timestamp
+        // modoEleccion is now covered by Partial<UserProfile>
+        // centroCostoPorDefectoId is now covered by Partial<UserProfile>
+        // puedeTraerInvitados is now covered by Partial<UserProfile>
+        valorCampoPersonalizado1?: string;
+        valorCampoPersonalizado2?: string;
+        valorCampoPersonalizado3?: string;
     };
 
     const router = useRouter();
@@ -82,10 +91,30 @@ export default function UserManagementPage(): JSX.Element | null {
 
 
     // --- Page Specific State (existing state) ---
+    // MODIFIED: Initial formData to include new fields
     const [formData, setFormData] = useState<UserFormData>({
-        nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
-        numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
-        password: '', confirmPassword: '', telefonoMovil: ''
+        nombre: '', 
+        apellido: '', 
+        email: '', 
+        isActive: true, 
+        roles: [], 
+        residenciaId: '', 
+        dietaId: '',
+        numeroDeRopa: '', 
+        habitacion: '', 
+        universidad: '', 
+        carrera: '', 
+        dni: '',
+        password: '', 
+        confirmPassword: '', 
+        telefonoMovil: '',
+        modoEleccion: undefined, // Or a specific default like 'semanario' if applicable from ModoEleccionUsuario
+        fechaDeNacimiento: '', // Stored as string in form, converted to Timestamp on save
+        centroCostoPorDefectoId: '',
+        puedeTraerInvitados: 'no', // Default value
+        valorCampoPersonalizado1: '',
+        valorCampoPersonalizado2: '',
+        valorCampoPersonalizado3: ''
     });
     const [isSaving, setIsSaving] = useState(false);
     const [users, setUsers] = useState<UserProfile[]>([]); // List of users being managed
@@ -211,6 +240,18 @@ export default function UserManagementPage(): JSX.Element | null {
                     universidad: data.universidad || undefined,
                     carrera: data.carrera || undefined,
                     dni: data.dni || undefined,
+                    // ADDED: New fields from UserProfile, ensure they are read
+                    modoEleccion: data.modoEleccion || undefined,
+                    fechaDeNacimiento: data.fechaDeNacimiento || undefined, // This will be a Timestamp from Firestore
+                    centroCostoPorDefectoId: data.centroCostoPorDefectoId || undefined,
+                    puedeTraerInvitados: data.puedeTraerInvitados || 'no',
+                    valorCampoPersonalizado1: data.valorCampoPersonalizado1 || undefined,
+                    valorCampoPersonalizado2: data.valorCampoPersonalizado2 || undefined,
+                    valorCampoPersonalizado3: data.valorCampoPersonalizado3 || undefined,
+                    telefonoMovil: data.telefonoMovil || undefined,
+                    asistentePermisos: data.asistentePermisos || undefined,
+                    notificacionPreferencias: data.notificacionPreferencias || undefined,
+
                 });
             });
             console.log("Fetched users to manage:", usersData);
@@ -352,7 +393,7 @@ export default function UserManagementPage(): JSX.Element | null {
     ]);
 
     // --- Form and UI Handler Functions ---
-    const handleFormChange = (field: keyof Omit<UserFormData, 'roles'>, value: string | boolean) => {
+    const handleFormChange = (field: keyof Omit<UserFormData, 'roles'>, value: string | boolean | ModoEleccionUsuario | undefined) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
@@ -400,7 +441,7 @@ export default function UserManagementPage(): JSX.Element | null {
         });
     };
 
-    const handleSelectChange = (field: 'residenciaId' | 'dietaId', value: string) => {
+    const handleSelectChange = (field: 'residenciaId' | 'dietaId' | 'modoEleccion' | 'puedeTraerInvitados' | 'centroCostoPorDefectoId', value: string) => {
         setFormData(prev => {
             const updatedFormData = { ...prev, [field]: value };
 
@@ -471,6 +512,7 @@ export default function UserManagementPage(): JSX.Element | null {
         } else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) {
             validationError = "Número de Ropa es requerido para Residentes.";
         }
+        // TODO: Add validation for new fields if necessary
         
         if (validationError) {
             toast({ title: "Error de Validación", description: validationError, variant: "destructive" });
@@ -499,6 +541,14 @@ export default function UserManagementPage(): JSX.Element | null {
                 ...( formData.carrera?.trim() ? { carrera: formData.carrera.trim() } : {} ),
                 ...( formData.dni?.trim() ? { dni: formData.dni.trim() } : {} ),
                 ...( formData.telefonoMovil?.trim() ? { telefonoMovil: formData.telefonoMovil.trim() } : {} ),
+                // ADDED: New fields to save
+                ...(formData.modoEleccion ? { modoEleccion: formData.modoEleccion } : {}),
+                ...(formData.fechaDeNacimiento ? { fechaDeNacimiento: Timestamp.fromDate(new Date(formData.fechaDeNacimiento)) } : {}), // Convert string to Timestamp
+                ...(formData.centroCostoPorDefectoId ? { centroCostoPorDefectoId: formData.centroCostoPorDefectoId } : {}),
+                puedeTraerInvitados: formData.puedeTraerInvitados || 'no', // Ensure it has a value
+                ...(formData.valorCampoPersonalizado1?.trim() ? { valorCampoPersonalizado1: formData.valorCampoPersonalizado1.trim() } : {}),
+                ...(formData.valorCampoPersonalizado2?.trim() ? { valorCampoPersonalizado2: formData.valorCampoPersonalizado2.trim() } : {}),
+                ...(formData.valorCampoPersonalizado3?.trim() ? { valorCampoPersonalizado3: formData.valorCampoPersonalizado3.trim() } : {}),
             };
 
             console.log(`Attempting to create Firestore document users/${newUserAuthUid}...`);
@@ -506,16 +556,24 @@ export default function UserManagementPage(): JSX.Element | null {
             await setDoc(userDocRef, userProfileData);
             console.log(`Firestore document created successfully for user ${newUserAuthUid}`);
 
-            const newUserForUI: UserProfile = { ...userProfileData, id: newUserAuthUid };
+            const newUserForUI: UserProfile = { ...userProfileData, id: newUserAuthUid, puedeTraerInvitados: userProfileData.puedeTraerInvitados || 'no' };
             setUsers(prevUsers => [newUserForUI, ...prevUsers].sort((a,b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre)));
 
 
             toast({ title: "Usuario Creado", description: `Se ha creado el usuario ${newUserForUI.nombre} ${newUserForUI.apellido}.` });
 
+            // MODIFIED: Reset new fields in form
             setFormData({
                 nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
                 numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
-                password: '', confirmPassword: '', telefonoMovil: ''
+                password: '', confirmPassword: '', telefonoMovil: '',
+                modoEleccion: undefined, 
+                fechaDeNacimiento: '',
+                centroCostoPorDefectoId: '',
+                puedeTraerInvitados: 'no',
+                valorCampoPersonalizado1: '',
+                valorCampoPersonalizado2: '',
+                valorCampoPersonalizado3: ''
             });
 
         } catch (error: any) {
@@ -547,6 +605,7 @@ export default function UserManagementPage(): JSX.Element | null {
         }
         console.log("Editing user:", userToEdit);
         setEditingUserId(userId);
+        // MODIFIED: Populate new fields in form for editing
         setFormData({
             nombre: userToEdit.nombre || '',
             apellido: userToEdit.apellido || '',
@@ -560,16 +619,32 @@ export default function UserManagementPage(): JSX.Element | null {
             universidad: userToEdit.universidad || '',
             carrera: userToEdit.carrera || '',
             dni: userToEdit.dni || '',
-            password: '', confirmPassword: '' // Clear password fields
+            password: '', confirmPassword: '', // Clear password fields
+            telefonoMovil: userToEdit.telefonoMovil || '',
+            modoEleccion: userToEdit.modoEleccion || undefined,
+            fechaDeNacimiento: userToEdit.fechaDeNacimiento ? (userToEdit.fechaDeNacimiento as Timestamp).toDate().toISOString().split('T')[0] : '', // Convert Timestamp to YYYY-MM-DD string
+            centroCostoPorDefectoId: userToEdit.centroCostoPorDefectoId || '',
+            puedeTraerInvitados: userToEdit.puedeTraerInvitados || 'no',
+            valorCampoPersonalizado1: userToEdit.valorCampoPersonalizado1 || '',
+            valorCampoPersonalizado2: userToEdit.valorCampoPersonalizado2 || '',
+            valorCampoPersonalizado3: userToEdit.valorCampoPersonalizado3 || '',
         });
       };
 
       const handleCancelEdit = () => {
           setEditingUserId(null);
+          // MODIFIED: Reset new fields in form on cancel
           setFormData({
             nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
             numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
-            password: '', confirmPassword: ''
+            password: '', confirmPassword: '', telefonoMovil: '',
+            modoEleccion: undefined,
+            fechaDeNacimiento: '',
+            centroCostoPorDefectoId: '',
+            puedeTraerInvitados: 'no',
+            valorCampoPersonalizado1: '',
+            valorCampoPersonalizado2: '',
+            valorCampoPersonalizado3: ''
         });
           console.log("Cancelled edit.");
       };
@@ -618,6 +693,7 @@ export default function UserManagementPage(): JSX.Element | null {
         else if (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para el rol seleccionado.";
         else if (roles.includes('residente') && !formData.dietaId) validationError = "Dieta Predeterminada es requerida para Residentes.";
         else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) validationError = "Número de Ropa es requerido para Residentes.";
+        // TODO: Add validation for new fields if necessary
 
         if (validationError) {
             toast({ title: "Error de Validación", description: validationError, variant: "destructive" });
@@ -632,7 +708,6 @@ export default function UserManagementPage(): JSX.Element | null {
                 // email: formData.email!.trim(), // Be cautious updating email; it's tied to Firebase Auth identity. Typically done via Auth SDK.
                 roles: formData.roles!,
                 isActive: formData.isActive ?? true,
-                // Conditionally set fields, ensure `undefined` if not applicable or empty to remove/leave unchanged.
                 residenciaId: (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && formData.residenciaId) ? formData.residenciaId : undefined,
                 dietaId: (roles.includes('residente') && formData.dietaId) ? formData.dietaId : undefined,
                 numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
@@ -640,9 +715,18 @@ export default function UserManagementPage(): JSX.Element | null {
                 universidad: formData.universidad?.trim() || undefined,
                 carrera: formData.carrera?.trim() || undefined,
                 dni: formData.dni?.trim() || undefined,
+                telefonoMovil: formData.telefonoMovil?.trim() || undefined,
+                // ADDED: New fields for update
+                modoEleccion: formData.modoEleccion || undefined,
+                fechaDeNacimiento: formData.fechaDeNacimiento ? Timestamp.fromDate(new Date(formData.fechaDeNacimiento)) : undefined, // Convert string to Timestamp
+                centroCostoPorDefectoId: formData.centroCostoPorDefectoId || undefined,
+                puedeTraerInvitados: formData.puedeTraerInvitados || 'no',
+                valorCampoPersonalizado1: formData.valorCampoPersonalizado1?.trim() || undefined,
+                valorCampoPersonalizado2: formData.valorCampoPersonalizado2?.trim() || undefined,
+                valorCampoPersonalizado3: formData.valorCampoPersonalizado3?.trim() || undefined,
             };
             // Remove undefined keys to prevent Firestore from creating them with null or erroring
-            Object.keys(updatedData).forEach(key => updatedData[key as keyof UserProfile] === undefined && delete updatedData[key as keyof UserProfile]);
+            Object.keys(updatedData).forEach(key => (updatedData as any)[key] === undefined && delete (updatedData as any)[key]);
 
 
             const userDocRef = doc(db, "users", editingUserId);
@@ -653,7 +737,8 @@ export default function UserManagementPage(): JSX.Element | null {
             const updatedUserInState: UserProfile = {
                 ...originalUser,
                 ...updatedData, // Apply successfully updated fields
-                id: editingUserId // ensure id is present
+                id: editingUserId, // ensure id is present
+                puedeTraerInvitados: updatedData.puedeTraerInvitados || originalUser.puedeTraerInvitados // ensure this field is correctly carried over
             };
 
             setUsers(prevUsers => prevUsers.map(user =>
@@ -834,7 +919,7 @@ export default function UserManagementPage(): JSX.Element | null {
                         {/* Is Active Switch (Only show when editing) */}
                         {editingUserId && (
                             <div className="flex items-center space-x-2 pt-3">
-                                <Switch id="isActive" checked={formData.isActive} onCheckedChange={(checked) => handleFormChange('isActive', checked)} disabled={isSaving} />
+                                <Switch id="isActive" checked={!!formData.isActive} onCheckedChange={(checked) => handleFormChange('isActive', checked)} disabled={isSaving} />
                                 <Label htmlFor="isActive" className="text-sm">Usuario Activo</Label>
                             </div>
                         )}
@@ -882,10 +967,76 @@ export default function UserManagementPage(): JSX.Element | null {
                                  {isDietaConditionallyRequired && !formData.dietaId && <p className="text-xs text-destructive mt-1">Requerido para Residente.</p>}
                              </div>
                          </div>
-
-                        {/* Optional Fields Group */}
+                        
+                        {/* --- START: New UserProfile Fields --- */}
                         <Card className="p-4 mt-4 bg-slate-50 dark:bg-slate-800/30 border-dashed">
-                             <h4 className="text-base font-medium mb-3 text-slate-700 dark:text-slate-300">Detalles Adicionales (Opcional)</h4>
+                            <h4 className="text-base font-medium mb-3 text-slate-700 dark:text-slate-300">Configuraciones Adicionales</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="modoEleccion">Modo de Elección de Comidas</Label>
+                                    <Select value={formData.modoEleccion || ''} onValueChange={(value) => handleSelectChange('modoEleccion', value as ModoEleccionUsuario)} disabled={isSaving} >
+                                        <SelectTrigger id="modoEleccion"><SelectValue placeholder="Seleccione modo..." /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="normal">Normal (Semanario)</SelectItem>
+                                            <SelectItem value="aprobacion_diaria">Aprobación Diaria</SelectItem>
+                                            <SelectItem value="explicito_diario">Elección Diaria Explícita</SelectItem>
+                                            <SelectItem value="suspendido_con_asistente">Suspendido (Asistente Elige)</SelectItem>
+                                            <SelectItem value="suspendido">Suspendido Totalmente</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="fechaDeNacimiento">Fecha de Nacimiento</Label>
+                                    <Input id="fechaDeNacimiento" type="date" value={formData.fechaDeNacimiento || ''} onChange={(e) => handleFormChange('fechaDeNacimiento', e.target.value)} disabled={isSaving} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="centroCostoPorDefectoId">Centro de Costo por Defecto</Label>
+                                     {/* TODO: Populate this select with actual CentroCosto data */}
+                                    <Select value={formData.centroCostoPorDefectoId || ''} onValueChange={(value) => handleSelectChange('centroCostoPorDefectoId', value)} disabled={isSaving} >
+                                        <SelectTrigger id="centroCostoPorDefectoId"><SelectValue placeholder="Seleccione centro de costo..." /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="temp1">Temporal CC1 (Cargar Dinámicamente)</SelectItem>
+                                            <SelectItem value="temp2">Temporal CC2</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="puedeTraerInvitados">Puede Traer Invitados</Label>
+                                    <Select value={formData.puedeTraerInvitados || 'no'} onValueChange={(value) => handleSelectChange('puedeTraerInvitados', value as 'no' | 'requiere_autorizacion' | 'si')} disabled={isSaving} >
+                                        <SelectTrigger id="puedeTraerInvitados"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="no">No</SelectItem>
+                                            <SelectItem value="requiere_autorizacion">Requiere Autorización</SelectItem>
+                                            <SelectItem value="si">Sí</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </Card>
+                        
+                        <Card className="p-4 mt-4 bg-slate-50 dark:bg-slate-800/30 border-dashed">
+                             <h4 className="text-base font-medium mb-3 text-slate-700 dark:text-slate-300">Campos Personalizados (Definidos en Residencia)</h4>
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                 <div className="space-y-1.5">
+                                     <Label htmlFor="valorCampoPersonalizado1">Valor Personalizado 1</Label> {/* TODO: Get label from Residencia settings */}
+                                     <Input id="valorCampoPersonalizado1" value={formData.valorCampoPersonalizado1 || ''} onChange={(e) => handleFormChange('valorCampoPersonalizado1', e.target.value)} placeholder="Valor 1" disabled={isSaving} />
+                                 </div>
+                                 <div className="space-y-1.5">
+                                     <Label htmlFor="valorCampoPersonalizado2">Valor Personalizado 2</Label> {/* TODO: Get label from Residencia settings */}
+                                     <Input id="valorCampoPersonalizado2" value={formData.valorCampoPersonalizado2 || ''} onChange={(e) => handleFormChange('valorCampoPersonalizado2', e.target.value)} placeholder="Valor 2" disabled={isSaving} />
+                                 </div>
+                                 <div className="space-y-1.5">
+                                     <Label htmlFor="valorCampoPersonalizado3">Valor Personalizado 3</Label> {/* TODO: Get label from Residencia settings */}
+                                     <Input id="valorCampoPersonalizado3" value={formData.valorCampoPersonalizado3 || ''} onChange={(e) => handleFormChange('valorCampoPersonalizado3', e.target.value)} placeholder="Valor 3" disabled={isSaving} />
+                                 </div>
+                            </div>
+                        </Card>
+                        {/* --- END: New UserProfile Fields --- */}
+
+
+                        {/* Optional Fields Group (Existing) */}
+                        <Card className="p-4 mt-4 bg-slate-50 dark:bg-slate-800/30 border-dashed">
+                             <h4 className="text-base font-medium mb-3 text-slate-700 dark:text-slate-300">Detalles Adicionales (Opcional - Existentes)</h4>
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                  <div className="space-y-1.5">
                                      <Label htmlFor="dni">DNI</Label>
@@ -900,6 +1051,14 @@ export default function UserManagementPage(): JSX.Element | null {
                                      <Input id="numeroDeRopa" value={formData.numeroDeRopa || ''} onChange={(e) => handleFormChange('numeroDeRopa', e.target.value)} placeholder="Ej. 55" disabled={isSaving} />
                                      {isNumeroDeRopaConditionallyRequired && !formData.numeroDeRopa?.trim() &&
                                          <p className="text-xs text-destructive mt-1">Requerido para Residentes.</p>}
+                                 </div>
+                                 <div className="space-y-1.5">
+                                     <Label htmlFor="universidad">Universidad</Label>
+                                     <Input id="universidad" value={formData.universidad || ''} onChange={(e) => handleFormChange('universidad', e.target.value)} placeholder="Ej. UNAH" disabled={isSaving} />
+                                 </div>
+                                 <div className="space-y-1.5">
+                                     <Label htmlFor="carrera">Carrera</Label>
+                                     <Input id="carrera" value={formData.carrera || ''} onChange={(e) => handleFormChange('carrera', e.target.value)} placeholder="Ej. Ing. Sistemas" disabled={isSaving} />
                                  </div>
                             </div>
                         </Card>

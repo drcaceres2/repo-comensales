@@ -22,10 +22,10 @@ export type RecordatorioId = string;
 // --- Enum-like Types ---
 export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
 export type TipoAccesoAlternativa = 'abierto' | 'autorizado' | 'cerrado';
-export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requerido' | 'contingencia' | 'anulada_por_cambio';
-export type ModoEleccionUsuario = 'normal' | 'diario' | 'suspendido';
+export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requerido' | 'contingencia' | 'contingencia_no_considerada' | 'anulada_por_cambio';
+export type ModoEleccionUsuario = 'normal' | 'aprobacion_diaria' | 'explicito_diario' | 'suspendido_con_asistente' | 'suspendido';
 export type OrigenEleccion = 
-  | 'semanario' 
+    'semanario' 
   | 'excepcion' 
   | 'excepcion_autorizada' 
   | 'contingencia' 
@@ -39,11 +39,11 @@ export type MealCountFuente = 'estandar' | 'actividad';
 export type EstadoInscripcionActividad =
   | 'invitado_pendiente'   
   | 'invitado_rechazado'   
+  | 'invitado_aceptado'    
   | 'inscrito_directo'     
-  | 'inscrito_aceptado'    
   | 'cancelado_usuario'    
   | 'cancelado_admin';     
-
+export type TipoSolicitudComidasActividad = 'ninguna' | 'solicitud_unica' | 'diario_externo' | 'diario_residencia' | 'solicitud_inicial_mas_confirmacion_diaria_residencia' | 'solicitud_inicial_mas_confirmacion_diaria_externa';
 export type LogActionType =
     'user_created' |
     'user_updated' |
@@ -100,6 +100,11 @@ export const DayOfWeekMap: Record<DayOfWeekKey, string> = {
   };
 export type TipoRecurrente = 'semanal' | 'quincenal' | 'mensual-diasemana' | 'mensual-diames' | 'anual';
 
+// --- Notificaciones ---
+export type NotificacionTipo = 'info' | 'accion_requerida' | 'recordatorio' | 'alerta'; // New
+export type NotificacionPrioridad = 'baja' | 'media' | 'alta'; // New
+
+export type NotificacionId = string;
 
 // --- Interfaces ---
 
@@ -112,6 +117,19 @@ export interface Residencia {
     modoDeCosteo?: 'por-usuario' | 'por-comedor' | 'por-eleccion';
     antelacionActividadesDefault?: number; 
     textProfile?: string;
+    tipoResidentes: 'estudiantes' | 'profesionales' | 'gente_mayor';
+    esquemaAdministracion: 'estricto' | 'flexible';
+
+    nombreTradicionalDesayuno?: string;
+    nombreTradicionalAlmuerzo?: string;
+    nombreTradicionalCena?: string;
+    nombreTradicionalLunes?: string;
+    nombreTradicionalMartes?: string;
+    nombreTradicionalMiercoles?: string;
+    nombreTradicionalJueves?: string;
+    nombreTradicionalViernes?: string;
+    nombreTradicionalSabado?: string;
+    nombreTradicionalDomingo?: string;
 
     // Definición de campos personalizables para UserProfile
     campoPersonalizado1_etiqueta?: string;
@@ -131,7 +149,7 @@ export interface Residencia {
     campoPersonalizado3_necesitaValidacion?: boolean;
     campoPersonalizado3_regexValidacion?: string;
     campoPersonalizado3_tamanoTexto?: 'text' | 'textArea';
-  }
+}
 
 export interface CentroCosto {
     id: CentroCostoId;
@@ -148,6 +166,7 @@ export interface Comedor {
     residenciaId: ResidenciaId;
     descripcion?: string;
     capacidad?: number; 
+    centroCostoPorDefectoId?: CentroCostoId;
 }
 
 export interface TiempoComida {
@@ -177,11 +196,12 @@ export interface AlternativaTiempoComida {
     isActive: boolean; 
 }
 
-export interface ActividadMealDefinition {
+export interface TiempoComidaAlternativaUnicaActividad {
   id: ActividadMealDefinitionId; 
-  nombreGrupoMeal: string; 
-  nombreEspecificoMeal: string; 
-  descripcionMeal?: string; 
+  nombreTiempoComida_AlternativaUnica: string; 
+  nombreGrupoTiempoComida: string;
+  ordenGrupoTiempoComida: number;
+  fecha: Timestamp;
   horaEstimadaMeal?: string; 
 }
 
@@ -194,16 +214,18 @@ export interface Actividad {
   fechaFin: Timestamp;    
   ultimoTiempoComidaIdAntes?: TiempoComidaId; 
   primerTiempoComidaIdDespues?: TiempoComidaId; 
-  planComidas?: ActividadMealDefinition[]; 
+  planComidas?: TiempoComidaAlternativaUnicaActividad[]; 
   requiereInscripcion: boolean;
+  aceptaResidentes: boolean;
+  aceptaInvitados: 'no' | 'por_invitacion' | 'invitacion_libre';
   tipoAccesoActividad: TipoAccesoActividad; 
   maxParticipantes?: number;
   diasAntelacionCierreInscripcion?: number; 
   defaultCentroCostoId?: CentroCostoId; 
   estado: ActividadEstado;
   organizadorUserId: UserId; 
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  tipoSolicitudComidas: TipoSolicitudComidasActividad;
+  estadoSolicitudAdministracion: 'no_solicitado' | 'solicitud_inicial_realizada' | 'completada';
 }
 
 export interface InscripcionActividad {
@@ -244,8 +266,8 @@ export interface AsistentePermisos {
   activ_gest_todas?: boolean;   
   invit_elecc_act_propias?: boolean; 
   invit_elecc_act_todas?: boolean;
-  recor_gest_propias?: boolean; // True if asistente can manage their own reminders
-  recor_gest_todas?: boolean;   // True if asistente can manage all reminders in the residencia
+  recor_gest_propias?: boolean;
+  recor_gest_todas?: boolean;
 }
 
 export interface UserProfile {
@@ -264,8 +286,11 @@ export interface UserProfile {
     carrera?: string;
     dni?: string;
     telefonoMovil?: string;
-    fechaDeNacimiento?: Timestamp; // Confirmado
+    fechaDeNacimiento?: Timestamp;
     asistentePermisos?: AsistentePermisos; 
+    centroCostoPorDefectoId?: CentroCostoId;
+    puedeTraerInvitados: 'no' | 'requiere_autorizacion' | 'si';
+    notificacionPreferencias?: NotificacionPreferencias;
 
     // Valores para los campos personalizables (definidos en Residencia)
     valorCampoPersonalizado1?: string;
@@ -273,20 +298,14 @@ export interface UserProfile {
     valorCampoPersonalizado3?: string;
 }
 
-export interface SemanarioAlternativaSeleccion {
-    alternativaId: AlternativaTiempoComidaId;
-    requiereAprobacion: boolean;
-    alternativaContingenciaId?: AlternativaTiempoComidaId | null;
-}
+
 
 export interface Semanario {
     id?: string; 
     userId: UserId;
     residenciaId: ResidenciaId;
     elecciones: {
-        [key in DayOfWeekKey]?: {
-            [tiempoComidaId: string]: SemanarioAlternativaSeleccion;
-        }
+        [tiempoComidaId: TiempoComidaId]: AlternativaTiempoComidaId[];
     };
     ultimaActualizacion: Timestamp;
 }
@@ -300,7 +319,7 @@ export interface Eleccion {
     alternativaTiempoComidaId?: AlternativaTiempoComidaId;
     dietaId?: DietaId;
     solicitado: boolean;
-    congelado: boolean; // <--- ADD THIS LINE
+    congelado: boolean; 
     asistencia?: boolean;
     fechaSolicitud: Timestamp;
     estadoAprobacion: EstadoAprobacion;
@@ -310,6 +329,8 @@ export interface Eleccion {
     processedForBilling?: boolean;
     actividadId?: ActividadId;
     actividadMealId?: ActividadMealDefinitionId;
+    tipoEleccion: 'regular' | 'actividad';
+    origenCentroCosto?: 'usuario-por-defecto' | 'comedor-por-defecto' | 'manual' | 'modificado';
 }
 
 export interface MealCount {
@@ -327,7 +348,7 @@ export interface MealCount {
     centroCostoId?: CentroCostoId | 'ninguno'; 
     totalSolicitado: number; 
     totalAprobado?: number; 
-    version: Timestamp; 
+    estadoCentroCosto: 'pendiente' | 'asignado';
 }
 
 export interface Ausencia {
@@ -385,14 +406,61 @@ export interface Feedback {
 
 export interface Recordatorio {
     id: RecordatorioId;
-    residenciaId: ResidenciaId; // Or your specific ResidenciaId type
-    userId: UserId;       // UID of the user who created the reminder
+    residenciaId: ResidenciaId;
+    userId: UserId;
     fechaInicio: Timestamp;
     fechaFin: Timestamp;
     isSingleDay: boolean;
     isRecurrente: boolean;
-    tipoRecurrente?: TipoRecurrente; // Should be present if isRecurrente is true
+    tipoRecurrente?: TipoRecurrente;
     titulo: string;
     descripcion?: string;
-    color: string; // Hex color string, e.g., "#3B82F6"
+    color: string;
+}
+
+export interface Faltas {
+    id: string;
+    usuario: UserProfile;
+    titulo: string;
+    descripcion?: string;
+    notificada: boolean;
+    confirmada: boolean;
+    origen: string;
+}
+
+export interface Notificacion {
+  id: NotificacionId;
+  residenciaId: ResidenciaId;
+  usuarioId: UserId; // Recipient
+  tipo: NotificacionTipo; // e.g., 'info', 'accion_requerida'
+  prioridad: NotificacionPrioridad; // e.g., 'alta', 'media'
+  titulo: string; // e.g., "Recordatorio: Elige tu comida"
+  mensaje: string; // e.g., "Tienes hasta las 8 PM para elegir tu almuerzo."
+  relacionadoA?: {
+    coleccion: 'eleccion' | 'actividad' | 'ausencia' | 'mealCount';
+    documentoId: string;
+  };
+  leido: boolean; // Whether the user has read the notification
+  creadoEn: Timestamp; // Creation timestamp
+  venceEn?: Timestamp; // Optional expiration
+  entregadoCorreoEn?: Timestamp;
+  enviadoCorreoA?: string; // Email address
+  estadoCorreo?: 'pendiente' | 'enviado' | 'fallido';
+  errorcorreo?: string; // Error message if failed
+  entregadoSMSEn?: Timestamp;
+  entregadoWAEn?: Timestamp;
+  enviadoWAA: string; // Phone number
+  estadoWA: 'pendiente' | 'enviado' | 'fallido';
+  errorWA?: string; // Error message if failed
+  entregadoEnAppEn?: Timestamp;
+}
+
+export interface NotificacionPreferencias {
+  usuarioId: UserId;
+  residenciaId: ResidenciaId;
+  canalEmail: boolean; // Opt-in for email
+  canalWhatsApp: boolean; // Opt-in for WhatsApp
+  canalSMS?: boolean; // Optional opt-in for SMS
+  tiposPermitidos: NotificacionTipo[]; // e.g., ['info', 'recordatorio']
+  notificacionesSilenciadas?: boolean; // Mute non-critical notifications
 }
