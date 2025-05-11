@@ -187,7 +187,6 @@ function AlternativaForm({
     );
 }
 
-
 // Log Helper Function - Updated to use authUser.uid
 async function createLogEntry(
     actionType: LogActionType,
@@ -254,6 +253,8 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
     const [editTiempoComidaNombreGrupo, setEditTiempoComidaNombreGrupo] = useState('');
     const [editTiempoComidaOrdenGrupo, setEditTiempoComidaOrdenGrupo] = useState<number | string>('');
     const [isSavingEditTiempo, setIsSavingEditTiempo] = useState(false);
+    const [isAddingTraditionalScheme, setIsAddingTraditionalScheme] = useState(false);
+
     // Alternativa Add/Edit
     const [showInactiveAlternativas, setShowInactiveAlternativas] = useState(false);
     const [editingAlternativaId, setEditingAlternativaId] = useState<string | null>(null);
@@ -262,6 +263,13 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
     const [isSavingAlternativa, setIsSavingAlternativa] = useState(false);
 
     const availableDays: { key: DayOfWeekKey; label: string }[] = Object.entries(DayOfWeekMap).map(([key, label]) => ({ key: key as DayOfWeekKey, label }));
+    const traditionalMealGroups: { nombreGrupo: string; ordenGrupo: number; horaEstimada: string }[] = [
+        { nombreGrupo: 'Desayuno', ordenGrupo: 1, horaEstimada: '08:00' },
+        { nombreGrupo: 'Almuerzo', ordenGrupo: 2, horaEstimada: '13:00' },
+        { nombreGrupo: 'Cena', ordenGrupo: 3, horaEstimada: '20:00' },
+    ];
+    const daysOfWeekForScheme: DayOfWeekKey[] = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+
 
     // Sort function for TiemposComida (remains the same)
     const sortTiemposComida = (tiempos: TiempoComida[]) => { /* ... same as before ... */
@@ -425,7 +433,6 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
         // This effect depends on the admin's profile and the residenciaId derived from params
     }, [adminUserProfile, adminProfileLoading, adminProfileError, residenciaId, fetchData, isLoadingPageData]); // Added fetchData, isLoadingPageData dependencies
 
-
     // --- CRUD Handlers for TiempoComida (Updated to use authUser.uid for logs) ---
     const handleAddTiempoComida = async () => {
         const ordenGrupoNum = Number(newTiempoComidaOrdenGrupo);
@@ -485,7 +492,6 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
             setIsAddingTiempo(false);
         }
     };
-
     const handleSaveEditTiempoComida = async () => {
         if (!editingTiempoComidaId) return;
 
@@ -550,7 +556,6 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
             setIsSavingEditTiempo(false);
         }
     };
-
     const handleDeleteTiempoComida = async (id: string, nombre: string) => { /* ... */
             // Check for associated alternatives (using current state - assumes state is up-to-date)
             const hasAnyAlternativas = alternativas.some(alt => alt.tiempoComidaId === id);
@@ -584,7 +589,54 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
                 toast({ title: "Error", description: `No se pudo eliminar el Tiempo de Comida. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
             }
         };
-           
+    const handleAddTraditionalScheme = async () => {
+        if (tiemposComida.length > 0) {
+            toast({ title: "Información", description: "El esquema tradicional solo se puede añadir si no hay tiempos de comida existentes.", variant: "default" });
+            return;
+        }
+        if (!authUser?.uid) {
+            toast({ title: "Error", description: "Usuario no autenticado.", variant: "destructive" });
+            return;
+        }
+
+        setIsAddingTraditionalScheme(true);
+        const batch = writeBatch(db);
+        const newTiemposComidaBatch: TiempoComida[] = []; // To update local state
+
+        try {
+            for (const mealGroup of traditionalMealGroups) {
+                for (const dayKey of daysOfWeekForScheme) {
+                    const specificName = `${mealGroup.nombreGrupo} ${DayOfWeekMap[dayKey]}`;
+                    const nuevoTiempoData: Omit<TiempoComida, 'id'> = {
+                        residenciaId: residenciaId,
+                        nombre: specificName,
+                        dia: dayKey,
+                        horaEstimada: mealGroup.horaEstimada,
+                        nombreGrupo: mealGroup.nombreGrupo,
+                        ordenGrupo: mealGroup.ordenGrupo,
+                    };
+                    
+                    const tiempoDocRef = doc(collection(db, "tiemposComida")); // Create new doc ref for ID
+                    batch.set(tiempoDocRef, nuevoTiempoData);
+                    newTiemposComidaBatch.push({ id: tiempoDocRef.id, ...nuevoTiempoData });
+                    // Log entry for each created item (optional, can be a single summary log)
+                    // await createLogEntry('tiempo_comida_created', residenciaId, authUser.uid, `Trad. Scheme: Created ${specificName}`, tiempoDocRef.path);
+                }
+            }
+
+            await batch.commit();
+            //await createLogEntry('tiempo_comida_bulk_created', residenciaId, authUser.uid, `Traditional scheme added (${newTiemposComidaBatch.length} items)`);
+            
+            setTiemposComida(prev => sortTiemposComida([...prev, ...newTiemposComidaBatch]));
+            toast({ title: "Éxito", description: "Esquema tradicional de tiempos de comida añadido." });
+
+        } catch (error) {
+            console.error("Error adding traditional scheme: ", error);
+            toast({ title: "Error", description: `No se pudo añadir el esquema tradicional. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
+        } finally {
+            setIsAddingTraditionalScheme(false);
+        }
+    };
 
     // --- CRUD Handlers for Alternativa (Updated to use authUser.uid for logs) ---
     const handleAddAlternativa = async () => {
@@ -635,7 +687,6 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
             setIsSavingAlternativa(false); 
         }
     };
-
     const handleSaveAlternativa = async () => {
         if (!editingAlternativaId) return;
 
@@ -715,9 +766,7 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
         } finally {
             setIsSavingAlternativa(false);
         }
-    };
-
-              
+    };     
     const handleDeleteAlternativa = async (id: string, nombre: string) => {
         const altRef = doc(db, "alternativas", id);
         try {
@@ -1050,7 +1099,29 @@ Define los momentos específicos (ej. Almuerzo Lunes), agrupándolos (ej. Almuer
     </div>
 ))}
 </div>
-{tiemposComida.length === 0 && !isLoadingPageData && <p className="text-muted-foreground mt-4 text-center py-6">No hay Tiempos de Comida definidos.</p>}
+{/* --- BEGIN: Traditional Scheme Button --- */}
+{tiemposComida.length === 0 && !isLoadingPageData && !isAddingTiempo && !editingTiempoComidaId && (
+    <div className="text-center py-6 border-b mb-6">
+        <p className="text-muted-foreground mb-4">
+            No hay Tiempos de Comida definidos para esta residencia.
+        </p>
+        <Button
+            onClick={handleAddTraditionalScheme}
+            disabled={isAddingTraditionalScheme || isAddingTiempo || !!editingTiempoComidaId}
+            size="lg"
+            variant="outline"
+        >
+            {isAddingTraditionalScheme ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
+            {isAddingTraditionalScheme ? 'Añadiendo Esquema...' : 'Añadir Esquema Tradicional (Desayuno, Almuerzo, Cena x7 días)'}
+        </Button>
+        <p className="text-xs text-muted-foreground mt-2">
+            Esto creará automáticamente 21 tiempos de comida (Ej: Desayuno Lunes, Almuerzo Lunes, etc.).
+        </p>
+    </div>
+)}
+{/* --- END: Traditional Scheme Button --- */}
 
 {/* --- ADD FORM for TiempoComida --- */}
 {!editingTiempoComidaId && (

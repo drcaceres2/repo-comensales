@@ -19,7 +19,7 @@ import {
   AccordionTrigger,
 } from './ui/accordion';
 // Ensure Info icon is imported
-import { Menu, Users, Building, Settings, ListChecks, CalendarDays, UsersRound, Bell, FileText, Home, PlusCircle, MessageSquare, Loader2, ShieldCheck, UserCog, LucideIcon, Info, Clock } from 'lucide-react';
+import { Menu, Users, Building, Settings, ListChecks, CalendarDays, UsersRound, Bell, FileText, Home, PlusCircle, MessageSquare, Loader2, ShieldCheck, UserCog, LucideIcon, Info, Clock, ConciergeBell } from 'lucide-react'; // Added ConciergeBell
 
 // Import SheetTitle, SheetDescription, and SheetHeader for accessibility
 import {
@@ -136,6 +136,14 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           roles: ['residente', 'director', 'invitado', 'asistente'],
         },
         {
+          id: 'bienvenidaInvitados',
+          label: 'Bienvenida Invitados',
+          icon: ConciergeBell, // New icon
+          href: rLink, // Use rLink, path will be defined in renderNavItem
+          requiresResidenciaIdForHref: true,
+          roles: ['invitado', 'asistente'], // Specific roles
+        },
+        {
           id: 'recordatorios',
           label: 'Recordatorios',
           icon: Bell,
@@ -236,7 +244,8 @@ export function Navigation() {
     } else if (typeof item.href === 'function') { // Handles rLink for "Mi Residencia" items
       const pathTemplate = item.id === 'elegirComidas' ? '/elegir-comidas' :
                          item.id === 'actividades' ? '/actividades' :
-                         item.id === 'invitados' ? '/bienvenida-invitados' :
+                         item.id === 'invitados' ? '/bienvenida-invitados' : // Existing 'invitados' points here
+                         item.id === 'bienvenidaInvitados' ? '/bienvenida-invitados' : // NEW: New 'bienvenidaInvitados' also points here
                          item.id === 'recordatorios' ? '/recordatorios' :
                          item.id === 'reporteComensales' ? '/solicitar-comensales' : '';
       
