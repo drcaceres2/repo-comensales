@@ -104,9 +104,7 @@ const getDefaultActividad = (residenciaId: ResidenciaId, organizadorUserId: User
     diasAntelacionCierreInscripcion: antelacionDefault ?? 7, 
     defaultCentroCostoId: undefined,
     estado: 'borrador',
-    organizadorUserId,
-    createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
+    organizadorUserId
 });
 
 // Helper to convert Firestore Timestamps to yyyy-MM-ddTHH:mm string for datetime-local input
@@ -335,7 +333,6 @@ export default function AdminActividadesPage() {
             ...currentActividadFormData,
             fechaInicio: fechaInicioTimestamp,
             fechaFin: fechaFinTimestamp,
-            updatedAt: Timestamp.now(),
             residenciaId: residenciaId, // Ensure residenciaId is set
             organizadorUserId: currentActividadFormData.organizadorUserId || authUser!.uid, // Ensure organizer is set
             // Ensure planComidas IDs are strings (they are by default with crypto.randomUUID)

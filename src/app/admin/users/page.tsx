@@ -1,9 +1,9 @@
 // admin/users/page.tsx
 'use client'; // Make it a client component
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'; // Added useMemo
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, AlertCircle } from 'lucide-react'; // Added AlertCircle
+import { Loader2, AlertCircle } from 'lucide-react';
 
 // UI Components (Keep existing imports)
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -34,25 +34,38 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea'; // ADDED: Textarea import
 
-// --- Firebase & New Auth Hook Imports ---
-import { useAuthState } from 'react-firebase-hooks/auth'; // New auth hook
-import { User } from "firebase/auth"; // Keep User type if needed elsewhere, though useAuthState provides it
-import { createUserWithEmailAndPassword } from "firebase/auth"; // For user creation
-import { doc, getDoc, getDocs, Timestamp, addDoc, collection, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase'; // Your initialized instances
+// --- Firebase & New Auth Hook Imports ---\nimport { useAuthState } from 'react-firebase-hooks/auth';
+import { User } from "firebase/auth";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
+// MODIFIED: Added query and where
+import { doc, getDoc, getDocs, Timestamp, addDoc, collection, setDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 
 // Model Imports
-// MODIFIED: Added ModoEleccionUsuario and CentroCostoId
-import { UserProfile, UserRole, ResidenciaId, DietaId, LogEntry, LogActionType, Dieta, ModoEleccionUsuario, CentroCostoId } from '@/models/firestore';
+// MODIFIED: Added Residencia and CentroCosto
+import { 
+    UserProfile, 
+    UserRole, 
+    ResidenciaId, 
+    DietaId, 
+    LogEntry, // Assuming LogEntry is still needed, otherwise remove
+    LogActionType, // Assuming LogActionType is still needed
+    Dieta, 
+    ModoEleccionUsuario, 
+    CentroCostoId, 
+    Residencia, 
+    CentroCosto,
+    AsistentePermisos // ADDED
+} from '@/models/firestore';
 
 export default function UserManagementPage(): JSX.Element | null {
     const ALL_RESIDENCIAS_FILTER_KEY = 'all_residencias';
     const NO_RESIDENCIA_FILTER_KEY = 'no_residencia_assigned';
 
-    // Helper type for form state
-    // MODIFIED: UserFormData to include new fields
-    type UserFormData = Partial<Omit<UserProfile, 'id' | 'roles' | 'fechaDeNacimiento'>> & {
+    type UserFormData = Partial<Omit<UserProfile, 'id' | 'roles' | 'fechaDeNacimiento' | 'asistentePermisos'>> & { // Exclude asistentePermisos from Partial
         roles: UserRole[];
         residenciaId?: ResidenciaId | '';
         dietaId?: DietaId | '';
@@ -65,33 +78,34 @@ export default function UserManagementPage(): JSX.Element | null {
         password?: string;
         confirmPassword?: string;
         telefonoMovil?: string;
-        fechaDeNacimiento?: string; // For form input, UserProfile has Timestamp
-        // modoEleccion is now covered by Partial<UserProfile>
-        // centroCostoPorDefectoId is now covered by Partial<UserProfile>
-        // puedeTraerInvitados is now covered by Partial<UserProfile>
+        fechaDeNacimiento?: string; 
         valorCampoPersonalizado1?: string;
         valorCampoPersonalizado2?: string;
         valorCampoPersonalizado3?: string;
+        asistentePermisos?: Partial<AsistentePermisos>;
     };
 
     const router = useRouter();
     const { toast } = useToast();
 
-    // --- New Auth and Profile State ---
     const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
-    const [adminUserProfile, setAdminUserProfile] = useState<UserProfile | null>(null); // Profile of the admin using the page
+    const [adminUserProfile, setAdminUserProfile] = useState<UserProfile | null>(null);
     const [adminProfileLoading, setAdminProfileLoading] = useState<boolean>(true);
     const [adminProfileError, setAdminProfileError] = useState<string | null>(null);
-    const [isAuthorized, setIsAuthorized] = useState<boolean>(false); // Will be set based on adminUserProfile
+    const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
 
-    // States from preventing re-fetching when no residences {}
     const [hasAttemptedFetchResidences, setHasAttemptedFetchResidences] = useState(false);
     const [hasAttemptedFetchDietas, setHasAttemptedFetchDietas] = useState(false);
     const [hasAttemptedFetchUsers, setHasAttemptedFetchUsers] = useState(false);
 
+    // ADDED: State for current Residencia details and Centros de Costo
+    const [currentResidenciaDetails, setCurrentResidenciaDetails] = useState<Residencia | null>(null);
+    const [isLoadingResidenciaDetails, setIsLoadingResidenciaDetails] = useState<boolean>(false);
+    const [centrosCostoList, setCentrosCostoList] = useState<CentroCosto[]>([]);
+    const [isLoadingCentrosCosto, setIsLoadingCentrosCosto] = useState<boolean>(false);
+    const [residentesForAsistente, setResidentesForAsistente] = useState<UserProfile[]>([]);
+    const [isLoadingResidentesForAsistente, setIsLoadingResidentesForAsistente] = useState<boolean>(false);
 
-    // --- Page Specific State (existing state) ---
-    // MODIFIED: Initial formData to include new fields
     const [formData, setFormData] = useState<UserFormData>({
         nombre: '', 
         apellido: '', 
@@ -108,52 +122,45 @@ export default function UserManagementPage(): JSX.Element | null {
         password: '', 
         confirmPassword: '', 
         telefonoMovil: '',
-        modoEleccion: undefined, // Or a specific default like 'semanario' if applicable from ModoEleccionUsuario
-        fechaDeNacimiento: '', // Stored as string in form, converted to Timestamp on save
+        modoEleccion: undefined,
+        fechaDeNacimiento: '',
         centroCostoPorDefectoId: '',
-        puedeTraerInvitados: 'no', // Default value
+        puedeTraerInvitados: 'no',
         valorCampoPersonalizado1: '',
         valorCampoPersonalizado2: '',
-        valorCampoPersonalizado3: ''
+        valorCampoPersonalizado3: '',
+        asistentePermisos: undefined
     });
     const [isSaving, setIsSaving] = useState(false);
-    const [users, setUsers] = useState<UserProfile[]>([]); // List of users being managed
+    const [users, setUsers] = useState<UserProfile[]>([]);
     const [isLoadingUsers, setIsLoadingUsers] = useState(true);
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
     const [userToDeleteId, setUserToDeleteId] = useState<string | null>(null);
     const [selectedResidenciaFilter, setSelectedResidenciaFilter] = useState<string>(ALL_RESIDENCIAS_FILTER_KEY);
 
-
-    const availableRoles: UserRole[] = ['residente', 'director', 'admin', 'master', 'invitado', 'asistente', 'auditor']; // Expanded roles
+    const availableRoles: UserRole[] = ['residente', 'director', 'admin', 'master', 'invitado', 'asistente', 'auditor'];
     const [residences, setResidences] = useState<Record<ResidenciaId, { nombre: string }>>({});
     const [dietas, setDietas] = useState<Dieta[]>([]);
 
     const filteredUsers = useMemo(() => {
         if (!adminUserProfile) return [];
-
-        let usersToDisplay = [...users]; // Start with a copy of all users
-
+        let usersToDisplay = [...users];
         if (adminUserProfile.roles.includes('master')) {
             if (selectedResidenciaFilter === ALL_RESIDENCIAS_FILTER_KEY) {
-                // No additional filtering, master sees all (or could be refined more if needed)
             } else if (selectedResidenciaFilter === NO_RESIDENCIA_FILTER_KEY) {
                 usersToDisplay = usersToDisplay.filter(user => !user.residenciaId);
-            } else { // A specific residenciaId is selected
+            } else {
                 usersToDisplay = usersToDisplay.filter(user => user.residenciaId === selectedResidenciaFilter);
             }
         } else if (adminUserProfile.roles.includes('admin') && adminUserProfile.residenciaId) {
-            // Non-master admin is always filtered by their own residenciaId
             usersToDisplay = usersToDisplay.filter(user => user.residenciaId === adminUserProfile.residenciaId);
         } else {
-        // If admin has no residenciaId or other roles, show users without residencia by default
-        // This case should ideally be handled by authorization logic preventing access or specific view definition
-        usersToDisplay = usersToDisplay.filter(user => !user.residenciaId);
+            usersToDisplay = usersToDisplay.filter(user => !user.residenciaId);
         }
         return usersToDisplay.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre));
     }, [users, selectedResidenciaFilter, adminUserProfile]);
 
-    // --- Fetch Residences (Memoized) ---
     const fetchResidences = useCallback(async () => {
         console.log("Fetching residences from Firestore...");
         try {
@@ -177,12 +184,11 @@ export default function UserManagementPage(): JSX.Element | null {
                 description: "No se pudieron obtener los datos de las residencias.",
                 variant: "destructive",
             });
-        } finally { // <<< ADDED finally
-            setHasAttemptedFetchResidences(true); // <<< ADDED
+        } finally {
+            setHasAttemptedFetchResidences(true);
         }
-    }, [toast]); // toast is a stable dependency
+    }, [toast]);
 
-    // --- Fetch Dietas (Memoized) ---
     const fetchDietas = useCallback(async () => {
         console.log("Fetching all dietas from Firestore...");
         try {
@@ -195,11 +201,10 @@ export default function UserManagementPage(): JSX.Element | null {
                     id: doc.id,
                     nombre: data.nombre || 'Nombre no disponible',
                     descripcion: data.descripcion || '',
-                    isDefault: data.isDefault === true, // Ensure boolean
-                    isActive: data.isActive === true,   // Ensure boolean
+                    isDefault: data.isDefault === true,
+                    isActive: data.isActive === true, 
                     residenciaId: data.residenciaId,
-                    // Add any other Dieta fields if necessary
-                } as Dieta); // Make sure your Dieta type matches this structure
+                } as Dieta);
             });
             console.log("Fetched all dietas:", fetchedDietas);
             setDietas(fetchedDietas.sort((a, b) => a.nombre.localeCompare(b.nombre)));
@@ -216,7 +221,92 @@ export default function UserManagementPage(): JSX.Element | null {
         }
     }, [toast]);
 
-    // --- Fetch Users to Manage (Memoized) ---
+    // ADDED: Fetch Full Residencia Details
+    const fetchFullResidenciaDetails = useCallback(async (residenciaId: ResidenciaId) => {
+        if (!residenciaId) {
+            setCurrentResidenciaDetails(null);
+            return;
+        }
+        console.log(`Fetching full details for residencia ${residenciaId}...`);
+        setIsLoadingResidenciaDetails(true);
+        try {
+            const residenciaDocRef = doc(db, "residencias", residenciaId);
+            const docSnap = await getDoc(residenciaDocRef);
+            if (docSnap.exists()) {
+                setCurrentResidenciaDetails({ id: docSnap.id, ...docSnap.data() } as Residencia);
+                console.log("Fetched residencia details:", { id: docSnap.id, ...docSnap.data() });
+            } else {
+                console.warn(`Residencia document ${residenciaId} not found.`);
+                setCurrentResidenciaDetails(null);
+                toast({ title: "Error", description: `No se encontraron detalles para la residencia ID: ${residenciaId}.`, variant: "destructive" });
+            }
+        } catch (error) {
+            console.error(`Error fetching residencia details for ${residenciaId}:`, error);
+            setCurrentResidenciaDetails(null);
+            toast({ title: "Error al Cargar Detalles de Residencia", description: (error as Error).message, variant: "destructive" });
+        } finally {
+            setIsLoadingResidenciaDetails(false);
+        }
+    }, [toast]);
+
+    // ADDED: Fetch Centros de Costo for Residencia
+    const fetchCentrosCostoForResidencia = useCallback(async (residenciaId: ResidenciaId) => {
+        if (!residenciaId) {
+            setCentrosCostoList([]);
+            return;
+        }
+        console.log(`Fetching centros de costo for residencia ${residenciaId}...`);
+        setIsLoadingCentrosCosto(true);
+        try {
+            const ccCol = collection(db, "centrosCosto");
+            // Query for active centros de costo belonging to the specific residencia
+            const q = query(ccCol, where("residenciaId", "==", residenciaId), where("isActive", "==", true));
+            const querySnapshot = await getDocs(q);
+            const fetchedCCs: CentroCosto[] = [];
+            querySnapshot.forEach((doc) => {
+                fetchedCCs.push({ id: doc.id, ...doc.data() } as CentroCosto);
+            });
+            setCentrosCostoList(fetchedCCs.sort((a, b) => a.nombre.localeCompare(b.nombre)));
+            console.log("Fetched centros de costo:", fetchedCCs);
+        } catch (error) {
+            console.error(`Error fetching centros de costo for ${residenciaId}:`, error);
+            setCentrosCostoList([]);
+            toast({ title: "Error al Cargar Centros de Costo", description: (error as Error).message, variant: "destructive" });
+        } finally {
+            setIsLoadingCentrosCosto(false);
+        }
+    }, [toast]);
+
+    const fetchResidentesForResidencia = useCallback(async (residenciaId?: ResidenciaId) => {
+        if (!residenciaId) {
+            setResidentesForAsistente([]);
+            return;
+        }
+        setIsLoadingResidentesForAsistente(true);
+        try {
+            const usersCol = collection(db, "users");
+            const q = query(usersCol, where("residenciaId", "==", residenciaId), where("roles", "array-contains", "residente"), where("isActive", "==", true));
+            const querySnapshot = await getDocs(q);
+            const fetchedResidentes: UserProfile[] = [];
+            querySnapshot.forEach((doc) => {
+                // Ensure not to add the asistente themselves if they are also a residente (edge case)
+                if (editingUserId !== doc.id) { // Or if creating, this check is not directly applicable
+                    fetchedResidentes.push({ id: doc.id, ...doc.data() } as UserProfile);
+                } else if (!editingUserId && formData.email !== doc.data().email) { // for creation, don't list self if email known
+                    fetchedResidentes.push({ id: doc.id, ...doc.data() } as UserProfile);
+                }
+            });
+            setResidentesForAsistente(fetchedResidentes.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre)));
+        } catch (error) {
+            console.error("Error fetching residentes for asistente:", error);
+            toast({ title: "Error", description: "No se pudieron cargar los residentes para la asignación de asistente.", variant: "destructive" });
+            setResidentesForAsistente([]);
+        } finally {
+            setIsLoadingResidentesForAsistente(false);
+        }
+    }, [toast, editingUserId, formData.email]); // Added editingUserId and formData.email
+
+
     const fetchUsersToManage = useCallback(async () => {
         console.log("Fetching users to manage from Firestore...");
         setIsLoadingUsers(true);
@@ -233,16 +323,15 @@ export default function UserManagementPage(): JSX.Element | null {
                     email: data.email || '',
                     roles: data.roles || [],
                     isActive: data.isActive === undefined ? true : data.isActive,
-                    residenciaId: data.residenciaId || undefined, // Use undefined for clarity if null
+                    residenciaId: data.residenciaId || undefined, 
                     dietaId: data.dietaId || undefined,
                     numeroDeRopa: data.numeroDeRopa || undefined,
                     habitacion: data.habitacion || undefined,
                     universidad: data.universidad || undefined,
                     carrera: data.carrera || undefined,
                     dni: data.dni || undefined,
-                    // ADDED: New fields from UserProfile, ensure they are read
                     modoEleccion: data.modoEleccion || undefined,
-                    fechaDeNacimiento: data.fechaDeNacimiento || undefined, // This will be a Timestamp from Firestore
+                    fechaDeNacimiento: data.fechaDeNacimiento || undefined, 
                     centroCostoPorDefectoId: data.centroCostoPorDefectoId || undefined,
                     puedeTraerInvitados: data.puedeTraerInvitados || 'no',
                     valorCampoPersonalizado1: data.valorCampoPersonalizado1 || undefined,
@@ -251,11 +340,10 @@ export default function UserManagementPage(): JSX.Element | null {
                     telefonoMovil: data.telefonoMovil || undefined,
                     asistentePermisos: data.asistentePermisos || undefined,
                     notificacionPreferencias: data.notificacionPreferencias || undefined,
-
                 });
             });
             console.log("Fetched users to manage:", usersData);
-            setUsers(usersData.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre))); // Sort users
+            setUsers(usersData.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre))); 
         } catch (error) {
             console.error("Error fetching users to manage:", error);
             toast({
@@ -266,11 +354,10 @@ export default function UserManagementPage(): JSX.Element | null {
             setUsers([]);
         } finally {
             setIsLoadingUsers(false);
-            setHasAttemptedFetchUsers(true); // <<< ADDED
+            setHasAttemptedFetchUsers(true);
         }
-    }, [toast]); // toast is a stable dependency
+    }, [toast]); 
 
-    // --- useEffect: Handle Firebase Auth State & Fetch Admin's Profile ---
     useEffect(() => {
         if (authFirebaseLoading) {
             console.log("Auth state loading (useAuthState)...");
@@ -286,7 +373,7 @@ export default function UserManagementPage(): JSX.Element | null {
             setAdminUserProfile(null);
             setAdminProfileError(authFirebaseError.message);
             setIsAuthorized(false);
-            router.replace('/'); // Redirect on critical auth error
+            router.replace('/');
             return;
         }
 
@@ -294,13 +381,11 @@ export default function UserManagementPage(): JSX.Element | null {
             console.log("No Firebase user (authUser is null). Redirecting to login.");
             setAdminProfileLoading(false);
             setAdminUserProfile(null);
-            setAdminProfileError(null); // Clear previous errors
+            setAdminProfileError(null); 
             setIsAuthorized(false);
             router.replace('/');
             return;
         }
-
-        // authUser is available, fetch the admin's own profile
         console.log("Admin user authenticated via Firebase (UID:", authUser.uid,"). Fetching admin's profile...");
         setAdminProfileLoading(true);
         setAdminProfileError(null);
@@ -330,43 +415,36 @@ export default function UserManagementPage(): JSX.Element | null {
             });
     }, [authUser, authFirebaseLoading, authFirebaseError, router, toast]);
 
-    // --- useEffect: Handle Authorization & Fetch Page-Specific Data ---
     useEffect(() => {
-        // Wait for admin profile loading to complete
         if (adminProfileLoading) {
-            setIsAuthorized(false); // Not authorized until profile is checked
+            setIsAuthorized(false);
             return;
         }
-
-        // Handle profile fetch error or missing profile for the admin
         if (adminProfileError || !adminUserProfile) {
             console.log("Admin authorization check failed: Profile error or profile missing.");
             setIsAuthorized(false);
-            // Render logic will show error/redirect based on adminProfileError or !isAuthorized
             return;
         }
-
-        // Check admin's roles
         const roles = adminUserProfile.roles || [];
         const isAdminAuthorized = roles.includes('admin') || roles.includes('master');
 
         if (isAdminAuthorized) {
             console.log("Admin user is authorized. Proceeding with fetching page data.");
             setIsAuthorized(true);
-
-            // --- BEGIN: Initialize selectedResidenciaFilter ---
             if (adminUserProfile.roles.includes('master')) {
-                // Master users can see all or filter
-                setSelectedResidenciaFilter(ALL_RESIDENCIAS_FILTER_KEY); // Default to all
+                setSelectedResidenciaFilter(ALL_RESIDENCIAS_FILTER_KEY);
             } else if (adminUserProfile.roles.includes('admin') && adminUserProfile.residenciaId) {
-                // Admin users are locked to their own residencia
                 setSelectedResidenciaFilter(adminUserProfile.residenciaId);
+                 // ADDED: Fetch details for admin's specific residencia if not master
+                if (adminUserProfile.residenciaId) {
+                    fetchFullResidenciaDetails(adminUserProfile.residenciaId);
+                    fetchCentrosCostoForResidencia(adminUserProfile.residenciaId);
+                }
             } else {
-                // Fallback or other roles that might get here (though authorization should prevent most)
-                setSelectedResidenciaFilter(NO_RESIDENCIA_FILTER_KEY); // Or some other sensible default
+                setSelectedResidenciaFilter(NO_RESIDENCIA_FILTER_KEY);
+                 setCurrentResidenciaDetails(null); // Clear if no specific residencia tied to admin
+                 setCentrosCostoList([]);
             }
-            // --- END: Initialize selectedResidenciaFilter ---
-
             if (!hasAttemptedFetchResidences) fetchResidences();
             if (!hasAttemptedFetchDietas) fetchDietas();
             if (!hasAttemptedFetchUsers) fetchUsersToManage();
@@ -374,9 +452,6 @@ export default function UserManagementPage(): JSX.Element | null {
             console.warn("Admin user does not have admin/master role. Access denied.");
             setIsAuthorized(false);
             toast({ title: "Acceso Denegado", description: "No tienes los permisos (admin/master) para acceder a esta página.", variant: "destructive" });
-            // Redirect if not authorized. The render logic below also handles this.
-            // Consider if router.replace('/') is needed here or if render logic is sufficient.
-            // router.replace('/');
         }
     }, [
         adminUserProfile,
@@ -385,14 +460,31 @@ export default function UserManagementPage(): JSX.Element | null {
         fetchResidences,
         fetchDietas,
         fetchUsersToManage,
-        hasAttemptedFetchResidences, // <<< ADDED
-        hasAttemptedFetchDietas,     // <<< ADDED
-        hasAttemptedFetchUsers,      // <<< ADDED
+        hasAttemptedFetchResidences,
+        hasAttemptedFetchDietas,    
+        hasAttemptedFetchUsers,     
         isLoadingUsers,
-        toast // router not needed here as redirect is handled by render logic or auth effect
+        toast,
+        fetchFullResidenciaDetails, // ADDED
+        fetchCentrosCostoForResidencia // ADDED
     ]);
 
-    // --- Form and UI Handler Functions ---
+    useEffect(() => {
+        if (formData.residenciaId && formData.residenciaId !== currentResidenciaDetails?.id) {
+            fetchFullResidenciaDetails(formData.residenciaId);
+            fetchCentrosCostoForResidencia(formData.residenciaId);
+            fetchResidentesForResidencia(formData.residenciaId); // ADDED
+        } else if (!formData.residenciaId) {
+            setCurrentResidenciaDetails(null);
+            setCentrosCostoList([]);
+            setResidentesForAsistente([]); // ADDED: Clear if no residencia
+        }
+        // If roles change and 'asistente' is now selected, and residenciaId is already set, fetch residentes
+        else if (formData.residenciaId && formData.roles?.includes('asistente') && residentesForAsistente.length === 0){
+            fetchResidentesForResidencia(formData.residenciaId);
+        }
+    }, [formData.residenciaId, formData.roles, fetchFullResidenciaDetails, fetchCentrosCostoForResidencia, fetchResidentesForResidencia, currentResidenciaDetails?.id, residentesForAsistente.length]); // Added formData.roles, fetchResidentesForResidencia, residentesForAsistente.length
+
     const handleFormChange = (field: keyof Omit<UserFormData, 'roles'>, value: string | boolean | ModoEleccionUsuario | undefined) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
@@ -407,19 +499,17 @@ export default function UserManagementPage(): JSX.Element | null {
                 updatedRoles = currentRoles.filter(r => r !== role);
             }
 
-            let dietaId = prev.dietaId; // Keep current dietaId by default
-
-            // Determine if residencia is required and its value
+            let dietaId = prev.dietaId;
             const residenciaRequiredForRole = updatedRoles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r));
             const residenciaId = residenciaRequiredForRole ? prev.residenciaId : '';
 
             if (role === 'residente') {
-                if (checked && residenciaId && dietas.length > 0) { // 'residente' added, and a residencia is selected
+                if (checked && residenciaId && dietas.length > 0) {
                     const defaultDieta = dietas.find(d => d.residenciaId === residenciaId && d.isDefault && d.isActive);
                     if (defaultDieta) {
                         dietaId = defaultDieta.id;
                     } else {
-                        dietaId = ''; // Clear if no active default found, user must select
+                        dietaId = '';
                         toast({
                             title: "Atención",
                             description: `No se encontró una dieta por defecto (y activa) para la residencia ${residences[residenciaId]?.nombre || residenciaId}. Por favor, seleccione una dieta manualmente.`,
@@ -427,17 +517,38 @@ export default function UserManagementPage(): JSX.Element | null {
                             duration: 7000
                         });
                     }
-                } else if (!checked) { // 'residente' role removed
-                    dietaId = ''; // Clear dietaId
+                } else if (!checked) {
+                    dietaId = '';
                 }
             }
             
-            // If residenciaId was cleared because no role requires it, also clear dietaId
             if (prev.residenciaId && !residenciaId) {
                 dietaId = '';
             }
 
-            return { ...prev, roles: updatedRoles, dietaId, residenciaId };
+            // MODIFIED: Handle asistentePermisos based on 'asistente' role with new structure
+            let updatedAsistentePermisos = prev.asistentePermisos;
+            if (role === 'asistente') {
+                if (checked) {
+                    // Initialize with new defaults if 'asistente' role is added
+                    updatedAsistentePermisos = {
+                        usuariosAsistidos: [], // Changed from elecc_uids
+                        gestionActividades: 'Ninguna', // New default
+                        gestionInvitados: 'Ninguno',   // New default
+                        gestionRecordatorios: 'Ninguno' // New default
+                    };
+                } else {
+                    // Clear if 'asistente' role is removed
+                    updatedAsistentePermisos = undefined;
+                }
+            }
+            
+            // Ensure if 'asistente' is not in updatedRoles at all, permissions are cleared
+            if (!updatedRoles.includes('asistente') && updatedAsistentePermisos !== undefined) { // Check against undefined
+                 updatedAsistentePermisos = undefined;
+            }
+
+            return { ...prev, roles: updatedRoles, dietaId, residenciaId, asistentePermisos: updatedAsistentePermisos };
         });
     };
 
@@ -446,8 +557,13 @@ export default function UserManagementPage(): JSX.Element | null {
             const updatedFormData = { ...prev, [field]: value };
 
             if (field === 'residenciaId') {
-                // If residencia changes, clear the current dietaId first, then attempt to set default
-                updatedFormData.dietaId = '';
+                updatedFormData.dietaId = ''; // Clear dieta on residencia change
+                updatedFormData.centroCostoPorDefectoId = ''; // Clear Centro de Costo
+                // ADDED: Clear custom field values as they depend on the residencia
+                updatedFormData.valorCampoPersonalizado1 = '';
+                updatedFormData.valorCampoPersonalizado2 = '';
+                updatedFormData.valorCampoPersonalizado3 = '';
+
                 if (updatedFormData.roles.includes('residente') && value) { // value is the new residenciaId
                     const defaultDieta = dietas.find(d => d.residenciaId === value && d.isDefault && d.isActive);
                     if (defaultDieta) {
@@ -465,7 +581,6 @@ export default function UserManagementPage(): JSX.Element | null {
             return updatedFormData;
         });
     };
-
 
     const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -512,8 +627,43 @@ export default function UserManagementPage(): JSX.Element | null {
         } else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) {
             validationError = "Número de Ropa es requerido para Residentes.";
         }
-        // TODO: Add validation for new fields if necessary
+        // Custom Field Validations
+        if (currentResidenciaDetails?.campoPersonalizado1_isActive && currentResidenciaDetails?.campoPersonalizado1_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado1_regexValidacion) {
+            const regex = new RegExp(currentResidenciaDetails.campoPersonalizado1_regexValidacion);
+            if (formData.valorCampoPersonalizado1 && !regex.test(formData.valorCampoPersonalizado1)) {
+                validationError = `${currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor Personalizado 1'} no es válido.`;
+            }
+        }
+        if (!validationError && currentResidenciaDetails?.campoPersonalizado2_isActive && currentResidenciaDetails?.campoPersonalizado2_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado2_regexValidacion) {
+            const regex = new RegExp(currentResidenciaDetails.campoPersonalizado2_regexValidacion);
+            if (formData.valorCampoPersonalizado2 && !regex.test(formData.valorCampoPersonalizado2)) {
+                validationError = `${currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor Personalizado 2'} no es válido.`;
+            }
+        }
+        if (!validationError && currentResidenciaDetails?.campoPersonalizado3_isActive && currentResidenciaDetails?.campoPersonalizado3_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado3_regexValidacion) {
+            const regex = new RegExp(currentResidenciaDetails.campoPersonalizado3_regexValidacion);
+            if (formData.valorCampoPersonalizado3 && !regex.test(formData.valorCampoPersonalizado3)) {
+                validationError = `${currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor Personalizado 3'} no es válido.`;
+            }
+        }
         
+        // AsistentePermisos Validation
+        if (roles.includes('asistente')) {
+            if (!formData.asistentePermisos) { // Should be initialized by handleRoleChange, but good check
+                validationError = "Faltan los permisos de asistente. Por favor, re-seleccione el rol.";
+            } else {
+                const permisos = formData.asistentePermisos;
+                const noUsuariosAsistidos = !permisos.usuariosAsistidos || permisos.usuariosAsistidos.length === 0;
+                const noGestionActividades = permisos.gestionActividades === 'Ninguna';
+                const noGestionInvitados = permisos.gestionInvitados === 'Ninguno';
+                const noGestionRecordatorios = permisos.gestionRecordatorios === 'Ninguno';
+
+                if (noUsuariosAsistidos && noGestionActividades && noGestionInvitados && noGestionRecordatorios) {
+                    validationError = "Un asistente debe tener al menos un usuario asignado o algún permiso de gestión (actividades, invitados o recordatorios).";
+                }
+            }
+        }        
+
         if (validationError) {
             toast({ title: "Error de Validación", description: validationError, variant: "destructive" });
             setIsSaving(false);
@@ -527,29 +677,44 @@ export default function UserManagementPage(): JSX.Element | null {
             newUserAuthUid = userCredential.user.uid;
             console.log(`Auth user created successfully with UID: ${newUserAuthUid}`);
 
+            // ... (inside try block, after creating auth user)
             const userProfileData: Omit<UserProfile, 'id'> = {
+                // ... (other UserProfile fields like nombre, apellido, email, roles, isActive, etc.)
                 nombre: formData.nombre!.trim(),
                 apellido: formData.apellido!.trim(),
                 email: formData.email!.trim(),
                 roles: formData.roles!,
-                isActive: true, // New users active by default
-                ...( (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r))) && formData.residenciaId ? { residenciaId: formData.residenciaId } : {} ),
-                ...( roles.includes('residente') && formData.dietaId ? { dietaId: formData.dietaId } : {} ),
-                ...( formData.numeroDeRopa?.trim() ? { numeroDeRopa: formData.numeroDeRopa.trim() } : {} ),
-                ...( formData.habitacion?.trim() ? { habitacion: formData.habitacion.trim() } : {} ),
-                ...( formData.universidad?.trim() ? { universidad: formData.universidad.trim() } : {} ),
-                ...( formData.carrera?.trim() ? { carrera: formData.carrera.trim() } : {} ),
-                ...( formData.dni?.trim() ? { dni: formData.dni.trim() } : {} ),
-                ...( formData.telefonoMovil?.trim() ? { telefonoMovil: formData.telefonoMovil.trim() } : {} ),
-                // ADDED: New fields to save
-                ...(formData.modoEleccion ? { modoEleccion: formData.modoEleccion } : {}),
-                ...(formData.fechaDeNacimiento ? { fechaDeNacimiento: Timestamp.fromDate(new Date(formData.fechaDeNacimiento)) } : {}), // Convert string to Timestamp
-                ...(formData.centroCostoPorDefectoId ? { centroCostoPorDefectoId: formData.centroCostoPorDefectoId } : {}),
-                puedeTraerInvitados: formData.puedeTraerInvitados || 'no', // Ensure it has a value
-                ...(formData.valorCampoPersonalizado1?.trim() ? { valorCampoPersonalizado1: formData.valorCampoPersonalizado1.trim() } : {}),
-                ...(formData.valorCampoPersonalizado2?.trim() ? { valorCampoPersonalizado2: formData.valorCampoPersonalizado2.trim() } : {}),
-                ...(formData.valorCampoPersonalizado3?.trim() ? { valorCampoPersonalizado3: formData.valorCampoPersonalizado3.trim() } : {}),
+                isActive: true,
+                residenciaId: (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && formData.residenciaId) ? formData.residenciaId : undefined,
+                dietaId: (roles.includes('residente') && formData.dietaId) ? formData.dietaId : undefined,
+                numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
+                habitacion: formData.habitacion?.trim() || undefined,
+                universidad: formData.universidad?.trim() || undefined,
+                carrera: formData.carrera?.trim() || undefined,
+                dni: formData.dni?.trim() || undefined,
+                telefonoMovil: formData.telefonoMovil?.trim() || undefined,
+                modoEleccion: formData.modoEleccion || undefined,
+                fechaDeNacimiento: formData.fechaDeNacimiento ? Timestamp.fromDate(new Date(formData.fechaDeNacimiento)) : undefined,
+                centroCostoPorDefectoId: formData.centroCostoPorDefectoId || undefined,
+                puedeTraerInvitados: formData.puedeTraerInvitados || 'no',
+                valorCampoPersonalizado1: currentResidenciaDetails?.campoPersonalizado1_isActive && formData.valorCampoPersonalizado1?.trim() ? formData.valorCampoPersonalizado1.trim() : undefined,
+                valorCampoPersonalizado2: currentResidenciaDetails?.campoPersonalizado2_isActive && formData.valorCampoPersonalizado2?.trim() ? formData.valorCampoPersonalizado2.trim() : undefined,
+                valorCampoPersonalizado3: currentResidenciaDetails?.campoPersonalizado3_isActive && formData.valorCampoPersonalizado3?.trim() ? formData.valorCampoPersonalizado3.trim() : undefined,
+                // MODIFIED: asistentePermisos handling
+                asistentePermisos: roles.includes('asistente') && formData.asistentePermisos 
+                    ? {
+                        usuariosAsistidos: formData.asistentePermisos.usuariosAsistidos || [],
+                        gestionActividades: formData.asistentePermisos.gestionActividades || 'Ninguna', // Default if somehow undefined in form
+                        gestionInvitados: formData.asistentePermisos.gestionInvitados || 'Ninguno',     // Default if somehow undefined in form
+                        gestionRecordatorios: formData.asistentePermisos.gestionRecordatorios || 'Ninguno', // Default if somehow undefined in form
+                      }
+                    : undefined,
             };
+            // Remove undefined keys (especially for optional fields or fields not being set)
+             Object.keys(userProfileData).forEach(key => (userProfileData as any)[key] === undefined && delete (userProfileData as any)[key]);
+
+            // ... (rest of the try block: setDoc, toast, setFormData to reset) ...
+
 
             console.log(`Attempting to create Firestore document users/${newUserAuthUid}...`);
             const userDocRef = doc(db, "users", newUserAuthUid);
@@ -573,7 +738,8 @@ export default function UserManagementPage(): JSX.Element | null {
                 puedeTraerInvitados: 'no',
                 valorCampoPersonalizado1: '',
                 valorCampoPersonalizado2: '',
-                valorCampoPersonalizado3: ''
+                valorCampoPersonalizado3: '',
+                asistentePermisos: undefined // ADDED/MODIFIED
             });
 
         } catch (error: any) {
@@ -597,63 +763,83 @@ export default function UserManagementPage(): JSX.Element | null {
         }
       };
 
-      const handleEditUser = (userId: string) => {
-        const userToEdit = users.find(u => u.id === userId);
-        if (!userToEdit) {
-            toast({ title: "Error", description: "No se encontró el usuario para editar.", variant: "destructive" });
-            return;
+    const handleEditUser = (userId: string) => {
+    const userToEdit = users.find(u => u.id === userId);
+    if (!userToEdit) {
+        toast({ title: "Error", description: "No se encontró el usuario para editar.", variant: "destructive" });
+        return;
+    }
+    console.log("Editing user:", userToEdit);
+    setEditingUserId(userId);
+    
+    let permisosParaForm: Partial<AsistentePermisos> | undefined = undefined;
+    if (userToEdit.roles?.includes('asistente')) {
+        if (userToEdit.asistentePermisos) {
+            permisosParaForm = {
+                usuariosAsistidos: userToEdit.asistentePermisos.usuariosAsistidos || [],
+                gestionActividades: userToEdit.asistentePermisos.gestionActividades || 'Ninguna',
+                gestionInvitados: userToEdit.asistentePermisos.gestionInvitados || 'Ninguno',
+                gestionRecordatorios: userToEdit.asistentePermisos.gestionRecordatorios || 'Ninguno',
+            };
+        } else { // Role is 'asistente' but no permissions object exists, initialize with defaults
+            permisosParaForm = {
+                usuariosAsistidos: [],
+                gestionActividades: 'Ninguna',
+                gestionInvitados: 'Ninguno',
+                gestionRecordatorios: 'Ninguno',
+            };
         }
-        console.log("Editing user:", userToEdit);
-        setEditingUserId(userId);
-        // MODIFIED: Populate new fields in form for editing
+    }
+
+    setFormData({
+        nombre: userToEdit.nombre || '',
+        apellido: userToEdit.apellido || '',
+        email: userToEdit.email || '',
+        isActive: userToEdit.isActive === undefined ? true : userToEdit.isActive,
+        roles: userToEdit.roles || [],
+        residenciaId: userToEdit.residenciaId || '',
+        dietaId: userToEdit.dietaId || '',
+        numeroDeRopa: userToEdit.numeroDeRopa || '',
+        habitacion: userToEdit.habitacion || '',
+        universidad: userToEdit.universidad || '',
+        carrera: userToEdit.carrera || '',
+        dni: userToEdit.dni || '',
+        password: '', confirmPassword: '', 
+        telefonoMovil: userToEdit.telefonoMovil || '',
+        modoEleccion: userToEdit.modoEleccion || undefined,
+        fechaDeNacimiento: userToEdit.fechaDeNacimiento ? (userToEdit.fechaDeNacimiento as Timestamp).toDate().toISOString().split('T')[0] : '',
+        centroCostoPorDefectoId: userToEdit.centroCostoPorDefectoId || '',
+        puedeTraerInvitados: userToEdit.puedeTraerInvitados || 'no',
+        valorCampoPersonalizado1: userToEdit.valorCampoPersonalizado1 || '',
+        valorCampoPersonalizado2: userToEdit.valorCampoPersonalizado2 || '',
+        valorCampoPersonalizado3: userToEdit.valorCampoPersonalizado3 || '',
+        asistentePermisos: permisosParaForm, // MODIFIED
+    });
+    };
+
+    const handleCancelEdit = () => {
+        setEditingUserId(null);
         setFormData({
-            nombre: userToEdit.nombre || '',
-            apellido: userToEdit.apellido || '',
-            email: userToEdit.email || '',
-            isActive: userToEdit.isActive === undefined ? true : userToEdit.isActive,
-            roles: userToEdit.roles || [],
-            residenciaId: userToEdit.residenciaId || '',
-            dietaId: userToEdit.dietaId || '',
-            numeroDeRopa: userToEdit.numeroDeRopa || '',
-            habitacion: userToEdit.habitacion || '',
-            universidad: userToEdit.universidad || '',
-            carrera: userToEdit.carrera || '',
-            dni: userToEdit.dni || '',
-            password: '', confirmPassword: '', // Clear password fields
-            telefonoMovil: userToEdit.telefonoMovil || '',
-            modoEleccion: userToEdit.modoEleccion || undefined,
-            fechaDeNacimiento: userToEdit.fechaDeNacimiento ? (userToEdit.fechaDeNacimiento as Timestamp).toDate().toISOString().split('T')[0] : '', // Convert Timestamp to YYYY-MM-DD string
-            centroCostoPorDefectoId: userToEdit.centroCostoPorDefectoId || '',
-            puedeTraerInvitados: userToEdit.puedeTraerInvitados || 'no',
-            valorCampoPersonalizado1: userToEdit.valorCampoPersonalizado1 || '',
-            valorCampoPersonalizado2: userToEdit.valorCampoPersonalizado2 || '',
-            valorCampoPersonalizado3: userToEdit.valorCampoPersonalizado3 || '',
-        });
-      };
+        nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
+        numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
+        password: '', confirmPassword: '', telefonoMovil: '',
+        modoEleccion: undefined,
+        fechaDeNacimiento: '',
+        centroCostoPorDefectoId: '',
+        puedeTraerInvitados: 'no',
+        valorCampoPersonalizado1: '',
+        valorCampoPersonalizado2: '',
+        valorCampoPersonalizado3: '',
+        asistentePermisos: undefined // ADDED/MODIFIED
+    });
+        console.log("Cancelled edit.");
+    };
 
-      const handleCancelEdit = () => {
-          setEditingUserId(null);
-          // MODIFIED: Reset new fields in form on cancel
-          setFormData({
-            nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
-            numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
-            password: '', confirmPassword: '', telefonoMovil: '',
-            modoEleccion: undefined,
-            fechaDeNacimiento: '',
-            centroCostoPorDefectoId: '',
-            puedeTraerInvitados: 'no',
-            valorCampoPersonalizado1: '',
-            valorCampoPersonalizado2: '',
-            valorCampoPersonalizado3: ''
-        });
-          console.log("Cancelled edit.");
-      };
-
-      const handleDeleteUser = (userId: string) => {
-        const user = users.find(u => u.id === userId);
-        if (!user) { toast({ title: "Error", description: "Usuario no encontrado.", variant: "destructive" }); return; }
-        setUserToDeleteId(userId);
-        setIsConfirmingDelete(true);
+    const handleDeleteUser = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) { toast({ title: "Error", description: "Usuario no encontrado.", variant: "destructive" }); return; }
+    setUserToDeleteId(userId);
+    setIsConfirmingDelete(true);
     };
 
     const confirmDeleteUser = async () => {
@@ -693,7 +879,42 @@ export default function UserManagementPage(): JSX.Element | null {
         else if (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para el rol seleccionado.";
         else if (roles.includes('residente') && !formData.dietaId) validationError = "Dieta Predeterminada es requerida para Residentes.";
         else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) validationError = "Número de Ropa es requerido para Residentes.";
-        // TODO: Add validation for new fields if necessary
+        // Custom Field Validations
+        if (currentResidenciaDetails?.campoPersonalizado1_isActive && currentResidenciaDetails?.campoPersonalizado1_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado1_regexValidacion) {
+            const regex = new RegExp(currentResidenciaDetails.campoPersonalizado1_regexValidacion);
+            if (formData.valorCampoPersonalizado1 && !regex.test(formData.valorCampoPersonalizado1)) {
+                validationError = `${currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor Personalizado 1'} no es válido.`;
+            }
+        }
+        if (!validationError && currentResidenciaDetails?.campoPersonalizado2_isActive && currentResidenciaDetails?.campoPersonalizado2_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado2_regexValidacion) {
+            const regex = new RegExp(currentResidenciaDetails.campoPersonalizado2_regexValidacion);
+            if (formData.valorCampoPersonalizado2 && !regex.test(formData.valorCampoPersonalizado2)) {
+                validationError = `${currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor Personalizado 2'} no es válido.`;
+            }
+        }
+        if (!validationError && currentResidenciaDetails?.campoPersonalizado3_isActive && currentResidenciaDetails?.campoPersonalizado3_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado3_regexValidacion) {
+            const regex = new RegExp(currentResidenciaDetails.campoPersonalizado3_regexValidacion);
+            if (formData.valorCampoPersonalizado3 && !regex.test(formData.valorCampoPersonalizado3)) {
+                validationError = `${currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor Personalizado 3'} no es válido.`;
+            }
+        }
+
+        // AsistentePermisos Validation
+        if (roles.includes('asistente')) {
+            if (!formData.asistentePermisos) {
+                validationError = "Faltan los permisos de asistente. Por favor, re-seleccione el rol.";
+            } else {
+                const permisos = formData.asistentePermisos;
+                const noUsuariosAsistidos = !permisos.usuariosAsistidos || permisos.usuariosAsistidos.length === 0;
+                const noGestionActividades = permisos.gestionActividades === 'Ninguna';
+                const noGestionInvitados = permisos.gestionInvitados === 'Ninguno';
+                const noGestionRecordatorios = permisos.gestionRecordatorios === 'Ninguno';
+
+                if (noUsuariosAsistidos && noGestionActividades && noGestionInvitados && noGestionRecordatorios) {
+                    validationError = "Un asistente debe tener al menos un usuario asignado o algún permiso de gestión (actividades, invitados o recordatorios).";
+                }
+            }
+        }
 
         if (validationError) {
             toast({ title: "Error de Validación", description: validationError, variant: "destructive" });
@@ -721,10 +942,29 @@ export default function UserManagementPage(): JSX.Element | null {
                 fechaDeNacimiento: formData.fechaDeNacimiento ? Timestamp.fromDate(new Date(formData.fechaDeNacimiento)) : undefined, // Convert string to Timestamp
                 centroCostoPorDefectoId: formData.centroCostoPorDefectoId || undefined,
                 puedeTraerInvitados: formData.puedeTraerInvitados || 'no',
-                valorCampoPersonalizado1: formData.valorCampoPersonalizado1?.trim() || undefined,
-                valorCampoPersonalizado2: formData.valorCampoPersonalizado2?.trim() || undefined,
-                valorCampoPersonalizado3: formData.valorCampoPersonalizado3?.trim() || undefined,
+                valorCampoPersonalizado1: currentResidenciaDetails?.campoPersonalizado1_isActive ? (formData.valorCampoPersonalizado1?.trim() || undefined) : undefined,
+                valorCampoPersonalizado2: currentResidenciaDetails?.campoPersonalizado2_isActive ? (formData.valorCampoPersonalizado2?.trim() || undefined) : undefined,
+                valorCampoPersonalizado3: currentResidenciaDetails?.campoPersonalizado3_isActive ? (formData.valorCampoPersonalizado3?.trim() || undefined) : undefined,
+                asistentePermisos: undefined, // Default to undefined, will be set if 'asistente' role
             };
+
+            if (roles.includes('asistente') && formData.asistentePermisos) {
+                updatedData.asistentePermisos = {
+                    usuariosAsistidos: formData.asistentePermisos.usuariosAsistidos || [],
+                    gestionActividades: formData.asistentePermisos.gestionActividades || 'Ninguna',
+                    gestionInvitados: formData.asistentePermisos.gestionInvitados || 'Ninguno',
+                    gestionRecordatorios: formData.asistentePermisos.gestionRecordatorios || 'Ninguno',
+                };
+            } else if (!roles.includes('asistente')) {
+                // Explicitly ensure it's removed if role is no longer 'asistente'
+                // The Object.keys loop below will remove it if it's undefined.
+            }
+            
+            // Ensure that if a custom field is no longer active for a residencia, it's removed (set to undefined, then deleted by Object.keys loop)
+            if (!currentResidenciaDetails?.campoPersonalizado1_isActive) updatedData.valorCampoPersonalizado1 = undefined;
+            if (!currentResidenciaDetails?.campoPersonalizado2_isActive) updatedData.valorCampoPersonalizado2 = undefined;
+            if (!currentResidenciaDetails?.campoPersonalizado3_isActive) updatedData.valorCampoPersonalizado3 = undefined;
+
             // Remove undefined keys to prevent Firestore from creating them with null or erroring
             Object.keys(updatedData).forEach(key => (updatedData as any)[key] === undefined && delete (updatedData as any)[key]);
 
@@ -990,13 +1230,40 @@ export default function UserManagementPage(): JSX.Element | null {
                                     <Input id="fechaDeNacimiento" type="date" value={formData.fechaDeNacimiento || ''} onChange={(e) => handleFormChange('fechaDeNacimiento', e.target.value)} disabled={isSaving} />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="centroCostoPorDefectoId">Centro de Costo por Defecto</Label>
-                                     {/* TODO: Populate this select with actual CentroCosto data */}
-                                    <Select value={formData.centroCostoPorDefectoId || ''} onValueChange={(value) => handleSelectChange('centroCostoPorDefectoId', value)} disabled={isSaving} >
-                                        <SelectTrigger id="centroCostoPorDefectoId"><SelectValue placeholder="Seleccione centro de costo..." /></SelectTrigger>
+                                    <Label htmlFor="centroCostoPorDefectoId">
+                                        {currentResidenciaDetails?.nombreEtiquetaCentroCosto || 'Centro de Costo por Defecto'}
+                                    </Label>
+                                    <Select
+                                        value={formData.centroCostoPorDefectoId || ''}
+                                        onValueChange={(value) => handleSelectChange('centroCostoPorDefectoId', value)}
+                                        disabled={isSaving || isLoadingCentrosCosto || !formData.residenciaId}
+                                    >
+                                        <SelectTrigger id="centroCostoPorDefectoId">
+                                            <SelectValue placeholder={
+                                                !formData.residenciaId ? "Seleccione residencia primero" :
+                                                isLoadingCentrosCosto ? "Cargando..." :
+                                                (currentResidenciaDetails?.nombreEtiquetaCentroCosto || 'Seleccione centro de costo...')
+                                            } />
+                                        </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="temp1">Temporal CC1 (Cargar Dinámicamente)</SelectItem>
-                                            <SelectItem value="temp2">Temporal CC2</SelectItem>
+                                            {!formData.residenciaId ? (
+                                                <SelectItem value="no-residencia" disabled>Seleccione una residencia primero</SelectItem>
+                                            ) : isLoadingCentrosCosto ? (
+                                                <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                                            ) : centrosCostoList.length === 0 ? (
+                                                <SelectItem value="no-options" disabled>
+                                                    No hay {(currentResidenciaDetails?.nombreEtiquetaCentroCosto || 'centros de costo').toLowerCase()} activos para esta residencia.
+                                                </SelectItem>
+                                            ) : (
+                                                <>
+                                                    <SelectItem value="">Ninguno</SelectItem> 
+                                                    {centrosCostoList.map((cc) => (
+                                                        <SelectItem key={cc.id} value={cc.id}>
+                                                            {cc.nombre}
+                                                        </SelectItem>
+                                                    ))}
+                                                </>
+                                            )}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -1017,18 +1284,96 @@ export default function UserManagementPage(): JSX.Element | null {
                         <Card className="p-4 mt-4 bg-slate-50 dark:bg-slate-800/30 border-dashed">
                              <h4 className="text-base font-medium mb-3 text-slate-700 dark:text-slate-300">Campos Personalizados (Definidos en Residencia)</h4>
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                 <div className="space-y-1.5">
-                                     <Label htmlFor="valorCampoPersonalizado1">Valor Personalizado 1</Label> {/* TODO: Get label from Residencia settings */}
-                                     <Input id="valorCampoPersonalizado1" value={formData.valorCampoPersonalizado1 || ''} onChange={(e) => handleFormChange('valorCampoPersonalizado1', e.target.value)} placeholder="Valor 1" disabled={isSaving} />
-                                 </div>
-                                 <div className="space-y-1.5">
-                                     <Label htmlFor="valorCampoPersonalizado2">Valor Personalizado 2</Label> {/* TODO: Get label from Residencia settings */}
-                                     <Input id="valorCampoPersonalizado2" value={formData.valorCampoPersonalizado2 || ''} onChange={(e) => handleFormChange('valorCampoPersonalizado2', e.target.value)} placeholder="Valor 2" disabled={isSaving} />
-                                 </div>
-                                 <div className="space-y-1.5">
-                                     <Label htmlFor="valorCampoPersonalizado3">Valor Personalizado 3</Label> {/* TODO: Get label from Residencia settings */}
-                                     <Input id="valorCampoPersonalizado3" value={formData.valorCampoPersonalizado3 || ''} onChange={(e) => handleFormChange('valorCampoPersonalizado3', e.target.value)} placeholder="Valor 3" disabled={isSaving} />
-                                 </div>
+                                {currentResidenciaDetails?.campoPersonalizado1_isActive && (
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="valorCampoPersonalizado1">
+                                            {currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor Personalizado 1'}
+                                            {currentResidenciaDetails.campoPersonalizado1_necesitaValidacion ? ' *' : ''}
+                                        </Label>
+                                        {currentResidenciaDetails.campoPersonalizado1_tamanoTexto === 'textArea' ? (
+                                            <Textarea
+                                                id="valorCampoPersonalizado1"
+                                                value={formData.valorCampoPersonalizado1 || ''}
+                                                onChange={(e) => handleFormChange('valorCampoPersonalizado1', e.target.value)}
+                                                placeholder={currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor 1'}
+                                                disabled={isSaving || !formData.residenciaId}
+                                            />
+                                        ) : (
+                                            <Input
+                                                id="valorCampoPersonalizado1"
+                                                value={formData.valorCampoPersonalizado1 || ''}
+                                                onChange={(e) => handleFormChange('valorCampoPersonalizado1', e.target.value)}
+                                                placeholder={currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor 1'}
+                                                disabled={isSaving || !formData.residenciaId}
+                                            />
+                                        )}
+                                        {currentResidenciaDetails.campoPersonalizado1_necesitaValidacion && currentResidenciaDetails.campoPersonalizado1_regexValidacion && (
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Validación requerida. Formato esperado: {currentResidenciaDetails.campoPersonalizado1_regexValidacion}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                                {currentResidenciaDetails?.campoPersonalizado2_isActive && (
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="valorCampoPersonalizado2">
+                                            {currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor Personalizado 2'}
+                                            {currentResidenciaDetails.campoPersonalizado2_necesitaValidacion ? ' *' : ''}
+                                        </Label>
+                                        {currentResidenciaDetails.campoPersonalizado2_tamanoTexto === 'textArea' ? (
+                                            <Textarea
+                                                id="valorCampoPersonalizado2"
+                                                value={formData.valorCampoPersonalizado2 || ''}
+                                                onChange={(e) => handleFormChange('valorCampoPersonalizado2', e.target.value)}
+                                                placeholder={currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor 2'}
+                                                disabled={isSaving || !formData.residenciaId}
+                                            />
+                                        ) : (
+                                            <Input
+                                                id="valorCampoPersonalizado2"
+                                                value={formData.valorCampoPersonalizado2 || ''}
+                                                onChange={(e) => handleFormChange('valorCampoPersonalizado2', e.target.value)}
+                                                placeholder={currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor 2'}
+                                                disabled={isSaving || !formData.residenciaId}
+                                            />
+                                        )}
+                                        {currentResidenciaDetails.campoPersonalizado2_necesitaValidacion && currentResidenciaDetails.campoPersonalizado2_regexValidacion && (
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Validación requerida. Formato esperado: {currentResidenciaDetails.campoPersonalizado2_regexValidacion}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                                {currentResidenciaDetails?.campoPersonalizado3_isActive && (
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="valorCampoPersonalizado3">
+                                            {currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor Personalizado 3'}
+                                            {currentResidenciaDetails.campoPersonalizado3_necesitaValidacion ? ' *' : ''}
+                                        </Label>
+                                        {currentResidenciaDetails.campoPersonalizado3_tamanoTexto === 'textArea' ? (
+                                            <Textarea
+                                                id="valorCampoPersonalizado3"
+                                                value={formData.valorCampoPersonalizado3 || ''}
+                                                onChange={(e) => handleFormChange('valorCampoPersonalizado3', e.target.value)}
+                                                placeholder={currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor 3'}
+                                                disabled={isSaving || !formData.residenciaId}
+                                            />
+                                        ) : (
+                                            <Input
+                                                id="valorCampoPersonalizado3"
+                                                value={formData.valorCampoPersonalizado3 || ''}
+                                                onChange={(e) => handleFormChange('valorCampoPersonalizado3', e.target.value)}
+                                                placeholder={currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor 3'}
+                                                disabled={isSaving || !formData.residenciaId}
+                                            />
+                                        )}
+                                        {currentResidenciaDetails.campoPersonalizado3_necesitaValidacion && currentResidenciaDetails.campoPersonalizado3_regexValidacion && (
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Validación requerida. Formato esperado: {currentResidenciaDetails.campoPersonalizado3_regexValidacion}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </Card>
                         {/* --- END: New UserProfile Fields --- */}

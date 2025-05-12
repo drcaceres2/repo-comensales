@@ -81,7 +81,7 @@ function LayoutHeader() {
 // Simple Footer Component
 function LayoutFooter() {
   return (
-    <footer className="p-4 text-center border-t border-border text-sm text-muted-foreground">
+    <footer className="sticky bottom-0 z-30 w-full p-4 text-center border-t border-border text-sm text-muted-foreground bg-background">
       <Link href="/feedback" className="inline-flex items-center hover:text-primary">
         <MessageSquare size={14} className="mr-2" />
         Enviar comentarios o solicitar ayuda

@@ -49,6 +49,18 @@ const getNewResidenciaDefaults = (): Omit<Residencia, 'id'> => ({
   nombreEtiquetaCentroCosto: 'Centro de Costo',
   modoDeCosteo: 'por-eleccion',
   antelacionActividadesDefault: 7,
+  tipoResidentes: 'estudiantes',
+  esquemaAdministracion: 'estricto',
+  nombreTradicionalDesayuno: "Desayuno",
+  nombreTradicionalAlmuerzo: "Almuerzo",
+  nombreTradicionalCena: "Cena",
+  nombreTradicionalLunes: "Lunes",
+  nombreTradicionalMartes: "Martes",
+  nombreTradicionalMiercoles: "Miércoles",
+  nombreTradicionalJueves: "Jueves",
+  nombreTradicionalViernes: "Viernes",
+  nombreTradicionalSabado: "Sábado",
+  nombreTradicionalDomingo: "Domingo",
   campoPersonalizado1_etiqueta: '',
   campoPersonalizado1_isActive: false,
   campoPersonalizado1_necesitaValidacion: false,
@@ -66,7 +78,6 @@ const getNewResidenciaDefaults = (): Omit<Residencia, 'id'> => ({
   campoPersonalizado3_tamanoTexto: 'text',
   textProfile: 'espanol-honduras',
 });
-
 
 export default function CrearResidenciaAdminPage() {
   const router = useRouter();
@@ -242,7 +253,7 @@ export default function CrearResidenciaAdminPage() {
          toast({ title: "Acción no permitida", description: "No tienes permisos para editar esta residencia.", variant: "destructive" });
         return;
     }
-    setCurrentResidencia(residencia);
+    setCurrentResidencia({ ...getNewResidenciaDefaults(), ...residencia });
     setIsEditing(true);
     setShowCreateForm(true);
   };
@@ -534,9 +545,10 @@ export default function CrearResidenciaAdminPage() {
                 </Label>
                 <Input
                   id="textProfile"
+                  name="textProfile"
                   type="text"
                   placeholder="Ej. espanol-alternativo, ingles-FL"
-                  value={formData.textProfile || ''}
+                  value={currentResidencia.textProfile || ''}
                   onChange={handleInputChange}
                   className="mt-1"
                   aria-describedby="textprofile-description"
@@ -545,6 +557,174 @@ export default function CrearResidenciaAdminPage() {
                   Nombre del archivo JSON (sin la extensión .json) que se usará para los textos de esta residencia.
                   Debe estar ubicado en /src/app/textos/. Si se deja vacío, se usará el comportamiento por defecto.
                 </p>
+              </div>
+              <div>
+                <Label htmlFor="tipoResidentes">Tipo de Residentes</Label>
+                <select
+                  id="tipoResidentes"
+                  name="tipoResidentes"
+                  value={currentResidencia.tipoResidentes || 'estudiantes'}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="w-full p-2 border rounded mt-1 bg-background text-foreground"
+                >
+                  <option value="estudiantes">Estudiantes</option>
+                  <option value="profesionales">Profesionales</option>
+                  <option value="gente_mayor">Gente Mayor</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="esquemaAdministracion">Esquema de Administración</Label>
+                <select
+                  id="esquemaAdministracion"
+                  name="esquemaAdministracion"
+                  value={currentResidencia.esquemaAdministracion || 'estricto'}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="w-full p-2 border rounded mt-1 bg-background text-foreground"
+                >
+                  <option value="estricto">Estricto</option>
+                  <option value="flexible">Flexible</option>
+                </select>
+              </div>
+              {/* Nombre Tradicional Desayuno */}
+              <div>
+                <Label htmlFor="nombreTradicionalDesayuno">Nombre Tradicional Desayuno</Label>
+                <Input
+                  id="nombreTradicionalDesayuno"
+                  name="nombreTradicionalDesayuno"
+                  value={currentResidencia.nombreTradicionalDesayuno || ''}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="mt-1"
+                  placeholder="Ej: Desayuno"
+                />
+              </div>
+
+              {/* Nombre Tradicional Almuerzo */}
+              <div>
+                <Label htmlFor="nombreTradicionalAlmuerzo">Nombre Tradicional Almuerzo</Label>
+                <Input
+                  id="nombreTradicionalAlmuerzo"
+                  name="nombreTradicionalAlmuerzo"
+                  value={currentResidencia.nombreTradicionalAlmuerzo || ''}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="mt-1"
+                  placeholder="Ej: Almuerzo"
+                />
+              </div>
+
+              {/* Nombre Tradicional Cena */}
+              <div>
+                <Label htmlFor="nombreTradicionalCena">Nombre Tradicional Cena</Label>
+                <Input
+                  id="nombreTradicionalCena"
+                  name="nombreTradicionalCena"
+                  value={currentResidencia.nombreTradicionalCena || ''}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="mt-1"
+                  placeholder="Ej: Cena"
+                />
+              </div>
+
+              {/* Nombre Tradicional Lunes */}
+              <div>
+                <Label htmlFor="nombreTradicionalLunes">Nombre Tradicional Lunes</Label>
+                <Input
+                  id="nombreTradicionalLunes"
+                  name="nombreTradicionalLunes"
+                  value={currentResidencia.nombreTradicionalLunes || ''}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="mt-1"
+                  placeholder="Ej: Lunes"
+                />
+              </div>
+
+              {/* Nombre Tradicional Martes */}
+              <div>
+                <Label htmlFor="nombreTradicionalMartes">Nombre Tradicional Martes</Label>
+                <Input
+                  id="nombreTradicionalMartes"
+                  name="nombreTradicionalMartes"
+                  value={currentResidencia.nombreTradicionalMartes || ''}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="mt-1"
+                  placeholder="Ej: Martes"
+                />
+              </div>
+
+              {/* Nombre Tradicional Miercoles */}
+              <div>
+                <Label htmlFor="nombreTradicionalMiercoles">Nombre Tradicional Miércoles</Label>
+                <Input
+                  id="nombreTradicionalMiercoles"
+                  name="nombreTradicionalMiercoles"
+                  value={currentResidencia.nombreTradicionalMiercoles || ''}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="mt-1"
+                  placeholder="Ej: Miércoles"
+                />
+              </div>
+
+              {/* Nombre Tradicional Jueves */}
+              <div>
+                <Label htmlFor="nombreTradicionalJueves">Nombre Tradicional Jueves</Label>
+                <Input
+                  id="nombreTradicionalJueves"
+                  name="nombreTradicionalJueves"
+                  value={currentResidencia.nombreTradicionalJueves || ''}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="mt-1"
+                  placeholder="Ej: Jueves"
+                />
+              </div>
+
+              {/* Nombre Tradicional Viernes */}
+              <div>
+                <Label htmlFor="nombreTradicionalViernes">Nombre Tradicional Viernes</Label>
+                <Input
+                  id="nombreTradicionalViernes"
+                  name="nombreTradicionalViernes"
+                  value={currentResidencia.nombreTradicionalViernes || ''}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="mt-1"
+                  placeholder="Ej: Viernes"
+                />
+              </div>
+
+              {/* Nombre Tradicional Sabado */}
+              <div>
+                <Label htmlFor="nombreTradicionalSabado">Nombre Tradicional Sábado</Label>
+                <Input
+                  id="nombreTradicionalSabado"
+                  name="nombreTradicionalSabado"
+                  value={currentResidencia.nombreTradicionalSabado || ''}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="mt-1"
+                  placeholder="Ej: Sábado"
+                />
+              </div>
+
+              {/* Nombre Tradicional Domingo */}
+              <div>
+                <Label htmlFor="nombreTradicionalDomingo">Nombre Tradicional Domingo</Label>
+                <Input
+                  id="nombreTradicionalDomingo"
+                  name="nombreTradicionalDomingo"
+                  value={currentResidencia.nombreTradicionalDomingo || ''}
+                  onChange={handleInputChange}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="mt-1"
+                  placeholder="Ej: Domingo"
+                />
               </div>
 
               {/* Campos Personalizados - Ejemplo con el 1, replicar para 2 y 3 si es necesario */}

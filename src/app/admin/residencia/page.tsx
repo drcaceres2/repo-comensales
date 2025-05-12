@@ -14,7 +14,8 @@ import {
   HorarioSolicitudComida,
   UserRole,
   DayOfWeekKey,
-  DayOfWeekMap
+  DayOfWeekMap,
+  CentroCosto // Ensure CentroCosto is here
 } from '@/models/firestore';
 import {
   doc,
@@ -64,6 +65,7 @@ const getNewComedorDefaults = (residenciaId: string): Omit<Comedor, 'id'> => ({
     residenciaId: residenciaId,
     descripcion: '',
     capacidad: 0,
+    centroCostoPorDefectoId: '',
 });
 
 // Helper for new HorarioSolicitudComida
@@ -109,6 +111,58 @@ export default function ResidenciaHorariosComedoresPage() {
   const [currentHorario, setCurrentHorario] = useState<Partial<HorarioSolicitudComida>>({});
   const [isEditingHorario, setIsEditingHorario] = useState<boolean>(false);
   const [formLoadingHorario, setFormLoadingHorario] = useState<boolean>(false);
+
+  // ADDED: CentroCosto States for the current Residencia
+  const [centrosCostoResidencia, setCentrosCostoResidencia] = useState<CentroCosto[]>([]);
+  const [isLoadingCentrosCostoResidencia, setIsLoadingCentrosCostoResidencia] = useState<boolean>(false);
+
+    // ... (isLoadingCentrosCostoResidencia state) ...
+
+  // ADDED: Form Data State for Residencia Details
+  const [residenciaFormData, setResidenciaFormData] = useState<Partial<Residencia>>({
+    nombre: '',
+    direccion: '',
+    logoUrl: '',
+    nombreEtiquetaCentroCosto: '',
+    modoDeCosteo: undefined, // Or a default like 'por-usuario'
+    antelacionActividadesDefault: 0,
+    textProfile: '',
+    tipoResidentes: 'estudiantes', // Default value
+    esquemaAdministracion: 'flexible', // Default value
+    nombreTradicionalDesayuno: '',
+    nombreTradicionalAlmuerzo: '',
+    nombreTradicionalCena: '',
+    nombreTradicionalLunes: '',
+    nombreTradicionalMartes: '',
+    nombreTradicionalMiercoles: '',
+    nombreTradicionalJueves: '',
+    nombreTradicionalViernes: '',
+    nombreTradicionalSabado: '',
+    nombreTradicionalDomingo: '',
+    campoPersonalizado1_etiqueta: '',
+    campoPersonalizado1_isActive: false,
+    campoPersonalizado1_necesitaValidacion: false,
+    campoPersonalizado1_regexValidacion: '',
+    campoPersonalizado1_tamanoTexto: 'text',
+    campoPersonalizado2_etiqueta: '',
+    campoPersonalizado2_isActive: false,
+    campoPersonalizado2_necesitaValidacion: false,
+    campoPersonalizado2_regexValidacion: '',
+    campoPersonalizado2_tamanoTexto: 'text',
+    campoPersonalizado3_etiqueta: '',
+    campoPersonalizado3_isActive: false,
+    campoPersonalizado3_necesitaValidacion: false,
+    campoPersonalizado3_regexValidacion: '',
+    campoPersonalizado3_tamanoTexto: 'text',
+    // centroCostoPorDefectoId will be handled as a separate field for now,
+    // as it's part of Comedor, not directly Residencia in your current model.
+    // If Residencia should have a *default* CentroCostoId, it needs to be added to Residencia interface first.
+    // For now, we are adding the input to pick a default CC for the Residencia *itself*.
+    // Let's assume you will add `defaultCentroCostoId?: CentroCostoId;` to your Residencia interface.
+    // If so, add it here:
+    // defaultCentroCostoId: '', 
+  });
+  const [isSavingResidencia, setIsSavingResidencia] = useState<boolean>(false);
 
 
   // --- useEffect: Handle Auth State & Fetch Profile ---
@@ -200,12 +254,12 @@ export default function ResidenciaHorariosComedoresPage() {
       });
   }, [authUser, authFirebaseLoading, authFirebaseError, toast]); // removed: router, searchParams
 
-    // --- Redirect if not authenticated after loading ---
-    useEffect(() => {
-        if (!authFirebaseLoading && !profileLoading && !authUser) {
-            router.replace('/');
-        }
-    }, [authFirebaseLoading, profileLoading, authUser, router]);
+  // --- Redirect if not authenticated after loading ---
+  useEffect(() => {
+      if (!authFirebaseLoading && !profileLoading && !authUser) {
+          router.replace('/');
+      }
+  }, [authFirebaseLoading, profileLoading, authUser, router]);
 
   // --- Fetch Residencia Details ---
   useEffect(() => {
@@ -270,16 +324,43 @@ export default function ResidenciaHorariosComedoresPage() {
     }
   }, [targetResidenciaId, toast]);
 
+  // ADDED: Fetch Centros de Costo for the current Residencia
+  const fetchCentrosCostoForCurrentResidencia = useCallback(async () => {
+    if (!targetResidenciaId) {
+        setCentrosCostoResidencia([]);
+        return;
+    }
+    setIsLoadingCentrosCostoResidencia(true);
+    try {
+        const q = query(
+            collection(db, 'centrosCosto'), 
+            where('residenciaId', '==', targetResidenciaId), 
+            where('isActive', '==', true), // Typically, you'd only want active ones for selection
+            orderBy('nombre')
+        );
+        const snapshot = await getDocs(q);
+        setCentrosCostoResidencia(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CentroCosto)));
+        console.log("Fetched Centros de Costo for Residencia:", snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (error) {
+        console.error("Error fetching Centros de Costo for Residencia:", error);
+        toast({ title: "Error", description: "No se pudieron cargar los centros de costo de la residencia.", variant: "destructive"});
+        setCentrosCostoResidencia([]);
+    } finally {
+        setIsLoadingCentrosCostoResidencia(false);
+    }
+  }, [targetResidenciaId, toast]);
+
   useEffect(() => {
     if (targetResidenciaId && isAuthorizedForPage) {
         fetchComedores();
         fetchHorarios();
+        fetchCentrosCostoForCurrentResidencia(); // ADDED CALL
     } else {
         setComedores([]);
         setHorarios([]);
+        setCentrosCostoResidencia([]); // ADDED: Clear state if no targetResidenciaId
     }
-  }, [targetResidenciaId, isAuthorizedForPage, fetchComedores, fetchHorarios]);
-
+  }, [targetResidenciaId, isAuthorizedForPage, fetchComedores, fetchHorarios, fetchCentrosCostoForCurrentResidencia]); // ADDED fetchCentrosCostoForCurrentResidencia to dependencies
 
     // --- Comedor Form Handlers ---
   const handleInputChangeComedor = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -317,13 +398,27 @@ export default function ResidenciaHorariosComedoresPage() {
     setFormLoadingComedor(true);
     try {
       if (isEditingComedor && currentComedor.id) {
-        const comedorRef = doc(db, 'comedores', currentComedor.id);
-        const { id, ...dataToUpdate } = currentComedor;
-        await updateDoc(comedorRef, dataToUpdate);
+        const comedorDocRef = doc(db, 'comedores', currentComedor.id); // CORRECTED: comedorDocRef
+        const { id, residenciaId, ...dataFromState } = currentComedor; // Exclude residenciaId if it's in currentComedor but not needed for update directly
+        const dataToUpdate = {
+            ...dataFromState,
+            nombre: currentComedor.nombre!.trim(), // Ensure nombre is trimmed
+            // Ensure residenciaId is the correct targetResidenciaId, though it shouldn't change for an existing comedor
+            residenciaId: targetResidenciaId, 
+            centroCostoPorDefectoId: currentComedor.centroCostoPorDefectoId || null,
+        };
+        await updateDoc(comedorDocRef, dataToUpdate); // CORRECTED: comedorDocRef
         toast({ title: "Comedor Actualizado", description: `Comedor '${currentComedor.nombre}' actualizado.` });
       } else {
-        const dataToCreate = { ...currentComedor, residenciaId: targetResidenciaId };
-        delete dataToCreate.id; // Ensure no id is passed for creation
+        // Logic for creating a new comedor
+        const dataToCreate = { 
+            nombre: currentComedor.nombre!.trim(),
+            residenciaId: targetResidenciaId, // Ensure this is set
+            descripcion: currentComedor.descripcion || '',
+            capacidad: currentComedor.capacidad || 0,
+            centroCostoPorDefectoId: currentComedor.centroCostoPorDefectoId || null,
+        };
+        // delete dataToCreate.id; // Not needed if currentComedor for new doesn't have id
         await addDoc(collection(db, 'comedores'), dataToCreate);
         toast({ title: "Comedor Creado", description: `Comedor '${currentComedor.nombre}' creado.` });
       }
@@ -336,6 +431,7 @@ export default function ResidenciaHorariosComedoresPage() {
       setFormLoadingComedor(false);
     }
   };
+
 
   const handleDeleteComedor = async (comedorId: string, comedorName: string) => {
     if (!canEdit) {
@@ -532,7 +628,6 @@ export default function ResidenciaHorariosComedoresPage() {
       );
   }
 
-
   // --- Main Page Content when targetResidenciaId IS set ---
   return (
     <div className="container mx-auto p-4 space-y-8">
@@ -609,6 +704,44 @@ export default function ResidenciaHorariosComedoresPage() {
                       disabled={formLoadingComedor}
                       min="0"
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="comedorCentroCostoDefault">
+                        {(residenciaDetails?.nombreEtiquetaCentroCosto || 'Centro de Costo')} por Defecto (Opcional)
+                    </Label>
+                    <Select
+                        value={currentComedor.centroCostoPorDefectoId || ''}
+                        onValueChange={(value) => setCurrentComedor(prev => ({ ...prev, centroCostoPorDefectoId: value }))}
+                        disabled={formLoadingComedor || isLoadingCentrosCostoResidencia}
+                    >
+                        <SelectTrigger id="comedorCentroCostoDefault">
+                            <SelectValue placeholder={
+                                isLoadingCentrosCostoResidencia ? "Cargando..." :
+                                `Seleccione ${(residenciaDetails?.nombreEtiquetaCentroCosto || 'CC').toLowerCase()} de defecto...`
+                            } />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {isLoadingCentrosCostoResidencia ? (
+                                <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                            ) : centrosCostoResidencia.length === 0 ? (
+                                <SelectItem value="no-options" disabled>
+                                    No hay {(residenciaDetails?.nombreEtiquetaCentroCosto || 'centros de costo').toLowerCase()} activos en la residencia.
+                                </SelectItem>
+                            ) : (
+                                <>
+                                    <SelectItem value="">Ninguno</SelectItem> 
+                                    {centrosCostoResidencia.map((cc) => (
+                                        <SelectItem key={cc.id} value={cc.id}>
+                                            {cc.nombre}
+                                        </SelectItem>
+                                    ))}
+                                </>
+                            )}
+                        </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                        {(residenciaDetails?.nombreEtiquetaCentroCosto || 'Centro de costo')} que se asignará por defecto a las elecciones hechas en este comedor.
+                    </p>
                   </div>
                 </CardContent>
                 <CardFooter className="flex justify-end space-x-2">

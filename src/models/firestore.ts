@@ -15,7 +15,7 @@ export type ExcepcionId = string;
 export type CentroCostoId = string;
 export type ActividadId = string; 
 export type InscripcionActividadId = string; 
-export type ActividadMealDefinitionId = string; 
+export type TiempoComidaAlternativaUnicaActividadId = string; 
 export type FeedbackId = string; 
 export type RecordatorioId = string;
 
@@ -197,7 +197,7 @@ export interface AlternativaTiempoComida {
 }
 
 export interface TiempoComidaAlternativaUnicaActividad {
-  id: ActividadMealDefinitionId; 
+  id: TiempoComidaAlternativaUnicaActividadId; 
   nombreTiempoComida_AlternativaUnica: string; 
   nombreGrupoTiempoComida: string;
   ordenGrupoTiempoComida: number;
@@ -260,14 +260,10 @@ export interface Dieta {
 }
 
 export interface AsistentePermisos {
-  elecc_uids?: UserId[];
-  activ_crear?: boolean;
-  activ_gest_propias?: boolean; 
-  activ_gest_todas?: boolean;   
-  invit_elecc_act_propias?: boolean; 
-  invit_elecc_act_todas?: boolean;
-  recor_gest_propias?: boolean;
-  recor_gest_todas?: boolean;
+  usuariosAsistidos?: UserId[];
+  gestionActividades: 'Todas' | 'Propias' | 'Ninguna';
+  gestionInvitados: 'Todos' | 'Propios' | 'Ninguno';
+  gestionRecordatorios: 'Todos' | 'Propios' | 'Ninguno';
 }
 
 export interface UserProfile {
@@ -328,7 +324,7 @@ export interface Eleccion {
     comentario?: string;
     processedForBilling?: boolean;
     actividadId?: ActividadId;
-    actividadMealId?: ActividadMealDefinitionId;
+    TiempoComidaAlternativaUnicaActividadId?: TiempoComidaAlternativaUnicaActividadId;
     tipoEleccion: 'regular' | 'actividad';
     origenCentroCosto?: 'usuario-por-defecto' | 'comedor-por-defecto' | 'manual' | 'modificado';
 }
@@ -341,7 +337,7 @@ export interface MealCount {
     tiempoComidaId?: TiempoComidaId; 
     alternativaTiempoComidaId?: AlternativaTiempoComidaId;
     actividadId?: ActividadId;
-    actividadMealDefinitionId?: ActividadMealDefinitionId; 
+    TiempoComidaAlternativaUnicaActividadId?: TiempoComidaAlternativaUnicaActividadId; 
     actividadMealNombreGrupo?: string; 
     actividadMealDescripcion?: string;
     dietaId?: DietaId | 'ninguna';
