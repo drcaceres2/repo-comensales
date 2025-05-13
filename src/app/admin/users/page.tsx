@@ -38,11 +38,13 @@ import { Textarea } from '@/components/ui/textarea'; // ADDED: Textarea import
 
 // --- Firebase & New Auth Hook Imports ---\nimport { useAuthState } from 'react-firebase-hooks/auth';
 import { User } from "firebase/auth";
-import { createUserWithEmailAndPassword } from "firebase/auth";
 import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
+import { getFunctions, httpsCallable } from "firebase/functions";
+
 // MODIFIED: Added query and where
 import { doc, getDoc, getDocs, Timestamp, addDoc, collection, setDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { app, auth, db } from '@/lib/firebase';
+import { formatTimestampForInput } from '@/lib/utils'
 
 // Model Imports
 // MODIFIED: Added Residencia and CentroCosto
@@ -51,19 +53,27 @@ import {
     UserRole, 
     ResidenciaId, 
     DietaId, 
-    LogEntry, // Assuming LogEntry is still needed, otherwise remove
-    LogActionType, // Assuming LogActionType is still needed
     Dieta, 
     ModoEleccionUsuario, 
     CentroCostoId, 
     Residencia, 
     CentroCosto,
     AsistentePermisos // ADDED
-} from '@/models/firestore';
+} from '@/../../shared/models/types';
+import { ZodUndefined } from 'zod';
 
 export default function UserManagementPage(): JSX.Element | null {
     const ALL_RESIDENCIAS_FILTER_KEY = 'all_residencias';
     const NO_RESIDENCIA_FILTER_KEY = 'no_residencia_assigned';
+
+    const functions = getFunctions(app); // Assuming 'app' is your initialized Firebase app instance from '@/lib/firebase'
+    const functionsInstance = getFunctions(auth.app); // More reliable way if auth is initialized
+
+    const createUserCallable = httpsCallable(functionsInstance, 'createUser');
+    const updateUserCallable = httpsCallable(functionsInstance, 'updateUser');
+    const deleteUserCallable = httpsCallable(functionsInstance, 'deleteUser');
+    // Define a callable for logging (alternative to logging within each function)
+    const logActionCallable = httpsCallable(functionsInstance, 'logAction');
 
     type UserFormData = Partial<Omit<UserProfile, 'id' | 'roles' | 'fechaDeNacimiento' | 'asistentePermisos'>> & { // Exclude asistentePermisos from Partial
         roles: UserRole[];
@@ -106,31 +116,38 @@ export default function UserManagementPage(): JSX.Element | null {
     const [residentesForAsistente, setResidentesForAsistente] = useState<UserProfile[]>([]);
     const [isLoadingResidentesForAsistente, setIsLoadingResidentesForAsistente] = useState<boolean>(false);
 
-    const [formData, setFormData] = useState<UserFormData>({
-        nombre: '', 
-        apellido: '', 
-        email: '', 
-        isActive: true, 
-        roles: [], 
-        residenciaId: '', 
-        dietaId: '',
-        numeroDeRopa: '', 
-        habitacion: '', 
-        universidad: '', 
-        carrera: '', 
-        dni: '',
-        password: '', 
-        confirmPassword: '', 
-        telefonoMovil: '',
-        modoEleccion: undefined,
-        fechaDeNacimiento: '',
-        centroCostoPorDefectoId: '',
-        puedeTraerInvitados: 'no',
-        valorCampoPersonalizado1: '',
-        valorCampoPersonalizado2: '',
-        valorCampoPersonalizado3: '',
-        asistentePermisos: undefined
+    const [formData, setFormData] = useState<UserFormData>(() => {
+        const initialResidenciaId = (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId)
+            ? adminUserProfile.residenciaId
+            : '';
+        return {
+            nombre: '',
+            apellido: '',
+            email: '',
+            isActive: true,
+            roles: [], // Corrected: Was undefined, now an empty array
+            residenciaId: initialResidenciaId,
+            dietaId: '',
+            numeroDeRopa: '',
+            habitacion: '',
+            universidad: '',
+            carrera: '',
+            dni: '',
+            password: '',      // Added for completeness, was missing from your snippet but likely in original
+            confirmPassword: '',// Added for completeness
+            telefonoMovil: '',
+            modoEleccion: undefined,
+            fechaDeNacimiento: '', // Corrected: Was null, now an empty string for consistency
+            centroCostoPorDefectoId: '', // Match handleCancelEdit
+            puedeTraerInvitados: 'no',
+            valorCampoPersonalizado1: '', // Match handleCancelEdit
+            valorCampoPersonalizado2: '', // Match handleCancelEdit
+            valorCampoPersonalizado3: '', // Match handleCancelEdit
+            asistentePermisos: undefined,
+            notificacionPreferencias: undefined, // Assuming this is part of UserProfile and thus UserFormData
+        };
     });
+
     const [isSaving, setIsSaving] = useState(false);
     const [users, setUsers] = useState<UserProfile[]>([]);
     const [isLoadingUsers, setIsLoadingUsers] = useState(true);
@@ -586,182 +603,211 @@ export default function UserManagementPage(): JSX.Element | null {
         event.preventDefault();
         setIsSaving(true);
 
-        let validationError: string | null = null;
-        const roles = formData.roles || [];
-        const generalPhoneRegex = /^\+?[0-9\s-]{7,15}$/;
-        // Regex para Honduras:
-        const hondurasPhoneRegex = /^(\+?504)?[0-9]{3}[ -]?[0-9]{4}[ -]?[0-9]{1}$/;
+        // Ensure non-master admin uses their own residenciaId if required
+        if (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId && isResidenciaConditionallyRequired) {
+            if (formData.residenciaId !== adminUserProfile.residenciaId) {
+                console.warn("Correcting residenciaId for non-master admin during creation.");
+                // Use a temporary variable to avoid direct state mutation before validation if needed,
+                // or ensure validation uses the admin's residenciaId directly.
+                // For simplicity here, we'll assume validation will catch if it was somehow empty.
+                // A direct assignment before validation might be cleaner:
+                const correctedFormData = { ...formData, residenciaId: adminUserProfile.residenciaId };
+                // Now proceed with validation using correctedFormData
 
-        const telefono = formData.telefonoMovil?.trim();
-        if (!formData.password || !formData.confirmPassword) {
-            validationError = "Contraseña inicial y confirmación son requeridas.";
-        } else if (formData.password.length < 6) {
-            validationError = "La contraseña debe tener al menos 6 caracteres.";
-        } else if (formData.password !== formData.confirmPassword) {
-            validationError = "Las contraseñas no coinciden.";
-        } else if (!formData.nombre?.trim()) {
-            validationError = "Nombre es requerido.";
-        } else if (!formData.apellido?.trim()) {
-            validationError = "Apellido es requerido.";
-            } else if (!formData.email?.trim()) {
-                validationError = "Email es requerido.";
-            } else if (telefono && telefono.length > 0) { // Check if telefono has a value
-                // Now that we know telefono is a non-empty string, we can use startsWith and test
+                const validationErrors: string[] = [];
+
+                const roles = correctedFormData.roles || [];
+                const generalPhoneRegex = /^\+?[0-9\s-]{7,15}$/;
+                // Regex para Honduras:
+                const hondurasPhoneRegex = /^(\+?504)?[0-9]{3}[ -]?[0-9]{4}[ -]?[0-9]{1}$/;
+
+                const telefono = correctedFormData.telefonoMovil?.trim();
+                if (!correctedFormData.password || !correctedFormData.confirmPassword) {
+                    validationErrors.push("Contraseña inicial y confirmación son requeridas.");
+                }
+                if (correctedFormData.password && correctedFormData.password.length < 6) { // Added check for correctedFormData.password existence
+                    validationErrors.push("La contraseña debe tener al menos 6 caracteres.");
+                }
+                if (correctedFormData.password && correctedFormData.confirmPassword && correctedFormData.password !== correctedFormData.confirmPassword) { // Added checks for existence
+                    validationErrors.push("Las contraseñas no coinciden.");
+                }
+                if (!correctedFormData.nombre?.trim()) {
+                    validationErrors.push("Nombre es requerido.");
+                }
+                if (!correctedFormData.apellido?.trim()) {
+                validationErrors.push("Apellido es requerido.");
+                }
+                if (!correctedFormData.email?.trim()) {
+                    validationErrors.push("Email es requerido.");
+                }
+                if (telefono && telefono.length > 0) {
+                    if (
+                        (telefono.startsWith("+504") || telefono.startsWith("504"))
+                            ? !hondurasPhoneRegex.test(telefono)
+                            : !generalPhoneRegex.test(telefono)
+                    ) {
+                        validationErrors.push("Formato de teléfono no válido para el país ingresado o general.");
+                    }
+                }
+                if (roles.length === 0) {
+                    validationErrors.push("Al menos un Rol es requerido.");
+                }
+
                 if (
-                    (telefono.startsWith("+504") || telefono.startsWith("504"))
-                        ? !hondurasPhoneRegex.test(telefono)
-                        : !generalPhoneRegex.test(telefono)
+                    roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) &&
+                    !correctedFormData.residenciaId
                 ) {
-                    validationError = "Formato de teléfono no válido para el país ingresado o general.";
+                    validationErrors.push("Residencia Asignada es requerida para el rol seleccionado.");
                 }
-            } else if (roles.length === 0) {
-            validationError = "Al menos un Rol es requerido.";
-        } else if (
-            roles.some(r =>
-                ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)
-            ) && !formData.residenciaId
-        ) {
-            validationError = "Residencia Asignada es requerida para el rol seleccionado.";
-        } else if (roles.includes('residente') && !formData.dietaId) {
-            validationError = "Dieta Predeterminada es requerida para Residentes.";
-        } else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) {
-            validationError = "Número de Ropa es requerido para Residentes.";
-        }
-        // Custom Field Validations
-        if (currentResidenciaDetails?.campoPersonalizado1_isActive && currentResidenciaDetails?.campoPersonalizado1_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado1_regexValidacion) {
-            const regex = new RegExp(currentResidenciaDetails.campoPersonalizado1_regexValidacion);
-            if (formData.valorCampoPersonalizado1 && !regex.test(formData.valorCampoPersonalizado1)) {
-                validationError = `${currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor Personalizado 1'} no es válido.`;
-            }
-        }
-        if (!validationError && currentResidenciaDetails?.campoPersonalizado2_isActive && currentResidenciaDetails?.campoPersonalizado2_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado2_regexValidacion) {
-            const regex = new RegExp(currentResidenciaDetails.campoPersonalizado2_regexValidacion);
-            if (formData.valorCampoPersonalizado2 && !regex.test(formData.valorCampoPersonalizado2)) {
-                validationError = `${currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor Personalizado 2'} no es válido.`;
-            }
-        }
-        if (!validationError && currentResidenciaDetails?.campoPersonalizado3_isActive && currentResidenciaDetails?.campoPersonalizado3_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado3_regexValidacion) {
-            const regex = new RegExp(currentResidenciaDetails.campoPersonalizado3_regexValidacion);
-            if (formData.valorCampoPersonalizado3 && !regex.test(formData.valorCampoPersonalizado3)) {
-                validationError = `${currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor Personalizado 3'} no es válido.`;
-            }
-        }
-        
-        // AsistentePermisos Validation
-        if (roles.includes('asistente')) {
-            if (!formData.asistentePermisos) { // Should be initialized by handleRoleChange, but good check
-                validationError = "Faltan los permisos de asistente. Por favor, re-seleccione el rol.";
-            } else {
-                const permisos = formData.asistentePermisos;
-                const noUsuariosAsistidos = !permisos.usuariosAsistidos || permisos.usuariosAsistidos.length === 0;
-                const noGestionActividades = permisos.gestionActividades === 'Ninguna';
-                const noGestionInvitados = permisos.gestionInvitados === 'Ninguno';
-                const noGestionRecordatorios = permisos.gestionRecordatorios === 'Ninguno';
 
-                if (noUsuariosAsistidos && noGestionActividades && noGestionInvitados && noGestionRecordatorios) {
-                    validationError = "Un asistente debe tener al menos un usuario asignado o algún permiso de gestión (actividades, invitados o recordatorios).";
+                if (roles.includes('residente') && !correctedFormData.dietaId) {
+                    validationErrors.push("Dieta Predeterminada es requerida para Residentes.");
+                } 
+                if (roles.includes('residente') && !correctedFormData.numeroDeRopa?.trim()) {
+                    validationErrors.push("Número de Ropa es requerido para Residentes.");
+                }
+
+                // Custom Field Validations
+                if (currentResidenciaDetails?.campoPersonalizado1_isActive && currentResidenciaDetails?.campoPersonalizado1_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado1_regexValidacion) {
+                    const regex = new RegExp(currentResidenciaDetails.campoPersonalizado1_regexValidacion);
+                    if (correctedFormData.valorCampoPersonalizado1 && !regex.test(correctedFormData.valorCampoPersonalizado1)) {
+                        validationErrors.push(`${currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor Personalizado 1'} no es válido.`);
+                    }
+                }
+                if (currentResidenciaDetails?.campoPersonalizado2_isActive && currentResidenciaDetails?.campoPersonalizado2_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado2_regexValidacion) {
+                    const regex = new RegExp(currentResidenciaDetails.campoPersonalizado2_regexValidacion);
+                    if (correctedFormData.valorCampoPersonalizado2 && !regex.test(correctedFormData.valorCampoPersonalizado2)) {
+                        validationErrors.push(`${currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor Personalizado 2'} no es válido.`);
+                    }
+                }
+                if (currentResidenciaDetails?.campoPersonalizado3_isActive && currentResidenciaDetails?.campoPersonalizado3_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado3_regexValidacion) {
+                    const regex = new RegExp(currentResidenciaDetails.campoPersonalizado3_regexValidacion);
+                    if (correctedFormData.valorCampoPersonalizado3 && !regex.test(correctedFormData.valorCampoPersonalizado3)) {
+                        validationErrors.push(`${currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor Personalizado 3'} no es válido.`);
+                    }
+                }
+                
+                // AsistentePermisos Validation
+                if (roles.includes('asistente')) {
+                    if (!correctedFormData.asistentePermisos) { // Should be initialized by handleRoleChange, but good check
+                        validationErrors.push("Faltan los permisos de asistente. Por favor, re-seleccione el rol.");
+                    } else {
+                        const permisos = correctedFormData.asistentePermisos;
+                        const noUsuariosAsistidos = !permisos.usuariosAsistidos || permisos.usuariosAsistidos.length === 0;
+                        const noGestionActividades = permisos.gestionActividades === 'Ninguna';
+                        const noGestionInvitados = permisos.gestionInvitados === 'Ninguno';
+                        const noGestionRecordatorios = permisos.gestionRecordatorios === 'Ninguno';
+
+                        if (noUsuariosAsistidos && noGestionActividades && noGestionInvitados && noGestionRecordatorios) {
+                            validationErrors.push("Un asistente debe tener al menos un usuario asignado o algún permiso de gestión (actividades, invitados o recordatorios).");
+                        }
+                    }
+                }        
+
+                if (validationErrors.length > 0) {
+                    const title = validationErrors.length === 1
+                        ? "Error de Validación"
+                        : `Existen ${validationErrors.length} errores de validación`;
+                    const description = validationErrors.join("\\n"); // Use double backslash for newline in string literal
+                
+                    toast({
+                        title: title,
+                        description: description,
+                        variant: "destructive",
+                        duration: 9000 // Optional: Increase duration for multiple errors
+                    });
+                    setIsSaving(false);
+                    return;
                 }
             }
-        }        
-
-        if (validationError) {
-            toast({ title: "Error de Validación", description: validationError, variant: "destructive" });
-            setIsSaving(false);
-            return;
         }
+        // --- The rest of the validation logic ---
+        // Make sure to use the potentially corrected residenciaId in the profile data later:
+        const finalResidenciaId = (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId)
+                                ? adminUserProfile.residenciaId
+                                : formData.residenciaId;
 
         let newUserAuthUid: string | null = null;
+
+        // (Keep validation logic as is, possibly adjusting residenciaId as per Step 2.3)
+
         try {
-            console.log(`Attempting to create Auth user for ${formData.email}...`);
-            const userCredential = await createUserWithEmailAndPassword(auth, formData.email!, formData.password!);
-            newUserAuthUid = userCredential.user.uid;
-            console.log(`Auth user created successfully with UID: ${newUserAuthUid}`);
+            console.log(`Calling createUser Cloud Function for ${formData.email}...`);
 
-            // ... (inside try block, after creating auth user)
-            const userProfileData: Omit<UserProfile, 'id'> = {
-                // ... (other UserProfile fields like nombre, apellido, email, roles, isActive, etc.)
-                nombre: formData.nombre!.trim(),
-                apellido: formData.apellido!.trim(),
-                email: formData.email!.trim(),
-                roles: formData.roles!,
-                isActive: true,
-                residenciaId: (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && formData.residenciaId) ? formData.residenciaId : undefined,
-                dietaId: (roles.includes('residente') && formData.dietaId) ? formData.dietaId : undefined,
-                numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
-                habitacion: formData.habitacion?.trim() || undefined,
-                universidad: formData.universidad?.trim() || undefined,
-                carrera: formData.carrera?.trim() || undefined,
-                dni: formData.dni?.trim() || undefined,
-                telefonoMovil: formData.telefonoMovil?.trim() || undefined,
-                modoEleccion: formData.modoEleccion || undefined,
-                fechaDeNacimiento: formData.fechaDeNacimiento ? Timestamp.fromDate(new Date(formData.fechaDeNacimiento)) : undefined,
-                centroCostoPorDefectoId: formData.centroCostoPorDefectoId || undefined,
-                puedeTraerInvitados: formData.puedeTraerInvitados || 'no',
-                valorCampoPersonalizado1: currentResidenciaDetails?.campoPersonalizado1_isActive && formData.valorCampoPersonalizado1?.trim() ? formData.valorCampoPersonalizado1.trim() : undefined,
-                valorCampoPersonalizado2: currentResidenciaDetails?.campoPersonalizado2_isActive && formData.valorCampoPersonalizado2?.trim() ? formData.valorCampoPersonalizado2.trim() : undefined,
-                valorCampoPersonalizado3: currentResidenciaDetails?.campoPersonalizado3_isActive && formData.valorCampoPersonalizado3?.trim() ? formData.valorCampoPersonalizado3.trim() : undefined,
-                // MODIFIED: asistentePermisos handling
-                asistentePermisos: roles.includes('asistente') && formData.asistentePermisos 
-                    ? {
-                        usuariosAsistidos: formData.asistentePermisos.usuariosAsistidos || [],
-                        gestionActividades: formData.asistentePermisos.gestionActividades || 'Ninguna', // Default if somehow undefined in form
-                        gestionInvitados: formData.asistentePermisos.gestionInvitados || 'Ninguno',     // Default if somehow undefined in form
-                        gestionRecordatorios: formData.asistentePermisos.gestionRecordatorios || 'Ninguno', // Default if somehow undefined in form
-                      }
-                    : undefined,
+                // --- Construct the profile data payload ---
+                const profileData: Omit<UserProfile, 'id'> = {
+                    nombre: formData.nombre ?? '',
+                    apellido: formData.apellido ?? '',
+                    email: formData.email ?? '', // Include email in profile too
+                    residenciaId: finalResidenciaId, // Use selected or admin's residencia
+                    roles: formData.roles!,
+                    isActive: formData.isActive ?? true,
+                    modoEleccion: formData.modoEleccion ?? undefined, // Fixed for optional type
+                    fechaDeNacimiento: formData.fechaDeNacimiento ? formatTimestampForInput(formData.fechaDeNacimiento) : null, // Fixed: Use helper for YYYY-MM-DD string or null
+                    centroCostoPorDefectoId: formData.centroCostoPorDefectoId ?? '',
+                    telefonoMovil: formData.telefonoMovil ?? '',
+                    dietaId: formData.dietaId ?? undefined, // Fixed for optional type
+                    numeroDeRopa: formData.numeroDeRopa ?? undefined, // Fixed for optional type
+                    habitacion: formData.habitacion ?? '',
+                    universidad: formData.universidad ?? '',
+                    carrera: formData.carrera ?? '',
+                    dni: formData.dni ?? '',
+                    puedeTraerInvitados: formData.puedeTraerInvitados ?? 'no',
+                    notificacionPreferencias: formData.notificacionPreferencias, // If you have form fields for these
+                    valorCampoPersonalizado1: formData.valorCampoPersonalizado1 ?? '',
+                    valorCampoPersonalizado2: formData.valorCampoPersonalizado2 ?? '',
+                    valorCampoPersonalizado3: formData.valorCampoPersonalizado3 ?? '',
+                    // Ensure all required fields from your UserProfile are included
+                    // Omit 'id' as Firestore/Function will generate it
+                };
+            // Prepare data for the Cloud Function
+            const userDataForFunction = {
+                email: formData.email!,
+                password: formData.password!, // Send password to function
+                profileData,
+                performedByUid: adminUserProfile?.id, // Send admin UID for logging
             };
-            // Remove undefined keys (especially for optional fields or fields not being set)
-             Object.keys(userProfileData).forEach(key => (userProfileData as any)[key] === undefined && delete (userProfileData as any)[key]);
+            // Remove undefined keys from profileData before sending
+            Object.keys(userDataForFunction.profileData).forEach(key => (userDataForFunction.profileData as any)[key] === undefined && delete (userDataForFunction.profileData as any)[key]);
 
-            // ... (rest of the try block: setDoc, toast, setFormData to reset) ...
+            // Call the function
+            const result = await createUserCallable(userDataForFunction);
+            const resultData = result.data as { success: boolean; userId?: string; message?: string }; // Define expected response structure
 
+            if (resultData.success && resultData.userId) {
+                console.log(`Cloud Function created user successfully with UID: ${resultData.userId}`);
 
-            console.log(`Attempting to create Firestore document users/${newUserAuthUid}...`);
-            const userDocRef = doc(db, "users", newUserAuthUid);
-            await setDoc(userDocRef, userProfileData);
-            console.log(`Firestore document created successfully for user ${newUserAuthUid}`);
+                // Add the new user to the local state (using data sent + returned ID)
+                const newUserForUI: UserProfile = {
+                    ...(userDataForFunction.profileData as Omit<UserProfile, 'id' | 'fechaDeNacimiento'>), // Cast carefully
+                    id: resultData.userId,
+                    // Reconstruct timestamp if needed, or adjust UI to handle string dates initially
+                    fechaDeNacimiento: formatTimestampForInput(formData.fechaDeNacimiento),
+                };
+                setUsers(prevUsers => [newUserForUI, ...prevUsers].sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre)));
 
-            const newUserForUI: UserProfile = { ...userProfileData, id: newUserAuthUid, puedeTraerInvitados: userProfileData.puedeTraerInvitados || 'no' };
-            setUsers(prevUsers => [newUserForUI, ...prevUsers].sort((a,b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre)));
+                toast({ title: "Usuario Creado", description: `Usuario ${newUserForUI.nombre} ${newUserForUI.apellido} creado.` });
+                // Reset form
+                handleCancelEdit(); // Or your specific reset logic
 
-
-            toast({ title: "Usuario Creado", description: `Se ha creado el usuario ${newUserForUI.nombre} ${newUserForUI.apellido}.` });
-
-            // MODIFIED: Reset new fields in form
-            setFormData({
-                nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
-                numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
-                password: '', confirmPassword: '', telefonoMovil: '',
-                modoEleccion: undefined, 
-                fechaDeNacimiento: '',
-                centroCostoPorDefectoId: '',
-                puedeTraerInvitados: 'no',
-                valorCampoPersonalizado1: '',
-                valorCampoPersonalizado2: '',
-                valorCampoPersonalizado3: '',
-                asistentePermisos: undefined // ADDED/MODIFIED
-            });
+            } else {
+                throw new Error(resultData.message || 'La función de creación de usuario falló.');
+            }
 
         } catch (error: any) {
-            console.error("Error creating user:", error);
-            let errorTitle = "Error al Crear Usuario";
-            let errorMessage = "Ocurrió un error inesperado.";
-            if (error.code) {
-                switch (error.code) {
-                    case 'auth/email-already-in-use': errorTitle = "Error de Autenticación"; errorMessage = "Este correo electrónico ya está registrado."; break;
-                    case 'auth/invalid-email': errorTitle = "Error de Autenticación"; errorMessage = "El formato del correo electrónico no es válido."; break;
-                    case 'auth/weak-password': errorTitle = "Error de Autenticación"; errorMessage = "La contraseña es demasiado débil (mínimo 6 caracteres)."; break;
-                    case 'permission-denied': errorTitle = "Error de Permisos"; errorMessage = "No tienes permiso para crear este usuario en Firestore.";
-                        if (newUserAuthUid) console.warn(`Firestore failed after Auth user ${newUserAuthUid} created. Consider manual cleanup.`);
-                        break;
-                    default: errorMessage = `Error: ${error.message} (Code: ${error.code})`;
-                }
-            }
-            toast({ title: errorTitle, description: errorMessage, variant: "destructive" });
+            console.error("Error calling createUser function or processing result:", error);
+            // Use error.message if available from the function's throw
+            const message = error.message || "Ocurrió un error al contactar el servicio de creación.";
+            let title = "Error al Crear Usuario";
+            // You might check error.code if the callable function returns specific codes
+            if (message.includes("already exists")) title = "Error de Duplicado";
+            if (message.includes("permission denied")) title = "Error de Permisos";
+
+            toast({ title: title, description: message, variant: "destructive" });
         } finally {
             setIsSaving(false);
         }
-      };
+    };
 
     const handleEditUser = (userId: string) => {
     const userToEdit = users.find(u => u.id === userId);
@@ -807,7 +853,7 @@ export default function UserManagementPage(): JSX.Element | null {
         password: '', confirmPassword: '', 
         telefonoMovil: userToEdit.telefonoMovil || '',
         modoEleccion: userToEdit.modoEleccion || undefined,
-        fechaDeNacimiento: userToEdit.fechaDeNacimiento ? (userToEdit.fechaDeNacimiento as Timestamp).toDate().toISOString().split('T')[0] : '',
+        fechaDeNacimiento: userToEdit.fechaDeNacimiento ? formatTimestampForInput(userToEdit.fechaDeNacimiento) : undefined,
         centroCostoPorDefectoId: userToEdit.centroCostoPorDefectoId || '',
         puedeTraerInvitados: userToEdit.puedeTraerInvitados || 'no',
         valorCampoPersonalizado1: userToEdit.valorCampoPersonalizado1 || '',
@@ -843,26 +889,37 @@ export default function UserManagementPage(): JSX.Element | null {
     };
 
     const confirmDeleteUser = async () => {
-      if (!userToDeleteId) return;
-      const userToDeleteInfo = users.find(u => u.id === userToDeleteId);
-      console.log("Confirmed delete for user ID:", userToDeleteId);
-      try {
-          const userDocRef = doc(db, "users", userToDeleteId);
-          await deleteDoc(userDocRef);
-          console.log(`Firestore document deleted successfully for user ${userToDeleteId}`);
-          // TODO: Implement Auth user deletion (Requires backend function). For now, only Firestore profile is deleted.
-          // This means the auth account still exists and can log in, but will likely hit profile errors.
-          // A more robust solution would be a Firebase Function to delete the Auth user.
+        if (!userToDeleteId) return;
+        const userToDeleteInfo = users.find(u => u.id === userToDeleteId);
+        console.log("Confirmed delete for user ID:", userToDeleteId);
+        try {
+            // Call the function, passing the user ID
+            const result = await deleteUserCallable({ userId: userToDeleteId });
+            const resultData = result.data as { success: boolean; message?: string };
 
-          setUsers(prevUsers => prevUsers.filter(user => user.id !== userToDeleteId));
-          toast({ title: "Perfil de Usuario Eliminado", description: `El perfil de Firestore para ${userToDeleteInfo?.nombre || userToDeleteId} ha sido eliminado. La cuenta de autenticación puede requerir eliminación manual/backend.` });
-      } catch (error: any) {
-          console.error("Error deleting user profile from Firestore:", error);
-          toast({ title: "Error al Eliminar", description: `No se pudo eliminar el perfil de Firestore. ${error.message}`, variant: "destructive" });
-      } finally {
-           setIsConfirmingDelete(false);
-           setUserToDeleteId(null);
-      }
+            if (resultData.success) {
+                console.log(`Cloud Function deleted user ${userToDeleteId} successfully (Auth & Firestore).`);
+
+                // Remove user from local state
+                setUsers(prevUsers => prevUsers.filter(user => user.id !== userToDeleteId));
+                toast({ title: "Usuario Eliminado", description: `El usuario ${userToDeleteInfo?.nombre || userToDeleteId} ha sido eliminado.` });
+
+            } else {
+                throw new Error(resultData.message || 'La función de eliminación de usuario falló.');
+            }
+
+        } catch (error: any) {
+            console.error("Error calling deleteUser function or processing result:", error);
+            const message = error.message || "Ocurrió un error al contactar el servicio de eliminación.";
+            let title = "Error al Eliminar";
+            if (message.includes("permission denied")) title = "Error de Permisos";
+            if (message.includes("not found")) title = "Error: Usuario No Encontrado";
+            toast({ title: title, description: message, variant: "destructive" });
+        } finally {
+            setIsConfirmingDelete(false);
+            setUserToDeleteId(null);
+            // setIsDeleting(false); // Reset loading state if added
+        }
     };
 
     const handleUpdateUser = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -870,39 +927,55 @@ export default function UserManagementPage(): JSX.Element | null {
         if (!editingUserId) return;
         setIsSaving(true);
 
-        let validationError: string | null = null;
+        let finalResidenciaId = formData.residenciaId; // Start with form data
+        if (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId && isResidenciaConditionallyRequired) {
+            if (formData.residenciaId !== adminUserProfile.residenciaId) {
+                console.warn("Correcting residenciaId for non-master admin during update.");
+                finalResidenciaId = adminUserProfile.residenciaId; // Force correct ID
+            }
+        }
+
+        const validationErrors: string[] = [];
         const roles = formData.roles || [];
-        if (!formData.nombre?.trim()) validationError = "Nombre es requerido.";
-        else if (!formData.apellido?.trim()) validationError = "Apellido es requerido.";
-        else if (!formData.email?.trim()) validationError = "Email es requerido."; // Email should generally not be editable in Firestore profile if it's linked to Auth. This could be complex.
-        else if (roles.length === 0) validationError = "Al menos un Rol es requerido.";
-        else if (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && !formData.residenciaId) validationError = "Residencia Asignada es requerida para el rol seleccionado.";
-        else if (roles.includes('residente') && !formData.dietaId) validationError = "Dieta Predeterminada es requerida para Residentes.";
-        else if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) validationError = "Número de Ropa es requerido para Residentes.";
+        if (!formData.nombre?.trim()) {
+            validationErrors.push("Nombre es requerido.");
+        }
+        if (!formData.apellido?.trim()) {
+            validationErrors.push("Apellido es requerido.");
+        }
+        if (!formData.email?.trim()) {
+            validationErrors.push("Email es requerido."); // Although email shouldn't be updated here normally
+        }
+         if (roles.length === 0) {
+             validationErrors.push("Al menos un Rol es requerido.");
+         }
+        if (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && !finalResidenciaId) validationErrors.push("Residencia Asignada es requerida para el rol seleccionado.");
+        if (roles.includes('residente') && !formData.dietaId) validationErrors.push("Dieta Predeterminada es requerida para Residentes.");
+        if (roles.includes('residente') && !formData.numeroDeRopa?.trim()) validationErrors.push("Número de Ropa es requerido para Residentes.");
         // Custom Field Validations
         if (currentResidenciaDetails?.campoPersonalizado1_isActive && currentResidenciaDetails?.campoPersonalizado1_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado1_regexValidacion) {
             const regex = new RegExp(currentResidenciaDetails.campoPersonalizado1_regexValidacion);
             if (formData.valorCampoPersonalizado1 && !regex.test(formData.valorCampoPersonalizado1)) {
-                validationError = `${currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor Personalizado 1'} no es válido.`;
+                validationErrors.push(`${currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor Personalizado 1'} no es válido.`);
             }
         }
-        if (!validationError && currentResidenciaDetails?.campoPersonalizado2_isActive && currentResidenciaDetails?.campoPersonalizado2_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado2_regexValidacion) {
+        if (currentResidenciaDetails?.campoPersonalizado2_isActive && currentResidenciaDetails?.campoPersonalizado2_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado2_regexValidacion) {
             const regex = new RegExp(currentResidenciaDetails.campoPersonalizado2_regexValidacion);
             if (formData.valorCampoPersonalizado2 && !regex.test(formData.valorCampoPersonalizado2)) {
-                validationError = `${currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor Personalizado 2'} no es válido.`;
+                validationErrors.push(`${currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor Personalizado 2'} no es válido.`);
             }
         }
-        if (!validationError && currentResidenciaDetails?.campoPersonalizado3_isActive && currentResidenciaDetails?.campoPersonalizado3_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado3_regexValidacion) {
+        if (currentResidenciaDetails?.campoPersonalizado3_isActive && currentResidenciaDetails?.campoPersonalizado3_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado3_regexValidacion) {
             const regex = new RegExp(currentResidenciaDetails.campoPersonalizado3_regexValidacion);
             if (formData.valorCampoPersonalizado3 && !regex.test(formData.valorCampoPersonalizado3)) {
-                validationError = `${currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor Personalizado 3'} no es válido.`;
+                validationErrors.push(`${currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor Personalizado 3'} no es válido.`);
             }
         }
 
         // AsistentePermisos Validation
         if (roles.includes('asistente')) {
             if (!formData.asistentePermisos) {
-                validationError = "Faltan los permisos de asistente. Por favor, re-seleccione el rol.";
+                validationErrors.push("Faltan los permisos de asistente. Por favor, re-seleccione el rol.");
             } else {
                 const permisos = formData.asistentePermisos;
                 const noUsuariosAsistidos = !permisos.usuariosAsistidos || permisos.usuariosAsistidos.length === 0;
@@ -911,86 +984,156 @@ export default function UserManagementPage(): JSX.Element | null {
                 const noGestionRecordatorios = permisos.gestionRecordatorios === 'Ninguno';
 
                 if (noUsuariosAsistidos && noGestionActividades && noGestionInvitados && noGestionRecordatorios) {
-                    validationError = "Un asistente debe tener al menos un usuario asignado o algún permiso de gestión (actividades, invitados o recordatorios).";
+                    validationErrors.push("Un asistente debe tener al menos un usuario asignado o algún permiso de gestión (actividades, invitados o recordatorios).");
                 }
             }
         }
 
-        if (validationError) {
-            toast({ title: "Error de Validación", description: validationError, variant: "destructive" });
+        if (validationErrors.length > 0) {
+            const title = validationErrors.length === 1
+                ? "Error de Validación"
+                : `Existen ${validationErrors.length} errores de validación`;
+            const description = validationErrors.join("\\n"); // Use double backslash for newline
+        
+            toast({
+                title: title,
+                description: description,
+                variant: "destructive",
+                duration: 9000 // Optional: Increase duration
+            });
             setIsSaving(false);
             return;
         }
 
         try {
-            const updatedData: Partial<UserProfile> = { // Use Partial<UserProfile> for update object
-                nombre: formData.nombre!.trim(),
-                apellido: formData.apellido!.trim(),
-                // email: formData.email!.trim(), // Be cautious updating email; it's tied to Firebase Auth identity. Typically done via Auth SDK.
-                roles: formData.roles!,
-                isActive: formData.isActive ?? true,
-                residenciaId: (roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) && formData.residenciaId) ? formData.residenciaId : undefined,
-                dietaId: (roles.includes('residente') && formData.dietaId) ? formData.dietaId : undefined,
-                numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
-                habitacion: formData.habitacion?.trim() || undefined,
-                universidad: formData.universidad?.trim() || undefined,
-                carrera: formData.carrera?.trim() || undefined,
-                dni: formData.dni?.trim() || undefined,
-                telefonoMovil: formData.telefonoMovil?.trim() || undefined,
-                // ADDED: New fields for update
-                modoEleccion: formData.modoEleccion || undefined,
-                fechaDeNacimiento: formData.fechaDeNacimiento ? Timestamp.fromDate(new Date(formData.fechaDeNacimiento)) : undefined, // Convert string to Timestamp
-                centroCostoPorDefectoId: formData.centroCostoPorDefectoId || undefined,
-                puedeTraerInvitados: formData.puedeTraerInvitados || 'no',
-                valorCampoPersonalizado1: currentResidenciaDetails?.campoPersonalizado1_isActive ? (formData.valorCampoPersonalizado1?.trim() || undefined) : undefined,
-                valorCampoPersonalizado2: currentResidenciaDetails?.campoPersonalizado2_isActive ? (formData.valorCampoPersonalizado2?.trim() || undefined) : undefined,
-                valorCampoPersonalizado3: currentResidenciaDetails?.campoPersonalizado3_isActive ? (formData.valorCampoPersonalizado3?.trim() || undefined) : undefined,
-                asistentePermisos: undefined, // Default to undefined, will be set if 'asistente' role
+            console.log(`Calling updateUser Cloud Function for user ${editingUserId}...`);
+
+            // Prepare data for the Cloud Function
+            const profileUpdateData: Partial<UserProfile> = {
+                // id: editingUserId, // The server's UpdateUserDataPayload for profileData omits 'id'. 
+                                      // userIdToUpdate in updatedDataForFunction covers this.
+                                      // However, if your existing client code (Line 1014) includes it, 
+                                      // you might keep it, but it won't be used from this specific field by the backend.
+                nombre: formData.nombre?.trim() ?? undefined, // Use undefined if empty after trim or null/undefined
+                apellido: formData.apellido?.trim() ?? undefined, // Use undefined if empty after trim or null/undefined
+                email: formData.email ?? undefined, // Server's profileData type omits email, but if client sends it.
+                residenciaId: finalResidenciaId,     // This should align with UserProfile type (e.g., string | undefined)
+                roles: formData.roles ?? undefined, // Or ensure formData.roles is never null/undefined if it's required
+                isActive: formData.isActive ?? undefined, // Or a default like true if that's intended for undefined
+                modoEleccion: formData.modoEleccion ?? undefined,
+                fechaDeNacimiento: formData.fechaDeNacimiento 
+                    ? formatTimestampForInput(formData.fechaDeNacimiento) // Ensure this helper returns 'YYYY-MM-DD' or null
+                    : null,
+                centroCostoPorDefectoId: formData.centroCostoPorDefectoId ?? undefined,
+                telefonoMovil: formData.telefonoMovil ?? undefined,
+                dietaId: formData.dietaId ?? undefined,
+                numeroDeRopa: formData.numeroDeRopa ?? undefined,
+                habitacion: formData.habitacion ?? undefined,
+                universidad: formData.universidad ?? undefined,
+                carrera: formData.carrera ?? undefined,
+                dni: formData.dni ?? undefined,
+                puedeTraerInvitados: formData.puedeTraerInvitados ?? undefined, // Or a default like 'no'
+                notificacionPreferencias: formData.notificacionPreferencias ?? undefined, // Ensure this matches UserProfile's type
+                valorCampoPersonalizado1: formData.valorCampoPersonalizado1 ?? undefined,
+                valorCampoPersonalizado2: formData.valorCampoPersonalizado2 ?? undefined,
+                valorCampoPersonalizado3: formData.valorCampoPersonalizado3 ?? undefined,
             };
 
-            if (roles.includes('asistente') && formData.asistentePermisos) {
-                updatedData.asistentePermisos = {
-                    usuariosAsistidos: formData.asistentePermisos.usuariosAsistidos || [],
-                    gestionActividades: formData.asistentePermisos.gestionActividades || 'Ninguna',
-                    gestionInvitados: formData.asistentePermisos.gestionInvitados || 'Ninguno',
-                    gestionRecordatorios: formData.asistentePermisos.gestionRecordatorios || 'Ninguno',
-                };
-            } else if (!roles.includes('asistente')) {
-                // Explicitly ensure it's removed if role is no longer 'asistente'
-                // The Object.keys loop below will remove it if it's undefined.
-            }
+            // Remove undefined keys. This is important because sending 'undefined' to Firestore
+            // via a function often means "do not change this field", whereas 'null' means "set to null".
+            // Your backend 'profileData' is Partial<UserProfile>, so undefined fields are fine.
+            Object.keys(profileUpdateData).forEach(keyStr => {
+                const key = keyStr as keyof Partial<UserProfile>;
+                if (profileUpdateData[key] === undefined) {
+                    delete profileUpdateData[key];
+                }
+            });
             
-            // Ensure that if a custom field is no longer active for a residencia, it's removed (set to undefined, then deleted by Object.keys loop)
-            if (!currentResidenciaDetails?.campoPersonalizado1_isActive) updatedData.valorCampoPersonalizado1 = undefined;
-            if (!currentResidenciaDetails?.campoPersonalizado2_isActive) updatedData.valorCampoPersonalizado2 = undefined;
-            if (!currentResidenciaDetails?.campoPersonalizado3_isActive) updatedData.valorCampoPersonalizado3 = undefined;
-
-            // Remove undefined keys to prevent Firestore from creating them with null or erroring
-            Object.keys(updatedData).forEach(key => (updatedData as any)[key] === undefined && delete (updatedData as any)[key]);
-
-
-            const userDocRef = doc(db, "users", editingUserId);
-            await updateDoc(userDocRef, updatedData);
-            console.log(`Firestore document updated successfully for user ${editingUserId}`);
-
-            const originalUser = users.find(u => u.id === editingUserId)!; // Should exist
-            const updatedUserInState: UserProfile = {
-                ...originalUser,
-                ...updatedData, // Apply successfully updated fields
-                id: editingUserId, // ensure id is present
-                puedeTraerInvitados: updatedData.puedeTraerInvitados || originalUser.puedeTraerInvitados // ensure this field is correctly carried over
+            const updatedDataForFunction = {
+                userIdToUpdate: editingUserId, // The UID of the user to update
+                profileData: profileUpdateData, // Send the updated fields
+                performedByUid: adminUserProfile?.id, // Send admin UID for logging
             };
 
-            setUsers(prevUsers => prevUsers.map(user =>
-                user.id === editingUserId ? updatedUserInState : user
-            ).sort((a,b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre)));
+            
+            // Call the function
+            const result = await updateUserCallable(updatedDataForFunction);
+            const resultData = result.data as { success: boolean; message?: string };
 
+            if (resultData.success) {
+                console.log(`Cloud Function updated user ${editingUserId} successfully.`);
 
-            toast({ title: "Usuario Actualizado", description: `Se ha actualizado el usuario ${updatedUserInState.nombre} ${updatedUserInState.apellido}.` });
-            handleCancelEdit();
+                // Update local state optimistically or based on returned data if needed
+                const originalUser = users.find(u => u.id === editingUserId)!;
+                // Create the updated user state based on formData submitted
+                const updatedUserInState: UserProfile = {
+                    ...originalUser, // Start with original
+                    // Apply changes from formData
+                    nombre: formData.nombre!.trim(),
+                    apellido: formData.apellido!.trim(),
+                    email: formData.email!.trim(), // Include email in profile too
+                    residenciaId: finalResidenciaId, // Use selected or admin's residencia
+                    roles: formData.roles!,
+                    isActive: formData.isActive!,
+                    modoEleccion: formData.modoEleccion ?? undefined,
+                    fechaDeNacimiento: formData.fechaDeNacimiento ? formatTimestampForInput(formData.fechaDeNacimiento) : undefined,
+                    centroCostoPorDefectoId: formData.centroCostoPorDefectoId ?? '',
+                    telefonoMovil: formData.telefonoMovil ?? '',
+                    dietaId: (formData.roles!.includes('residente') && formData.dietaId) ? formData.dietaId : undefined,
+                    habitacion: formData.habitacion ?? '',
+                    universidad: formData.universidad ?? '',
+                    carrera: formData.carrera ?? '',
+                    dni: formData.dni ?? '',
+                    puedeTraerInvitados: formData.puedeTraerInvitados ?? 'no',
+                    notificacionPreferencias: formData.notificacionPreferencias, // If you have form fields for these
+                    valorCampoPersonalizado1: formData.valorCampoPersonalizado1 ?? '',
+                    valorCampoPersonalizado2: formData.valorCampoPersonalizado2 ?? '',
+                    valorCampoPersonalizado3: formData.valorCampoPersonalizado3 ?? '',
+                    // Ensure all required fields from your UserProfile are included
+                    numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
+                    // ... apply ALL other fields from formData ...
+                    asistentePermisos: (formData.roles!.includes('asistente') && formData.asistentePermisos)
+                        ? {
+                            // Ensure all properties of AsistentePermisos are explicitly defined here
+                            // Use the actual property names and types from your AsistentePermisos interface.
+                            // The defaults should be one of the valid literal strings for each field.
+
+                            usuariosAsistidos: formData.asistentePermisos.usuariosAsistidos || [],
+
+                            // From your error: gestionActividades must be 'Todas' | 'Propias' | 'Ninguna'
+                            // 'Ninguna' is a safe default from your snippet (line 813).
+                            gestionActividades: formData.asistentePermisos.gestionActividades || 'Ninguna',
+
+                            // Assuming 'gestionInvitados' and 'gestionRecordatorios' have similar non-undefined literal types.
+                            // Using 'Ninguno' as a default based on your snippet (lines 814-815).
+                            // Please verify these against your AsistentePermisos interface definition.
+                            gestionInvitados: formData.asistentePermisos.gestionInvitados || 'Ninguno',
+                            gestionRecordatorios: formData.asistentePermisos.gestionRecordatorios || 'Ninguno',
+                        }
+                        : undefined,
+
+                    id: editingUserId,
+                };
+
+                setUsers(prevUsers => prevUsers.map(user =>
+                    user.id === editingUserId ? updatedUserInState : user
+                ).sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre)));
+
+                toast({ title: "Usuario Actualizado", description: `Usuario ${updatedUserInState.nombre} ${updatedUserInState.apellido} actualizado.` });
+                handleCancelEdit(); // Reset form
+
+            } else {
+                throw new Error(resultData.message || 'La función de actualización de usuario falló.');
+            }
+
         } catch (error: any) {
-            console.error("Error updating user profile in Firestore:", error);
-            toast({ title: "Error al Actualizar", description: `No se pudo guardar el perfil en Firestore. ${error.message}`, variant: "destructive" });
+            console.error("Error calling updateUser function or processing result:", error);
+            const message = error.message || "Ocurrió un error al contactar el servicio de actualización.";
+            let title = "Error al Actualizar";
+            if (message.includes("permission denied")) title = "Error de Permisos";
+            if (message.includes("not found")) title = "Error: Usuario No Encontrado";
+
+            toast({ title: title, description: message, variant: "destructive" });
         } finally {
             setIsSaving(false);
         }
@@ -1007,7 +1150,6 @@ export default function UserManagementPage(): JSX.Element | null {
         const dieta = dietas.find(d => d.id === id);
         return dieta?.nombre || 'Desconocida';
     };
-
 
     const getUserToDeleteName = (): string => {
         const user = users.find(u => u.id === userToDeleteId);
@@ -1144,14 +1286,28 @@ export default function UserManagementPage(): JSX.Element | null {
                             <Label className="font-medium">Roles *</Label>
                             {/* Adjusted grid columns for better responsiveness */}
                             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2 pt-1">
-                                {availableRoles.map((role) => (
-                                    <div key={role} className="flex items-center space-x-2">
-                                        <Checkbox id={`role-${role}`} checked={(formData.roles || []).includes(role)} onCheckedChange={(checked) => handleRoleChange(role, !!checked)} disabled={isSaving} />
-                                        <Label htmlFor={`role-${role}`} className="font-normal capitalize text-sm whitespace-nowrap"> {/* Added whitespace-nowrap to prevent label text from breaking too early, but the grid should handle overall item width */}
-                                            {formatSingleRoleName(role)}
-                                        </Label>
-                                    </div>
-                                ))}
+                                {availableRoles.map((role) => {
+                                    // Determine if the checkbox should be disabled
+                                    const isMasterRole = role === 'master';
+                                    const isAdminMaster = adminUserProfile?.roles?.includes('master');
+                                    const isDisabled = isSaving || (isMasterRole && !isAdminMaster); // Disable 'master' if admin is not master
+                                    return (
+                                        <div key={role} className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`role-${role}`}
+                                                checked={(formData.roles || []).includes(role)}
+                                                onCheckedChange={(checked) => handleRoleChange(role, !!checked)}
+                                                disabled={isDisabled} // Apply the disabled state
+                                            />
+                                            <Label
+                                                htmlFor={`role-${role}`}
+                                                className={`font-normal capitalize text-sm whitespace-nowrap ${isDisabled ? 'text-muted-foreground cursor-not-allowed' : ''}`} // Style disabled label
+                                            >
+                                                {formatSingleRoleName(role)}
+                                            </Label>
+                                        </div>
+                                    );
+                                })}
                             </div>
                             {formData.roles.length === 0 && <p className="text-xs text-destructive mt-1">Seleccione al menos un rol.</p> }
                         </div>
@@ -1168,13 +1324,54 @@ export default function UserManagementPage(): JSX.Element | null {
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                              <div className="space-y-1.5">
                                  <Label htmlFor="residencia">Residencia Asignada {isResidenciaConditionallyRequired ? '*' : ''}</Label>
-                                 <Select value={formData.residenciaId || ''} onValueChange={(value) => handleSelectChange('residenciaId', value)} disabled={isSaving || !isResidenciaConditionallyRequired} >
-                                     <SelectTrigger id="residencia"><SelectValue placeholder={isResidenciaConditionallyRequired ? "Seleccione residencia..." : "N/A (Opcional)"} /></SelectTrigger>
-                                     <SelectContent>
-                                         {Object.entries(residences).map(([id, res]) => ( <SelectItem key={id} value={id}>{res.nombre}</SelectItem> )) }
-                                         {Object.keys(residences).length === 0 && <SelectItem value="loading" disabled>Cargando residencias...</SelectItem>}
-                                     </SelectContent>
-                                 </Select>
+                                <Select
+                                    value={
+                                        // If admin is not master and has a residencia, force their residenciaId
+                                        (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId)
+                                        ? adminUserProfile.residenciaId
+                                        : formData.residenciaId || '' // Otherwise, use the form's value
+                                    }
+                                    onValueChange={(value) => {
+                                        // Only allow change if user is master or doesn't have a fixed residencia
+                                        if (adminUserProfile?.roles.includes('master') || !adminUserProfile?.residenciaId) {
+                                            handleSelectChange('residenciaId', value);
+                                        }
+                                    }}
+                                    disabled={
+                                        !!( // Coerce the entire result to a boolean
+                                            isSaving ||
+                                            !isResidenciaConditionallyRequired ||
+                                            // Disable if admin is not master and has a residencia assigned
+                                            (adminUserProfile && !adminUserProfile.roles.includes('master') && !!adminUserProfile.residenciaId)
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger id="residencia">
+                                        <SelectValue placeholder={isResidenciaConditionallyRequired ? "Seleccione residencia..." : "N/A (Opcional)"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {/* Render options based on whether the admin is master or not */}
+                                        {(adminUserProfile?.roles.includes('master') || !adminUserProfile?.residenciaId)
+                                            ? (
+                                                // Master or admin without residencia: show all options
+                                                Object.entries(residences).map(([id, res]) => (
+                                                    <SelectItem key={id} value={id}>{res.nombre}</SelectItem>
+                                                ))
+                                            ) : (adminUserProfile?.residenciaId && residences[adminUserProfile.residenciaId])
+                                            ? (
+                                                // Non-master admin with residencia: show only their residencia
+                                                <SelectItem key={adminUserProfile.residenciaId} value={adminUserProfile.residenciaId}>
+                                                    {residences[adminUserProfile.residenciaId].nombre}
+                                                </SelectItem>
+                                            ) : (
+                                                // Fallback if admin's residencia somehow isn't in the list (shouldn't happen)
+                                                <SelectItem value="loading" disabled>Cargando residencias...</SelectItem>
+                                            )
+                                        }
+                                        {/* Handle loading state */}
+                                        {Object.keys(residences).length === 0 && <SelectItem value="loading" disabled>Cargando residencias...</SelectItem>}
+                                    </SelectContent>
+                                </Select>
                                   {isResidenciaConditionallyRequired && !formData.residenciaId && <p className="text-xs text-destructive mt-1">Requerido para el rol seleccionado.</p>}
                              </div>
                              <div className="space-y-1.5">
