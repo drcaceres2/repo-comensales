@@ -165,6 +165,7 @@ export const createHardcodedMasterUser = onCall(
         // Construct the full UserProfile document, ensuring all required fields are present
         const userProfileDoc: UserProfile = {
             id: newUserId, // UID from Auth
+            ...hardcodedProfileData,
             email: hardcodedEmail,
             fechaCreacion: admin.firestore.FieldValue.serverTimestamp() as any,
             ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any,
@@ -372,9 +373,9 @@ export const updateUser = onCall(
         // Prepare Auth updates
         const authUpdates: admin.auth.UpdateRequest = {};
         if (profileData.nombre || profileData.apellido) {
-            const currentNombre = targetUserProfile.nombre || "";
-            const currentApellido = targetUserProfile.apellido || "";
-            authUpdates.displayName = `\${profileData.nombre || currentNombre} \${profileData.apellido || currentApellido}`.trim();
+            //const currentNombre = targetUserProfile.nombre || "";
+            //const currentApellido = targetUserProfile.apellido || "";
+            authUpdates.displayName = `${profileData.nombre || targetUserProfile.nombre || ""} ${profileData.apellido || targetUserProfile.apellido || ""}`.trim();
         }
         if (profileData.isActive !== undefined) {
             authUpdates.disabled = !profileData.isActive;
