@@ -95,7 +95,10 @@ const logAction = async (
 // --- VERY INSECURE - FOR LOCAL DEVELOPMENT ONLY ---
 // --- DELETE THIS FUNCTION BEFORE PRODUCTION ---
 export const createHardcodedMasterUser = onCall(
-    { region: "us-central1" },
+    {
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"] // Explicitly allow client origin
+    },
     async (request: CallableRequest<any>) => { // No input data needed
         logger.warn("********************************************************************");
         logger.warn("WARNING: Executing createHardcodedMasterUser.");
@@ -138,7 +141,7 @@ export const createHardcodedMasterUser = onCall(
                 email: hardcodedEmail,
                 emailVerified: true,
                 password: hardcodedPassword,
-                displayName: `${hardcodedProfileData.nombre} ${hardcodedProfileData.apellido}`.trim(),
+                displayName: `\${hardcodedProfileData.nombre} \${hardcodedProfileData.apellido}`.trim(),
                 disabled: false,
             });
             logger.info("Successfully created hardcoded master user in Firebase Auth:", newUserRecord.uid);
@@ -204,7 +207,10 @@ export const createHardcodedMasterUser = onCall(
 
 // --- Create User Function ---
 export const createUser = onCall(
-    { region: "us-central1" }, // Add other options if needed: memory, timeout etc.
+    { 
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"] // Explicitly allow client origin
+    },
     async (request: CallableRequest<CreateUserDataPayload>) => {
         const callerInfo = await getCallerSecurityInfo(request.auth);
         const data = request.data;
@@ -313,7 +319,10 @@ export const createUser = onCall(
 
 // --- Update User Function ---
 export const updateUser = onCall(
-    { region: "us-central1" },
+    { 
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"] // Explicitly allow client origin
+    },
     async (request: CallableRequest<UpdateUserDataPayload>) => {
         const callerInfo = await getCallerSecurityInfo(request.auth);
         const data = request.data;
@@ -423,7 +432,10 @@ export const updateUser = onCall(
 
 // --- Delete User Function ---
 export const deleteUser = onCall(
-    { region: "us-central1" },
+    { 
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"] // Explicitly allow client origin
+    },
     async (request: CallableRequest<DeleteUserDataPayload>) => {
         const callerInfo = await getCallerSecurityInfo(request.auth);
         const data = request.data;
