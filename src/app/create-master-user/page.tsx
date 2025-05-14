@@ -63,13 +63,15 @@ export default function CreateMasterUserPage() {
                 </p>
             </div>
 
-            <p className="mb-4">
+            <p className="mb-1">
                 Clicking the button below will attempt to create a master user with credentials hardcoded
                 in the <code className="bg-gray-200 p-1 rounded">functions/src/index.ts</code> file:
-                <ul className="list-disc list-inside ml-4 my-2">
-                    <li>Email: <code className="bg-gray-200 p-1 rounded">master@default.com</code></li>
-                    <li>Password: <code className="bg-gray-200 p-1 rounded">password123</code></li>
-                </ul>
+            </p>
+            <ul className="list-disc list-inside ml-4 my-2">
+                <li>Email: <code className="bg-gray-200 p-1 rounded">master@default.com</code></li>
+                <li>Password: <code className="bg-gray-200 p-1 rounded">password123</code></li>
+            </ul>
+            <p className="mb-4">
                 Check the Firebase Emulator logs for details.
             </p>
 
