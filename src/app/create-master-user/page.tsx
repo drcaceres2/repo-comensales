@@ -1,116 +1,98 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { auth, db } from '@/lib/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { UserProfile, UserRole } from '@/models/firestore';
-import { Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { Button } from '@/components/ui/button'; // Assuming you have a Button component
+import { useToast } from '@/hooks/use-toast'; // Assuming you have a toast hook
 
 export default function CreateMasterUserPage() {
-    const { toast } = useToast();
-    const [email, setEmail] = useState('drcaceres@gmail.com');
-    const [password, setPassword] = useState('123456');
-    const [nombre, setNombre] = useState('Daniel');
-    const [apellido, setApellido] = useState('Caceres');
     const [isLoading, setIsLoading] = useState(false);
+    const { toast } = useToast();
+    const functions = getFunctions(); // Make sure Firebase is initialized in your app
 
-    const handleCreateMasterUser = async () => {
-        if (!email || !password || !nombre || !apellido) {
-            toast({
-                title: "Missing Fields",
-                description: "Please fill in all fields.",
-                variant: "destructive",
-            });
-            return;
-        }
+    // Get a reference to the new hardcoded master user creation function
+    const createHardcodedMasterUserCallable = httpsCallable(functions, 'createHardcodedMasterUser');
 
+    const handleCreateHardcodedMasterUser = async () => {
         setIsLoading(true);
+        toast({ title: 'Attempting to create hardcoded master user...' });
+
         try {
-            // 1. Create user in Firebase Authentication
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const authUser = userCredential.user;
-            console.log('User created in Auth:', authUser.uid);
+            const result = await createHardcodedMasterUserCallable({}); // No data needs to be passed
+            // The type of result.data will be any, but you can cast if you expect a specific structure
+            const data = result.data as { success: boolean; userId?: string; message: string };
 
-            // 2. Create user profile in Firestore
-            const userProfileData: UserProfile = {
-                id: authUser.uid, // Use auth UID as Firestore doc ID
-                nombre: nombre,
-                apellido: apellido,
-                email: email,
-                roles: ['master' as UserRole], // Assign 'master' role
-                isActive: true,
-                // Optional fields from UserProfile can be added here if needed
-                // residenciaId: undefined, 
-                // dietaId: undefined,
-            };
-
-            await setDoc(doc(db, "users", authUser.uid), userProfileData);
-            console.log('User profile created in Firestore for UID:', authUser.uid);
-
-            toast({
-                title: "Master User Created",
-                description: `User ${email} created successfully with master role. You can now log in with these credentials.`,
-            });
-
-        } catch (error: any) {
-            console.error("Error creating master user:", error);
-            let errorMessage = error.message || "An unknown error occurred.";
-            if (error.code === 'auth/email-already-in-use') {
-                errorMessage = "This email is already in use. Please try logging in or use a different email.";
-            } else if (error.code === 'auth/weak-password') {
-                errorMessage = "The password is too weak. Please use a stronger password (at least 6 characters).";
+            if (data.success) {
+                toast({
+                    title: 'Success!',
+                    description: data.message + (data.userId ? ` (ID: ${data.userId})` : ''),
+                    variant: 'default',
+                });
+                console.log('Hardcoded master user creation successful:', data);
+            } else {
+                toast({
+                    title: 'Operation Warning',
+                    description: data.message || 'Could not create hardcoded master user.',
+                    variant: 'destructive',
+                });
+                console.warn('Hardcoded master user creation warning:', data);
             }
+        } catch (error: any) {
+            console.error('Error calling createHardcodedMasterUser function:', error);
             toast({
-                title: "Error Creating User",
-                description: errorMessage,
-                variant: "destructive",
+                title: 'Error Creating Master User',
+                description: error.message || 'An unexpected error occurred.',
+                variant: 'destructive',
             });
-        } finally {
-            setIsLoading(false);
         }
+        setIsLoading(false);
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
-            <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
-                <div className="text-center">
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Create Master User</h1>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        For development: create a master user for the application.
-                    </p>
-                </div>
-                
-                <div className="space-y-4">
-                    <div>
-                        <Label htmlFor="nombre" className="text-sm font-medium text-gray-700 dark:text-gray-300">Nombre</Label>
-                        <Input id="nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Daniel" className="mt-1" />
-                    </div>
-                    <div>
-                        <Label htmlFor="apellido" className="text-sm font-medium text-gray-700 dark:text-gray-300">Apellido</Label>
-                        <Input id="apellido" value={apellido} onChange={(e) => setApellido(e.target.value)} placeholder="Caceres" className="mt-1" />
-                    </div>
-                    <div>
-                        <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">Email</Label>
-                        <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="drcaceres@gmail.com" className="mt-1" />
-                    </div>
-                    <div>
-                        <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">Password</Label>
-                        <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••" className="mt-1" />
-                    </div>
-                </div>
-
-                <Button onClick={handleCreateMasterUser} disabled={isLoading} className="w-full py-2.5">
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {isLoading ? 'Creating User...' : 'Create Master User'}
-                </Button>
-                <p className="mt-4 text-xs text-center text-gray-500 dark:text-gray-400">
-                    Ensure Firebase emulators (Auth & Firestore) are running.
+        <div className="container mx-auto p-4">
+            <h1 className="text-2xl font-bold mb-4">Create Hardcoded Master User (Local Dev Only)</h1>
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6" role="alert">
+                <p className="font-bold">Security Warning</p>
+                <p>
+                    This page calls a function that creates a master user with hardcoded credentials.
+                    It is **EXTREMELY INSECURE** and intended **ONLY** for initial local development setup.
                 </p>
+                <p className="mt-2">
+                    **ACTION REQUIRED:** You MUST delete the <code className="bg-yellow-200 p-1 rounded">createHardcodedMasterUser</code> Firebase Function
+                    and remove or secure this client-side page before deploying to any non-local environment.
+                </p>
+            </div>
+
+            <p className="mb-4">
+                Clicking the button below will attempt to create a master user with credentials hardcoded
+                in the <code className="bg-gray-200 p-1 rounded">functions/src/index.ts</code> file:
+                <ul className="list-disc list-inside ml-4 my-2">
+                    <li>Email: <code className="bg-gray-200 p-1 rounded">master@default.com</code></li>
+                    <li>Password: <code className="bg-gray-200 p-1 rounded">password123</code></li>
+                </ul>
+                Check the Firebase Emulator logs for details.
+            </p>
+
+            <Button onClick={handleCreateHardcodedMasterUser} disabled={isLoading}>
+                {isLoading ? 'Processing...' : 'Create Hardcoded Master User'}
+            </Button>
+
+            <div className="mt-8 p-4 border border-gray-300 rounded">
+                <h2 className="text-xl font-semibold mb-2">Next Steps After Local Setup:</h2>
+                <ol className="list-decimal list-inside space-y-1">
+                    <li>Verify the master user is created in the Firebase Emulator (Auth & Firestore).</li>
+                    <li>Log in with the hardcoded master user credentials.</li>
+                    <li>Use the standard admin interface to create any other necessary users (admins, regular users).</li>
+                    <li>
+                        **CRITICAL:** Delete the <code className="bg-red-200 p-1 rounded">createHardcodedMasterUser</code> function from
+                        <code className="bg-gray-200 p-1 rounded">functions/src/index.ts</code>.
+                    </li>
+                    <li>
+                        **CRITICAL:** Delete or secure this client-side page
+                        (<code className="bg-gray-200 p-1 rounded">src/app/create-master-user/page.tsx</code>).
+                    </li>
+                    <li>Proceed with developing your application with secure user management functions.</li>
+                </ol>
             </div>
         </div>
     );

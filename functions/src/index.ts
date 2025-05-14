@@ -92,6 +92,107 @@ const logAction = async (
     }
 };
 
+// --- VERY INSECURE - FOR LOCAL DEVELOPMENT ONLY ---
+// --- DELETE THIS FUNCTION BEFORE PRODUCTION ---
+export const createHardcodedMasterUser = onCall(
+    { region: "us-central1" },
+    async (request: CallableRequest<any>) => { // No input data needed
+        logger.warn("********************************************************************");
+        logger.warn("WARNING: Executing createHardcodedMasterUser.");
+        logger.warn("This function is highly insecure and for local development ONLY.");
+        logger.warn("IT MUST BE DELETED BEFORE DEPLOYING TO PRODUCTION.");
+        logger.warn("********************************************************************");
+
+        const hardcodedEmail = "master@default.com";
+        const hardcodedPassword = "password123"; // CHANGE THIS IF YOU CARE EVEN A LITTLE
+        const hardcodedProfileData = {
+            nombre: "Master",
+            apellido: "User (Hardcoded)",
+            // Add any other essential fields for UserProfile, e.g., residenciaId if needed for all users
+            // residenciaId: "someDefaultResidenciaIfApplicable"
+        };
+
+        // Optional: Check if this hardcoded user already exists to prevent multiple creations
+        try {
+            await admin.auth().getUserByEmail(hardcodedEmail);
+            logger.info(`User ${hardcodedEmail} already exists. Skipping creation.`);
+            // Check Firestore document as well
+            const userDoc = await db.collection("users").where("email", "==", hardcodedEmail).limit(1).get();
+            if (!userDoc.empty) {
+                logger.info(`Firestore document for ${hardcodedEmail} also exists.`);
+                 return { success: true, userId: userDoc.docs[0].id, message: "Hardcoded master user already exists." };
+            }
+            // If Auth user exists but Firestore doesn't, it's a partial state.
+            // For simplicity in this insecure function, we'll just log and return.
+            // A more robust version might try to reconcile this.
+            logger.warn(`Auth user ${hardcodedEmail} exists, but Firestore profile might be missing or different.`);
+            // For this specific function, we can decide to just let it error out if we try to create it again,
+            // or we can bail out here. Let's bail out.
+             throw new HttpsError("already-exists", `User ${hardcodedEmail} already exists in Auth. Clean up manually or change hardcoded details.`);
+        } catch (error: any) {
+            if (error.code === "auth/user-not-found") {
+                // User does not exist, proceed with creation
+                logger.info(`User ${hardcodedEmail} not found, proceeding with creation.`);
+            } else if (error.code === "already-exists") { // Our custom throw
+                 throw error;
+            } else {
+                // Some other error during the check
+                logger.error("Error checking for existing hardcoded user:", error);
+                throw new HttpsError("internal", "Error checking for existing user: " + error.message);
+            }
+        }
+
+
+        let newUserRecord: admin.auth.UserRecord;
+        try {
+            newUserRecord = await admin.auth().createUser({
+                email: hardcodedEmail,
+                emailVerified: true,
+                password: hardcodedPassword,
+                displayName: `\${hardcodedProfileData.nombre} \${hardcodedProfileData.apellido}`.trim(),
+                disabled: false,
+            });
+            logger.info("Successfully created hardcoded master user in Firebase Auth:", newUserRecord.uid);
+        } catch (error: any) {
+            logger.error("Error creating hardcoded master user in Firebase Auth:", error);
+            throw new HttpsError("internal", `Hardcoded master user Auth creation failed: ${error.message}`);
+        }
+
+        const newUserId = newUserRecord.uid;
+
+        try {
+            const claimsToSet = { roles: ["master"], isActive: true };
+            await admin.auth().setCustomUserClaims(newUserId, claimsToSet);
+            logger.info("Custom claims ('master') set for hardcoded user:", newUserId);
+        } catch (error: any) {
+            logger.error("Error setting custom claims for hardcoded master user:", newUserId, error);
+            await admin.auth().deleteUser(newUserId).catch(delErr => logger.error("Failed to cleanup hardcoded auth user after claims error", delErr));
+            throw new HttpsError("internal", `Setting hardcoded master custom claims failed: ${error.message}`);
+        }
+
+        const userProfileDoc: UserProfile = {
+            ...hardcodedProfileData,
+            id: newUserId as any, // Cast to 'any' to satisfy UserProfile type if UserId is a branded type
+            email: hardcodedEmail,
+            fechaCreacion: admin.firestore.FieldValue.serverTimestamp() as any,
+            ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any,
+            isActive: true,
+            roles: ["master"],
+        };
+
+        try {
+            await db.collection("users").doc(newUserId).set(userProfileDoc);
+            logger.info("Successfully created hardcoded master UserProfile in Firestore:", newUserId);
+            return { success: true, userId: newUserId, message: "Hardcoded master user created successfully. REMEMBER TO DELETE THIS FUNCTION!" };
+        } catch (error: any) {
+            logger.error("Error writing hardcoded master UserProfile to Firestore:", newUserId, error);
+            await admin.auth().deleteUser(newUserId).catch(delErr => logger.error("Failed to cleanup hardcoded auth user after Firestore error", delErr));
+            throw new HttpsError("internal", `Hardcoded master user Firestore write failed: ${error.message}`);
+        }
+    }
+);
+// --- END OF INSECURE HARDCODED FUNCTION ---
+
 
 // --- Create User Function ---
 export const createUser = onCall(
@@ -140,7 +241,7 @@ export const createUser = onCall(
                 email: email,
                 emailVerified: false,
                 password: password,
-                displayName: `${profileData.nombre || ""} ${profileData.apellido || ""}`.trim(),
+                displayName: `\${profileData.nombre || ""} \${profileData.apellido || ""}`.trim(),
                 disabled: !(profileData.isActive === undefined ? true : profileData.isActive), // Auth 'disabled' is inverse of 'isActive'
             });
             logger.info("Successfully created new user in Firebase Auth:", newUserRecord.uid);
@@ -175,7 +276,7 @@ export const createUser = onCall(
         // Prepare UserProfile document for Firestore
         const userProfileDoc: UserProfile = {
             ...profileData,
-            id: newUserId,
+            id: newUserId as any, // Cast to 'any'
             email: email,
             fechaCreacion: admin.firestore.FieldValue.serverTimestamp() as any, // Cast to any for FieldValue
             ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any,
@@ -256,7 +357,7 @@ export const updateUser = onCall(
         if (profileData.nombre || profileData.apellido) {
             const currentNombre = targetUserProfile.nombre || "";
             const currentApellido = targetUserProfile.apellido || "";
-            authUpdates.displayName = `${profileData.nombre || currentNombre} ${profileData.apellido || currentApellido}`.trim();
+            authUpdates.displayName = `\${profileData.nombre || currentNombre} \${profileData.apellido || currentApellido}`.trim();
         }
         if (profileData.isActive !== undefined) {
             authUpdates.disabled = !profileData.isActive;
