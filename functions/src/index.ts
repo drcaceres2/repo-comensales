@@ -7,6 +7,7 @@ import { UserProfile, LogEntry, LogActionType } from "../../shared/models/types"
 
 admin.initializeApp();
 const db = admin.firestore();
+const FieldValue = admin.firestore.FieldValue;
 
 // --- Interfaces for Function Payloads ---
 interface CreateUserDataPayload {
@@ -167,8 +168,8 @@ export const createHardcodedMasterUser = onCall(
             id: newUserId, // UID from Auth
             ...hardcodedProfileData,
             email: hardcodedEmail,
-            fechaCreacion: admin.firestore.FieldValue.serverTimestamp() as any,
-            ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any,
+            fechaCreacion: FieldValue.serverTimestamp() as any,
+            ultimaActualizacion: FieldValue.serverTimestamp() as any,
             isActive: true,
             roles: ["master"],
             nombre: "Master",
@@ -293,8 +294,8 @@ export const createUser = onCall(
             ...profileData,
             id: newUserId as any, // Cast to 'any'
             email: email,
-            fechaCreacion: admin.firestore.FieldValue.serverTimestamp() as any, // Cast to any for FieldValue
-            ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any,
+            fechaCreacion: FieldValue.serverTimestamp() as any,
+            ultimaActualizacion: FieldValue.serverTimestamp() as any,
             isActive: profileData.isActive === undefined ? true : profileData.isActive,
             roles: targetUserRoles, // Ensure roles are stored in Firestore as well
             residenciaId: targetResidenciaId === null ? undefined : targetResidenciaId, // Ensure residenciaId is stored
@@ -415,7 +416,7 @@ export const updateUser = onCall(
         // Prepare Firestore updates
         const firestoreUpdateData: Omit<Partial<UserProfile>, 'ultimaActualizacion'> & { ultimaActualizacion: admin.firestore.FieldValue } = {
             ...profileData, // profileData already Omit<...> and Partial<...>
-            ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp(),
+            ultimaActualizacion: FieldValue.serverTimestamp(),
         };
 
         try {
