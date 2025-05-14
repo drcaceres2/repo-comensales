@@ -1,0 +1,23 @@
+Política de Privacidad
+En nuestra plataforma, nos tomamos muy en serio la privacidad y seguridad de los datos de nuestros usuarios. Esta Política de Privacidad explica qué información recolectamos, cómo la usamos y cuáles son nuestros compromisos respecto a su protección.
+
+1. Información que recolectamos
+La única información que recopilamos es la que el usuario proporciona directamente al utilizar la aplicación, como su nombre, horarios de comida u otros datos relevantes para el funcionamiento del sistema. No recolectamos información sobre el uso de la aplicación, ni accedemos a datos del dispositivo sin autorización expresa.
+
+2. Uso de la ubicación
+La aplicación puede solicitar acceso a la ubicación del usuario, exclusivamente con el fin de generar notificaciones relevantes para mejorar la experiencia, como recordatorios para actualizar horarios en caso de que el usuario se encuentre fuera de la ciudad.
+
+El acceso a la ubicación es opcional y requiere autorización explícita del usuario.
+
+La información de ubicación no se almacena, ni se comparte con terceros, ni se transmite a servidores externos.
+
+El uso de la ubicación es local y se limita a desencadenar notificaciones útiles para el propio usuario o para otros residentes dentro del sistema, si aplica.
+
+3. Compartición de información
+No compartimos ninguna información del usuario con terceros.
+Tampoco utilizamos servicios de publicidad, ni integraciones con plataformas externas que rastreen o recopilen datos de los usuarios.
+
+4. Seguridad
+Implementamos medidas razonables para proteger la información proporcionada por los usuarios, manteniéndola segura y accesible únicamente dentro del propósito de la plataforma.
+
+Si tenés alguna pregunta sobre nuestra política de privacidad, podés contactarnos directamente.

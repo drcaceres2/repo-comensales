@@ -17,10 +17,11 @@ import {
     Timestamp,
     serverTimestamp
 } from 'firebase/firestore';
+import { formatTimestampForInput } from '@/lib/utils'
 
 // --- Auth Hook Import ---
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { Recordatorio, RecordatorioId, ResidenciaId, UserId, TipoRecurrente, AsistentePermisos, UserProfile, UserRole } from '@/models/firestore'; // Adjusted imports
+import { Recordatorio, RecordatorioId, ResidenciaId, UserId, TipoRecurrente, AsistentePermisos, UserProfile, UserRole } from '@/../../shared/models/types'; // Adjusted imports
 
 // UI Components (assuming paths, add actual imports as needed)
 import { Button } from '@/components/ui/button';
@@ -173,14 +174,20 @@ export default function RecordatoriosPage() {
         } else if (currentUserProfile.roles?.includes('asistente')) {
             // Use corrected property name: asistentePermisos
             const asistentePerms = currentUserProfile.asistentePermisos;
-            if (asistentePerms?.recor_gest_todas) {
+            if (asistentePerms?.gestionRecordatorios === 'Todos') {
                 newCanManageAll = true;
                 newCanManageOwn = true;
                 newIsReadOnly = false;
-            } else if (asistentePerms?.recor_gest_propias) {
+            } else if (asistentePerms?.gestionRecordatorios === 'Propios') {
                 newCanManageOwn = true;
+                newCanManageAll = false; // Explicitly set to false
                 newIsReadOnly = false;
+            } else { // This covers 'Ninguno' or if gestionRecordatorios is undefined
+                newCanManageOwn = false;
+                newCanManageAll = false;
+                newIsReadOnly = true;
             }
+
             // If an assistant has no specific recor_ permissions, they remain read-only for this feature.
             if (!newCanManageAll && !newCanManageOwn) {
                 newIsReadOnly = true;
@@ -320,8 +327,8 @@ export default function RecordatoriosPage() {
             id: recordatorio.id,
             titulo: recordatorio.titulo,
             descripcion: recordatorio.descripcion || '',
-            fechaInicio: recordatorio.fechaInicio.toDate(),
-            fechaFin: recordatorio.fechaFin.toDate(),
+            fechaInicio: new Date(recordatorio.fechaInicio),
+            fechaFin: new Date(recordatorio.fechaFin),
             isSingleDay: recordatorio.isSingleDay,
             isRecurrente: recordatorio.isRecurrente,
             tipoRecurrente: recordatorio.tipoRecurrente,
@@ -389,8 +396,8 @@ export default function RecordatoriosPage() {
             residenciaId: residenciaId,
             titulo: formData.titulo.trim(),
             descripcion: formData.descripcion.trim() || '', // Ensure empty string if undefined
-            fechaInicio: Timestamp.fromDate(formData.fechaInicio),
-            fechaFin: Timestamp.fromDate(finalFechaFin), // finalFechaFin is already validated
+            fechaInicio: formData.fechaInicio.toISOString().slice(0,10),
+            fechaFin: finalFechaFin.toISOString().slice(0,10), // finalFechaFin is already validated and is a Date
             isSingleDay: formData.isSingleDay,
             isRecurrente: formData.isRecurrente,
             tipoRecurrente: formData.isRecurrente ? formData.tipoRecurrente : undefined, // Set only if recurrent
@@ -444,7 +451,7 @@ export default function RecordatoriosPage() {
         }
         
         // Past event check (as per initial requirements, past non-recurrent events are not modifiable)
-        const isPastNonRecurrent = recordatorioToDelete.fechaFin.toDate() < new Date() && !recordatorioToDelete.isRecurrente;
+        const isPastNonRecurrent = new Date(recordatorioToDelete.fechaFin) < new Date() && !recordatorioToDelete.isRecurrente;
         if (isPastNonRecurrent) {
             toast({ title: "Operación no permitida", description: "Los recordatorios pasados (no recurrentes) no pueden ser eliminados.", variant: "destructive" });
             return;
@@ -477,9 +484,18 @@ export default function RecordatoriosPage() {
     // Filtered and Sorted Recordatorios
     const displayedRecordatorios = useMemo(() => {
         const now = new Date();
+        // Ensure date strings are valid before parsing. Add error handling if necessary.
         return recordatorios
-            .filter(rec => showPastRecordatorios || rec.fechaFin.toDate() >= now || rec.isRecurrente) // Show future, or if recurrent (as they might have future occurrences not directly stored)
-            .sort((a, b) => a.fechaInicio.toMillis() - b.fechaInicio.toMillis());
+            .filter(rec => {
+                const fechaFinDate = new Date(rec.fechaFin); // Parse string to Date
+                return showPastRecordatorios || fechaFinDate >= now || rec.isRecurrente;
+            })
+            .sort((a, b) => {
+                const dateA = new Date(a.fechaInicio); // Parse string to Date
+                const dateB = new Date(b.fechaInicio); // Parse string to Date
+                return dateA.getTime() - dateB.getTime();
+            });
+
     }, [recordatorios, showPastRecordatorios]);
 
 
@@ -530,7 +546,7 @@ export default function RecordatoriosPage() {
                         {!isLoadingData && displayedRecordatorios.length > 0 && (
                             <ul className="space-y-3">
                                 {displayedRecordatorios.map(rec => {
-                                    const isPast = rec.fechaFin.toDate() < new Date() && !rec.isRecurrente; // Simple past check for UI
+                                    const isPast = new Date(rec.fechaFin) < new Date() && !rec.isRecurrente; // Simple past check for UI
                                     const canEditDeleteThis = canManageAll || (canManageOwn && rec.userId === user.uid);
                                     return (
                                         <li key={rec.id} className={`p-3 rounded-md border flex justify-between items-center ${isPast ? 'bg-gray-100 opacity-70' : 'bg-white'}`} style={{ borderLeft: `4px solid ${rec.color}`}}>
@@ -538,8 +554,8 @@ export default function RecordatoriosPage() {
                                                 <h4 className="font-semibold">{rec.titulo}</h4>
                                                 <p className="text-sm text-gray-600">{rec.descripcion}</p>
                                                 <p className="text-xs text-gray-500">
-                                                    {rec.fechaInicio.toDate().toLocaleDateString()}
-                                                    {!rec.isSingleDay && ` - ${rec.fechaFin.toDate().toLocaleDateString()}`}
+                                                    {new Date(rec.fechaInicio).toLocaleDateString()}
+                                                    {!rec.isSingleDay && ` - ${new Date(rec.fechaFin).toLocaleDateString()}`}
                                                     {rec.isRecurrente && ` (${rec.tipoRecurrente})`}
                                                 </p>
                                             </div>

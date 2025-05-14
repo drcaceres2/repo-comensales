@@ -54,7 +54,6 @@ import {
     ResidenciaId, 
     DietaId, 
     Dieta, 
-    ModoEleccionUsuario, 
     CentroCostoId, 
     Residencia, 
     CentroCosto,
@@ -347,7 +346,6 @@ export default function UserManagementPage(): JSX.Element | null {
                     universidad: data.universidad || undefined,
                     carrera: data.carrera || undefined,
                     dni: data.dni || undefined,
-                    modoEleccion: data.modoEleccion || undefined,
                     fechaDeNacimiento: data.fechaDeNacimiento || undefined, 
                     centroCostoPorDefectoId: data.centroCostoPorDefectoId || undefined,
                     puedeTraerInvitados: data.puedeTraerInvitados || 'no',
@@ -502,7 +500,7 @@ export default function UserManagementPage(): JSX.Element | null {
         }
     }, [formData.residenciaId, formData.roles, fetchFullResidenciaDetails, fetchCentrosCostoForResidencia, fetchResidentesForResidencia, currentResidenciaDetails?.id, residentesForAsistente.length]); // Added formData.roles, fetchResidentesForResidencia, residentesForAsistente.length
 
-    const handleFormChange = (field: keyof Omit<UserFormData, 'roles'>, value: string | boolean | ModoEleccionUsuario | undefined) => {
+    const handleFormChange = (field: keyof Omit<UserFormData, 'roles'>, value: string | boolean | number | undefined) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
@@ -569,7 +567,7 @@ export default function UserManagementPage(): JSX.Element | null {
         });
     };
 
-    const handleSelectChange = (field: 'residenciaId' | 'dietaId' | 'modoEleccion' | 'puedeTraerInvitados' | 'centroCostoPorDefectoId', value: string) => {
+    const handleSelectChange = (field: 'residenciaId' | 'dietaId' | 'grupoUsuario' | 'puedeTraerInvitados' | 'centroCostoPorDefectoId', value: string) => {
         setFormData(prev => {
             const updatedFormData = { ...prev, [field]: value };
 
@@ -742,7 +740,6 @@ export default function UserManagementPage(): JSX.Element | null {
                     residenciaId: finalResidenciaId, // Use selected or admin's residencia
                     roles: formData.roles!,
                     isActive: formData.isActive ?? true,
-                    modoEleccion: formData.modoEleccion ?? undefined, // Fixed for optional type
                     fechaDeNacimiento: formData.fechaDeNacimiento ? formatTimestampForInput(formData.fechaDeNacimiento) : null, // Fixed: Use helper for YYYY-MM-DD string or null
                     centroCostoPorDefectoId: formData.centroCostoPorDefectoId ?? '',
                     telefonoMovil: formData.telefonoMovil ?? '',
@@ -852,7 +849,6 @@ export default function UserManagementPage(): JSX.Element | null {
         dni: userToEdit.dni || '',
         password: '', confirmPassword: '', 
         telefonoMovil: userToEdit.telefonoMovil || '',
-        modoEleccion: userToEdit.modoEleccion || undefined,
         fechaDeNacimiento: userToEdit.fechaDeNacimiento ? formatTimestampForInput(userToEdit.fechaDeNacimiento) : undefined,
         centroCostoPorDefectoId: userToEdit.centroCostoPorDefectoId || '',
         puedeTraerInvitados: userToEdit.puedeTraerInvitados || 'no',
@@ -869,7 +865,6 @@ export default function UserManagementPage(): JSX.Element | null {
         nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
         numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
         password: '', confirmPassword: '', telefonoMovil: '',
-        modoEleccion: undefined,
         fechaDeNacimiento: '',
         centroCostoPorDefectoId: '',
         puedeTraerInvitados: 'no',
@@ -882,10 +877,10 @@ export default function UserManagementPage(): JSX.Element | null {
     };
 
     const handleDeleteUser = (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    if (!user) { toast({ title: "Error", description: "Usuario no encontrado.", variant: "destructive" }); return; }
-    setUserToDeleteId(userId);
-    setIsConfirmingDelete(true);
+        const user = users.find(u => u.id === userId);
+        if (!user) { toast({ title: "Error", description: "Usuario no encontrado.", variant: "destructive" }); return; }
+        setUserToDeleteId(userId);
+        setIsConfirmingDelete(true);
     };
 
     const confirmDeleteUser = async () => {
@@ -1020,7 +1015,6 @@ export default function UserManagementPage(): JSX.Element | null {
                 residenciaId: finalResidenciaId,     // This should align with UserProfile type (e.g., string | undefined)
                 roles: formData.roles ?? undefined, // Or ensure formData.roles is never null/undefined if it's required
                 isActive: formData.isActive ?? undefined, // Or a default like true if that's intended for undefined
-                modoEleccion: formData.modoEleccion ?? undefined,
                 fechaDeNacimiento: formData.fechaDeNacimiento 
                     ? formatTimestampForInput(formData.fechaDeNacimiento) // Ensure this helper returns 'YYYY-MM-DD' or null
                     : null,
@@ -1075,7 +1069,6 @@ export default function UserManagementPage(): JSX.Element | null {
                     residenciaId: finalResidenciaId, // Use selected or admin's residencia
                     roles: formData.roles!,
                     isActive: formData.isActive!,
-                    modoEleccion: formData.modoEleccion ?? undefined,
                     fechaDeNacimiento: formData.fechaDeNacimiento ? formatTimestampForInput(formData.fechaDeNacimiento) : undefined,
                     centroCostoPorDefectoId: formData.centroCostoPorDefectoId ?? '',
                     telefonoMovil: formData.telefonoMovil ?? '',
@@ -1410,19 +1403,6 @@ export default function UserManagementPage(): JSX.Element | null {
                             <h4 className="text-base font-medium mb-3 text-slate-700 dark:text-slate-300">Configuraciones Adicionales</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="modoEleccion">Modo de Elección de Comidas</Label>
-                                    <Select value={formData.modoEleccion || ''} onValueChange={(value) => handleSelectChange('modoEleccion', value as ModoEleccionUsuario)} disabled={isSaving} >
-                                        <SelectTrigger id="modoEleccion"><SelectValue placeholder="Seleccione modo..." /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="normal">Normal (Semanario)</SelectItem>
-                                            <SelectItem value="aprobacion_diaria">Aprobación Diaria</SelectItem>
-                                            <SelectItem value="explicito_diario">Elección Diaria Explícita</SelectItem>
-                                            <SelectItem value="suspendido_con_asistente">Suspendido (Asistente Elige)</SelectItem>
-                                            <SelectItem value="suspendido">Suspendido Totalmente</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1.5">
                                     <Label htmlFor="fechaDeNacimiento">Fecha de Nacimiento</Label>
                                     <Input id="fechaDeNacimiento" type="date" value={formData.fechaDeNacimiento || ''} onChange={(e) => handleFormChange('fechaDeNacimiento', e.target.value)} disabled={isSaving} />
                                 </div>
@@ -1432,7 +1412,7 @@ export default function UserManagementPage(): JSX.Element | null {
                                     </Label>
                                     <Select
                                         value={formData.centroCostoPorDefectoId || ''}
-                                        onValueChange={(value) => handleSelectChange('centroCostoPorDefectoId', value)}
+                                        onValueChange={(value) => handleFormChange('centroCostoPorDefectoId', value)}
                                         disabled={isSaving || isLoadingCentrosCosto || !formData.residenciaId}
                                     >
                                         <SelectTrigger id="centroCostoPorDefectoId">

@@ -68,3 +68,4 @@ La idea es que la residencia tenga un calendario donde se coloque toda la inform
 
 Por ahora, solo se mostrarán cumpleaños de usuarios registrados. El título del calendario podrá deslizarse (en móvil) para cambiar de día, actualizando toda la información correspondiente.
 
+

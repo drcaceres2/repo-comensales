@@ -1,6 +1,5 @@
 export type UserId = string;
 export type UserRole = 'master' | 'admin' | 'director' | 'residente' | 'invitado' | 'asistente' | 'auditor';
-export type ModoEleccionUsuario = 'normal' | 'aprobacion_diaria' | 'explicito_diario' | 'suspendido_con_asistente' | 'suspendido';
 export type DietaId = string;
 export type ResidenciaId = string;
 export type CentroCostoId = string;
@@ -104,11 +103,42 @@ export type LogActionType =
     export type NotificacionPrioridad = 'baja' | 'media' | 'alta'; // New
     
     export type NotificacionId = string;
+
+    export type grupoUsuarioId = string;
     
     // --- Interfaces ---
     
-    
+export interface grupoUsuario {
+    id: grupoUsuarioId;
+    etiqueta: string;
+    tipoGrupo: 'eleccion-comidas' | 'centro-de-costo' | 'personalizado';
+    descripcion?: string;
+    centroCostoId?: CentroCostoId;
+}
 
+export interface UsuariosGrupos {
+    id: string;
+    usuario: UserId;
+    grupo: grupoUsuarioId;
+}
+
+export interface PermisosComidaPorGrupo {
+    id: string;
+    grupoPermisos: grupoUsuarioId;
+    usoSemanario: boolean;
+    usoExcepciones: boolean;
+    confirmacionAsistencia: boolean;
+    confirmacionDiariaElecciones: boolean;
+    horarioConfirmacionDiaria?: string; // Hora en ISO 8601 hh:mm
+    restriccionAlternativas: boolean;
+    alternativasRestringidas?: alternativaRestringidaDetalle[];
+    autorizacionLocalizacion: boolean;
+}
+
+export interface alternativaRestringidaDetalle {
+    requiereAprobacion: boolean;
+    alternativaRestringida: AlternativaTiempoComidaId;
+}
 
 export interface UserProfile {
     id: UserId;
@@ -118,8 +148,7 @@ export interface UserProfile {
     roles: UserRole[];
     isActive: boolean;
     residenciaId?: ResidenciaId;
-    dietaId?: DietaId; 
-    modoEleccion?: ModoEleccionUsuario;
+    dietaId?: DietaId;
     numeroDeRopa?: string;
     habitacion?: string;
     universidad?: string;
