@@ -168,12 +168,10 @@ export const createHardcodedMasterUser = onCall(
             id: newUserId, // UID from Auth
             ...hardcodedProfileData,
             email: hardcodedEmail,
-            fechaCreacion: FieldValue.serverTimestamp() as any,
-            ultimaActualizacion: FieldValue.serverTimestamp() as any,
+            fechaCreacion: new Date().getTime(),
+            ultimaActualizacion: new Date().getTime(),
             isActive: true,
             roles: ["master"],
-            nombre: "Master",
-            apellido: "User (Hardcoded)",
             puedeTraerInvitados: "si", // Added to satisfy UserProfile type
             fechaDeNacimiento: "", // Provide a default if not in hardcodedProfileData
             residenciaId: undefined, // Or null, depending on your type
