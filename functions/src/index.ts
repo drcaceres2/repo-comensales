@@ -7,7 +7,7 @@ import { UserProfile, LogEntry, LogActionType } from "../../shared/models/types"
 
 admin.initializeApp();
 const db = admin.firestore();
-const FieldValue = admin.firestore.FieldValue;
+// const FieldValue = admin.firestore.FieldValue; // It's generally safer to use admin.firestore.FieldValue directly
 
 // --- Interfaces for Function Payloads ---
 interface CreateUserDataPayload {
@@ -30,7 +30,7 @@ interface DeleteUserDataPayload {
 
 // --- Interface for data being written to the logs collection ---
 interface LogEntryWrite extends Omit<LogEntry, "id" | "timestamp"> {
-    timestamp: admin.firestore.FieldValue;
+    timestamp: admin.firestore.FieldValue; // Keep this as admin.firestore.FieldValue
     // 'userId' from LogEntry will store the UID of the admin/user performing the action
 }
 
@@ -81,7 +81,7 @@ const logAction = async (
         const logEntryData: LogEntryWrite = {
             actionType,
             userId: performedByUid, // 'userId' in LogEntry refers to the actor
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            timestamp: admin.firestore.FieldValue.serverTimestamp(), // Use admin.firestore.FieldValue directly
             targetUid,
             details,
             // residenciaId: details.residenciaId || null, // If you want to log this
@@ -142,7 +142,7 @@ export const createHardcodedMasterUser = onCall(
                 email: hardcodedEmail,
                 emailVerified: true,
                 password: hardcodedPassword,
-                displayName: `\${hardcodedProfileData.nombre} \${hardcodedProfileData.apellido}`.trim(),
+                displayName: `${hardcodedProfileData.nombre} ${hardcodedProfileData.apellido}`.trim(),
                 disabled: false,
             });
             logger.info("Successfully created hardcoded master user in Firebase Auth:", newUserRecord.uid);
@@ -168,8 +168,8 @@ export const createHardcodedMasterUser = onCall(
             id: newUserId, // UID from Auth
             ...hardcodedProfileData,
             email: hardcodedEmail,
-            fechaCreacion: new Date().getTime(),
-            ultimaActualizacion: new Date().getTime(),
+            fechaCreacion: new Date().getTime(), // Using number timestamp for this dev function
+            ultimaActualizacion: new Date().getTime(), // Using number timestamp for this dev function
             isActive: true,
             roles: ["master"],
             puedeTraerInvitados: "si", // Added to satisfy UserProfile type
@@ -183,8 +183,8 @@ export const createHardcodedMasterUser = onCall(
             universidad: "",
             carrera: "",
             dni: "",
-            asistentePermisos: null, // Changed from undefined to null
-            notificacionPreferencias: null, // Changed from undefined to null
+            asistentePermisos: null, 
+            notificacionPreferencias: null, 
             valorCampoPersonalizado1: "",
             valorCampoPersonalizado2: "",
             valorCampoPersonalizado3: "",
@@ -256,7 +256,7 @@ export const createUser = onCall(
                 email: email,
                 emailVerified: false,
                 password: password,
-                displayName: `\${profileData.nombre || ""} \${profileData.apellido || ""}`.trim(),
+                displayName: `${profileData.nombre || ""} ${profileData.apellido || ""}`.trim(),
                 disabled: !(profileData.isActive === undefined ? true : profileData.isActive), // Auth 'disabled' is inverse of 'isActive'
             });
             logger.info("Successfully created new user in Firebase Auth:", newUserRecord.uid);
@@ -293,11 +293,11 @@ export const createUser = onCall(
             ...profileData,
             id: newUserId as any, // Cast to 'any'
             email: email,
-            fechaCreacion: FieldValue.serverTimestamp() as any,
-            ultimaActualizacion: FieldValue.serverTimestamp() as any,
+            fechaCreacion: admin.firestore.FieldValue.serverTimestamp() as any, // Use admin.firestore.FieldValue directly
+            ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any, // Use admin.firestore.FieldValue directly
             isActive: profileData.isActive === undefined ? true : profileData.isActive,
             roles: targetUserRoles, // Ensure roles are stored in Firestore as well
-            residenciaId: targetResidenciaId === null ? undefined : targetResidenciaId, // Ensure residenciaId is stored
+            residenciaId: targetResidenciaId, // Correctly assign targetResidenciaId (which can be string or null)
         };
         // Remove undefined keys from profileData before merging if it's a concern for partial updates
         // For creation, all expected fields should be present or have defaults.
@@ -415,7 +415,7 @@ export const updateUser = onCall(
         // Prepare Firestore updates
         const firestoreUpdateData: Omit<Partial<UserProfile>, 'ultimaActualizacion'> & { ultimaActualizacion: admin.firestore.FieldValue } = {
             ...profileData, // profileData already Omit<...> and Partial<...>
-            ultimaActualizacion: FieldValue.serverTimestamp(),
+            ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp(), // Use admin.firestore.FieldValue directly
         };
 
         try {
