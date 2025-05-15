@@ -174,7 +174,7 @@ export const createHardcodedMasterUser = onCall(
             roles: ["master"],
             puedeTraerInvitados: "si", // Added to satisfy UserProfile type
             fechaDeNacimiento: "", // Provide a default if not in hardcodedProfileData
-            residenciaId: undefined, // Or null, depending on your type
+            residenciaId: null, // Changed from undefined to null
             centroCostoPorDefectoId: "",
             telefonoMovil: "",
             dietaId: "",
@@ -203,6 +203,7 @@ export const createHardcodedMasterUser = onCall(
     }
 );
 // --- END OF INSECURE HARDCODED FUNCTION ---
+
 
 
 // --- Create User Function ---
