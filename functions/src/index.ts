@@ -81,7 +81,7 @@ const logAction = async (
         const logEntryData: LogEntryWrite = {
             actionType,
             userId: performedByUid, // 'userId' in LogEntry refers to the actor
-            timestamp: admin.firestore.FieldValue.serverTimestamp(), // Use admin.firestore.FieldValue directly
+            timestamp: (db.constructor as any).FieldValue.serverTimestamp() as any, // Switched to db.constructor path
             targetUid,
             details,
             // residenciaId: details.residenciaId || null, // If you want to log this
@@ -300,8 +300,8 @@ export const createUser = onCall(
             ...profileData,
             id: newUserId as any, // Cast to 'any'
             email: email,
-            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any, // Attempt via db.constructor
-            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any, // Attempt via db.constructor
+            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any, 
+            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any, 
             isActive: profileData.isActive === undefined ? true : profileData.isActive,
             roles: targetUserRoles, // Ensure roles are stored in Firestore as well
             residenciaId: targetResidenciaId, 
@@ -420,7 +420,7 @@ export const updateUser = onCall(
         // Prepare Firestore updates
         const firestoreUpdateData: Omit<Partial<UserProfile>, 'ultimaActualizacion'> & { ultimaActualizacion: admin.firestore.FieldValue } = {
             ...profileData, // profileData already Omit<...> and Partial<...>
-            ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp(), // Use admin.firestore.FieldValue directly
+            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any, // Switched to db.constructor path
         };
 
         try {
