@@ -174,7 +174,7 @@ export const createHardcodedMasterUser = onCall(
             roles: ["master"],
             puedeTraerInvitados: "si", // Added to satisfy UserProfile type
             fechaDeNacimiento: "", // Provide a default if not in hardcodedProfileData
-            residenciaId: null, // Changed from undefined to null
+            residenciaId: null, 
             centroCostoPorDefectoId: "",
             telefonoMovil: "",
             dietaId: "",
@@ -183,8 +183,8 @@ export const createHardcodedMasterUser = onCall(
             universidad: "",
             carrera: "",
             dni: "",
-            asistentePermisos: undefined,
-            notificacionPreferencias: undefined,
+            asistentePermisos: null, // Changed from undefined to null
+            notificacionPreferencias: null, // Changed from undefined to null
             valorCampoPersonalizado1: "",
             valorCampoPersonalizado2: "",
             valorCampoPersonalizado3: "",

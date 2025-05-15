@@ -156,10 +156,10 @@ export interface UserProfile {
     dni?: string;
     telefonoMovil?: string;
     fechaDeNacimiento?: string | null; // Store as ISO string or number (millis)
-    asistentePermisos?: AsistentePermisos; 
+    asistentePermisos?: AsistentePermisos | null; // Now allows null
     centroCostoPorDefectoId?: CentroCostoId;
     puedeTraerInvitados: 'no' | 'requiere_autorizacion' | 'si';
-    notificacionPreferencias?: NotificacionPreferencias;
+    notificacionPreferencias?: NotificacionPreferencias | null; // Now allows null
 
     fechaCreacion?: number | null;      // Milliseconds since epoch, or null
     ultimaActualizacion?: number | null; // Milliseconds since epoch, or null
