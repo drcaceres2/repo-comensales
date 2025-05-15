@@ -147,7 +147,7 @@ export interface UserProfile {
     email: string;
     roles: UserRole[];
     isActive: boolean;
-    residenciaId?: ResidenciaId;
+    residenciaId?: ResidenciaId | null; // Now allows null
     dietaId?: DietaId;
     numeroDeRopa?: string;
     habitacion?: string;
