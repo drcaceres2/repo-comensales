@@ -288,19 +288,24 @@ export const createUser = onCall(
             throw new HttpsError("internal", `Setting custom claims failed: ${error.message}`);
         }
 
+        // --- DIAGNOSTIC LOGGING START ---
+        logger.info("Preparing UserProfile document. Checking Firestore objects...");
+        logger.info(`admin.firestore type: ${typeof admin.firestore}`);
+        logger.info(`admin.firestore.FieldValue type: ${typeof admin.firestore.FieldValue}`);
+        logger.info(`db.constructor.FieldValue type: ${typeof (db.constructor as any).FieldValue}`);
+        // --- DIAGNOSTIC LOGGING END ---
+
         // Prepare UserProfile document for Firestore
         const userProfileDoc: UserProfile = {
             ...profileData,
             id: newUserId as any, // Cast to 'any'
             email: email,
-            fechaCreacion: admin.firestore.FieldValue.serverTimestamp() as any, // Use admin.firestore.FieldValue directly
-            ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any, // Use admin.firestore.FieldValue directly
+            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any, // Attempt via db.constructor
+            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any, // Attempt via db.constructor
             isActive: profileData.isActive === undefined ? true : profileData.isActive,
             roles: targetUserRoles, // Ensure roles are stored in Firestore as well
-            residenciaId: targetResidenciaId, // Correctly assign targetResidenciaId (which can be string or null)
+            residenciaId: targetResidenciaId, 
         };
-        // Remove undefined keys from profileData before merging if it's a concern for partial updates
-        // For creation, all expected fields should be present or have defaults.
 
         try {
             await db.collection("users").doc(newUserId).set(userProfileDoc);
