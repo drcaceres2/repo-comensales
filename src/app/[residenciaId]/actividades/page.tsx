@@ -27,7 +27,7 @@ import {
     LogActionType,
     EstadoInscripcionActividad,
     UserRole // Ensure UserRole is imported
-} from '@/models/firestore';
+} from '@/../../shared/models/types';
 
 // Helper to create Log Entries
 async function createLogEntry(

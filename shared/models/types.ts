@@ -1,5 +1,5 @@
 export type UserId = string;
-export type UserRole = 'master' | 'admin' | 'director' | 'residente' | 'invitado' | 'asistente' | 'auditor';
+export type UserRole = 'master' | 'admin' | 'director' | 'residente' | 'invitado' | 'asistente' | 'contador';
 export type DietaId = string;
 export type ResidenciaId = string;
 export type CentroCostoId = string;
@@ -145,6 +145,7 @@ export interface UserProfile {
     nombre: string;
     apellido: string;
     email: string;
+    fotoPerfil: string;
     roles: UserRole[];
     isActive: boolean;
     residenciaId?: ResidenciaId | null; // Now allows null
@@ -160,6 +161,7 @@ export interface UserProfile {
     centroCostoPorDefectoId?: CentroCostoId;
     puedeTraerInvitados: 'no' | 'requiere_autorizacion' | 'si';
     notificacionPreferencias?: NotificacionPreferencias | null; // Now allows null
+    tieneAutenticacion: boolean;
 
     fechaCreacion?: number | null;      // Milliseconds since epoch, or null
     ultimaActualizacion?: number | null; // Milliseconds since epoch, or null
@@ -195,7 +197,7 @@ export interface Residencia {
     direccion?: string;
     logoUrl?: string;
     nombreEtiquetaCentroCosto?: string; 
-    modoDeCosteo?: 'por-usuario' | 'por-comedor' | 'por-eleccion';
+    modoDeCosteo?: 'por-usuario' | 'por-comedor' | 'detallada';
     antelacionActividadesDefault?: number; 
     textProfile?: string;
     tipoResidentes: 'estudiantes' | 'profesionales' | 'gente_mayor';
@@ -218,18 +220,24 @@ export interface Residencia {
     campoPersonalizado1_necesitaValidacion?: boolean;
     campoPersonalizado1_regexValidacion?: string;
     campoPersonalizado1_tamanoTexto?: 'text' | 'textArea';
+    campoPersonalizado1_puedeModDirector?: boolean;
+    campoPersonalizado1_puedeModInteresado?: boolean;
 
     campoPersonalizado2_etiqueta?: string;
     campoPersonalizado2_isActive?: boolean;
     campoPersonalizado2_necesitaValidacion?: boolean;
     campoPersonalizado2_regexValidacion?: string;
     campoPersonalizado2_tamanoTexto?: 'text' | 'textArea';
+    campoPersonalizado2_puedeModDirector?: boolean;
+    campoPersonalizado2_puedeModInteresado?: boolean;
 
     campoPersonalizado3_etiqueta?: string;
     campoPersonalizado3_isActive?: boolean;
     campoPersonalizado3_necesitaValidacion?: boolean;
     campoPersonalizado3_regexValidacion?: string;
     campoPersonalizado3_tamanoTexto?: 'text' | 'textArea';
+    campoPersonalizado3_puedeModDirector?: boolean;
+    campoPersonalizado3_puedeModInteresado?: boolean;
 }
 
 export interface Comedor {
@@ -266,9 +274,19 @@ export interface AlternativaTiempoComida {
     tiempoComidaId: TiempoComidaId; 
     residenciaId: ResidenciaId;
     comedorId?: ComedorId; 
-    isActive: boolean; 
+    esPrincipal: boolean; // La alternativa principal servirá para alimentar el formulario de invitados, actividades y otro. Debe haber una alternativa principal por TiempoComida
+    isActive: boolean;
+    esAlteracion: boolean;
 }
 
+export interface AlteracionHorario {
+    id: string;
+    nombre: string;
+    residenciaId: ResidenciaId;
+    descripcion?: string;
+    fechaInicio: string;
+    fechaFin: string;
+}
 
 export interface CentroCosto {
     id: CentroCostoId;
@@ -293,29 +311,47 @@ export interface LogEntry {
 
 
 export interface Actividad {
+    //Campos generales
     id: ActividadId;
     residenciaId: ResidenciaId;
     nombre: string; 
     descripcionGeneral?: string;
-    fechaInicio: string;  // Timestamp stored as ISO string
-    fechaFin: string;  // Timestamp stored as ISO string
-    ultimoTiempoComidaIdAntes?: TiempoComidaId; 
-    primerTiempoComidaIdDespues?: TiempoComidaId; 
-    planComidas?: TiempoComidaAlternativaUnicaActividad[]; 
-    requiereInscripcion: boolean;
-    aceptaResidentes: boolean;
-    aceptaInvitados: 'no' | 'por_invitacion' | 'invitacion_libre';
-    tipoAccesoActividad: TipoAccesoActividad; 
     maxParticipantes?: number;
-    diasAntelacionCierreInscripcion?: number; 
-    defaultCentroCostoId?: CentroCostoId; 
     estado: ActividadEstado;
     organizadorUserId: UserId; 
+    comensalesNoUsuarios?: number; // se inscriben usuarios, se pueden inscribir invitados que no son usuarios y también se puede sencillamente agregar un número no asociado a un usuario (autenticado o no autenticado)
+
+    //Campos de cálculo de comidas
+    fechaInicio: string;  // Timestamp stored as ISO string
+    fechaFin: string;  // Timestamp stored as ISO string
+    ultimoTiempoComidaAntes?: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
+    primerTiempoComidaDespues?: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
+    planComidas?: TiempoComidaAlternativaUnicaActividad[]; 
     tipoSolicitudComidas: TipoSolicitudComidasActividad;
     estadoSolicitudAdministracion: 'no_solicitado' | 'solicitud_inicial_realizada' | 'completada';
-  }
+    comedorActividad?: ComedorId | null;
+
+    // Campos de lógica de inscripción
+    requiereInscripcion: boolean;
+    diasAntelacionCierreInscripcion?: number; 
+    tipoAccesoActividad: TipoAccesoActividad; 
+    aceptaResidentes: boolean;
+    aceptaInvitados: 'no' | 'por_invitacion' | 'invitacion_libre';
+
+    // Campos de costo
+    defaultCentroCostoId?: CentroCostoId | null; 
+}
+
+export interface TiempoComidaAlternativaUnicaActividad {
+    id: TiempoComidaAlternativaUnicaActividadId; 
+    nombreTiempoComida_AlternativaUnica: string; 
+    nombreGrupoTiempoComida: string;
+    ordenGrupoTiempoComida: number;
+    fecha: string;  // Timestamp stored as ISO string
+    horaEstimadaMeal?: string; 
+}
   
-  export interface InscripcionActividad {
+export interface InscripcionActividad {
     id: InscripcionActividadId; 
     actividadId: ActividadId;
     userId: UserId; 
@@ -325,7 +361,7 @@ export interface Actividad {
     invitadoPorUserId?: UserId;     
     fechaInvitacionOriginal?: string | null; // Timestamp stored as ISO string
     nombreInvitadoNoAutenticado?: string; 
-  }
+}
   
   export interface HorarioSolicitudComida {
       id: HorarioSolicitudComidaId;
@@ -492,13 +528,3 @@ export interface Actividad {
     errorWA?: string; // Error message if failed
     entregadoEnAppEn?: number; // Timestamp stored as number (millis)
   }
-  
-export interface TiempoComidaAlternativaUnicaActividad {
-    id: TiempoComidaAlternativaUnicaActividadId; 
-    nombreTiempoComida_AlternativaUnica: string; 
-    nombreGrupoTiempoComida: string;
-    ordenGrupoTiempoComida: number;
-    fecha: string;  // Timestamp stored as ISO string
-    horaEstimadaMeal?: string; 
-  }
-  

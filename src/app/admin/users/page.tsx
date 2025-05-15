@@ -92,6 +92,7 @@ export default function UserManagementPage(): JSX.Element | null {
         valorCampoPersonalizado2?: string;
         valorCampoPersonalizado3?: string;
         asistentePermisos?: Partial<AsistentePermisos>;
+        tieneAutenticacion: true;
     };
 
     const router = useRouter();
@@ -144,6 +145,7 @@ export default function UserManagementPage(): JSX.Element | null {
             valorCampoPersonalizado3: '', // Match handleCancelEdit
             asistentePermisos: undefined,
             notificacionPreferencias: undefined, // Assuming this is part of UserProfile and thus UserFormData
+            tieneAutenticacion: true,
         };
     });
 
@@ -355,6 +357,7 @@ export default function UserManagementPage(): JSX.Element | null {
                     telefonoMovil: data.telefonoMovil || undefined,
                     asistentePermisos: data.asistentePermisos || undefined,
                     notificacionPreferencias: data.notificacionPreferencias || undefined,
+                    tieneAutenticacion: true,
                 });
             });
             console.log("Fetched users to manage:", usersData);
@@ -750,6 +753,7 @@ export default function UserManagementPage(): JSX.Element | null {
                     carrera: formData.carrera ?? '',
                     dni: formData.dni ?? '',
                     puedeTraerInvitados: formData.puedeTraerInvitados ?? 'no',
+                    tieneAutenticacion: true,
                     notificacionPreferencias: formData.notificacionPreferencias, // If you have form fields for these
                     valorCampoPersonalizado1: formData.valorCampoPersonalizado1 ?? '',
                     valorCampoPersonalizado2: formData.valorCampoPersonalizado2 ?? '',
@@ -856,6 +860,7 @@ export default function UserManagementPage(): JSX.Element | null {
         valorCampoPersonalizado2: userToEdit.valorCampoPersonalizado2 || '',
         valorCampoPersonalizado3: userToEdit.valorCampoPersonalizado3 || '',
         asistentePermisos: permisosParaForm, // MODIFIED
+        tieneAutenticacion: true,
     });
     };
 
@@ -871,7 +876,8 @@ export default function UserManagementPage(): JSX.Element | null {
         valorCampoPersonalizado1: '',
         valorCampoPersonalizado2: '',
         valorCampoPersonalizado3: '',
-        asistentePermisos: undefined // ADDED/MODIFIED
+        asistentePermisos: undefined, // ADDED/MODIFIED
+        tieneAutenticacion: true
     });
         console.log("Cancelled edit.");
     };

@@ -185,6 +185,7 @@ export const createHardcodedMasterUser = onCall(
             dni: "",
             asistentePermisos: null, 
             notificacionPreferencias: null, 
+            tieneAutenticacion: true,
             valorCampoPersonalizado1: "",
             valorCampoPersonalizado2: "",
             valorCampoPersonalizado3: "",
