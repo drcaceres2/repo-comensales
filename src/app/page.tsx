@@ -26,7 +26,7 @@ import { doc, getDoc } from "firebase/firestore"; // Import Firestore functions
 import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
 
 // --- Model Imports ---
-import { UserProfile, UserRole } from '@/models/firestore'; // Keep UserProfile and UserRole
+import { UserProfile, UserRole } from '@/../../shared/models/types'; // Keep UserProfile and UserRole
 
 // --- LOGO URL ---
 const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/public%2Flogo_web_app_1024x1024.jpg?alt=media&token=3d7a3f7c-71a1-403a-b858-bd0ec567dd10";
@@ -37,7 +37,7 @@ const redirectToDashboard = (profile: UserProfile, router: ReturnType<typeof use
     const residenciaId = profile.residenciaId;
 
     if (roles.includes('admin' as UserRole) || roles.includes('master' as UserRole)) {
-      router.push('/admin/users');
+      router.push('/admin/crear-residencia');
     } else if (roles.includes('director' as UserRole) && residenciaId) {
       router.push(`/${residenciaId}/solicitar-comensales`);
     } else if (roles.includes('residente' as UserRole) && residenciaId) {

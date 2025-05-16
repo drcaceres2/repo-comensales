@@ -36,7 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea'; // ADDED: Textarea import
 
-// --- Firebase & New Auth Hook Imports ---\nimport { useAuthState } from 'react-firebase-hooks/auth';
+// --- Firebase & New Auth Hook Imports ---
 import { User } from "firebase/auth";
 import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -57,9 +57,9 @@ import {
     CentroCostoId, 
     Residencia, 
     CentroCosto,
-    AsistentePermisos // ADDED
+    AsistentePermisos
 } from '@/../../shared/models/types';
-import { ZodUndefined } from 'zod';
+// import { ZodUndefined } from 'zod';
 
 export default function UserManagementPage(): JSX.Element | null {
     const ALL_RESIDENCIAS_FILTER_KEY = 'all_residencias';
@@ -74,7 +74,9 @@ export default function UserManagementPage(): JSX.Element | null {
     // Define a callable for logging (alternative to logging within each function)
     const logActionCallable = httpsCallable(functionsInstance, 'logAction');
 
-    type UserFormData = Partial<Omit<UserProfile, 'id' | 'roles' | 'fechaDeNacimiento' | 'asistentePermisos'>> & { // Exclude asistentePermisos from Partial
+    type UserFormData = Partial<Omit<UserProfile, 'id' | 'roles' | 'fechaDeNacimiento' | 'asistentePermisos' | 'nombreCorto' | 'fotoPerfil'>> & {
+        nombreCorto?: string; // ADDED
+        fotoPerfil?: string | null; // ADDED
         roles: UserRole[];
         residenciaId?: ResidenciaId | '';
         dietaId?: DietaId | '';
@@ -87,11 +89,11 @@ export default function UserManagementPage(): JSX.Element | null {
         password?: string;
         confirmPassword?: string;
         telefonoMovil?: string;
-        fechaDeNacimiento?: string; 
+        fechaDeNacimiento?: string;
         valorCampoPersonalizado1?: string;
         valorCampoPersonalizado2?: string;
         valorCampoPersonalizado3?: string;
-        asistentePermisos?: Partial<AsistentePermisos>;
+        asistentePermisos: null; // MODIFIED: Explicitly null
         tieneAutenticacion: true;
     };
 
@@ -123,9 +125,11 @@ export default function UserManagementPage(): JSX.Element | null {
         return {
             nombre: '',
             apellido: '',
+            nombreCorto: '', // ADDED
+            fotoPerfil: null, // ADDED
             email: '',
             isActive: true,
-            roles: [], // Corrected: Was undefined, now an empty array
+            roles: [],
             residenciaId: initialResidenciaId,
             dietaId: '',
             numeroDeRopa: '',
@@ -133,18 +137,17 @@ export default function UserManagementPage(): JSX.Element | null {
             universidad: '',
             carrera: '',
             dni: '',
-            password: '',      // Added for completeness, was missing from your snippet but likely in original
-            confirmPassword: '',// Added for completeness
+            password: '',
+            confirmPassword: '',
             telefonoMovil: '',
-            modoEleccion: undefined,
-            fechaDeNacimiento: '', // Corrected: Was null, now an empty string for consistency
-            centroCostoPorDefectoId: '', // Match handleCancelEdit
+            fechaDeNacimiento: '',
+            centroCostoPorDefectoId: '',
             puedeTraerInvitados: 'no',
-            valorCampoPersonalizado1: '', // Match handleCancelEdit
-            valorCampoPersonalizado2: '', // Match handleCancelEdit
-            valorCampoPersonalizado3: '', // Match handleCancelEdit
-            asistentePermisos: undefined,
-            notificacionPreferencias: undefined, // Assuming this is part of UserProfile and thus UserFormData
+            valorCampoPersonalizado1: '',
+            valorCampoPersonalizado2: '',
+            valorCampoPersonalizado3: '',
+            asistentePermisos: null, // MODIFIED
+            notificacionPreferencias: undefined,
             tieneAutenticacion: true,
         };
     });
@@ -157,7 +160,7 @@ export default function UserManagementPage(): JSX.Element | null {
     const [userToDeleteId, setUserToDeleteId] = useState<string | null>(null);
     const [selectedResidenciaFilter, setSelectedResidenciaFilter] = useState<string>(ALL_RESIDENCIAS_FILTER_KEY);
 
-    const availableRoles: UserRole[] = ['residente', 'director', 'admin', 'master', 'invitado', 'asistente', 'auditor'];
+    const availableRoles: UserRole[] = ['residente', 'director', 'admin', 'master', 'invitado', 'asistente', 'contador'];
     const [residences, setResidences] = useState<Record<ResidenciaId, { nombre: string }>>({});
     const [dietas, setDietas] = useState<Dieta[]>([]);
 
@@ -324,7 +327,6 @@ export default function UserManagementPage(): JSX.Element | null {
         }
     }, [toast, editingUserId, formData.email]); // Added editingUserId and formData.email
 
-
     const fetchUsersToManage = useCallback(async () => {
         console.log("Fetching users to manage from Firestore...");
         setIsLoadingUsers(true);
@@ -338,6 +340,8 @@ export default function UserManagementPage(): JSX.Element | null {
                     id: doc.id,
                     nombre: data.nombre || '',
                     apellido: data.apellido || '',
+                    nombreCorto: data.nombreCorto || '',
+                    fotoPerfil: data.fotoPerfil || '',
                     email: data.email || '',
                     roles: data.roles || [],
                     isActive: data.isActive === undefined ? true : data.isActive,
@@ -544,29 +548,10 @@ export default function UserManagementPage(): JSX.Element | null {
                 dietaId = '';
             }
 
-            // MODIFIED: Handle asistentePermisos based on 'asistente' role with new structure
-            let updatedAsistentePermisos = prev.asistentePermisos;
-            if (role === 'asistente') {
-                if (checked) {
-                    // Initialize with new defaults if 'asistente' role is added
-                    updatedAsistentePermisos = {
-                        usuariosAsistidos: [], // Changed from elecc_uids
-                        gestionActividades: 'Ninguna', // New default
-                        gestionInvitados: 'Ninguno',   // New default
-                        gestionRecordatorios: 'Ninguno' // New default
-                    };
-                } else {
-                    // Clear if 'asistente' role is removed
-                    updatedAsistentePermisos = undefined;
-                }
-            }
-            
-            // Ensure if 'asistente' is not in updatedRoles at all, permissions are cleared
-            if (!updatedRoles.includes('asistente') && updatedAsistentePermisos !== undefined) { // Check against undefined
-                 updatedAsistentePermisos = undefined;
-            }
+            // MODIFIED: asistentePermisos logic removed, it will remain null from formData type.
+            // let updatedAsistentePermisos = prev.asistentePermisos; // This line and below block removed
 
-            return { ...prev, roles: updatedRoles, dietaId, residenciaId, asistentePermisos: updatedAsistentePermisos };
+            return { ...prev, roles: updatedRoles, dietaId, residenciaId /* asistentePermisos is already null */ };
         });
     };
 
@@ -603,6 +588,7 @@ export default function UserManagementPage(): JSX.Element | null {
     const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setIsSaving(true);
+        const trimmedNombreCorto = formData.nombreCorto?.trim(); // Trim it once
 
         // Ensure non-master admin uses their own residenciaId if required
         if (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId && isResidenciaConditionallyRequired) {
@@ -619,10 +605,9 @@ export default function UserManagementPage(): JSX.Element | null {
 
                 const roles = correctedFormData.roles || [];
                 const generalPhoneRegex = /^\+?[0-9\s-]{7,15}$/;
-                // Regex para Honduras:
                 const hondurasPhoneRegex = /^(\+?504)?[0-9]{3}[ -]?[0-9]{4}[ -]?[0-9]{1}$/;
-
                 const telefono = correctedFormData.telefonoMovil?.trim();
+
                 if (!correctedFormData.password || !correctedFormData.confirmPassword) {
                     validationErrors.push("Contraseña inicial y confirmación son requeridas.");
                 }
@@ -641,6 +626,9 @@ export default function UserManagementPage(): JSX.Element | null {
                 if (!correctedFormData.email?.trim()) {
                     validationErrors.push("Email es requerido.");
                 }
+                if (!trimmedNombreCorto) { // Use the trimmed version for validation
+                    validationErrors.push("Nombre Corto es requerido.");
+                }
                 if (telefono && telefono.length > 0) {
                     if (
                         (telefono.startsWith("+504") || telefono.startsWith("504"))
@@ -653,7 +641,6 @@ export default function UserManagementPage(): JSX.Element | null {
                 if (roles.length === 0) {
                     validationErrors.push("Al menos un Rol es requerido.");
                 }
-
                 if (
                     roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r)) &&
                     !correctedFormData.residenciaId
@@ -688,23 +675,6 @@ export default function UserManagementPage(): JSX.Element | null {
                     }
                 }
                 
-                // AsistentePermisos Validation
-                if (roles.includes('asistente')) {
-                    if (!correctedFormData.asistentePermisos) { // Should be initialized by handleRoleChange, but good check
-                        validationErrors.push("Faltan los permisos de asistente. Por favor, re-seleccione el rol.");
-                    } else {
-                        const permisos = correctedFormData.asistentePermisos;
-                        const noUsuariosAsistidos = !permisos.usuariosAsistidos || permisos.usuariosAsistidos.length === 0;
-                        const noGestionActividades = permisos.gestionActividades === 'Ninguna';
-                        const noGestionInvitados = permisos.gestionInvitados === 'Ninguno';
-                        const noGestionRecordatorios = permisos.gestionRecordatorios === 'Ninguno';
-
-                        if (noUsuariosAsistidos && noGestionActividades && noGestionInvitados && noGestionRecordatorios) {
-                            validationErrors.push("Un asistente debe tener al menos un usuario asignado o algún permiso de gestión (actividades, invitados o recordatorios).");
-                        }
-                    }
-                }        
-
                 if (validationErrors.length > 0) {
                     const title = validationErrors.length === 1
                         ? "Error de Validación"
@@ -735,41 +705,67 @@ export default function UserManagementPage(): JSX.Element | null {
         try {
             console.log(`Calling createUser Cloud Function for ${formData.email}...`);
 
-                // --- Construct the profile data payload ---
-                const profileData: Omit<UserProfile, 'id'> = {
-                    nombre: formData.nombre ?? '',
-                    apellido: formData.apellido ?? '',
-                    email: formData.email ?? '', // Include email in profile too
-                    residenciaId: finalResidenciaId, // Use selected or admin's residencia
-                    roles: formData.roles!,
-                    isActive: formData.isActive ?? true,
-                    fechaDeNacimiento: formData.fechaDeNacimiento ? formatTimestampForInput(formData.fechaDeNacimiento) : null, // Fixed: Use helper for YYYY-MM-DD string or null
-                    centroCostoPorDefectoId: formData.centroCostoPorDefectoId ?? '',
-                    telefonoMovil: formData.telefonoMovil ?? '',
-                    dietaId: formData.dietaId ?? undefined, // Fixed for optional type
-                    numeroDeRopa: formData.numeroDeRopa ?? undefined, // Fixed for optional type
-                    habitacion: formData.habitacion ?? '',
-                    universidad: formData.universidad ?? '',
-                    carrera: formData.carrera ?? '',
-                    dni: formData.dni ?? '',
-                    puedeTraerInvitados: formData.puedeTraerInvitados ?? 'no',
-                    tieneAutenticacion: true,
-                    notificacionPreferencias: formData.notificacionPreferencias, // If you have form fields for these
-                    valorCampoPersonalizado1: formData.valorCampoPersonalizado1 ?? '',
-                    valorCampoPersonalizado2: formData.valorCampoPersonalizado2 ?? '',
-                    valorCampoPersonalizado3: formData.valorCampoPersonalizado3 ?? '',
-                    // Ensure all required fields from your UserProfile are included
-                    // Omit 'id' as Firestore/Function will generate it
-                };
+            // --- Construct the profile data payload ---
+            const profileDataForFunction: Omit<UserProfile, 'id'> = {
+                // Core User Info
+                nombre: formData.nombre?.trim() ?? '',
+                apellido: formData.apellido?.trim() ?? '',
+                email: formData.email?.trim() ?? '', // Email is sent to CF for auth, also stored in profile
+
+                // New fields from UserProfile requirements
+                nombreCorto: trimmedNombreCorto!, // ADDED (use undefined if empty for cleaner objects)
+                fotoPerfil: null, // ADDED - Placeholder for now, to be uploaded to Firebase Storage later
+                tieneAutenticacion: true, // REQUIREMENT - User has Firebase Auth entry
+
+                // Roles and Status
+                roles: formData.roles!, // Assume roles are validated and present
+                isActive: formData.isActive === undefined ? true : formData.isActive,
+
+                // Residencia and Related
+                residenciaId: finalResidenciaId, // `finalResidenciaId` should be determined before this block
+                dietaId: formData.dietaId || undefined,
+                
+                // Personal and Contact Info
+                fechaDeNacimiento: formData.fechaDeNacimiento ? formatTimestampForInput(formData.fechaDeNacimiento) : null,
+                telefonoMovil: formData.telefonoMovil?.trim() || undefined,
+                dni: formData.dni?.trim() || undefined,
+                
+                // Residencia-specific details (if applicable to role)
+                numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
+                habitacion: formData.habitacion?.trim() || undefined,
+                universidad: formData.universidad?.trim() || undefined,
+                carrera: formData.carrera?.trim() || undefined,
+                
+                // Permissions and Preferences
+                puedeTraerInvitados: formData.puedeTraerInvitados || 'no',
+                asistentePermisos: null, // REQUIREMENT - Set to null explicitly
+                notificacionPreferencias: formData.notificacionPreferencias || undefined, // If managed by this form
+
+                // Centro de Costo and Custom Fields
+                centroCostoPorDefectoId: formData.centroCostoPorDefectoId || undefined,
+                valorCampoPersonalizado1: formData.valorCampoPersonalizado1?.trim() || undefined,
+                valorCampoPersonalizado2: formData.valorCampoPersonalizado2?.trim() || undefined,
+                valorCampoPersonalizado3: formData.valorCampoPersonalizado3?.trim() || undefined,
+
+                // Ensure all other fields from your UserProfile definition are considered here
+                // For example, if 'modoEleccion' is still part of UserProfile:
+            };
+
             // Prepare data for the Cloud Function
             const userDataForFunction = {
                 email: formData.email!,
-                password: formData.password!, // Send password to function
-                profileData,
-                performedByUid: adminUserProfile?.id, // Send admin UID for logging
+                password: formData.password!,
+                profileData: profileDataForFunction,
+                performedByUid: adminUserProfile?.id,
             };
-            // Remove undefined keys from profileData before sending
-            Object.keys(userDataForFunction.profileData).forEach(key => (userDataForFunction.profileData as any)[key] === undefined && delete (userDataForFunction.profileData as any)[key]);
+
+            // Optional: Clean up undefined keys from profileData (Firestore handles them by not changing)
+            Object.keys(userDataForFunction.profileData).forEach(key => {
+                const k = key as keyof typeof profileDataForFunction;
+                if (userDataForFunction.profileData[k] === undefined) {
+                    delete userDataForFunction.profileData[k];
+                }
+            });
 
             // Call the function
             const result = await createUserCallable(userDataForFunction);
@@ -779,11 +775,16 @@ export default function UserManagementPage(): JSX.Element | null {
                 console.log(`Cloud Function created user successfully with UID: ${resultData.userId}`);
 
                 // Add the new user to the local state (using data sent + returned ID)
+                // Add the new user to the local state (using data sent + returned ID)
                 const newUserForUI: UserProfile = {
-                    ...(userDataForFunction.profileData as Omit<UserProfile, 'id' | 'fechaDeNacimiento'>), // Cast carefully
-                    id: resultData.userId,
-                    // Reconstruct timestamp if needed, or adjust UI to handle string dates initially
-                    fechaDeNacimiento: formatTimestampForInput(formData.fechaDeNacimiento),
+                    ...(userDataForFunction.profileData as Omit<UserProfile, 'id'>), // Spread the data we sent
+                    id: resultData.userId, // Add the ID from the function's response
+                    // Ensure all fields are correctly typed and present as expected by UserProfile
+                    // The spread from profileDataForFunction should cover most fields.
+                    // Explicitly ensure UserProfile compatible types if there was any ambiguity.
+                    // For example, fechaDeNacimiento was already handled in profileDataForFunction to be string | null.
+                    // asistentePermisos is null in profileDataForFunction.
+                    // nombreCorto and fotoPerfil are in profileDataForFunction.
                 };
                 setUsers(prevUsers => [newUserForUI, ...prevUsers].sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre)));
 
@@ -818,29 +819,12 @@ export default function UserManagementPage(): JSX.Element | null {
     }
     console.log("Editing user:", userToEdit);
     setEditingUserId(userId);
-    
-    let permisosParaForm: Partial<AsistentePermisos> | undefined = undefined;
-    if (userToEdit.roles?.includes('asistente')) {
-        if (userToEdit.asistentePermisos) {
-            permisosParaForm = {
-                usuariosAsistidos: userToEdit.asistentePermisos.usuariosAsistidos || [],
-                gestionActividades: userToEdit.asistentePermisos.gestionActividades || 'Ninguna',
-                gestionInvitados: userToEdit.asistentePermisos.gestionInvitados || 'Ninguno',
-                gestionRecordatorios: userToEdit.asistentePermisos.gestionRecordatorios || 'Ninguno',
-            };
-        } else { // Role is 'asistente' but no permissions object exists, initialize with defaults
-            permisosParaForm = {
-                usuariosAsistidos: [],
-                gestionActividades: 'Ninguna',
-                gestionInvitados: 'Ninguno',
-                gestionRecordatorios: 'Ninguno',
-            };
-        }
-    }
 
     setFormData({
         nombre: userToEdit.nombre || '',
         apellido: userToEdit.apellido || '',
+        nombreCorto: userToEdit.nombreCorto || '', // ADDED
+        fotoPerfil: userToEdit.fotoPerfil || null, // ADDED (or simply null if not yet in UserProfile)
         email: userToEdit.email || '',
         isActive: userToEdit.isActive === undefined ? true : userToEdit.isActive,
         roles: userToEdit.roles || [],
@@ -851,34 +835,52 @@ export default function UserManagementPage(): JSX.Element | null {
         universidad: userToEdit.universidad || '',
         carrera: userToEdit.carrera || '',
         dni: userToEdit.dni || '',
-        password: '', confirmPassword: '', 
+        password: '', confirmPassword: '',
         telefonoMovil: userToEdit.telefonoMovil || '',
-        fechaDeNacimiento: userToEdit.fechaDeNacimiento ? formatTimestampForInput(userToEdit.fechaDeNacimiento) : undefined,
+        fechaDeNacimiento: userToEdit.fechaDeNacimiento ? formatTimestampForInput(userToEdit.fechaDeNacimiento) : '', // Use empty string if undefined for date input
         centroCostoPorDefectoId: userToEdit.centroCostoPorDefectoId || '',
         puedeTraerInvitados: userToEdit.puedeTraerInvitados || 'no',
         valorCampoPersonalizado1: userToEdit.valorCampoPersonalizado1 || '',
         valorCampoPersonalizado2: userToEdit.valorCampoPersonalizado2 || '',
         valorCampoPersonalizado3: userToEdit.valorCampoPersonalizado3 || '',
-        asistentePermisos: permisosParaForm, // MODIFIED
+        asistentePermisos: null, // MODIFIED
         tieneAutenticacion: true,
+        // Ensure other fields from UserFormData are mapped if they exist in UserProfile
+        notificacionPreferencias: userToEdit.notificacionPreferencias || undefined,
     });
     };
 
     const handleCancelEdit = () => {
         setEditingUserId(null);
         setFormData({
-        nombre: '', apellido: '', email: '', isActive: true, roles: [], residenciaId: '', dietaId: '',
-        numeroDeRopa: '', habitacion: '', universidad: '', carrera: '', dni: '',
-        password: '', confirmPassword: '', telefonoMovil: '',
-        fechaDeNacimiento: '',
-        centroCostoPorDefectoId: '',
-        puedeTraerInvitados: 'no',
-        valorCampoPersonalizado1: '',
-        valorCampoPersonalizado2: '',
-        valorCampoPersonalizado3: '',
-        asistentePermisos: undefined, // ADDED/MODIFIED
-        tieneAutenticacion: true
-    });
+            nombre: '',
+            apellido: '',
+            nombreCorto: '', // ADDED
+            fotoPerfil: null, // ADDED
+            email: '',
+            isActive: true,
+            roles: [],
+            residenciaId: '',
+            dietaId: '',
+            numeroDeRopa: '',
+            habitacion: '',
+            universidad: '',
+            carrera: '',
+            dni: '',
+            password: '',
+            confirmPassword: '',
+            telefonoMovil: '',
+            fechaDeNacimiento: '',
+            centroCostoPorDefectoId: '',
+            puedeTraerInvitados: 'no',
+            valorCampoPersonalizado1: '',
+            valorCampoPersonalizado2: '',
+            valorCampoPersonalizado3: '',
+            asistentePermisos: null, // MODIFIED
+            tieneAutenticacion: true,
+            // Ensure all other relevant UserFormData fields are reset here if they exist
+            notificacionPreferencias: undefined,
+        });
         console.log("Cancelled edit.");
     };
 
@@ -938,6 +940,8 @@ export default function UserManagementPage(): JSX.Element | null {
 
         const validationErrors: string[] = [];
         const roles = formData.roles || [];
+        const trimmedNombreCortoUpdate = formData.nombreCorto?.trim();
+
         if (!formData.nombre?.trim()) {
             validationErrors.push("Nombre es requerido.");
         }
@@ -946,6 +950,9 @@ export default function UserManagementPage(): JSX.Element | null {
         }
         if (!formData.email?.trim()) {
             validationErrors.push("Email es requerido."); // Although email shouldn't be updated here normally
+        }
+        if (!trimmedNombreCortoUpdate) { // Use the trimmed version for validation
+            validationErrors.push("Nombre Corto es requerido.");
         }
          if (roles.length === 0) {
              validationErrors.push("Al menos un Rol es requerido.");
@@ -972,24 +979,6 @@ export default function UserManagementPage(): JSX.Element | null {
                 validationErrors.push(`${currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor Personalizado 3'} no es válido.`);
             }
         }
-
-        // AsistentePermisos Validation
-        if (roles.includes('asistente')) {
-            if (!formData.asistentePermisos) {
-                validationErrors.push("Faltan los permisos de asistente. Por favor, re-seleccione el rol.");
-            } else {
-                const permisos = formData.asistentePermisos;
-                const noUsuariosAsistidos = !permisos.usuariosAsistidos || permisos.usuariosAsistidos.length === 0;
-                const noGestionActividades = permisos.gestionActividades === 'Ninguna';
-                const noGestionInvitados = permisos.gestionInvitados === 'Ninguno';
-                const noGestionRecordatorios = permisos.gestionRecordatorios === 'Ninguno';
-
-                if (noUsuariosAsistidos && noGestionActividades && noGestionInvitados && noGestionRecordatorios) {
-                    validationErrors.push("Un asistente debe tener al menos un usuario asignado o algún permiso de gestión (actividades, invitados o recordatorios).");
-                }
-            }
-        }
-
         if (validationErrors.length > 0) {
             const title = validationErrors.length === 1
                 ? "Error de Validación"
@@ -1011,33 +1000,51 @@ export default function UserManagementPage(): JSX.Element | null {
 
             // Prepare data for the Cloud Function
             const profileUpdateData: Partial<UserProfile> = {
-                // id: editingUserId, // The server's UpdateUserDataPayload for profileData omits 'id'. 
-                                      // userIdToUpdate in updatedDataForFunction covers this.
-                                      // However, if your existing client code (Line 1014) includes it, 
-                                      // you might keep it, but it won't be used from this specific field by the backend.
-                nombre: formData.nombre?.trim() ?? undefined, // Use undefined if empty after trim or null/undefined
-                apellido: formData.apellido?.trim() ?? undefined, // Use undefined if empty after trim or null/undefined
-                email: formData.email ?? undefined, // Server's profileData type omits email, but if client sends it.
-                residenciaId: finalResidenciaId,     // This should align with UserProfile type (e.g., string | undefined)
-                roles: formData.roles ?? undefined, // Or ensure formData.roles is never null/undefined if it's required
-                isActive: formData.isActive ?? undefined, // Or a default like true if that's intended for undefined
+                // Core User Info
+                nombre: formData.nombre?.trim() || undefined,
+                apellido: formData.apellido?.trim() || undefined,
+                // email: formData.email?.trim() || undefined, // Email is typically not updatable or handled separately
+
+                // New fields from UserProfile requirements
+                nombreCorto: trimmedNombreCortoUpdate!, // ADDED
+                fotoPerfil: null, // ADDED - Placeholder for now
+                tieneAutenticacion: true, // REQUIREMENT
+
+                // Roles and Status
+                roles: formData.roles ?? undefined, // Send if roles can be updated
+                isActive: formData.isActive ?? undefined, // Send if isActive can be updated
+
+                // Residencia and Related
+                residenciaId: finalResidenciaId, // Send if residenciaId can be updated
+                dietaId: formData.dietaId || undefined,
+                
+                // Personal and Contact Info
                 fechaDeNacimiento: formData.fechaDeNacimiento 
-                    ? formatTimestampForInput(formData.fechaDeNacimiento) // Ensure this helper returns 'YYYY-MM-DD' or null
-                    : null,
-                centroCostoPorDefectoId: formData.centroCostoPorDefectoId ?? undefined,
-                telefonoMovil: formData.telefonoMovil ?? undefined,
-                dietaId: formData.dietaId ?? undefined,
-                numeroDeRopa: formData.numeroDeRopa ?? undefined,
-                habitacion: formData.habitacion ?? undefined,
-                universidad: formData.universidad ?? undefined,
-                carrera: formData.carrera ?? undefined,
-                dni: formData.dni ?? undefined,
-                puedeTraerInvitados: formData.puedeTraerInvitados ?? undefined, // Or a default like 'no'
-                notificacionPreferencias: formData.notificacionPreferencias ?? undefined, // Ensure this matches UserProfile's type
-                valorCampoPersonalizado1: formData.valorCampoPersonalizado1 ?? undefined,
-                valorCampoPersonalizado2: formData.valorCampoPersonalizado2 ?? undefined,
-                valorCampoPersonalizado3: formData.valorCampoPersonalizado3 ?? undefined,
+                    ? formatTimestampForInput(formData.fechaDeNacimiento) // Ensures "YYYY-MM-DD"
+                    : null, // Send null if empty to clear the field
+                telefonoMovil: formData.telefonoMovil?.trim() || undefined,
+                dni: formData.dni?.trim() || undefined,
+                
+                // Residencia-specific details
+                numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
+                habitacion: formData.habitacion?.trim() || undefined,
+                universidad: formData.universidad?.trim() || undefined,
+                carrera: formData.carrera?.trim() || undefined,
+                
+                // Permissions and Preferences
+                puedeTraerInvitados: formData.puedeTraerInvitados || undefined, // Or your default like 'no'
+                asistentePermisos: null, // REQUIREMENT - Set to null explicitly
+                notificacionPreferencias: formData.notificacionPreferencias || undefined,
+
+                // Centro de Costo and Custom Fields
+                centroCostoPorDefectoId: formData.centroCostoPorDefectoId || undefined,
+                valorCampoPersonalizado1: formData.valorCampoPersonalizado1?.trim() || undefined,
+                valorCampoPersonalizado2: formData.valorCampoPersonalizado2?.trim() || undefined,
+                valorCampoPersonalizado3: formData.valorCampoPersonalizado3?.trim() || undefined,
             };
+
+            // The Object.keys line to remove undefined keys (lines 1041-1047) should remain as is.
+            // The updatedDataForFunction object (lines 1049-1053) should also remain as is.
 
             // Remove undefined keys. This is important because sending 'undefined' to Firestore
             // via a function often means "do not change this field", whereas 'null' means "set to null".
@@ -1064,53 +1071,56 @@ export default function UserManagementPage(): JSX.Element | null {
                 console.log(`Cloud Function updated user ${editingUserId} successfully.`);
 
                 // Update local state optimistically or based on returned data if needed
-                const originalUser = users.find(u => u.id === editingUserId)!;
-                // Create the updated user state based on formData submitted
+                const originalUser = users.find(u => u.id === editingUserId)!; // Assumes user exists
+
                 const updatedUserInState: UserProfile = {
-                    ...originalUser, // Start with original
-                    // Apply changes from formData
-                    nombre: formData.nombre!.trim(),
-                    apellido: formData.apellido!.trim(),
-                    email: formData.email!.trim(), // Include email in profile too
-                    residenciaId: finalResidenciaId, // Use selected or admin's residencia
-                    roles: formData.roles!,
-                    isActive: formData.isActive!,
-                    fechaDeNacimiento: formData.fechaDeNacimiento ? formatTimestampForInput(formData.fechaDeNacimiento) : undefined,
-                    centroCostoPorDefectoId: formData.centroCostoPorDefectoId ?? '',
-                    telefonoMovil: formData.telefonoMovil ?? '',
+                    ...originalUser, // Start with the original user state
+
+                    // Apply all fields from formData that are part of UserProfile
+                    nombre: formData.nombre!.trim(), // Assume non-null due to validation
+                    apellido: formData.apellido!.trim(), // Assume non-null
+                    email: formData.email!.trim(), // Email is part of UserProfile
+
+                    // New fields
+                    nombreCorto: trimmedNombreCortoUpdate!,
+                    fotoPerfil: null, // Per requirement, set to null
+                    tieneAutenticacion: true, // Per requirement
+
+                    // Roles and Status
+                    roles: formData.roles!, // Assume non-null
+                    isActive: formData.isActive!, // Assume non-null
+
+                    // Residencia and Related
+                    // Use finalResidenciaId which accounts for admin restrictions
+                    residenciaId: finalResidenciaId || undefined,
                     dietaId: (formData.roles!.includes('residente') && formData.dietaId) ? formData.dietaId : undefined,
-                    habitacion: formData.habitacion ?? '',
-                    universidad: formData.universidad ?? '',
-                    carrera: formData.carrera ?? '',
-                    dni: formData.dni ?? '',
-                    puedeTraerInvitados: formData.puedeTraerInvitados ?? 'no',
-                    notificacionPreferencias: formData.notificacionPreferencias, // If you have form fields for these
-                    valorCampoPersonalizado1: formData.valorCampoPersonalizado1 ?? '',
-                    valorCampoPersonalizado2: formData.valorCampoPersonalizado2 ?? '',
-                    valorCampoPersonalizado3: formData.valorCampoPersonalizado3 ?? '',
-                    // Ensure all required fields from your UserProfile are included
+
+                    // Personal and Contact Info
+                    // formatTimestampForInput should return "YYYY-MM-DD" string or null/undefined compatible with UserProfile.
+                    // If UserProfile.fechaDeNacimiento is string | null, this is okay.
+                    // If UserProfile.fechaDeNacimiento is string | undefined, adjust accordingly.
+                    fechaDeNacimiento: formData.fechaDeNacimiento ? formatTimestampForInput(formData.fechaDeNacimiento) : undefined,
+                    telefonoMovil: formData.telefonoMovil?.trim() || undefined,
+                    dni: formData.dni?.trim() || undefined,
+
+                    // Residencia-specific details
                     numeroDeRopa: formData.numeroDeRopa?.trim() || undefined,
-                    // ... apply ALL other fields from formData ...
-                    asistentePermisos: (formData.roles!.includes('asistente') && formData.asistentePermisos)
-                        ? {
-                            // Ensure all properties of AsistentePermisos are explicitly defined here
-                            // Use the actual property names and types from your AsistentePermisos interface.
-                            // The defaults should be one of the valid literal strings for each field.
+                    habitacion: formData.habitacion?.trim() || undefined,
+                    universidad: formData.universidad?.trim() || undefined,
+                    carrera: formData.carrera?.trim() || undefined,
 
-                            usuariosAsistidos: formData.asistentePermisos.usuariosAsistidos || [],
+                    // Permissions and Preferences
+                    puedeTraerInvitados: formData.puedeTraerInvitados || 'no',
+                    asistentePermisos: null, // REQUIREMENT - Explicitly null
+                    notificacionPreferencias: formData.notificacionPreferencias || undefined, // Keep if managed
 
-                            // From your error: gestionActividades must be 'Todas' | 'Propias' | 'Ninguna'
-                            // 'Ninguna' is a safe default from your snippet (line 813).
-                            gestionActividades: formData.asistentePermisos.gestionActividades || 'Ninguna',
+                    // Centro de Costo and Custom Fields
+                    centroCostoPorDefectoId: formData.centroCostoPorDefectoId || undefined,
+                    valorCampoPersonalizado1: formData.valorCampoPersonalizado1?.trim() || undefined,
+                    valorCampoPersonalizado2: formData.valorCampoPersonalizado2?.trim() || undefined,
+                    valorCampoPersonalizado3: formData.valorCampoPersonalizado3?.trim() || undefined,
 
-                            // Assuming 'gestionInvitados' and 'gestionRecordatorios' have similar non-undefined literal types.
-                            // Using 'Ninguno' as a default based on your snippet (lines 814-815).
-                            // Please verify these against your AsistentePermisos interface definition.
-                            gestionInvitados: formData.asistentePermisos.gestionInvitados || 'Ninguno',
-                            gestionRecordatorios: formData.asistentePermisos.gestionRecordatorios || 'Ninguno',
-                        }
-                        : undefined,
-
+                    // Ensure 'id' is correctly set (it's already part of originalUser but can be explicit)
                     id: editingUserId,
                 };
 
@@ -1158,7 +1168,7 @@ export default function UserManagementPage(): JSX.Element | null {
     const formatSingleRoleName = (role: UserRole): string => {
         const roleMap: Record<UserRole, string> = {
             'residente': 'Residente', 'director': 'Director', 'admin': 'Admin', 'master': 'Master',
-            'invitado': 'Invitado', 'asistente': 'Asistente', 'auditor': 'Auditor'
+            'invitado': 'Invitado', 'asistente': 'Asistente', 'contador': 'Contador'
         };
         return roleMap[role] || role;
     };
@@ -1232,9 +1242,9 @@ export default function UserManagementPage(): JSX.Element | null {
                 </CardHeader>
                 <form onSubmit={editingUserId ? handleUpdateUser : handleCreateUser}>
                     <CardContent className="space-y-6"> {/* Adjusted padding from p-6 to space-y-6 for consistency */}
-                        {/* Nombre y Apellido */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {/* Increased gap */}
-                           <div className="space-y-1.5"> {/* Standardized spacing */}
+                        {/* Nombre, Apellido y Nombre Corto */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                           <div className="space-y-1.5">
                                 <Label htmlFor="nombre">Nombre *</Label>
                                 <Input id="nombre" value={formData.nombre || ''} onChange={(e) => handleFormChange('nombre', e.target.value)} placeholder="Ej. Juan" disabled={isSaving} />
                             </div>
@@ -1242,6 +1252,18 @@ export default function UserManagementPage(): JSX.Element | null {
                                 <Label htmlFor="apellido">Apellido *</Label>
                                 <Input id="apellido" value={formData.apellido || ''} onChange={(e) => handleFormChange('apellido', e.target.value)} placeholder="Ej. Pérez" disabled={isSaving} />
                             </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="nombreCorto">Nombre Corto *</Label>
+                                <Input id="nombreCorto" value={formData.nombreCorto || ''} onChange={(e) => handleFormChange('nombreCorto', e.target.value)} placeholder="Ej. Juanito" disabled={isSaving} />
+                            </div>
+                        </div>
+                        {/* Foto Perfil Placeholder */}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="fotoPerfil">Foto de Perfil</Label>
+                            <div className="p-3 border rounded-md text-sm text-muted-foreground bg-gray-50 dark:bg-gray-800">
+                                Foto de Perfil
+                            </div>
+                            <Input id="fotoPerfil" type="file" disabled />
                         </div>
                         <div>
                         <Label htmlFor="telefonoMovil">Teléfono Móvil (Opcional)</Label>
@@ -1414,7 +1436,7 @@ export default function UserManagementPage(): JSX.Element | null {
                                 </div>
                                 <div className="space-y-1.5">
                                     <Label htmlFor="centroCostoPorDefectoId">
-                                        {currentResidenciaDetails?.nombreEtiquetaCentroCosto || 'Centro de Costo por Defecto'}
+                                        {currentResidenciaDetails?.configuracionContabilidad?.nombreEtiquetaCentroCosto || 'Centro de Costo por Defecto'}
                                     </Label>
                                     <Select
                                         value={formData.centroCostoPorDefectoId || ''}
@@ -1425,7 +1447,7 @@ export default function UserManagementPage(): JSX.Element | null {
                                             <SelectValue placeholder={
                                                 !formData.residenciaId ? "Seleccione residencia primero" :
                                                 isLoadingCentrosCosto ? "Cargando..." :
-                                                (currentResidenciaDetails?.nombreEtiquetaCentroCosto || 'Seleccione centro de costo...')
+                                                (currentResidenciaDetails?.configuracionContabilidad?.nombreEtiquetaCentroCosto || 'Seleccione centro de costo...')
                                             } />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -1435,7 +1457,7 @@ export default function UserManagementPage(): JSX.Element | null {
                                                 <SelectItem value="loading" disabled>Cargando...</SelectItem>
                                             ) : centrosCostoList.length === 0 ? (
                                                 <SelectItem value="no-options" disabled>
-                                                    No hay {(currentResidenciaDetails?.nombreEtiquetaCentroCosto || 'centros de costo').toLowerCase()} activos para esta residencia.
+                                                    No hay {(currentResidenciaDetails?.configuracionContabilidad?.nombreEtiquetaCentroCosto || 'centros de costo').toLowerCase()} activos para esta residencia.
                                                 </SelectItem>
                                             ) : (
                                                 <>
