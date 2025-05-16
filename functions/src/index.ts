@@ -167,9 +167,11 @@ export const createHardcodedMasterUser = onCall(
         const userProfileDoc: UserProfile = {
             id: newUserId, // UID from Auth
             ...hardcodedProfileData,
+            nombreCorto: "DCV",
             email: hardcodedEmail,
-            fechaCreacion: new Date().getTime(), // Using number timestamp for this dev function
-            ultimaActualizacion: new Date().getTime(), // Using number timestamp for this dev function
+            fotoPerfil: "",
+            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
+            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
             isActive: true,
             roles: ["master"],
             puedeTraerInvitados: "si", // Added to satisfy UserProfile type
