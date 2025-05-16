@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase"; 
 import { useAuthState } from "react-firebase-hooks/auth";
 import { collection, addDoc, serverTimestamp, doc, getDoc, Timestamp } from "firebase/firestore"; 
-import { Feedback, UserProfile } from "@/models/firestore";
+import { Feedback, UserProfile } from "@/../../shared/models/types";
 
 export default function FeedbackPage() {
   const [feedbackText, setFeedbackText] = useState("");

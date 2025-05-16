@@ -1,0 +1,314 @@
+{
+    "Africa": [
+      {
+        "name": "Abidjan",
+        "offset": "UTC+00:00"
+      },
+      {
+        "name": "Accra",
+        "offset": "UTC+00:00"
+      },
+      {
+        "name": "Addis_Ababa",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Algiers",
+        "offset": "UTC+01:00"
+      },
+      {
+        "name": "Asmara",
+        "offset": "UTC+03:00"
+      }
+    ],
+    "America": [
+      {
+        "name": "Tegucigalpa",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Adak",
+        "offset": "UTC-09:00"
+      },
+      {
+        "name": "Anchorage",
+        "offset": "UTC-08:00"
+      },
+      {
+        "name": "Anguilla",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Antigua",
+        "offset": "UTC-04:00"
+      }
+    ],
+    "Antarctica": [
+      {
+        "name": "Casey",
+        "offset": "UTC+08:00"
+      },
+      {
+        "name": "Davis",
+        "offset": "UTC+07:00"
+      },
+      {
+        "name": "DumontDUrville",
+        "offset": "UTC+10:00"
+      },
+      {
+        "name": "Macquarie",
+        "offset": "UTC+10:00"
+      },
+      {
+        "name": "Mawson",
+        "offset": "UTC+05:00"
+      }
+    ],
+    "Arctic": [
+      {
+        "name": "Longyearbyen",
+        "offset": "UTC+02:00"
+      }
+    ],
+    "Asia": [
+      {
+        "name": "Aden",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Almaty",
+        "offset": "UTC+05:00"
+      },
+      {
+        "name": "Amman",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Anadyr",
+        "offset": "UTC+12:00"
+      },
+      {
+        "name": "Aqtau",
+        "offset": "UTC+05:00"
+      }
+    ],
+    "Atlantic": [
+      {
+        "name": "Azores",
+        "offset": "UTC+00:00"
+      },
+      {
+        "name": "Bermuda",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Canary",
+        "offset": "UTC+01:00"
+      },
+      {
+        "name": "Cape_Verde",
+        "offset": "UTC-01:00"
+      },
+      {
+        "name": "Faeroe",
+        "offset": "UTC+01:00"
+      }
+    ],
+    "Australia": [
+      {
+        "name": "ACT",
+        "offset": "UTC+10:00"
+      },
+      {
+        "name": "Adelaide",
+        "offset": "UTC+09:30"
+      },
+      {
+        "name": "Brisbane",
+        "offset": "UTC+10:00"
+      },
+      {
+        "name": "Broken_Hill",
+        "offset": "UTC+09:30"
+      },
+      {
+        "name": "Canberra",
+        "offset": "UTC+10:00"
+      }
+    ],
+    "Brazil": [
+      {
+        "name": "Acre",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "DeNoronha",
+        "offset": "UTC-02:00"
+      },
+      {
+        "name": "East",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "West",
+        "offset": "UTC-04:00"
+      }
+    ],
+    "Canada": [
+      {
+        "name": "Atlantic",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Central",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Eastern",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Mountain",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Newfoundland",
+        "offset": "UTC-03:30"
+      }
+    ],
+    "Chile": [
+      {
+        "name": "Continental",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "EasterIsland",
+        "offset": "UTC-06:00"
+      }
+    ],
+    "Etc": [
+      {
+        "name": "GMT",
+        "offset": "UTC+00:00"
+      },
+      {
+        "name": "GMT+0",
+        "offset": "UTC+00:00"
+      },
+      {
+        "name": "GMT+1",
+        "offset": "UTC-01:00"
+      },
+      {
+        "name": "GMT+10",
+        "offset": "UTC-10:00"
+      },
+      {
+        "name": "GMT+11",
+        "offset": "UTC-11:00"
+      }
+    ],
+    "Europe": [
+      {
+        "name": "Amsterdam",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Andorra",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Astrakhan",
+        "offset": "UTC+04:00"
+      },
+      {
+        "name": "Athens",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Belfast",
+        "offset": "UTC+01:00"
+      }
+    ],
+    "Indian": [
+      {
+        "name": "Antananarivo",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Chagos",
+        "offset": "UTC+06:00"
+      },
+      {
+        "name": "Christmas",
+        "offset": "UTC+07:00"
+      },
+      {
+        "name": "Cocos",
+        "offset": "UTC+06:30"
+      },
+      {
+        "name": "Comoro",
+        "offset": "UTC+03:00"
+      }
+    ],
+    "Mexico": [
+      {
+        "name": "BajaNorte",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "BajaSur",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "General",
+        "offset": "UTC-06:00"
+      }
+    ],
+    "Pacific": [
+      {
+        "name": "Apia",
+        "offset": "UTC+13:00"
+      },
+      {
+        "name": "Auckland",
+        "offset": "UTC+12:00"
+      },
+      {
+        "name": "Bougainville",
+        "offset": "UTC+11:00"
+      },
+      {
+        "name": "Chatham",
+        "offset": "UTC+12:45"
+      },
+      {
+        "name": "Chuuk",
+        "offset": "UTC+10:00"
+      }
+    ],
+    "US": [
+      {
+        "name": "Alaska",
+        "offset": "UTC-08:00"
+      },
+      {
+        "name": "Aleutian",
+        "offset": "UTC-09:00"
+      },
+      {
+        "name": "Arizona",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Central",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "East-Indiana",
+        "offset": "UTC-04:00"
+      }
+    ]
+  }

@@ -20,7 +20,7 @@ import { Loader2 } from "lucide-react"; // Import loader icon
 // --- Firebase Imports ---
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from '@/lib/firebase'; // Import initialized auth and db instances
-import { doc, getDoc } from "firebase/firestore"; // Import Firestore functions
+import { doc, getDoc, updateDoc } from "firebase/firestore"; // Import Firestore functions
 
 // --- Auth Hook Import ---
 import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
@@ -99,10 +99,28 @@ export default function LoginPage() {
         setProfileLoading(true);
         const userDocRef = doc(db, "users", user.uid);
         getDoc(userDocRef)
-          .then((userDocSnap) => {
+          .then(async (userDocSnap) => { // Made this async to await updateDoc
             if (userDocSnap.exists()) {
               console.log("Profile fetched successfully.");
-              setProfile(userDocSnap.data() as UserProfile);
+              const userProfileData = userDocSnap.data() as UserProfile;
+              try {
+                // Update lastLogin timestamp
+                await updateDoc(userDocRef, {
+                  lastLogin: Date.now(),
+                });
+                console.log("lastLogin updated successfully.");
+                // Update profile state *after* successful lastLogin update
+                setProfile(userProfileData);
+              } catch (updateError) {
+                console.error("Error updating lastLogin:", updateError);
+                toast({
+                  title: "Error al Actualizar Sesión",
+                  description: "No se pudo actualizar la hora de último inicio de sesión.",
+                  variant: "destructive",
+                });
+                // Set profile even if lastLogin update fails, so user can proceed
+                setProfile(userProfileData);
+              }
             } else {
               console.error("User profile not found in Firestore for UID:", user.uid);
               setProfile(null);
@@ -141,7 +159,7 @@ export default function LoginPage() {
     }
 
   // Dependencies: Watch auth state, profile state, and related loading states.
-  }, [user, loading, error, profile, profileLoading, router, toast, db]); // Added db to dependencies
+  }, [user, loading, error, profile, profileLoading, router, toast]); // Removed db as it's stable from firebase import
 
   // --- Firebase Login Handler (remains largely the same) ---
   const handleLogin = async (event: React.FormEvent) => {

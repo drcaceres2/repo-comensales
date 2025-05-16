@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { UserProfile, Residencia, UserRole, Dieta } from '@/models/firestore';
+import { UserProfile, Residencia, UserRole, Dieta, LogEntry, LogEntryId, LogActionType } from '@/../../shared/models/types';
 import {
   doc,
   getDoc,
@@ -18,8 +18,9 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  Timestamp,
-  writeBatch
+  writeBatch,
+  serverTimestamp,
+  FieldValue
 } from 'firebase/firestore';
 
 import { Button } from "@/components/ui/button";
@@ -41,16 +42,31 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+import { writeClientLog } from '@/lib/utils';
+
+import timezonesDataEjemplos from '@/app/zonas_horarias_ejemplos.json';
+
+// Define types for Timezone data
+interface TimezoneDetail {
+  name: string;
+  offset: string;
+}
+
+interface TimezonesData {
+  [region: string]: TimezoneDetail[];
+}
+
 // Helper to create a new Residencia object with defaults
-const getNewResidenciaDefaults = (): Omit<Residencia, 'id'> => ({
+const getNewResidenciaDefaults = (): Partial<Residencia> => ({ // Changed return type
+  id: '', // Added id field
   nombre: '',
   direccion: '',
   logoUrl: '',
-  nombreEtiquetaCentroCosto: 'Centro de Costo',
-  modoDeCosteo: 'por-eleccion',
+  configuracionContabilidad: null,
   antelacionActividadesDefault: 7,
-  tipoResidentes: 'estudiantes',
+  tipoResidencia: 'estudiantes',
   esquemaAdministracion: 'estricto',
+  zonaHoraria: 'America/Tegucigalpa',
   nombreTradicionalDesayuno: "Desayuno",
   nombreTradicionalAlmuerzo: "Almuerzo",
   nombreTradicionalCena: "Cena",
@@ -66,18 +82,25 @@ const getNewResidenciaDefaults = (): Omit<Residencia, 'id'> => ({
   campoPersonalizado1_necesitaValidacion: false,
   campoPersonalizado1_regexValidacion: '',
   campoPersonalizado1_tamanoTexto: 'text',
+  campoPersonalizado1_puedeModDirector: true,
+  campoPersonalizado1_puedeModInteresado: true,
   campoPersonalizado2_etiqueta: '',
   campoPersonalizado2_isActive: false,
   campoPersonalizado2_necesitaValidacion: false,
   campoPersonalizado2_regexValidacion: '',
   campoPersonalizado2_tamanoTexto: 'text',
+  campoPersonalizado2_puedeModDirector: true,
+  campoPersonalizado2_puedeModInteresado: true,
   campoPersonalizado3_etiqueta: '',
   campoPersonalizado3_isActive: false,
   campoPersonalizado3_necesitaValidacion: false,
   campoPersonalizado3_regexValidacion: '',
   campoPersonalizado3_tamanoTexto: 'text',
+  campoPersonalizado3_puedeModDirector: true,
+  campoPersonalizado3_puedeModInteresado: true,
   textProfile: 'espanol-honduras',
 });
+
 
 export default function CrearResidenciaAdminPage() {
   const router = useRouter();
@@ -101,8 +124,15 @@ export default function CrearResidenciaAdminPage() {
   const [formLoading, setFormLoading] = useState<boolean>(false);
   const [antelacionError, setAntelacionError] = useState<string | null>(null);
 
+  const [residenciaIdError, setResidenciaIdError] = useState<string | null>(null);
+
   const [formData, setFormData] = useState<Partial<Omit<Residencia, 'id'>>>(getNewResidenciaDefaults());
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  // State for timezones
+  const [timezones, setTimezones] = useState<TimezonesData>({});
+  const [selectedTimezoneRegion, setSelectedTimezoneRegion] = useState<string>('');
+  const [selectedTimezoneCity, setSelectedTimezoneCity] = useState<string>('');
 
   // --- useEffect: Handle Auth State & Fetch Profile ---
   useEffect(() => {
@@ -211,6 +241,87 @@ export default function CrearResidenciaAdminPage() {
     }
   }, [isAuthorized, userProfile, fetchResidences]);
 
+  // --- useEffect: Load timezones from JSON ---
+  useEffect(() => {
+    setTimezones(timezonesDataEjemplos as TimezonesData);
+    // Set initial region if default zonaHoraria is present,
+    // otherwise, you might want to set a default region or leave it empty.
+    const defaultFromFunc = getNewResidenciaDefaults().zonaHoraria ?? 'America/Tegucigalpa';
+    const initialZonaHoraria = currentResidencia.zonaHoraria || defaultFromFunc;
+    if (initialZonaHoraria) { // Now initialZonaHoraria is definitely a string
+      const [region, city] = initialZonaHoraria.split('/');
+      if (region && (timezonesDataEjemplos as TimezonesData)[region]) {
+        setSelectedTimezoneRegion(region);
+        if (city && (timezonesDataEjemplos as TimezonesData)[region].find(tz => tz.name === city)) {
+          setSelectedTimezoneCity(city);
+        } else {
+          setSelectedTimezoneCity(''); // Reset city if not found in new region
+        }
+      } else {
+        // If region from zonaHoraria is not in our list, reset
+        setSelectedTimezoneRegion('');
+        setSelectedTimezoneCity('');
+      }
+    }
+  }, []); // Runs once on mount
+
+  // --- useEffect: Update currentResidencia.zonaHoraria when selectors change ---
+  useEffect(() => {
+    if (selectedTimezoneRegion && selectedTimezoneCity) {
+      const newZonaHoraria = `${selectedTimezoneRegion}/${selectedTimezoneCity}`;
+      if (currentResidencia.zonaHoraria !== newZonaHoraria) {
+        setCurrentResidencia(prev => ({
+          ...prev,
+          zonaHoraria: newZonaHoraria,
+        }));
+      }
+    }
+    // If only region is selected, but not city, you might want to clear zonaHoraria
+    // or handle it based on your form logic (e.g. prevent submission until city is chosen)
+    // For now, it only updates if both are selected.
+  }, [selectedTimezoneRegion, selectedTimezoneCity, currentResidencia.zonaHoraria]);
+
+  // --- useEffect: Pre-fill timezone selectors when currentResidencia changes (e.g. when editing) ---
+  useEffect(() => {
+    if (currentResidencia.zonaHoraria) {
+      const [region, city] = currentResidencia.zonaHoraria.split('/');
+      if (timezones[region]) {
+        setSelectedTimezoneRegion(region);
+        if (timezones[region].find(tz => tz.name === city)) {
+          setSelectedTimezoneCity(city);
+        } else {
+          // City from currentResidencia.zonaHoraria might not exist for the region
+          // (e.g. if zonaHoraria was manually entered or data source for timezones changed)
+          // Reset city, or pick the first available for the region
+          setSelectedTimezoneCity(timezones[region][0]?.name || ''); 
+        }
+      } else {
+        // Region from currentResidencia.zonaHoraria not found, reset selectors
+        // Or pick a default region
+        const defaultRegion = Object.keys(timezones)[0];
+        if (defaultRegion) {
+            setSelectedTimezoneRegion(defaultRegion);
+            setSelectedTimezoneCity(timezones[defaultRegion][0]?.name || '');
+        } else {
+            setSelectedTimezoneRegion('');
+            setSelectedTimezoneCity('');
+        }
+      }
+    } else if (Object.keys(timezones).length > 0) { // If no zonaHoraria, set to default or first available
+        const defaultNewResidencia = getNewResidenciaDefaults();
+        const defaultZonaHorariaValue = defaultNewResidencia.zonaHoraria ?? 'America/Tegucigalpa'; // Ensure it's a string
+        const [defaultRegion, defaultCity] = defaultZonaHorariaValue.split('/');
+        if (timezones[defaultRegion] && timezones[defaultRegion].find(tz => tz.name === defaultCity)) {
+            setSelectedTimezoneRegion(defaultRegion);
+            setSelectedTimezoneCity(defaultCity);
+        } else { // Fallback if default from getNewResidenciaDefaults is not in the list
+            const firstRegion = Object.keys(timezones)[0];
+            setSelectedTimezoneRegion(firstRegion); // Might be undefined if timezones is empty, but guarded by Object.keys check
+            setSelectedTimezoneCity(timezones[firstRegion]?.[0]?.name || '');
+        }
+    }
+  }, [currentResidencia.zonaHoraria, timezones]); // Rerun if currentResidencia.zonaHoraria changes or timezones are loaded
+
 
   // --- Form Handling ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -228,6 +339,11 @@ export default function CrearResidenciaAdminPage() {
         const parsed = parseFloat(value);
         processedValue = isNaN(parsed) ? undefined : parsed; // If not a valid number, treat as empty string for now
       }
+    } else if (name === 'id') { // Specific handling for custom ID
+      processedValue = value
+          .toLowerCase()
+          .replace(/\s+/g, '-') // Replace spaces with hyphens
+          .replace(/[^a-z0-9-]/g, ''); // Remove disallowed characters
     } else { // For text, textarea, select (not type='number')
       processedValue = value;
     }
@@ -263,113 +379,205 @@ export default function CrearResidenciaAdminPage() {
     setIsEditing(false);
     setCurrentResidencia(getNewResidenciaDefaults());
     setAntelacionError(null);
+    // Reset timezone selectors to default from getNewResidenciaDefaults
+    const defaultZonaHoraria = getNewResidenciaDefaults().zonaHoraria ?? 'America/Tegucigalpa'; // Ensure it's a string
+    const [defaultRegion, defaultCity] = defaultZonaHoraria.split('/');
+    if (timezones[defaultRegion] && timezones[defaultRegion].find(tz => tz.name === defaultCity)) {
+        setSelectedTimezoneRegion(defaultRegion);
+        setSelectedTimezoneCity(defaultCity);
+    } else { // Fallback if default is not in the loaded timezones
+        const firstRegion = Object.keys(timezones)[0] || '';
+        setSelectedTimezoneRegion(firstRegion);
+        setSelectedTimezoneCity(firstRegion ? timezones[firstRegion]?.[0]?.name || '' : '');
+    }
   };
 
   const handleSubmitForm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setAntelacionError(null);
+    setAntelacionError(null); // Clear previous antelacion error
 
     if (!userProfile || (!isMasterUser && !isEditing)) {
       toast({ title: "Acción no permitida", description: "No tienes permisos para esta acción.", variant: "destructive" });
       return;
     }
+
+    // Validate Nombre
     if (typeof currentResidencia.nombre !== 'string' || !currentResidencia.nombre.trim()) {
         toast({ title: "Campo requerido", description: "El nombre de la residencia es obligatorio.", variant: "default"});
         return;
     }
 
-    setAntelacionError(null); // Clear previous error
+    // Validate Zona Horaria
+    if (!selectedTimezoneRegion || !selectedTimezoneCity) {
+        toast({ title: "Campo requerido", description: "Debe seleccionar una región y ciudad/área para la zona horaria.", variant: "default"});
+        return;
+    }
+    const finalZonaHoraria = `${selectedTimezoneRegion}/${selectedTimezoneCity}`;
+    if (!finalZonaHoraria || finalZonaHoraria === '/') { // Basic check
+        toast({ title: "Error de Validación", description: "La zona horaria no es válida. Seleccione región y ciudad.", variant: "destructive" });
+        return;
+    }
 
-    const antelacionValueInput = currentResidencia.antelacionActividadesDefault; // This is of type number | ''
+
+    // Validate Antelacion Actividades Default
+    const antelacionValueInput = currentResidencia.antelacionActividadesDefault;
     let antelacionNum: number;
 
-    if (antelacionValueInput === undefined) {
-      // This means the input was empty or contained invalid text (which handleInputChange converted to '')
+    if (antelacionValueInput === undefined || antelacionValueInput === null || String(antelacionValueInput).trim() === '') {
       const errorMsg = "Antelación de actividades es requerida y debe ser un número.";
       setAntelacionError(errorMsg);
       toast({ title: "Error de Validación", description: errorMsg, variant: "destructive" });
       return;
     } else {
-      // If antelacionValueInput is not an empty string, it must be a number
-      // because handleInputChange ensures this.
-      antelacionNum = antelacionValueInput; // It's already a number type
+      antelacionNum = Number(antelacionValueInput);
+      if (isNaN(antelacionNum)) {
+        const errorMsg = "Antelación de actividades debe ser un número válido.";
+        setAntelacionError(errorMsg);
+        toast({ title: "Error de Validación", description: errorMsg, variant: "destructive" });
+        return;
+      }
     }
 
-    // Additional check (e.g., for negative numbers) - This part (lines 289-294) should remain as is.
-    if (antelacionNum < 0) { 
+    if (antelacionNum < 0) {
       const errorMsg = "Antelación de actividades no puede ser un número negativo.";
       setAntelacionError(errorMsg);
       toast({ title: "Error de Validación", description: errorMsg, variant: "destructive" });
       return;
     }
-    // Now, antelacionNum is a valid, non-negative number.
 
     setFormLoading(true);
     try {
-      // Prepare the data to save, ensuring antelacionActividadesDefault is a number
-      const residenciaDataForSubmit = {
+      // Prepare the data to save, reflecting all schema changes
+      const residenciaDataForSubmit: Partial<Residencia> = {
         ...currentResidencia,
-        antelacionActividadesDefault: antelacionNum, // Use the validated and converted number
+        // Ensure new/renamed fields are correctly sourced from currentResidencia (which should be up-to-date)
+        // or explicitly set:
+        nombre: currentResidencia.nombre || '',
+        direccion: currentResidencia.direccion || '',
+        logoUrl: currentResidencia.logoUrl || '',
+        
+        configuracionContabilidad: null, // Set to null as per requirements
+
+        antelacionActividadesDefault: antelacionNum,
+        
+        tipoResidencia: currentResidencia.tipoResidencia || 'estudiantes', // Renamed field
+        esquemaAdministracion: currentResidencia.esquemaAdministracion || 'estricto',
+        
+        zonaHoraria: finalZonaHoraria, // From validated selected timezone parts
+
+        nombreTradicionalDesayuno: currentResidencia.nombreTradicionalDesayuno || "Desayuno",
+        nombreTradicionalAlmuerzo: currentResidencia.nombreTradicionalAlmuerzo || "Almuerzo",
+        nombreTradicionalCena: currentResidencia.nombreTradicionalCena || "Cena",
+        nombreTradicionalLunes: currentResidencia.nombreTradicionalLunes || "Lunes",
+        nombreTradicionalMartes: currentResidencia.nombreTradicionalMartes || "Martes",
+        nombreTradicionalMiercoles: currentResidencia.nombreTradicionalMiercoles || "Miércoles",
+        nombreTradicionalJueves: currentResidencia.nombreTradicionalJueves || "Jueves",
+        nombreTradicionalViernes: currentResidencia.nombreTradicionalViernes || "Viernes",
+        nombreTradicionalSabado: currentResidencia.nombreTradicionalSabado || "Sábado",
+        nombreTradicionalDomingo: currentResidencia.nombreTradicionalDomingo || "Domingo",
+
+        campoPersonalizado1_etiqueta: currentResidencia.campoPersonalizado1_etiqueta || '',
+        campoPersonalizado1_isActive: !!currentResidencia.campoPersonalizado1_isActive,
+        campoPersonalizado1_necesitaValidacion: !!currentResidencia.campoPersonalizado1_necesitaValidacion,
+        campoPersonalizado1_regexValidacion: currentResidencia.campoPersonalizado1_regexValidacion || '',
+        campoPersonalizado1_tamanoTexto: currentResidencia.campoPersonalizado1_tamanoTexto || 'text',
+        campoPersonalizado1_puedeModDirector: !!currentResidencia.campoPersonalizado1_puedeModDirector,
+        campoPersonalizado1_puedeModInteresado: !!currentResidencia.campoPersonalizado1_puedeModInteresado,
+
+        campoPersonalizado2_etiqueta: currentResidencia.campoPersonalizado2_etiqueta || '',
+        campoPersonalizado2_isActive: !!currentResidencia.campoPersonalizado2_isActive,
+        campoPersonalizado2_necesitaValidacion: !!currentResidencia.campoPersonalizado2_necesitaValidacion,
+        campoPersonalizado2_regexValidacion: currentResidencia.campoPersonalizado2_regexValidacion || '',
+        campoPersonalizado2_tamanoTexto: currentResidencia.campoPersonalizado2_tamanoTexto || 'text',
+        campoPersonalizado2_puedeModDirector: !!currentResidencia.campoPersonalizado2_puedeModDirector,
+        campoPersonalizado2_puedeModInteresado: !!currentResidencia.campoPersonalizado2_puedeModInteresado,
+
+        campoPersonalizado3_etiqueta: currentResidencia.campoPersonalizado3_etiqueta || '',
+        campoPersonalizado3_isActive: !!currentResidencia.campoPersonalizado3_isActive,
+        campoPersonalizado3_necesitaValidacion: !!currentResidencia.campoPersonalizado3_necesitaValidacion,
+        campoPersonalizado3_regexValidacion: currentResidencia.campoPersonalizado3_regexValidacion || '',
+        campoPersonalizado3_tamanoTexto: currentResidencia.campoPersonalizado3_tamanoTexto || 'text',
+        campoPersonalizado3_puedeModDirector: !!currentResidencia.campoPersonalizado3_puedeModDirector,
+        campoPersonalizado3_puedeModInteresado: !!currentResidencia.campoPersonalizado3_puedeModInteresado,
+        
+        textProfile: currentResidencia.textProfile || 'espanol-honduras',
+
+        // REMOVED FIELDS (should not be in currentResidencia if getNewResidenciaDefaults was updated, but good to be explicit)
+        // nombreEtiquetaCentroCosto: undefined, 
+        // modoDeCosteo: undefined,
+        // tipoResidentes: undefined, // old field name
       };
+
+      // Explicitly remove fields that should not be saved, if they somehow ended up on currentResidencia
+      delete (residenciaDataForSubmit as any).nombreEtiquetaCentroCosto;
+      delete (residenciaDataForSubmit as any).modoDeCosteo;
+      delete (residenciaDataForSubmit as any).tipoResidentes;
+
+
       if (isEditing && currentResidencia.id) {
         // UPDATE
-        const existingResidenciaId = currentResidencia.id; 
-
+        const existingResidenciaId = currentResidencia.id;
         if (!isMasterUser && !(isAdminUser && userProfile?.residenciaId === existingResidenciaId)) {
           toast({ title: "Acción no permitida", description: "No tienes permisos para editar esta residencia.", variant: "destructive" });
           setFormLoading(false);
           return;
         }
-        /* SECURITY NOTE: Server-side validation is crucial here to ensure
-           an admin user can only update their assigned residenciaId and
-           cannot change the residenciaId itself or escalate privileges.
-           Master users should also be validated server-side.
-        */
         const residenciaRef = doc(db, 'residencias', currentResidencia.id);
-
-        // Ensure we don't try to write the 'id' field itself into the document data
-        const { id, ...dataToUpdate } = residenciaDataForSubmit; // Use residenciaDataForSubmit
+        const { id, ...dataToUpdate } = residenciaDataForSubmit; // Ensure 'id' is not part of the data payload
         await updateDoc(residenciaRef, dataToUpdate);
-        toast({ title: "Residencia Actualizada", description: `Residencia '${residenciaDataForSubmit.nombre}' actualizada con éxito.` });
+        toast({ title: "Residencia Actualizada", description: `Residencia '${dataToUpdate.nombre}' actualizada con éxito.` });
+        if (userProfile?.id && currentResidencia.id) { 
+          await writeClientLog(
+            userProfile.id, // actorUserId (ensure this is type UserId or string)
+            'residencia_updated', // actionType
+            { // logDetails
+              residenciaId: currentResidencia.id, // (ensure this is type ResidenciaId or string)
+              details: `Residencia '${dataToUpdate.nombre || ''}' (ID: ${currentResidencia.id}) actualizada por ${userProfile.email}.` 
+              // residenciaNombre is now part of the details string.
+              // relatedDocPath: `residencias/${currentResidencia.id}` // Optional
+            }
+          );
+        }
       } else if (!isEditing && isMasterUser) {
-        // CREATE  
-        /* SECURITY NOTE: Server-side validation is CRUCIAL here.
-           Only 'master' users should be able to create new residencias.
-           This must be enforced by Firestore security rules and/or backend functions.
-        */
-        const { id, ...newResidenciaData } = residenciaDataForSubmit; // Use residenciaDataForSubmit
-        // delete newResidenciaData.id; // This might be redundant if residenciaDataForSubmit doesn't have id for new items
+        // CREATE
+        const { id, ...newResidenciaData } = residenciaDataForSubmit; // Ensure 'id' is not part of the data payload
         const docRef = await addDoc(collection(db, 'residencias'), newResidenciaData);
-        // Firestore automatically generates an ID. We can update our state if we want to immediately edit.
-        // For simplicity, we'll just refetch or let the user see it in the list.
-
-        // Creating a Default Dieta
+        
+        // Creating a Default Dieta (assuming this logic remains)
         try {
           const defaultDieta: Omit<Dieta, 'id' | 'createdAt' | 'updatedAt'> = {
             nombre: "Normal",
             descripcion: "Ningún régimen especial",
             isDefault: true,
             isActive: true,
-            residenciaId: docRef.id, // CORRECTED: Use docRef.id here
+            residenciaId: docRef.id,
           };
           await addDoc(collection(db, 'dietas'), defaultDieta);
           toast({
-            title: "Éxito",
-            // CORRECTED: Use docRef.id here for the toast message
-            description: `Residencia '${residenciaDataForSubmit.nombre}' (ID: ${docRef.id}) y Dieta 'Normal' por defecto creadas con éxito.`,
+            title: "Éxito Parcial",
+            description: `Residencia '${newResidenciaData.nombre}' (ID: ${docRef.id}) y Dieta 'Normal' por defecto creadas.`,
           });
         } catch (dietaError) {
           console.error("Error creating default dieta:", dietaError);
           toast({
             title: "Advertencia: Dieta por Defecto Falló",
-            // CORRECTED: Use docRef.id here for the error toast message
-            description: `Residencia '${residenciaDataForSubmit.nombre}' (ID: ${docRef.id}) creada, pero falló la creación de la dieta por defecto. Por favor, créela manualmente desde la sección de Dietas. Error: ${dietaError instanceof Error ? dietaError.message : String(dietaError)}`,
+            description: `Residencia '${newResidenciaData.nombre}' (ID: ${docRef.id}) creada, pero falló la creación de la dieta por defecto. Error: ${dietaError instanceof Error ? dietaError.message : String(dietaError)}`,
             variant: "destructive",
             duration: 10000,
           });
         }
-
-        toast({ title: "Residencia Creada", description: `Residencia '${residenciaDataForSubmit.nombre}' creada con ID: ${docRef.id}.` });
+        toast({ title: "Residencia Creada", description: `Residencia '${newResidenciaData.nombre}' creada con ID: ${docRef.id}.` });
+        if (userProfile?.id) { 
+          await writeClientLog(
+            userProfile.id, // actorUserId
+            'residencia_created', // actionType
+            { // logDetails
+              residenciaId: docRef.id,
+              details: `Residencia '${newResidenciaData.nombre || ''}' (ID: ${docRef.id}) creada por ${userProfile.email}.`
+              // relatedDocPath: `residencias/${docRef.id}` // Optional
+            }
+          );
+        }
       } else {
         toast({ title: "Acción no válida", description: "No se pudo determinar la acción a realizar.", variant: "destructive" });
         setFormLoading(false);
@@ -378,6 +586,27 @@ export default function CrearResidenciaAdminPage() {
       setShowCreateForm(false);
       setIsEditing(false);
       setAntelacionError(null);
+      // Reset timezone selectors to default or clear them
+      const defaultResidenciaValues = getNewResidenciaDefaults();
+      const defaultZonaHorariaValue = defaultResidenciaValues.zonaHoraria ?? 'America/Tegucigalpa'; // Ensure it's a string
+      const [defaultRegion, defaultCity] = defaultZonaHorariaValue.split('/');
+      if (timezones[defaultRegion] && timezones[defaultRegion].find(tz => tz.name === defaultCity)) {
+          setSelectedTimezoneRegion(defaultRegion);
+          setSelectedTimezoneCity(defaultCity);
+      } else {
+          const firstRegion = Object.keys(timezones)[0] || '';
+          setSelectedTimezoneRegion(firstRegion);
+          setSelectedTimezoneCity(firstRegion ? timezones[firstRegion]?.[0]?.name || '' : '');
+      }
+
+      if (timezones[defaultRegion] && timezones[defaultRegion].find(tz => tz.name === defaultCity)) {
+          setSelectedTimezoneRegion(defaultRegion);
+          setSelectedTimezoneCity(defaultCity);
+      } else {
+          const firstRegion = Object.keys(timezones)[0] || '';
+          setSelectedTimezoneRegion(firstRegion);
+          setSelectedTimezoneCity(firstRegion ? timezones[firstRegion]?.[0]?.name || '' : '');
+      }
       fetchResidences(); // Refresh the list
     } catch (error) {
       const errorMessage = `Error al guardar la residencia. ${error instanceof Error ? error.message : 'Error desconocido'}`;
@@ -386,6 +615,7 @@ export default function CrearResidenciaAdminPage() {
       setFormLoading(false);
     }
   };
+
 
   const handleDeleteResidencia = async (residenciaId: string, residenciaNombre: string) => {
     if (!isMasterUser) {
@@ -403,7 +633,18 @@ export default function CrearResidenciaAdminPage() {
       // For now, direct deletion. A more robust solution might involve a Firebase Function
       // to clean up related data or mark the residencia as inactive.
       await deleteDoc(doc(db, 'residencias', residenciaId));
-      toast({ title: "Residencia Eliminada", description: `Residencia '${residenciaNombre}' eliminada con éxito.` });
+      fetchResidences(); 
+      if (userProfile?.id) { 
+        await writeClientLog(
+          userProfile.id, // actorUserId
+          'residencia_deleted', // actionType
+          { // logDetails
+            residenciaId: residenciaId,
+            details: `Residencia '${residenciaNombre}' (ID: ${residenciaId}) eliminada por ${userProfile.email}.`
+            // relatedDocPath: `residencias/${residenciaId}` // Optional
+          }
+        );
+      }
       fetchResidences(); // Refresh the list
     } catch (error) {
       const errorMessage = `Error al eliminar la residencia. ${error instanceof Error ? error.message : 'Error desconocido'}`;
@@ -412,7 +653,6 @@ export default function CrearResidenciaAdminPage() {
       setFormLoading(false);
     }
   };
-
 
   // --- Render Logic ---
   if (authFirebaseLoading || (profileLoading && authUser)) {
@@ -489,6 +729,48 @@ export default function CrearResidenciaAdminPage() {
           </CardHeader>
           <form onSubmit={handleSubmitForm}>
             <CardContent className="space-y-4">
+              {/* Custom Residencia ID Input - Only for Creation */}
+              {!isEditing && isMasterUser && (
+                <div>
+                  <Label htmlFor="id">
+                    ID de Residencia (Slug) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="id"
+                    name="id"
+                    value={currentResidencia.id || ''}
+                    onChange={handleInputChange} // We might refine this later for formatting
+                    placeholder="Ej: mi-residencia-favorita (solo minúsculas, números y guiones)"
+                    disabled={formLoading}
+                    required
+                    aria-invalid={residenciaIdError ? "true" : "false"}
+                    aria-describedby={residenciaIdError ? "residencia-id-error-message" : "residencia-id-description"}
+                  />
+                  <p id="residencia-id-description" className="text-xs text-muted-foreground mt-1">
+                    Este ID se usará en la URL. Debe ser único. Use minúsculas, números y guiones.
+                  </p>
+                  {residenciaIdError && (
+                    <p id="residencia-id-error-message" className="text-xs text-destructive mt-1">
+                      {residenciaIdError}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Display Residencia ID when Editing (Read-only) */}
+              {isEditing && (
+                <div>
+                  <Label htmlFor="id_display">ID de Residencia (Slug)</Label>
+                  <Input
+                    id="id_display"
+                    name="id_display"
+                    value={currentResidencia.id || ''}
+                    readOnly
+                    disabled
+                    className="bg-muted/50"
+                  />
+                </div>
+              )}              
               <div>
                 <Label htmlFor="nombre">Nombre de la Residencia <span className="text-destructive">*</span></Label>
                 <Input id="nombre" name="nombre" value={currentResidencia.nombre || ''} onChange={handleInputChange} required disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser)}/>
@@ -501,25 +783,55 @@ export default function CrearResidenciaAdminPage() {
                 <Label htmlFor="logoUrl">URL del Logo</Label>
                 <Input id="logoUrl" name="logoUrl" type="url" value={currentResidencia.logoUrl || ''} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
               </div>
+              {/* Timezone Selection */}
               <div>
-                <Label htmlFor="nombreEtiquetaCentroCosto">Etiqueta Centro de Costo</Label>
-                <Input id="nombreEtiquetaCentroCosto" name="nombreEtiquetaCentroCosto" value={currentResidencia.nombreEtiquetaCentroCosto || 'Centro de Costo'} onChange={handleInputChange} onFocus={(event) => event.target.select()} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-              </div>
-               <div>
-                <Label htmlFor="modoDeCosteo">Modo de Costeo</Label>
+                <Label htmlFor="timezoneRegion">Zona Horaria - Región</Label>
                 <select
-                    id="modoDeCosteo"
-                    name="modoDeCosteo"
-                    value={currentResidencia.modoDeCosteo || 'por-eleccion'}
-                    onChange={handleInputChange}
-                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                    className="w-full p-2 border rounded"
+                  id="timezoneRegion"
+                  name="timezoneRegion"
+                  value={selectedTimezoneRegion}
+                  onChange={(e) => {
+                    setSelectedTimezoneRegion(e.target.value);
+                    setSelectedTimezoneCity(''); // Reset city when region changes
+                    // Automatically select the first city if available
+                    if (timezones[e.target.value] && timezones[e.target.value].length > 0) {
+                      setSelectedTimezoneCity(timezones[e.target.value][0].name);
+                    }
+                  }}
+                  disabled={formLoading || Object.keys(timezones).length === 0 || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  className="w-full p-2 border rounded mt-1 bg-background text-foreground"
                 >
-                    <option value="por-usuario">Por Usuario</option>
-                    <option value="por-comedor">Por Comedor</option>
-                    <option value="por-eleccion">Por Elección</option>
+                  <option value="">Seleccione una región...</option>
+                  {Object.keys(timezones).map(region => (
+                    <option key={region} value={region}>
+                      {region}
+                    </option>
+                  ))}
                 </select>
               </div>
+
+              {selectedTimezoneRegion && timezones[selectedTimezoneRegion] && (
+                <div>
+                  <Label htmlFor="timezoneCity">Zona Horaria - Ciudad/Área</Label>
+                  <select
+                    id="timezoneCity"
+                    name="timezoneCity"
+                    value={selectedTimezoneCity}
+                    onChange={(e) => setSelectedTimezoneCity(e.target.value)}
+                    disabled={formLoading || !selectedTimezoneRegion || timezones[selectedTimezoneRegion]?.length === 0 || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                    className="w-full p-2 border rounded mt-1 bg-background text-foreground"
+                  >
+                    <option value="">Seleccione una ciudad/área...</option>
+                    {timezones[selectedTimezoneRegion]?.map(tz => (
+                      <option key={tz.name} value={tz.name}>
+                        {tz.name} ({tz.offset})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {/* End of Timezone Selection */}
+
               <div>
                 <Label htmlFor="antelacionActividadesDefault">Antelación Actividades Default (días)</Label>
                 <Input 
@@ -559,11 +871,11 @@ export default function CrearResidenciaAdminPage() {
                 </p>
               </div>
               <div>
-                <Label htmlFor="tipoResidentes">Tipo de Residentes</Label>
+                <Label htmlFor="tipoResidencia">Tipo de Residencia</Label>
                 <select
-                  id="tipoResidentes"
-                  name="tipoResidentes"
-                  value={currentResidencia.tipoResidentes || 'estudiantes'}
+                  id="tipoResidencia"
+                  name="tipoResidencia"
+                  value={currentResidencia.tipoResidencia || 'estudiantes'}
                   onChange={handleInputChange}
                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                   className="w-full p-2 border rounded mt-1 bg-background text-foreground"
@@ -571,6 +883,7 @@ export default function CrearResidenciaAdminPage() {
                   <option value="estudiantes">Estudiantes</option>
                   <option value="profesionales">Profesionales</option>
                   <option value="gente_mayor">Gente Mayor</option>
+                  {/* Add other options if TiposResidencia expands in the future */}
                 </select>
               </div>
               <div>
@@ -765,6 +1078,26 @@ export default function CrearResidenciaAdminPage() {
                                     <option value="textArea">Múltiples líneas (Textarea)</option>
                                 </select>
                             </div>
+                            <div className="flex items-center space-x-2 pt-2">
+                              <Checkbox
+                                  id="campoPersonalizado1_puedeModDirector"
+                                  name="campoPersonalizado1_puedeModDirector"
+                                  checked={currentResidencia.campoPersonalizado1_puedeModDirector || false}
+                                  onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado1_puedeModDirector: Boolean(checked)}))}
+                                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                              />
+                              <Label htmlFor="campoPersonalizado1_puedeModDirector">Puede ser modificado por Director</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                              <Checkbox
+                                  id="campoPersonalizado1_puedeModInteresado"
+                                  name="campoPersonalizado1_puedeModInteresado"
+                                  checked={currentResidencia.campoPersonalizado1_puedeModInteresado || false}
+                                  onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado1_puedeModInteresado: Boolean(checked)}))}
+                                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                              />
+                              <Label htmlFor="campoPersonalizado1_puedeModInteresado">Puede ser modificado por Interesado</Label>
+                          </div>
                         </>
                     )}
                 </CardContent>
@@ -807,6 +1140,26 @@ export default function CrearResidenciaAdminPage() {
                                     <option value="text">Una línea (Text)</option>
                                     <option value="textArea">Múltiples líneas (Textarea)</option>
                                 </select>
+                            </div>
+                            <div className="flex items-center space-x-2 pt-2">
+                                <Checkbox
+                                    id="campoPersonalizado2_puedeModDirector"
+                                    name="campoPersonalizado2_puedeModDirector"
+                                    checked={currentResidencia.campoPersonalizado2_puedeModDirector || false}
+                                    onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado2_puedeModDirector: Boolean(checked)}))}
+                                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                                />
+                                <Label htmlFor="campoPersonalizado2_puedeModDirector">Puede ser modificado por Director</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="campoPersonalizado2_puedeModInteresado"
+                                    name="campoPersonalizado2_puedeModInteresado"
+                                    checked={currentResidencia.campoPersonalizado2_puedeModInteresado || false}
+                                    onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado2_puedeModInteresado: Boolean(checked)}))}
+                                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                                />
+                                <Label htmlFor="campoPersonalizado2_puedeModInteresado">Puede ser modificado por Interesado</Label>
                             </div>
                         </>
                     )}

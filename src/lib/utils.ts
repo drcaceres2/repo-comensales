@@ -1,6 +1,8 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { Timestamp } from 'firebase/firestore'
+import { Timestamp, collection, addDoc, serverTimestamp, FieldValue } from 'firebase/firestore';
+import { db } from './firebase';
+import { LogActionType, ClientLogWrite, UserId, ResidenciaId } from '@/../../shared/models/types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -37,3 +39,28 @@ export const formatTimestampForInput = (timestampValue: number | string | Date |
         return '';
     }
   };
+
+export async function writeClientLog(
+  actorUserId: UserId,
+  actionType: LogActionType,
+  logDetails: Partial<Omit<ClientLogWrite, 'userId' | 'actionType' | 'timestamp'>> = {}
+): Promise<void> {
+  if (!actorUserId) {
+    console.warn("writeClientLog: actorUserId is missing.");
+    return;
+  }
+  try {
+    const logData: ClientLogWrite = {
+      userId: actorUserId,
+      actionType: actionType,
+      timestamp: serverTimestamp(),
+      residenciaId: logDetails.residenciaId,
+      targetUid: logDetails.targetUid || null,
+      relatedDocPath: logDetails.relatedDocPath,
+      details: logDetails.details || `User ${actorUserId} performed ${actionType}.`,
+    };
+    await addDoc(collection(db, "logs"), logData);
+  } catch (error) {
+    console.error("Error writing client log:", error);
+  }
+}

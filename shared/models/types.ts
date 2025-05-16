@@ -1,3 +1,5 @@
+import { FieldValue } from 'firebase/firestore';
+
 export type UserId = string;
 export type UserRole = 'master' | 'admin' | 'director' | 'residente' | 'invitado' | 'asistente' | 'contador';
 export type DietaId = string;
@@ -27,6 +29,7 @@ export type LogActionType =
     'user_deleted' |
     'residencia_created' |
     'residencia_updated' |
+    'residencia_deleted' |
     'tiempo_comida_created' |
     'tiempo_comida_updated' |
     'tiempo_comida_deleted' |
@@ -258,7 +261,7 @@ export interface Residencia {
     campoPersonalizado3_puedeModDirector?: boolean;
     campoPersonalizado3_puedeModInteresado?: boolean;
 
-    configuracionContabilidad: ConfigContabilidad;
+    configuracionContabilidad: ConfigContabilidad | null;
 }
 
 export interface Comedor {
@@ -346,6 +349,9 @@ export interface LogEntry {
     details?: string | object; 
 }
 
+export interface ClientLogWrite extends Omit<LogEntry, "id" | "timestamp"> {
+    timestamp: FieldValue; // Type for client-side serverTimestamp()
+}
 
 export interface Actividad {
     //Campos generales

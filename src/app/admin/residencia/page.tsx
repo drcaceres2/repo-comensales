@@ -16,7 +16,7 @@ import {
   DayOfWeekKey,
   DayOfWeekMap,
   CentroCosto // Ensure CentroCosto is here
-} from '@/models/firestore';
+} from '@/../../shared//models/types';
 import {
   doc,
   getDoc,
