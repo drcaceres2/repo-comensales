@@ -56,8 +56,7 @@ import {
     Dieta, 
     CentroCostoId, 
     Residencia, 
-    CentroCosto,
-    AsistentePermisos
+    CentroCosto
 } from '@/../../shared/models/types';
 // import { ZodUndefined } from 'zod';
 
@@ -774,7 +773,6 @@ export default function UserManagementPage(): JSX.Element | null {
             if (resultData.success && resultData.userId) {
                 console.log(`Cloud Function created user successfully with UID: ${resultData.userId}`);
 
-                // Add the new user to the local state (using data sent + returned ID)
                 // Add the new user to the local state (using data sent + returned ID)
                 const newUserForUI: UserProfile = {
                     ...(userDataForFunction.profileData as Omit<UserProfile, 'id'>), // Spread the data we sent

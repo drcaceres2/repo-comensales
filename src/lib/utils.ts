@@ -3,6 +3,7 @@ import { twMerge } from "tailwind-merge"
 import { Timestamp, collection, addDoc, serverTimestamp, FieldValue } from 'firebase/firestore';
 import { db } from './firebase';
 import { LogActionType, ClientLogWrite, UserId, ResidenciaId } from '@/../../shared/models/types';
+import { type Toast } from "@/hooks/use-toast"; // <--- ADD THIS IMPORT
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -38,7 +39,7 @@ export const formatTimestampForInput = (timestampValue: number | string | Date |
         console.error("Error formatting timestamp:", error);
         return '';
     }
-  };
+};
 
 export async function writeClientLog(
   actorUserId: UserId,
@@ -64,3 +65,37 @@ export async function writeClientLog(
     console.error("Error writing client log:", error);
   }
 }
+
+/**
+ * Checks if the client's timezone differs from the provided residence timezone
+ * and displays a toast warning if they are different.
+ * @param residenceZoneHoraria The IANA timezone string of the residence.
+ * @param toastFunction The toast function from useToast() to display notifications.
+ * @returns True if a warning was displayed, false otherwise.
+ */
+export function checkAndDisplayTimezoneWarning(
+    residenceZoneHoraria: string | undefined | null,
+    toastFunction: (props: Toast) => void // <--- USE THE IMPORTED Toast TYPE
+  ): boolean {
+    if (!residenceZoneHoraria) {
+      return false; 
+    }
+  
+    try {
+      const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  
+      if (clientTimezone && clientTimezone !== residenceZoneHoraria) {
+        toastFunction({ // This object should now conform to the Toast type from use-toast.ts
+          title: "Advertencia de Zona Horaria",
+          description: `Tu zona horaria actual (${clientTimezone}) es diferente a la de la residencia (${residenceZoneHoraria}). Las horas mostradas para los horarios de comida corresponden a la zona horaria de la residencia.`,
+          variant: "default", 
+          duration: 10000,
+        });
+        return true; 
+      }
+    } catch (error) {
+      console.error("Error getting client timezone or displaying warning:", error);
+    }
+    
+    return false; 
+  }

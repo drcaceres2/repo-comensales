@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea"; // For multi-line fields like direccion
 import { Checkbox } from "@/components/ui/checkbox"; // For boolean fields
 import { Label } from "@/components/ui/label";
-import { Loader2, AlertCircle, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
+import TimezoneSelector, { TimezonesData } from "@/components/ui/TimezoneSelector";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import {
   AlertDialog,
@@ -41,20 +41,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Loader2, AlertCircle, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
 
 import { writeClientLog } from '@/lib/utils';
 
 import timezonesDataEjemplos from '@/app/zonas_horarias_ejemplos.json';
-
-// Define types for Timezone data
-interface TimezoneDetail {
-  name: string;
-  offset: string;
-}
-
-interface TimezonesData {
-  [region: string]: TimezoneDetail[];
-}
 
 // Helper to create a new Residencia object with defaults
 const getNewResidenciaDefaults = (): Partial<Residencia> => ({ // Changed return type
@@ -131,8 +122,6 @@ export default function CrearResidenciaAdminPage() {
 
   // State for timezones
   const [timezones, setTimezones] = useState<TimezonesData>({});
-  const [selectedTimezoneRegion, setSelectedTimezoneRegion] = useState<string>('');
-  const [selectedTimezoneCity, setSelectedTimezoneCity] = useState<string>('');
 
   // --- useEffect: Handle Auth State & Fetch Profile ---
   useEffect(() => {
@@ -244,84 +233,7 @@ export default function CrearResidenciaAdminPage() {
   // --- useEffect: Load timezones from JSON ---
   useEffect(() => {
     setTimezones(timezonesDataEjemplos as TimezonesData);
-    // Set initial region if default zonaHoraria is present,
-    // otherwise, you might want to set a default region or leave it empty.
-    const defaultFromFunc = getNewResidenciaDefaults().zonaHoraria ?? 'America/Tegucigalpa';
-    const initialZonaHoraria = currentResidencia.zonaHoraria || defaultFromFunc;
-    if (initialZonaHoraria) { // Now initialZonaHoraria is definitely a string
-      const [region, city] = initialZonaHoraria.split('/');
-      if (region && (timezonesDataEjemplos as TimezonesData)[region]) {
-        setSelectedTimezoneRegion(region);
-        if (city && (timezonesDataEjemplos as TimezonesData)[region].find(tz => tz.name === city)) {
-          setSelectedTimezoneCity(city);
-        } else {
-          setSelectedTimezoneCity(''); // Reset city if not found in new region
-        }
-      } else {
-        // If region from zonaHoraria is not in our list, reset
-        setSelectedTimezoneRegion('');
-        setSelectedTimezoneCity('');
-      }
-    }
   }, []); // Runs once on mount
-
-  // --- useEffect: Update currentResidencia.zonaHoraria when selectors change ---
-  useEffect(() => {
-    if (selectedTimezoneRegion && selectedTimezoneCity) {
-      const newZonaHoraria = `${selectedTimezoneRegion}/${selectedTimezoneCity}`;
-      if (currentResidencia.zonaHoraria !== newZonaHoraria) {
-        setCurrentResidencia(prev => ({
-          ...prev,
-          zonaHoraria: newZonaHoraria,
-        }));
-      }
-    }
-    // If only region is selected, but not city, you might want to clear zonaHoraria
-    // or handle it based on your form logic (e.g. prevent submission until city is chosen)
-    // For now, it only updates if both are selected.
-  }, [selectedTimezoneRegion, selectedTimezoneCity, currentResidencia.zonaHoraria]);
-
-  // --- useEffect: Pre-fill timezone selectors when currentResidencia changes (e.g. when editing) ---
-  useEffect(() => {
-    if (currentResidencia.zonaHoraria) {
-      const [region, city] = currentResidencia.zonaHoraria.split('/');
-      if (timezones[region]) {
-        setSelectedTimezoneRegion(region);
-        if (timezones[region].find(tz => tz.name === city)) {
-          setSelectedTimezoneCity(city);
-        } else {
-          // City from currentResidencia.zonaHoraria might not exist for the region
-          // (e.g. if zonaHoraria was manually entered or data source for timezones changed)
-          // Reset city, or pick the first available for the region
-          setSelectedTimezoneCity(timezones[region][0]?.name || ''); 
-        }
-      } else {
-        // Region from currentResidencia.zonaHoraria not found, reset selectors
-        // Or pick a default region
-        const defaultRegion = Object.keys(timezones)[0];
-        if (defaultRegion) {
-            setSelectedTimezoneRegion(defaultRegion);
-            setSelectedTimezoneCity(timezones[defaultRegion][0]?.name || '');
-        } else {
-            setSelectedTimezoneRegion('');
-            setSelectedTimezoneCity('');
-        }
-      }
-    } else if (Object.keys(timezones).length > 0) { // If no zonaHoraria, set to default or first available
-        const defaultNewResidencia = getNewResidenciaDefaults();
-        const defaultZonaHorariaValue = defaultNewResidencia.zonaHoraria ?? 'America/Tegucigalpa'; // Ensure it's a string
-        const [defaultRegion, defaultCity] = defaultZonaHorariaValue.split('/');
-        if (timezones[defaultRegion] && timezones[defaultRegion].find(tz => tz.name === defaultCity)) {
-            setSelectedTimezoneRegion(defaultRegion);
-            setSelectedTimezoneCity(defaultCity);
-        } else { // Fallback if default from getNewResidenciaDefaults is not in the list
-            const firstRegion = Object.keys(timezones)[0];
-            setSelectedTimezoneRegion(firstRegion); // Might be undefined if timezones is empty, but guarded by Object.keys check
-            setSelectedTimezoneCity(timezones[firstRegion]?.[0]?.name || '');
-        }
-    }
-  }, [currentResidencia.zonaHoraria, timezones]); // Rerun if currentResidencia.zonaHoraria changes or timezones are loaded
-
 
   // --- Form Handling ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -379,17 +291,7 @@ export default function CrearResidenciaAdminPage() {
     setIsEditing(false);
     setCurrentResidencia(getNewResidenciaDefaults());
     setAntelacionError(null);
-    // Reset timezone selectors to default from getNewResidenciaDefaults
-    const defaultZonaHoraria = getNewResidenciaDefaults().zonaHoraria ?? 'America/Tegucigalpa'; // Ensure it's a string
-    const [defaultRegion, defaultCity] = defaultZonaHoraria.split('/');
-    if (timezones[defaultRegion] && timezones[defaultRegion].find(tz => tz.name === defaultCity)) {
-        setSelectedTimezoneRegion(defaultRegion);
-        setSelectedTimezoneCity(defaultCity);
-    } else { // Fallback if default is not in the loaded timezones
-        const firstRegion = Object.keys(timezones)[0] || '';
-        setSelectedTimezoneRegion(firstRegion);
-        setSelectedTimezoneCity(firstRegion ? timezones[firstRegion]?.[0]?.name || '' : '');
-    }
+    // The TimezoneSelector will automatically pick up the zonaHoraria from currentResidencia
   };
 
   const handleSubmitForm = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -408,16 +310,10 @@ export default function CrearResidenciaAdminPage() {
     }
 
     // Validate Zona Horaria
-    if (!selectedTimezoneRegion || !selectedTimezoneCity) {
-        toast({ title: "Campo requerido", description: "Debe seleccionar una región y ciudad/área para la zona horaria.", variant: "default"});
+    if (!currentResidencia.zonaHoraria || !currentResidencia.zonaHoraria.includes('/')) {
+        toast({ title: "Campo requerido", description: "La zona horaria es obligatoria y debe tener un formato válido (Ej: Region/Ciudad).", variant: "default"});
         return;
     }
-    const finalZonaHoraria = `${selectedTimezoneRegion}/${selectedTimezoneCity}`;
-    if (!finalZonaHoraria || finalZonaHoraria === '/') { // Basic check
-        toast({ title: "Error de Validación", description: "La zona horaria no es válida. Seleccione región y ciudad.", variant: "destructive" });
-        return;
-    }
-
 
     // Validate Antelacion Actividades Default
     const antelacionValueInput = currentResidencia.antelacionActividadesDefault;
@@ -463,7 +359,7 @@ export default function CrearResidenciaAdminPage() {
         tipoResidencia: currentResidencia.tipoResidencia || 'estudiantes', // Renamed field
         esquemaAdministracion: currentResidencia.esquemaAdministracion || 'estricto',
         
-        zonaHoraria: finalZonaHoraria, // From validated selected timezone parts
+        zonaHoraria: currentResidencia.zonaHoraria || getNewResidenciaDefaults().zonaHoraria,
 
         nombreTradicionalDesayuno: currentResidencia.nombreTradicionalDesayuno || "Desayuno",
         nombreTradicionalAlmuerzo: currentResidencia.nombreTradicionalAlmuerzo || "Almuerzo",
@@ -545,7 +441,7 @@ export default function CrearResidenciaAdminPage() {
         
         // Creating a Default Dieta (assuming this logic remains)
         try {
-          const defaultDieta: Omit<Dieta, 'id' | 'createdAt' | 'updatedAt'> = {
+          const defaultDieta: Omit<Dieta, 'id'> = {
             nombre: "Normal",
             descripcion: "Ningún régimen especial",
             isDefault: true,
@@ -586,27 +482,6 @@ export default function CrearResidenciaAdminPage() {
       setShowCreateForm(false);
       setIsEditing(false);
       setAntelacionError(null);
-      // Reset timezone selectors to default or clear them
-      const defaultResidenciaValues = getNewResidenciaDefaults();
-      const defaultZonaHorariaValue = defaultResidenciaValues.zonaHoraria ?? 'America/Tegucigalpa'; // Ensure it's a string
-      const [defaultRegion, defaultCity] = defaultZonaHorariaValue.split('/');
-      if (timezones[defaultRegion] && timezones[defaultRegion].find(tz => tz.name === defaultCity)) {
-          setSelectedTimezoneRegion(defaultRegion);
-          setSelectedTimezoneCity(defaultCity);
-      } else {
-          const firstRegion = Object.keys(timezones)[0] || '';
-          setSelectedTimezoneRegion(firstRegion);
-          setSelectedTimezoneCity(firstRegion ? timezones[firstRegion]?.[0]?.name || '' : '');
-      }
-
-      if (timezones[defaultRegion] && timezones[defaultRegion].find(tz => tz.name === defaultCity)) {
-          setSelectedTimezoneRegion(defaultRegion);
-          setSelectedTimezoneCity(defaultCity);
-      } else {
-          const firstRegion = Object.keys(timezones)[0] || '';
-          setSelectedTimezoneRegion(firstRegion);
-          setSelectedTimezoneCity(firstRegion ? timezones[firstRegion]?.[0]?.name || '' : '');
-      }
       fetchResidences(); // Refresh the list
     } catch (error) {
       const errorMessage = `Error al guardar la residencia. ${error instanceof Error ? error.message : 'Error desconocido'}`;
@@ -615,7 +490,6 @@ export default function CrearResidenciaAdminPage() {
       setFormLoading(false);
     }
   };
-
 
   const handleDeleteResidencia = async (residenciaId: string, residenciaNombre: string) => {
     if (!isMasterUser) {
@@ -653,6 +527,14 @@ export default function CrearResidenciaAdminPage() {
       setFormLoading(false);
     }
   };
+
+  // Add this handler function
+  const handleTimezoneChange = useCallback((newTimezone: string) => {
+    setCurrentResidencia(prev => ({
+      ...prev,
+      zonaHoraria: newTimezone,
+    }));
+  }, []);
 
   // --- Render Logic ---
   if (authFirebaseLoading || (profileLoading && authUser)) {
@@ -783,53 +665,20 @@ export default function CrearResidenciaAdminPage() {
                 <Label htmlFor="logoUrl">URL del Logo</Label>
                 <Input id="logoUrl" name="logoUrl" type="url" value={currentResidencia.logoUrl || ''} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
               </div>
-              {/* Timezone Selection */}
+              {/* Timezone Selection using TimezoneSelector Component */}
               <div>
-                <Label htmlFor="timezoneRegion">Zona Horaria - Región</Label>
-                <select
-                  id="timezoneRegion"
-                  name="timezoneRegion"
-                  value={selectedTimezoneRegion}
-                  onChange={(e) => {
-                    setSelectedTimezoneRegion(e.target.value);
-                    setSelectedTimezoneCity(''); // Reset city when region changes
-                    // Automatically select the first city if available
-                    if (timezones[e.target.value] && timezones[e.target.value].length > 0) {
-                      setSelectedTimezoneCity(timezones[e.target.value][0].name);
-                    }
-                  }}
+                <TimezoneSelector
+                  label="Zona Horaria"
+                  initialTimezone={currentResidencia.zonaHoraria || getNewResidenciaDefaults().zonaHoraria}
+                  onTimezoneChange={handleTimezoneChange}
+                  timezonesData={timezones} // This is your state variable holding zonas_horarias_ejemplos.json
                   disabled={formLoading || Object.keys(timezones).length === 0 || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="w-full p-2 border rounded mt-1 bg-background text-foreground"
-                >
-                  <option value="">Seleccione una región...</option>
-                  {Object.keys(timezones).map(region => (
-                    <option key={region} value={region}>
-                      {region}
-                    </option>
-                  ))}
-                </select>
+                  // You can pass custom classNames if needed, e.g.:
+                  // selectClassName="w-full p-2 border rounded mt-1 bg-background text-foreground"
+                  // containerClassName="mb-4"
+                  // labelClassName="block text-sm font-medium"
+                />
               </div>
-
-              {selectedTimezoneRegion && timezones[selectedTimezoneRegion] && (
-                <div>
-                  <Label htmlFor="timezoneCity">Zona Horaria - Ciudad/Área</Label>
-                  <select
-                    id="timezoneCity"
-                    name="timezoneCity"
-                    value={selectedTimezoneCity}
-                    onChange={(e) => setSelectedTimezoneCity(e.target.value)}
-                    disabled={formLoading || !selectedTimezoneRegion || timezones[selectedTimezoneRegion]?.length === 0 || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                    className="w-full p-2 border rounded mt-1 bg-background text-foreground"
-                  >
-                    <option value="">Seleccione una ciudad/área...</option>
-                    {timezones[selectedTimezoneRegion]?.map(tz => (
-                      <option key={tz.name} value={tz.name}>
-                        {tz.name} ({tz.offset})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
               {/* End of Timezone Selection */}
 
               <div>

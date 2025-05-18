@@ -1,12 +1,16 @@
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import * as admin from "firebase-admin";
+import { Storage } from "@google-cloud/storage";
 
 // Shared types import
-import { UserProfile, LogEntry, LogActionType } from "../../shared/models/types";
+import { UserProfile, LogEntry, LogActionType, ResidenciaId } from "../../shared/models/types";
 
 admin.initializeApp();
 const db = admin.firestore();
+const storage = new Storage();
+const licenseBucketName = "comensales-licencias"; // Define bucket name
+
 // const FieldValue = admin.firestore.FieldValue; // It's generally safer to use admin.firestore.FieldValue directly
 
 // --- Interfaces for Function Payloads ---
@@ -43,6 +47,28 @@ interface CallerSecurityInfo {
     isAdmin: boolean;
 }
 
+// --- Interfaces for License Management ---
+interface LicenseData {
+    ResidenciaId: ResidenciaId;
+    licenciaValidaHasta: string; // ISO 8601 date string (e.g., "2024-12-31T23:59:59Z")
+    licenciaActiva: boolean;
+    cantidadUsuarios: number;
+    tokenLicencia: string;
+}
+
+interface LicenseDetailsResult extends LicenseData {
+    status: "valid" | "not_found" | "not_active" | "expired" | "error_reading_file";
+    message: string;
+}
+
+interface GenerateLicenseParams {
+    ResidenciaId: string;
+    licenciaValidaHasta: string; // ISO 8601 date string
+    licenciaActiva: boolean;
+    cantidadUsuarios: number;
+    tokenLicencia: string;
+}
+
 async function getCallerSecurityInfo(authContext?: CallableRequest['auth']): Promise<CallerSecurityInfo> {
     if (!authContext || !authContext.uid) {
         throw new HttpsError("unauthenticated", "Authentication required.");
@@ -69,6 +95,166 @@ async function getCallerSecurityInfo(authContext?: CallableRequest['auth']): Pro
         throw new HttpsError("internal", "Could not verify caller permissions.");
     }
 }
+
+// --- Helper Functions for License Management ---
+
+/**
+ * Generates a JSON license file and stores it in Cloud Storage.
+ * Replaces the file if it already exists.
+ *
+ * @param params - The license data.
+ * @returns Promise<void>
+ */
+export async function generateLicenseFile(params: GenerateLicenseParams): Promise<void> {
+    const { ResidenciaId, licenciaValidaHasta, licenciaActiva, cantidadUsuarios, tokenLicencia } = params;
+
+    const licenseData: LicenseData = {
+        ResidenciaId,
+        licenciaValidaHasta,
+        licenciaActiva,
+        cantidadUsuarios,
+        tokenLicencia,
+    };
+
+    const fileName = `${ResidenciaId}.json`;
+    const file = storage.bucket(licenseBucketName).file(fileName);
+
+    try {
+        await file.save(JSON.stringify(licenseData, null, 2), {
+            contentType: "application/json",
+        });
+        logger.info(`License file ${fileName} generated and saved to ${licenseBucketName}.`);
+    } catch (error) {
+        logger.error(`Error saving license file ${fileName}:`, error);
+        throw new HttpsError("internal", "Could not save license file.", error);
+    }
+}
+
+/**
+ * Retrieves license details from a JSON file in Cloud Storage.
+ *
+ * @param ResidenciaId - The ID of the Residencia.
+ * @returns Promise<LicenseDetailsResult>
+ */
+export async function getLicenseDetails(ResidenciaId: string): Promise<LicenseDetailsResult> {
+    const fileName = `${ResidenciaId}.json`;
+    const file = storage.bucket(licenseBucketName).file(fileName);
+
+    try {
+        const [exists] = await file.exists();
+        if (!exists) {
+            logger.warn(`License file ${fileName} not found in ${licenseBucketName}.`);
+            return {
+                ResidenciaId,
+                licenciaValidaHasta: "",
+                licenciaActiva: false,
+                cantidadUsuarios: 0,
+                tokenLicencia: "",
+                status: "not_found",
+                message: "License file is not found.",
+            };
+        }
+
+        const [fileContents] = await file.download();
+        const licenseData = JSON.parse(fileContents.toString()) as LicenseData;
+
+        if (!licenseData.licenciaActiva) {
+            logger.info(`License for ${ResidenciaId} is not active.`);
+            return {
+                ...licenseData,
+                status: "not_active",
+                message: "License not active.",
+            };
+        }
+
+        const expirationDate = new Date(licenseData.licenciaValidaHasta);
+        if (expirationDate < new Date()) {
+            logger.info(`License for ${ResidenciaId} has expired on ${licenseData.licenciaValidaHasta}.`);
+            return {
+                ...licenseData,
+                status: "expired",
+                message: "License expired.",
+            };
+        }
+
+        logger.info(`License details for ${ResidenciaId} retrieved successfully.`);
+        return {
+            ...licenseData,
+            status: "valid",
+            message: "License is valid.",
+        };
+    } catch (error) {
+        logger.error(`Error reading license file ${fileName} for ${ResidenciaId}:`, error);
+        // Return a generic error structure that still conforms to LicenseDetailsResult
+        return {
+            ResidenciaId,
+            licenciaValidaHasta: "",
+            licenciaActiva: false,
+            cantidadUsuarios: 0,
+            tokenLicencia: "",
+            status: "error_reading_file",
+            message: "Error reading license file.",
+        };
+    }
+}
+
+// Example of how you might call these functions (for testing or from another helper/callable):
+// async function testLicenseFunctions() {
+//     const testResidenciaId = "test-res-123";
+//
+//     // Test generating a license
+//     try {
+//         await generateLicenseFile({
+//             ResidenciaId: testResidenciaId,
+//             licenciaValidaHasta: "2025-12-31T23:59:59Z",
+//             licenciaActiva: true,
+//             cantidadUsuarios: "50",
+//             tokenLicencia: "newTokenForTest123"
+//         });
+//     } catch (error) {
+//         logger.error("Test generateLicenseFile failed:", error);
+//     }
+//
+//     // Test getting license details
+//     try {
+//         const details = await getLicenseDetails(testResidenciaId);
+//         logger.info("Test getLicenseDetails result:", details);
+//
+//         // Test with a non-existent ID
+//         const nonExistentDetails = await getLicenseDetails("non-existent-id");
+//         logger.info("Test getLicenseDetails for non-existent ID:", nonExistentDetails);
+//
+//         // Test with an expired license (you'd need to create one first)
+//         // await generateLicenseFile({
+//         //     ResidenciaId: "expired-res-ABC",
+//         //     licenciaValidaHasta: "2020-01-01T23:59:59Z",
+//         //     licenciaActiva: true,
+//         //     cantidadUsuarios: "10",
+//         //     tokenLicencia: "expiredTokenAbc"
+//         // });
+//         // const expiredDetails = await getLicenseDetails("expired-res-ABC");
+//         // logger.info("Test getLicenseDetails for expired ID:", expiredDetails);
+//
+//         // Test with an inactive license
+//         // await generateLicenseFile({
+//         //     ResidenciaId: "inactive-res-XYZ",
+//         //     licenciaValidaHasta: "2025-12-31T23:59:59Z",
+//         //     licenciaActiva: false,
+//         //     cantidadUsuarios: "5",
+//         //     tokenLicencia: "inactiveTokenXyz"
+//         // });
+//         // const inactiveDetails = await getLicenseDetails("inactive-res-XYZ");
+//         // logger.info("Test getLicenseDetails for inactive ID:", inactiveDetails);
+//
+//     } catch (error) {
+//         logger.error("Test getLicenseDetails failed:", error);
+//     }
+// }
+//
+// // If you want to run the test function during deployment or manually:
+// // testLicenseFunctions().catch(err => console.error("Test function error", err));
+
+// --- End of Helper Functions for License Management ---
 
 // --- Log Action Function ---
 const logAction = async (
@@ -206,8 +392,6 @@ export const createHardcodedMasterUser = onCall(
     }
 );
 // --- END OF INSECURE HARDCODED FUNCTION ---
-
-
 
 // --- Create User Function ---
 export const createUser = onCall(
@@ -507,3 +691,7 @@ export const deleteUser = onCall(
         }
     }
 );
+
+
+
+

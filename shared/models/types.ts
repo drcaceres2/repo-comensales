@@ -24,6 +24,7 @@ export type RecordatorioId = string;
 export type LogEntryId = string;
 export type TipoResidencia = 'estudiantes' | 'profesionales' | 'gente_mayor';
 export type LogActionType =
+    'log_cliente' |
     'user_created' |
     'user_updated' |
     'user_deleted' |
@@ -110,6 +111,11 @@ export type LogActionType =
     export type grupoUsuarioId = string;
     
     // --- Interfaces ---
+
+export interface campoFechaConZonaHoraria {
+    fecha: string; // fecha-hora, fecha u hora guardada en formato ISO: "YYYY-MM-DD" / "yyyy-MM-dd HH:mm" / "yyyy-MM-dd HH:mm:ss" / "HH:mm" / "HH:mm:ss"
+    zonaHoraria: string; // formato IANA de zona horaria
+}
 
 export interface grupoUsuario {
     id: grupoUsuarioId;
@@ -262,6 +268,8 @@ export interface Residencia {
     campoPersonalizado3_puedeModInteresado?: boolean;
 
     configuracionContabilidad: ConfigContabilidad | null;
+
+    estadoContrato: 'activo' | 'prueba' | 'inactivo';
 }
 
 export interface Comedor {

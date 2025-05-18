@@ -12,11 +12,16 @@ import {
   Residencia,
   Comedor,
   HorarioSolicitudComida,
+  AlternativaTiempoComida,
   UserRole,
   DayOfWeekKey,
   DayOfWeekMap,
-  CentroCosto // Ensure CentroCosto is here
-} from '@/../../shared//models/types';
+  CentroCosto,
+  LogActionType, // <--- ADD THIS
+  ClientLogWrite, 
+  UserId,
+  ResidenciaId
+} from '@/../../shared/models/types';
 import {
   doc,
   getDoc,
@@ -57,7 +62,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
+import { writeClientLog, checkAndDisplayTimezoneWarning } from "@/lib/utils";
 
 // Helper for new Comedor
 const getNewComedorDefaults = (residenciaId: string): Omit<Comedor, 'id'> => ({
@@ -112,9 +117,18 @@ export default function ResidenciaHorariosComedoresPage() {
   const [isEditingHorario, setIsEditingHorario] = useState<boolean>(false);
   const [formLoadingHorario, setFormLoadingHorario] = useState<boolean>(false);
 
-  // ADDED: CentroCosto States for the current Residencia
+  // ADDED: State for AlternativasTiempoComida for validation purposes
+  const [alternativasParaValidacion, setAlternativasParaValidacion] = useState<AlternativaTiempoComida[]>([]);
+  const [isLoadingAlternativas, setIsLoadingAlternativas] = useState<boolean>(false);
+
+
+  // CentroCosto States for the current Residencia
   const [centrosCostoResidencia, setCentrosCostoResidencia] = useState<CentroCosto[]>([]);
   const [isLoadingCentrosCostoResidencia, setIsLoadingCentrosCostoResidencia] = useState<boolean>(false);
+
+  // ...
+  const [timezoneWarningShown, setTimezoneWarningShown] = useState<boolean>(false); // To show warning only once
+
 
     // ... (isLoadingCentrosCostoResidencia state) ...
 
@@ -123,12 +137,10 @@ export default function ResidenciaHorariosComedoresPage() {
     nombre: '',
     direccion: '',
     logoUrl: '',
-    nombreEtiquetaCentroCosto: '',
-    modoDeCosteo: undefined, // Or a default like 'por-usuario'
     antelacionActividadesDefault: 0,
     textProfile: '',
-    tipoResidentes: 'estudiantes', // Default value
-    esquemaAdministracion: 'flexible', // Default value
+    tipoResidencia: 'estudiantes', // Default value
+    esquemaAdministracion: 'estricto', // Default value
     nombreTradicionalDesayuno: '',
     nombreTradicionalAlmuerzo: '',
     nombreTradicionalCena: '',
@@ -154,6 +166,7 @@ export default function ResidenciaHorariosComedoresPage() {
     campoPersonalizado3_necesitaValidacion: false,
     campoPersonalizado3_regexValidacion: '',
     campoPersonalizado3_tamanoTexto: 'text',
+    configuracionContabilidad: null,
     // centroCostoPorDefectoId will be handled as a separate field for now,
     // as it's part of Comedor, not directly Residencia in your current model.
     // If Residencia should have a *default* CentroCostoId, it needs to be added to Residencia interface first.
@@ -350,17 +363,64 @@ export default function ResidenciaHorariosComedoresPage() {
     }
   }, [targetResidenciaId, toast]);
 
+  // --- Fetch AlternativasTiempoComida for Validation ---
+  const fetchAlternativasParaValidacion = useCallback(async () => {
+    if (!targetResidenciaId) {
+        setAlternativasParaValidacion([]);
+        return;
+    }
+    setIsLoadingAlternativas(true);
+    try {
+        const q = query(
+            collection(db, 'alternativasTiempoComida'), // Assuming this is your collection name
+            where('residenciaId', '==', targetResidenciaId)
+        );
+        const snapshot = await getDocs(q);
+        setAlternativasParaValidacion(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AlternativaTiempoComida)));
+    } catch (error) {
+        console.error("Error fetching alternativasTiempoComida for validation:", error);
+        toast({ title: "Error de Carga", description: "No se pudieron cargar datos necesarios para validaciones (alternativas).", variant: "destructive" });
+        setAlternativasParaValidacion([]);
+    } finally {
+        setIsLoadingAlternativas(false);
+    }
+  }, [targetResidenciaId, toast]);
+
   useEffect(() => {
     if (targetResidenciaId && isAuthorizedForPage) {
-        fetchComedores();
-        fetchHorarios();
-        fetchCentrosCostoForCurrentResidencia(); // ADDED CALL
+      fetchComedores();
+      fetchHorarios();
+      fetchCentrosCostoForCurrentResidencia();
+      fetchAlternativasParaValidacion();
     } else {
-        setComedores([]);
-        setHorarios([]);
-        setCentrosCostoResidencia([]); // ADDED: Clear state if no targetResidenciaId
+      setComedores([]);
+      setHorarios([]);
+      setCentrosCostoResidencia([]);
+      setAlternativasParaValidacion([]); 
     }
-  }, [targetResidenciaId, isAuthorizedForPage, fetchComedores, fetchHorarios, fetchCentrosCostoForCurrentResidencia]); // ADDED fetchCentrosCostoForCurrentResidencia to dependencies
+  }, [
+    targetResidenciaId, 
+    isAuthorizedForPage, 
+    fetchComedores, 
+    fetchHorarios, 
+    fetchCentrosCostoForCurrentResidencia, 
+    fetchAlternativasParaValidacion // <--- ADD TO DEPENDENCY ARRAY
+  ]);
+
+// --- useEffect: Check for Timezone Differences ---
+useEffect(() => {
+  if (residenciaDetails?.zonaHoraria && !timezoneWarningShown) {
+    const warningWasDisplayed = checkAndDisplayTimezoneWarning(
+      residenciaDetails.zonaHoraria,
+      toast // Pass the toast function from useToast()
+    );
+    if (warningWasDisplayed) {
+      setTimezoneWarningShown(true); // Update state to prevent showing warning again
+    }
+  }
+}, [residenciaDetails, timezoneWarningShown, toast]); // Keep toast in dependencies
+
+
 
     // --- Comedor Form Handlers ---
   const handleInputChangeComedor = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -432,24 +492,40 @@ export default function ResidenciaHorariosComedoresPage() {
     }
   };
 
-
   const handleDeleteComedor = async (comedorId: string, comedorName: string) => {
-    if (!canEdit) {
-        toast({ title: "Acción no permitida", description: "No tienes permisos para eliminar.", variant: "destructive"});
+    if (!canEdit || !targetResidenciaId) {
+        toast({ title: "Acción no permitida", description: "No tienes permisos para eliminar o falta información de la residencia.", variant: "destructive"});
         return;
     }
-    /* 
-      TODO: Consider implications of deleting a comedor.
-      Are there AlternativaTiempoComida items referencing this comedorId?
-      They would need to be handled (e.g., disassociated or deleted, or prevent comedor deletion if in use).
-      For now, direct deletion.
-    */
-    setFormLoadingComedor(true); // Use this loading state for delete op as well
+
+    setFormLoadingComedor(true);
     try {
+      // Validation: Check if Comedor is used in any active AlternativaTiempoComida
+      const alternativasQuery = query(
+        collection(db, 'alternativasTiempoComida'), // Assuming this is your collection name
+        where('residenciaId', '==', targetResidenciaId),
+        where('comedorId', '==', comedorId),
+        where('isActive', '==', true)
+      );
+
+      const alternativasSnapshot = await getDocs(alternativasQuery);
+
+      if (!alternativasSnapshot.empty) {
+        toast({
+          title: "Eliminación Bloqueada",
+          description: `El comedor '${comedorName}' no puede ser eliminado porque está siendo utilizado en ${alternativasSnapshot.size} alternativa(s) de comida activa(s). Por favor, desactiva o reasigna estas alternativas primero.`,
+          variant: "destructive",
+          duration: 7000,
+        });
+        setFormLoadingComedor(false);
+        return;
+      }
+
+      // Proceed with deletion if not used
       await deleteDoc(doc(db, 'comedores', comedorId));
       toast({ title: "Comedor Eliminado", description: `Comedor '${comedorName}' eliminado.` });
-      fetchComedores(); // Refresh list
-      if (currentComedor.id === comedorId) { // If the deleted one was in the form
+      fetchComedores(); 
+      if (currentComedor.id === comedorId) {
         setShowComedorForm(false);
       }
     } catch (error) {
@@ -491,40 +567,148 @@ export default function ResidenciaHorariosComedoresPage() {
   const handleSubmitHorarioForm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!targetResidenciaId || !currentHorario.nombre || !currentHorario.dia || !currentHorario.horaSolicitud) {
-      toast({ title: "Error", description: "Nombre, día y hora son obligatorios para el horario.", variant: "destructive" });
+      toast({ title: "Campos Obligatorios", description: "Nombre, día y hora son obligatorios para el horario.", variant: "destructive" });
       return;
     }
-     if (!canEdit) {
-        toast({ title: "Acción no permitida", description: "No tienes permisos para esta acción.", variant: "destructive"});
+    if (!canEdit || !authUser) { // Ensure authUser is available for logging
+        toast({ title: "Acción no permitida", description: "No tienes permisos o no estás autenticado.", variant: "destructive"});
         return;
     }
 
-    // Validate horaSolicitud format (HH:MM)
-    if (!/^\d{2}:\d{2}$/.test(currentHorario.horaSolicitud)) {
+    if (!/^\\d{2}:\\d{2}$/.test(currentHorario.horaSolicitud)) {
         toast({ title: "Formato Incorrecto", description: "La hora debe estar en formato HH:MM (ej. 13:30).", variant: "destructive" });
         return;
     }
 
     setFormLoadingHorario(true);
+
+    const batch = writeBatch(db);
+    let newPrimaryHorarioId = currentHorario.id; // Will be the ID of the one being set to primary
+    let previousPrimaryHorarioIdToUpdate: string | null = null;
+
     try {
+      // Primary Horario Logic
+      if (currentHorario.isPrimary) {
+        const existingPrimaryForDay = horarios.find(
+          h => h.dia === currentHorario.dia && h.isPrimary && h.id !== currentHorario.id && h.isActive // only consider active ones
+        );
+        if (existingPrimaryForDay) {
+          // Demote the existing primary
+          const existingPrimaryRef = doc(db, 'horariosSolicitudComida', existingPrimaryForDay.id);
+          batch.update(existingPrimaryRef, { isPrimary: false });
+          previousPrimaryHorarioIdToUpdate = existingPrimaryForDay.id;
+          toast({
+            title: "Cambio de Primario",
+            description: `El horario '${existingPrimaryForDay.nombre}' ya no es primario para ${DayOfWeekMap[currentHorario.dia]}.`,
+            variant: "default",
+            duration: 4000
+          });
+        }
+      }
+
       const dataPayload = {
         ...currentHorario,
         residenciaId: targetResidenciaId,
-        // Ensure boolean values are correctly set, even if not touched in form for some reason
         isActive: currentHorario.isActive === undefined ? true : currentHorario.isActive,
         isPrimary: currentHorario.isPrimary === undefined ? false : currentHorario.isPrimary,
       };
 
+      let actionType: LogActionType = 'horario_solicitud_updated';
+      let docIdForLog = currentHorario.id;
+
       if (isEditingHorario && currentHorario.id) {
         const horarioRef = doc(db, 'horariosSolicitudComida', currentHorario.id);
         const { id, ...dataToUpdate } = dataPayload;
-        await updateDoc(horarioRef, dataToUpdate);
-        toast({ title: "Horario Actualizado", description: `Horario '${currentHorario.nombre}' actualizado.` });
+        batch.update(horarioRef, dataToUpdate);
+        // newPrimaryHorarioId is already currentHorario.id
       } else {
-        const { id, ...dataToCreate } = dataPayload; // ensure no id on create
-        await addDoc(collection(db, 'horariosSolicitudComida'), dataToCreate);
-        toast({ title: "Horario Creado", description: `Horario '${currentHorario.nombre}' creado.` });
+        actionType = 'horario_solicitud_created';
+        // For new horario, Firestore will generate ID. We add it to batch and get ref.
+        // To get the ID for logging and for newPrimaryHorarioId if it's primary,
+        // we must commit the batch partially or create this one doc outside the batch first if it's primary
+        // and needs to be immediately referenced.
+        // For simplicity here, if it's a new primary, we'll log after commit.
+        // If not primary, ID is not critical immediately for primary logic.
+        const newHorarioRef = doc(collection(db, 'horariosSolicitudComida')); // Create ref with new ID
+        batch.set(newHorarioRef, dataPayload);
+        newPrimaryHorarioId = newHorarioRef.id; // Capture the new ID
+        docIdForLog = newHorarioRef.id;
       }
+      
+      // Weekday check warning (Request 3c)
+      // This check should be done *before* committing the batch
+      const tempHorariosAfterSave = isEditingHorario
+        ? horarios.map(h => h.id === currentHorario.id ? { ...h, ...dataPayload } : h)
+        : [...horarios, { ...dataPayload, id: newPrimaryHorarioId! }]; // Simulate adding new
+
+      if (currentHorario.isPrimary || actionType === 'horario_solicitud_created' || previousPrimaryHorarioIdToUpdate) {
+          // Re-evaluate primaries after this potential change
+          let finalHorariosToCheck = tempHorariosAfterSave;
+          if(previousPrimaryHorarioIdToUpdate){ // if an old primary was demoted
+            finalHorariosToCheck = finalHorariosToCheck.map(h => h.id === previousPrimaryHorarioIdToUpdate ? {...h, isPrimary: false} : h);
+          }
+          if(currentHorario.isPrimary && newPrimaryHorarioId){ // if current one is becoming primary
+            finalHorariosToCheck = finalHorariosToCheck.map(h => {
+                if(h.id === newPrimaryHorarioId) return {...h, isPrimary: true};
+                if(h.dia === currentHorario.dia && h.id !== newPrimaryHorarioId) return {...h, isPrimary: false}; // demote others on same day
+                return h;
+            });
+          }
+
+          const activeHorarios = finalHorariosToCheck.filter(h => h.isActive);
+          const weekdaysWithPrimary = new Set(activeHorarios.filter(h => h.isPrimary).map(h => h.dia));
+          const allWeekdays = Object.keys(DayOfWeekMap) as Array<DayOfWeekKey>;
+          const weekdaysWithoutPrimary = allWeekdays.filter(day => !weekdaysWithPrimary.has(day));
+
+          if (weekdaysWithoutPrimary.length > 0) {
+            const confirmation = await new Promise<boolean>((resolve) => {
+                 // Use AlertDialog for confirmation
+                 // This is a placeholder for triggering an AlertDialog. 
+                 // You'll need to manage AlertDialog state (open/close) and its onConfirm/onCancel.
+                 // For now, we'll simulate with a window.confirm for simplicity of this step.
+                 const confirmed = window.confirm(
+                    `Advertencia: Los siguientes días no tendrán un horario primario activo: ${weekdaysWithoutPrimary.map(d => DayOfWeekMap[d]).join(', ')}. ` +
+                    `Esto podría afectar la creación automática de comidas. ¿Deseas continuar?`
+                 );
+                 resolve(confirmed);
+            });
+            if (!confirmation) {
+                setFormLoadingHorario(false);
+                toast({ title: "Operación Cancelada", description: "No se guardaron los cambios en el horario.", variant: "default"});
+                return; // User cancelled
+            }
+          }
+      }
+
+      await batch.commit();
+
+      toast({
+        title: actionType === 'horario_solicitud_created' ? "Horario Creado" : "Horario Actualizado",
+        description: `Horario '${currentHorario.nombre}' ${actionType === 'horario_solicitud_created' ? 'creado' : 'actualizado'} con éxito.`,
+      });
+
+      // Logging
+      await writeClientLog(
+        authUser.uid,
+        actionType,
+        {
+          residenciaId: targetResidenciaId,
+          details: `Horario '${currentHorario.nombre}' (ID: ${docIdForLog}) ${actionType === 'horario_solicitud_created' ? 'creado' : 'actualizado'} por ${authUser.email}. Día: ${DayOfWeekMap[currentHorario.dia]}, Hora: ${currentHorario.horaSolicitud}, Primario: ${currentHorario.isPrimary ? 'Sí':'No'}.` +
+                   (previousPrimaryHorarioIdToUpdate ? ` Horario anterior primario (ID: ${previousPrimaryHorarioIdToUpdate}) fue desmarcado.` : '')
+        }
+      );
+      if (previousPrimaryHorarioIdToUpdate) { // Log demotion of old primary if it happened
+          const oldPrimaryDetails = horarios.find(h=>h.id === previousPrimaryHorarioIdToUpdate);
+          await writeClientLog(
+            authUser.uid,
+            'horario_solicitud_updated', // Still an update
+            {
+              residenciaId: targetResidenciaId,
+              details: `Horario '${oldPrimaryDetails?.nombre || 'N/A'}' (ID: ${previousPrimaryHorarioIdToUpdate}) desmarcado como primario automáticamente debido a nuevo primario para ${DayOfWeekMap[currentHorario.dia]}. Acción por ${authUser.email}.`
+            }
+          );
+      }
+
       setShowHorarioForm(false);
       fetchHorarios(); // Refresh list
     } catch (error) {
@@ -536,30 +720,72 @@ export default function ResidenciaHorariosComedoresPage() {
   };
 
   const handleDeleteHorario = async (horarioId: string, horarioName: string) => {
-     if (!canEdit) {
-        toast({ title: "Acción no permitida", description: "No tienes permisos para eliminar.", variant: "destructive"});
+    if (!canEdit || !targetResidenciaId) {
+        toast({ title: "Acción no permitida", description: "No tienes permisos para eliminar o falta información.", variant: "destructive"});
         return;
     }
-    /*
-      TODO: Consider implications of deleting a horario.
-      Are there AlternativaTiempoComida items referencing this horarioSolicitudComidaId?
-      They might need to be handled. For now, direct deletion.
-    */
+
     setFormLoadingHorario(true);
     try {
-      await deleteDoc(doc(db, 'horariosSolicitudComida', horarioId));
-      toast({ title: "Horario Eliminado", description: `Horario '${horarioName}' eliminado.` });
+      const asociadasAlternativas = alternativasParaValidacion.filter(
+        alt => alt.horarioSolicitudComidaId === horarioId
+      );
+      const asociadasActivasAlternativas = asociadasAlternativas.filter(alt => alt.isActive);
+
+      if (asociadasActivasAlternativas.length > 0) {
+        toast({
+          title: "Eliminación Bloqueada",
+          description: `El horario '${horarioName}' no puede ser eliminado porque ${asociadasActivasAlternativas.length} alternativa(s) de comida activa(s) dependen de él. Por favor, desactívalas o reasígnalas primero.`,
+          variant: "destructive",
+          duration: 7000,
+        });
+        setFormLoadingHorario(false);
+        return;
+      }
+
+      if (asociadasAlternativas.length > 0 && asociadasActivasAlternativas.length === 0) {
+        // Soft delete: Mark as inactive
+        const horarioRef = doc(db, 'horariosSolicitudComida', horarioId);
+        await updateDoc(horarioRef, { isActive: false, isPrimary: false }); // Also ensure isPrimary is false on soft delete
+        toast({
+          title: "Horario Desactivado (Soft Delete)",
+          description: `El horario '${horarioName}' ha sido desactivado porque tiene alternativas inactivas asociadas.`,
+          variant: "default"
+        });
+        await writeClientLog(
+            authUser!.uid, // Assumes authUser is not null here due to canEdit check
+            'horario_solicitud_deleted', // Or a more specific 'horario_solicitud_deactivated' if you add it
+            {
+                residenciaId: targetResidenciaId,
+                details: `Horario '${horarioName}' (ID: ${horarioId}) desactivado (soft delete) por ${authUser!.email}. Alternativas inactivas asociadas: ${asociadasAlternativas.length}.`
+            }
+        );
+      } else {
+        // Complete deletion
+        await deleteDoc(doc(db, 'horariosSolicitudComida', horarioId));
+        toast({ title: "Horario Eliminado", description: `Horario '${horarioName}' eliminado permanentemente.` });
+        await writeClientLog(
+            authUser!.uid,
+            'horario_solicitud_deleted',
+            {
+                residenciaId: targetResidenciaId,
+                details: `Horario '${horarioName}' (ID: ${horarioId}) eliminado permanentemente por ${authUser!.email}. No tenía alternativas asociadas.`
+            }
+        );
+      }
+
       fetchHorarios(); // Refresh list
-      if (currentHorario.id === horarioId) { // If the deleted one was in the form
+      if (currentHorario.id === horarioId) {
         setShowHorarioForm(false);
       }
     } catch (error) {
-      console.error("Error deleting horario:", error);
-      toast({ title: "Error", description: `No se pudo eliminar el horario. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
+      console.error("Error deleting/deactivating horario:", error);
+      toast({ title: "Error", description: `No se pudo procesar la eliminación del horario. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
     } finally {
       setFormLoadingHorario(false);
     }
   };
+
 
   // --- Render Logic ---
   if (authFirebaseLoading || (profileLoading && authUser)) {
@@ -707,7 +933,7 @@ export default function ResidenciaHorariosComedoresPage() {
                   </div>
                   <div>
                     <Label htmlFor="comedorCentroCostoDefault">
-                        {(residenciaDetails?.nombreEtiquetaCentroCosto || 'Centro de Costo')} por Defecto (Opcional)
+                        {(residenciaDetails?.configuracionContabilidad?.nombreEtiquetaCentroCosto || 'Centro de Costo')} por Defecto (Opcional)
                     </Label>
                     <Select
                         value={currentComedor.centroCostoPorDefectoId || ''}
@@ -717,15 +943,16 @@ export default function ResidenciaHorariosComedoresPage() {
                         <SelectTrigger id="comedorCentroCostoDefault">
                             <SelectValue placeholder={
                                 isLoadingCentrosCostoResidencia ? "Cargando..." :
-                                `Seleccione ${(residenciaDetails?.nombreEtiquetaCentroCosto || 'CC').toLowerCase()} de defecto...`
+                                `Seleccione ${(residenciaDetails?.configuracionContabilidad?.nombreEtiquetaCentroCosto || 'CC').toLowerCase()} de defecto...`
                             } />
                         </SelectTrigger>
                         <SelectContent>
+                            {/* ... options ... */}
                             {isLoadingCentrosCostoResidencia ? (
                                 <SelectItem value="loading" disabled>Cargando...</SelectItem>
                             ) : centrosCostoResidencia.length === 0 ? (
                                 <SelectItem value="no-options" disabled>
-                                    No hay {(residenciaDetails?.nombreEtiquetaCentroCosto || 'centros de costo').toLowerCase()} activos en la residencia.
+                                    No hay {(residenciaDetails?.configuracionContabilidad?.nombreEtiquetaCentroCosto || 'centros de costo').toLowerCase()} activos en la residencia.
                                 </SelectItem>
                             ) : (
                                 <>
@@ -734,13 +961,12 @@ export default function ResidenciaHorariosComedoresPage() {
                                         <SelectItem key={cc.id} value={cc.id}>
                                             {cc.nombre}
                                         </SelectItem>
-                                    ))}
-                                </>
+                                    ))}</>
                             )}
                         </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
-                        {(residenciaDetails?.nombreEtiquetaCentroCosto || 'Centro de costo')} que se asignará por defecto a las elecciones hechas en este comedor.
+                        {(residenciaDetails?.configuracionContabilidad?.nombreEtiquetaCentroCosto || 'Centro de costo')} que se asignará por defecto a las elecciones hechas en este comedor.
                     </p>
                   </div>
                 </CardContent>
@@ -888,11 +1114,28 @@ export default function ResidenciaHorariosComedoresPage() {
                         id="horarioIsPrimary"
                         name="isPrimary"
                         checked={currentHorario.isPrimary || false}
-                        onCheckedChange={(checked) => setCurrentHorario(prev => ({...prev, isPrimary: Boolean(checked)}))}
+                        onCheckedChange={(checked) => {
+                            const isCurrentlyPrimaryBeingEdited = isEditingHorario && currentHorario.isPrimary;
+                            
+                            if (isCurrentlyPrimaryBeingEdited && !Boolean(checked)) {
+                                // If user tries to uncheck an existing primary horario being edited
+                                toast({
+                                    title: "Acción no permitida directamente",
+                                    description: "Un horario primario no puede ser desmarcado directamente. Para cambiar el horario primario, active esta opción en otro horario para el mismo día. Esto desmarcará automáticamente el actual.",
+                                    variant: "default",
+                                    duration: 7000
+                                });
+                                return; // Prevent unchecking by not updating state
+                            }
+                            setCurrentHorario(prev => ({...prev, isPrimary: Boolean(checked)}));
+                        }}
+                        // The main disabling factor is formLoadingHorario.
+                        // The onCheckedChange above handles the specific UX for an active primary.
                         disabled={formLoadingHorario}
                       />
                       <Label htmlFor="horarioIsPrimary" className="font-normal">¿Es Horario Primario?</Label>
                     </div>
+
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="horarioIsActive"
