@@ -25,6 +25,7 @@ export type LogEntryId = string;
 export type TipoResidencia = 'estudiantes' | 'profesionales' | 'gente_mayor';
 export type LogActionType =
     'log_cliente' |
+    'log_contrato' |
     'user_created' |
     'user_updated' |
     'user_deleted' |

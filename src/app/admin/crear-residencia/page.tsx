@@ -45,8 +45,6 @@ import { Loader2, AlertCircle, PlusCircle, Edit, Trash2, Eye } from 'lucide-reac
 
 import { writeClientLog } from '@/lib/utils';
 
-import timezonesDataEjemplos from '@/app/zonas_horarias_ejemplos.json';
-
 // Helper to create a new Residencia object with defaults
 const getNewResidenciaDefaults = (): Partial<Residencia> => ({ // Changed return type
   id: '', // Added id field
@@ -229,11 +227,6 @@ export default function CrearResidenciaAdminPage() {
       setResidences([]); // Clear residences if not authorized
     }
   }, [isAuthorized, userProfile, fetchResidences]);
-
-  // --- useEffect: Load timezones from JSON ---
-  useEffect(() => {
-    setTimezones(timezonesDataEjemplos as TimezonesData);
-  }, []); // Runs once on mount
 
   // --- Form Handling ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -671,7 +664,6 @@ export default function CrearResidenciaAdminPage() {
                   label="Zona Horaria"
                   initialTimezone={currentResidencia.zonaHoraria || getNewResidenciaDefaults().zonaHoraria}
                   onTimezoneChange={handleTimezoneChange}
-                  timezonesData={timezones} // This is your state variable holding zonas_horarias_ejemplos.json
                   disabled={formLoading || Object.keys(timezones).length === 0 || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                   // You can pass custom classNames if needed, e.g.:
                   // selectClassName="w-full p-2 border rounded mt-1 bg-background text-foreground"

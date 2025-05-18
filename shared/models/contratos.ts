@@ -3,6 +3,8 @@ import { UserId, ResidenciaId, campoFechaConZonaHoraria } from "./types"
 
 export type ContratoResidenciaId = string;
 
+export type ClienteId = string;
+
 export type odoo_status_in_payment =
     | "not_paid"
     | "in_payment"
@@ -21,12 +23,13 @@ export interface EstadoContrato {
 }
 
 export interface Cliente {
-    id: string;
+    id: ClienteId;
     idClienteOdoo?: string | null;
     email?: string | null;
     telefonoFijo?: string | null;
     telefonoMovil?: string | null;
     clienteAsociado?: UserId | null;
+    tipoPersonaCliente: 'PersonaNaturalHonduras' | 'PersonaNaturalExtranjera' | 'PersonaJuridicaHonduras' | 'PersonaJuridicaExtranjera' | 'ClienteProbando';
     personaCliente: PersonaNaturalHonduras | PersonaNaturalExtranjera | PersonaJuridicaHonduras | PersonaJuridicaExtranjera | ClienteProbando;
     representanteLegal?: PersonaNaturalHonduras | PersonaNaturalExtranjera | null;
 }
@@ -92,7 +95,7 @@ export type ContactoResponsable = UserId | ContactoExterno | Cliente;
 
 export interface ContratoResidencia {
     id?: ContratoResidenciaId; // ID del documento en Firestore (opcional al crear)
-    cliente: Cliente;
+    cliente: ClienteId;
     residencias: ResidenciaId[]; // Array de IDs de las Residencias asociadas a este contrato
     fechaInicio: campoFechaConZonaHoraria;
     fechaFin?: campoFechaConZonaHoraria | null; // null o undefined indica que podría tener fecha fin o no

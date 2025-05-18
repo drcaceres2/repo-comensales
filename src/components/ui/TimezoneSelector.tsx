@@ -1,4 +1,5 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
+import timezonesDataJson from '@/app/zonas_horarias_ejemplos.json'; // Import the JSON data
 
 // Interface for individual timezone details (name and offset)
 export interface TimezoneDetail {
@@ -12,11 +13,13 @@ export interface TimezonesData {
   [region: string]: TimezoneDetail[];
 }
 
+// Cast the imported JSON to our TimezonesData interface
+const timezonesData: TimezonesData = timezonesDataJson as TimezonesData;
+
 // Interface for the props of the TimezoneSelector component
 export interface TimezoneSelectorProps {
   initialTimezone?: string; // e.g., "America/New_York"
   onTimezoneChange: (timezone: string) => void;
-  timezonesData: TimezonesData;
   disabled?: boolean;
   label?: string;
   selectClassName?: string;
@@ -27,18 +30,17 @@ export interface TimezoneSelectorProps {
 const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({
   initialTimezone,
   onTimezoneChange,
-  timezonesData,
   disabled = false,
   label,
   selectClassName = "w-full p-2 border rounded mt-1 bg-background text-foreground",
-  labelClassName = "block text-sm font-medium text-gray-700",
+  labelClassName = "block text-sm font-medium text-gray-700 dark:text-gray-300", // Added dark mode suggestion
   containerClassName = "mb-4"
 }) => {
   const [selectedRegion, setSelectedRegion] = useState<string>("");
   const [selectedCity, setSelectedCity] = useState<string>("");
 
   useEffect(() => {
-    if (initialTimezone && timezonesData) {
+    if (initialTimezone) {
       const parts = initialTimezone.split('/');
       const region = parts[0];
       const city = parts.slice(1).join('/'); // City can contain '/'
@@ -56,82 +58,66 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({
         setSelectedCity("");
       }
     } else {
-      // No initial timezone, or no data, reset
+      // No initial timezone, reset
       setSelectedRegion("");
       setSelectedCity("");
     }
-  }, [initialTimezone, timezonesData]);
-
-  // Event handler for region selection
-  const handleRegionChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    const newRegion = e.target.value;
-    setSelectedRegion(newRegion);
-    setSelectedCity(""); // Reset city when region changes
-    // If newRegion is empty, it means "Select a region..." was chosen.
-    if (!newRegion) {
-      onTimezoneChange(""); // Notify parent that selection is incomplete
-    }
-  };
-
-  // Event handler for city selection
-  const handleCityChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    const newCity = e.target.value;
-    setSelectedCity(newCity);
-    // If newCity is empty, it means "Select a city/area..." was chosen.
-    // The effect below will handle calling onTimezoneChange.
-  };
+  }, [initialTimezone]); // timezonesData is a module constant, not needed in deps
 
   // useEffect to call onTimezoneChange when a valid city in a valid region is selected
   useEffect(() => {
     if (selectedRegion && selectedCity && timezonesData[selectedRegion]?.find(tz => tz.name === selectedCity)) {
       onTimezoneChange(`${selectedRegion}/${selectedCity}`);
     } else if (!selectedRegion || !selectedCity) {
-      // If either region or city is reset to an empty string (e.g., "Select...")
-      // and was not handled by handleRegionChange directly for an empty region.
+      // Call with empty string if selection is incomplete or invalid
+      // This might happen if initialTimezone was invalid or selections are reset
       onTimezoneChange("");
     }
-    // Adding timezonesData to dependencies in case it changes and selected values become invalid,
-    // though this is less common for this prop.
-  }, [selectedRegion, selectedCity, onTimezoneChange, timezonesData]);
+  }, [selectedRegion, selectedCity, onTimezoneChange]);
 
-  // --- JSX for selects will follow ---
+  const handleRegionChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setSelectedRegion(event.target.value);
+    setSelectedCity(""); // Reset city when region changes
+  };
+
+  const handleCityChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setSelectedCity(event.target.value);
+  };
+
+  const availableRegions = Object.keys(timezonesData);
+  const availableCities = selectedRegion ? timezonesData[selectedRegion] : [];
 
   return (
     <div className={containerClassName}>
-      {label && <label htmlFor="timezone-region-selector" className={labelClassName}>{label}</label>}
-      <select
-        id="timezone-region-selector"
-        value={selectedRegion}
-        onChange={handleRegionChange}
-        disabled={disabled}
-        className={selectClassName}
-      >
-        <option value="">-- Select Region --</option>
-        {Object.keys(timezonesData).sort().map(region => (
-          <option key={region} value={region}>
-            {region}
-          </option>
-        ))}
-      </select>
-
-      <select
-        id="timezone-city-selector"
-        value={selectedCity}
-        onChange={handleCityChange}
-        disabled={disabled || !selectedRegion || !timezonesData[selectedRegion] || timezonesData[selectedRegion]?.length === 0}
-        className={`${selectClassName} mt-2`} // Added margin-top for spacing
-      >
-        <option value="">-- Select City/Area --</option>
-        {selectedRegion && timezonesData[selectedRegion] ? (
-          timezonesData[selectedRegion]
-            .sort((a, b) => a.name.localeCompare(b.name)) // Sort cities alphabetically by name
-            .map(tz => (
-              <option key={tz.name} value={tz.name}>
-                {tz.name} {tz.offset ? `(${tz.offset})` : ''}
-              </option>
-            ))
-        ) : null}
-      </select>
+      {label && <label className={labelClassName}>{label}</label>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <select
+          value={selectedRegion}
+          onChange={handleRegionChange}
+          disabled={disabled}
+          className={selectClassName}
+          aria-label="Select timezone region"
+        >
+          <option value="">-- Select Region --</option>
+          {availableRegions.map(region => (
+            <option key={region} value={region}>{region.replace(/_/g, ' ')}</option>
+          ))}
+        </select>
+        <select
+          value={selectedCity}
+          onChange={handleCityChange}
+          disabled={disabled || !selectedRegion}
+          className={selectClassName}
+          aria-label="Select timezone city"
+        >
+          <option value="">-- Select City --</option>
+          {availableCities.map(tz => (
+            <option key={tz.name} value={tz.name}>
+              {tz.name.replace(/_/g, ' ')} ({tz.offset})
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 };
