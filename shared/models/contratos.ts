@@ -1,9 +1,12 @@
 
+import { StringFormat } from "firebase/storage";
 import { UserId, ResidenciaId, campoFechaConZonaHoraria } from "./types"
 
 export type ContratoResidenciaId = string;
-
 export type ClienteId = string;
+export type PedidoId = String;
+export type FacturaId = string;
+export type FacturaCeroId = 'Factura de un pedido libre de costo';
 
 export type odoo_status_in_payment =
     | "not_paid"
@@ -96,7 +99,7 @@ export type ContactoResponsable = UserId | ContactoExterno | Cliente;
 export interface ContratoResidencia {
     id?: ContratoResidenciaId; // ID del documento en Firestore (opcional al crear)
     cliente: ClienteId;
-    residencias: ResidenciaId[]; // Array de IDs de las Residencias asociadas a este contrato
+    residencia: ResidenciaId;
     fechaInicio: campoFechaConZonaHoraria;
     fechaFin?: campoFechaConZonaHoraria | null; // null o undefined indica que podría tener fecha fin o no
     esIndefinido: boolean;
@@ -105,14 +108,13 @@ export interface ContratoResidencia {
     recordatorios?: RecordatorioVencimiento[];
     pruebaSolucion: boolean;
     fechaFinPrueba?: campoFechaConZonaHoraria | null; // El trial siempre es al principio, se supone fecha de inicio la fecha de inicio del contrato
-    suscripciones?: Suscripcion[];
     fechaCreacionObjeto: campoFechaConZonaHoraria;
     fechaUltimaModificacionObjeto: campoFechaConZonaHoraria;
     estadoContrato: EstadoContrato;
     urlContratoOdoo?: string | null;
 }
   
-export type FrecuenciaSuscripcion = 'mensual' | 'trimestral' | 'semestral' | 'anual';
+export type FrecuenciaSuscripcion = 'semanal' | 'quincenal' | 'mensual' | 'bimestral' | 'trimestral' | 'cuatrimestral' | 'semestral' | 'anual';
   
 export interface RecordatorioVencimiento {
     diasAntesVencimiento: number;
@@ -120,28 +122,41 @@ export interface RecordatorioVencimiento {
 }
 
 export interface Factura {
-    id: string;
-    tipo: 'factura_manual' | 'odoo';
-    idFacturaOdoo?: string;
+    id: FacturaId;
+    idOrdenCompra: PedidoId;
+    control: 'manual' | 'odoo';
+    estado: 'proforma pospago' | 'no pagado' | 'pago parcial' | 'pagado';
+    idFacturaOdoo?: string | null;
     estadoDePago: odoo_status_in_payment;
+    montoISV: number;
+    montoTotal: number;
 }
 
-export interface Suscripcion {
-    periodicidad: 'suscripcion' | 'perpetua';
-    esLibreDeCosto: boolean;
-    fechaInicio: campoFechaConZonaHoraria;
-    fechaFin?: campoFechaConZonaHoraria | null;
-    frecuencia: FrecuenciaSuscripcion;
-    limitacionUsuarios: boolean;
-    cantUsuarios?: number;
+export interface Pedido { 
+    id: PedidoId; 
+    contrato: ContratoResidenciaId; 
+    tipo: 'suscripcion' | 'licencia temporal' | 'licencia perpetua'; 
+    modoPago: 'prepagado' | 'al vencimiento' | 'libre de costo'; 
+    montoTotal: number; 
+    periodicidad?: FrecuenciaSuscripcion | null; 
+    fechaInicio: campoFechaConZonaHoraria; 
+    fechaFin?: campoFechaConZonaHoraria | null; 
+    limitacionUsuarios: boolean; 
+    cantUsuarios?: number; 
+}
+
+
+export interface Licenciamiento {
+    pedidoId: PedidoId;
+    facturaId: FacturaId | FacturaCeroId;
+    licenciaId: string;
 }
 
 export interface Licencia {
     id: string;
     contratoLicencia: ContratoResidenciaId;
+    pedido: PedidoId;
     cantUsuarios: number;
     fechaInicio: campoFechaConZonaHoraria;
     fechaFin: campoFechaConZonaHoraria;
-    diasCredito: number; // cantidad de días desde que un período está vencido hasta el efectivo corte del servicio
-    facturaAsociada?: Factura | null;
 }

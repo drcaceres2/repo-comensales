@@ -24,50 +24,30 @@ export type RecordatorioId = string;
 export type LogEntryId = string;
 export type TipoResidencia = 'estudiantes' | 'profesionales' | 'gente_mayor';
 export type LogActionType =
-    'log_cliente' |
-    'log_contrato' |
-    'user_created' |
-    'user_updated' |
-    'user_deleted' |
-    'residencia_created' |
-    'residencia_updated' |
-    'residencia_deleted' |
-    'tiempo_comida_created' |
-    'tiempo_comida_updated' |
-    'tiempo_comida_deleted' |
-    'alternativa_created' |
-    'alternativa_updated' |
-    'alternativa_deleted' |
-    'horario_solicitud_created' |
-    'horario_solicitud_updated' |
-    'horario_solicitud_deleted' |
-    'dieta_created' |
-    'dieta_updated' |
-    'dieta_deleted' |
+    'cliente' |
+    'contrato' |
+    'pedido' |
+    'licencia' |
+    'factura' |
+    'userProfile' |
+    'residencia' |
+    'tiempo_comida' |
+    'alternativa' |
+    'horario_solicitud' |
+    'dieta' |
     'solicitud_autorizacion_requerida' |
     'solicitud_aprobada' |
     'solicitud_rechazada' |
     'dieta_asignada' |
     'dieta_desasignada' |
-    'semanario_updated' |
-    'eleccion_created' |
-    'eleccion_updated' |
-    'eleccion_deleted' |
-    'ausencia_created' |
-    'ausencia_updated' |
-    'ausencia_deleted' |
-    'comentario_created' |
-    'modo_eleccion_updated' |
-    'actividad_created' |        
-    'actividad_updated' |
-    'actividad_deleted' |        
-    'actividad_estado_changed' |  
-    'inscripcion_actividad_registrada' | 
-    'inscripcion_actividad_cancelada' |  
-    'inscripcion_invitacion_enviada' |   
-    'inscripcion_invitacion_aceptada' |  
-    'inscripcion_invitacion_rechazada' | 
-    'feedback_submitted';
+    'semanario' |
+    'eleccion' |
+    'ausencia' |
+    'comentario' |
+    'modo_eleccion' |
+    'actividad' |        
+    'inscripcion_invitacion' | 
+    'feedback';
 
     export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
     export type TipoAccesoAlternativa = 'abierto' | 'autorizado' | 'cerrado';

@@ -304,7 +304,7 @@ const CrearClientePage = () => {
                 const clientId = editingClient.id;
                 const clientRef = doc(db, 'clientes', clientId);
                 await updateDoc(clientRef, formState as DocumentData);
-                await writeClientLog(actorUserId, 'log_cliente', {
+                await writeClientLog(actorUserId, 'cliente', {
                     ...commonLogDetails,
                     relatedDocPath: `clientes/${clientId}`,
                     details: { action: 'update', clientId: clientId, editorEmail: userProfile.email, newData: formState }
@@ -312,7 +312,7 @@ const CrearClientePage = () => {
                 toast({ title: "Éxito", description: "Cliente actualizado con éxito" });
             } else {
                 const docRef = await addDoc(collection(db, 'clientes'), formState as DocumentData);
-                await writeClientLog(actorUserId, 'log_cliente', {
+                await writeClientLog(actorUserId, 'cliente', {
                     ...commonLogDetails,
                     relatedDocPath: `clientes/${docRef.id}`,
                     details: { action: 'create', clientId: docRef.id, creatorEmail: userProfile.email, data: formState }
@@ -342,7 +342,7 @@ const CrearClientePage = () => {
         if (window.confirm("¿Está seguro de que desea eliminar este cliente?")) {
             try {
                 await deleteDoc(doc(db, 'clientes', clientId));
-                await writeClientLog(userProfile.id as UserId, 'log_cliente', {
+                await writeClientLog(userProfile.id as UserId, 'cliente', {
                     targetUid: null,
                     relatedDocPath: `clientes/${clientId}`,
                     details: { action: 'delete', clientId: clientId, deleterEmail: userProfile.email }

@@ -418,7 +418,7 @@ export default function CrearResidenciaAdminPage() {
         if (userProfile?.id && currentResidencia.id) { 
           await writeClientLog(
             userProfile.id, // actorUserId (ensure this is type UserId or string)
-            'residencia_updated', // actionType
+            'residencia', // actionType
             { // logDetails
               residenciaId: currentResidencia.id, // (ensure this is type ResidenciaId or string)
               details: `Residencia '${dataToUpdate.nombre || ''}' (ID: ${currentResidencia.id}) actualizada por ${userProfile.email}.` 
@@ -459,7 +459,7 @@ export default function CrearResidenciaAdminPage() {
         if (userProfile?.id) { 
           await writeClientLog(
             userProfile.id, // actorUserId
-            'residencia_created', // actionType
+            'residencia', // actionType
             { // logDetails
               residenciaId: docRef.id,
               details: `Residencia '${newResidenciaData.nombre || ''}' (ID: ${docRef.id}) creada por ${userProfile.email}.`
@@ -504,7 +504,7 @@ export default function CrearResidenciaAdminPage() {
       if (userProfile?.id) { 
         await writeClientLog(
           userProfile.id, // actorUserId
-          'residencia_deleted', // actionType
+          'residencia', // actionType
           { // logDetails
             residenciaId: residenciaId,
             details: `Residencia '${residenciaNombre}' (ID: ${residenciaId}) eliminada por ${userProfile.email}.`

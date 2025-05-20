@@ -2,18 +2,21 @@ import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https
 import { logger } from "firebase-functions/v2";
 import * as admin from "firebase-admin";
 import { Storage } from "@google-cloud/storage";
+import * as crypto from 'crypto'; 
 
 // Shared types import
 import { UserProfile, LogEntry, LogActionType, ResidenciaId } from "../../shared/models/types";
 
+// Initialize Firebase Admin
 admin.initializeApp();
+
+// Top-level variable definition
 const db = admin.firestore();
 const storage = new Storage();
-const licenseBucketName = "comensales-licencias"; // Define bucket name
+const licenseBucketName = "lmgmt";
+const licenseFilesPath = "licenses/";
 
-// const FieldValue = admin.firestore.FieldValue; // It's generally safer to use admin.firestore.FieldValue directly
-
-// --- Interfaces for Function Payloads ---
+// --- Interfaces for User Management Payloads ---
 interface CreateUserDataPayload {
     email: string;
     password?: string; // Optional for cases like inviting an existing auth user to a profile
@@ -38,7 +41,7 @@ interface LogEntryWrite extends Omit<LogEntry, "id" | "timestamp"> {
     // 'userId' from LogEntry will store the UID of the admin/user performing the action
 }
 
-// --- Security Helper ---
+// --- Interfaces for Security return object ---
 interface CallerSecurityInfo {
     uid: string;
     profile?: UserProfile;
@@ -61,13 +64,36 @@ interface LicenseDetailsResult extends LicenseData {
     message: string;
 }
 
+// Modified version
 interface GenerateLicenseParams {
-    ResidenciaId: string;
-    licenciaValidaHasta: string; // ISO 8601 date string
+    ResidenciaId: string; // Or your ResidenciaId type
+    licenciaValidaHasta: string; // ISO 8601 date string in "YYYY-MM-DDTHH:MM±HH:MM" or "YYYY-MM-DDTHH:MM:SSZ"
     licenciaActiva: boolean;
     cantidadUsuarios: number;
-    tokenLicencia: string;
 }
+
+// --- Log Action Function ---
+const logAction = async (
+    actionType: LogActionType, // Use the string literals from your enum-like type
+    performedByUid: string,
+    targetUid: string | null = null,
+    details: Record<string, any> = {},
+): Promise<void> => {
+    try {
+        const logEntryData: LogEntryWrite = {
+            actionType,
+            userId: performedByUid, // 'userId' in LogEntry refers to the actor
+            timestamp: (db.constructor as any).FieldValue.serverTimestamp() as any, // Switched to db.constructor path
+            targetUid,
+            details,
+            // residenciaId: details.residenciaId || null, // If you want to log this
+        };
+        await db.collection("logs").add(logEntryData);
+        logger.info(`Action logged: ${actionType} by ${performedByUid}` + (targetUid ? ` on ${targetUid}` : ""), details);
+    } catch (error) {
+        logger.error("Error logging action:", error);
+    }
+};
 
 async function getCallerSecurityInfo(authContext?: CallableRequest['auth']): Promise<CallerSecurityInfo> {
     if (!authContext || !authContext.uid) {
@@ -106,27 +132,53 @@ async function getCallerSecurityInfo(authContext?: CallableRequest['auth']): Pro
  * @returns Promise<void>
  */
 export async function generateLicenseFile(params: GenerateLicenseParams): Promise<void> {
-    const { ResidenciaId, licenciaValidaHasta, licenciaActiva, cantidadUsuarios, tokenLicencia } = params;
+    // Destructure params - tokenLicencia is no longer expected here
+    const { ResidenciaId, licenciaValidaHasta, licenciaActiva, cantidadUsuarios } = params;
+
+    // --- Input Validation ---
+    if (!ResidenciaId || typeof ResidenciaId !== 'string' || ResidenciaId.trim() === "") {
+        logger.error("generateLicenseFile: ResidenciaId is required and must be a non-empty string.");
+        throw new HttpsError("invalid-argument", "ResidenciaId is required.");
+    }
+    if (!licenciaValidaHasta || typeof licenciaValidaHasta !== 'string' || licenciaValidaHasta.trim() === "") {
+        logger.error("generateLicenseFile: licenciaValidaHasta is required and must be a non-empty string.");
+        throw new HttpsError("invalid-argument", "licenciaValidaHasta (ISO 8601 date string) is required.");
+    }
+    // Basic check for cantidadUsuarios (already type number by interface, but good practice for runtime)
+    if (typeof cantidadUsuarios !== 'number' || isNaN(cantidadUsuarios) || cantidadUsuarios < 0) {
+        logger.error(`generateLicenseFile: cantidadUsuarios must be a non-negative number. Received: ${cantidadUsuarios}`);
+        throw new HttpsError("invalid-argument", "cantidadUsuarios must be a non-negative number.");
+    }
+    if (typeof licenciaActiva !== 'boolean') {
+        logger.error(`generateLicenseFile: licenciaActiva must be a boolean. Received: ${licenciaActiva}`);
+        throw new HttpsError("invalid-argument", "licenciaActiva must be a boolean.");
+    }
+
+    // --- Generate Token Internally ---
+    // Assuming ResidenciaId type is compatible with generarTokenLicencia's first parameter
+    const internallyGeneratedToken = generarTokenLicencia(ResidenciaId as ResidenciaId, licenciaValidaHasta);
 
     const licenseData: LicenseData = {
         ResidenciaId,
         licenciaValidaHasta,
         licenciaActiva,
         cantidadUsuarios,
-        tokenLicencia,
+        tokenLicencia: internallyGeneratedToken, // Use the internally generated token
     };
 
-    const fileName = `${ResidenciaId}.json`;
-    const file = storage.bucket(licenseBucketName).file(fileName);
+    const fullPathToFile = `${licenseFilesPath}${ResidenciaId}.json`;
+    const file = storage.bucket(licenseBucketName).file(fullPathToFile);
 
     try {
         await file.save(JSON.stringify(licenseData, null, 2), {
             contentType: "application/json",
         });
-        logger.info(`License file ${fileName} generated and saved to ${licenseBucketName}.`);
+        logger.info(`License file ${fullPathToFile} generated and saved to ${licenseBucketName}. Token: ${internallyGeneratedToken}`);
     } catch (error) {
-        logger.error(`Error saving license file ${fileName}:`, error);
-        throw new HttpsError("internal", "Could not save license file.", error);
+        logger.error(`Error saving license file ${fullPathToFile}:`, error);
+        // Keep HttpsError if this function is directly or indirectly called by an HTTPS trigger
+        // Otherwise, a standard Error might be more appropriate if it's purely server-side internal.
+        throw new HttpsError("internal", `Could not save license file for ResidenciaId ${ResidenciaId}.`, (error as Error).message);
     }
 }
 
@@ -137,13 +189,13 @@ export async function generateLicenseFile(params: GenerateLicenseParams): Promis
  * @returns Promise<LicenseDetailsResult>
  */
 export async function getLicenseDetails(ResidenciaId: string): Promise<LicenseDetailsResult> {
-    const fileName = `${ResidenciaId}.json`;
-    const file = storage.bucket(licenseBucketName).file(fileName);
+    const fullPathToFile = `${licenseFilesPath}${ResidenciaId}.json`; // New way with path
+    const file = storage.bucket(licenseBucketName).file(fullPathToFile);
 
     try {
         const [exists] = await file.exists();
         if (!exists) {
-            logger.warn(`License file ${fileName} not found in ${licenseBucketName}.`);
+            logger.warn(`License file ${fullPathToFile} not found in ${licenseBucketName}.`);
             return {
                 ResidenciaId,
                 licenciaValidaHasta: "",
@@ -184,7 +236,7 @@ export async function getLicenseDetails(ResidenciaId: string): Promise<LicenseDe
             message: "License is valid.",
         };
     } catch (error) {
-        logger.error(`Error reading license file ${fileName} for ${ResidenciaId}:`, error);
+        logger.error(`Error reading license file ${fullPathToFile} for ${ResidenciaId}:`, error);
         // Return a generic error structure that still conforms to LicenseDetailsResult
         return {
             ResidenciaId,
@@ -198,88 +250,51 @@ export async function getLicenseDetails(ResidenciaId: string): Promise<LicenseDe
     }
 }
 
-// Example of how you might call these functions (for testing or from another helper/callable):
-// async function testLicenseFunctions() {
-//     const testResidenciaId = "test-res-123";
-//
-//     // Test generating a license
-//     try {
-//         await generateLicenseFile({
-//             ResidenciaId: testResidenciaId,
-//             licenciaValidaHasta: "2025-12-31T23:59:59Z",
-//             licenciaActiva: true,
-//             cantidadUsuarios: "50",
-//             tokenLicencia: "newTokenForTest123"
-//         });
-//     } catch (error) {
-//         logger.error("Test generateLicenseFile failed:", error);
-//     }
-//
-//     // Test getting license details
-//     try {
-//         const details = await getLicenseDetails(testResidenciaId);
-//         logger.info("Test getLicenseDetails result:", details);
-//
-//         // Test with a non-existent ID
-//         const nonExistentDetails = await getLicenseDetails("non-existent-id");
-//         logger.info("Test getLicenseDetails for non-existent ID:", nonExistentDetails);
-//
-//         // Test with an expired license (you'd need to create one first)
-//         // await generateLicenseFile({
-//         //     ResidenciaId: "expired-res-ABC",
-//         //     licenciaValidaHasta: "2020-01-01T23:59:59Z",
-//         //     licenciaActiva: true,
-//         //     cantidadUsuarios: "10",
-//         //     tokenLicencia: "expiredTokenAbc"
-//         // });
-//         // const expiredDetails = await getLicenseDetails("expired-res-ABC");
-//         // logger.info("Test getLicenseDetails for expired ID:", expiredDetails);
-//
-//         // Test with an inactive license
-//         // await generateLicenseFile({
-//         //     ResidenciaId: "inactive-res-XYZ",
-//         //     licenciaValidaHasta: "2025-12-31T23:59:59Z",
-//         //     licenciaActiva: false,
-//         //     cantidadUsuarios: "5",
-//         //     tokenLicencia: "inactiveTokenXyz"
-//         // });
-//         // const inactiveDetails = await getLicenseDetails("inactive-res-XYZ");
-//         // logger.info("Test getLicenseDetails for inactive ID:", inactiveDetails);
-//
-//     } catch (error) {
-//         logger.error("Test getLicenseDetails failed:", error);
-//     }
-// }
-//
-// // If you want to run the test function during deployment or manually:
-// // testLicenseFunctions().catch(err => console.error("Test function error", err));
+/**
+ * Generates a unique license token (HMAC-SHA256 hash) for a given residencia and license validity date.
+ * This function is intended for server-side use only.
+ *
+ * @param residenciaId The ID of the Residencia.
+ * @param licenciaValidaHasta The date (ISO 8601 string) until which the license is valid.
+ *                            e.g., "YYYY-MM-DDTHH:MM:SSZ" or "YYYY-MM-DDTHH:MM±HH:MM"
+ * @returns A unique license token (HMAC-SHA256 hash as a hex string).
+ */
+export function generarTokenLicencia(
+    residenciaId: ResidenciaId, // Or ResidenciaId if you have that type defined and imported
+    licenciaValidaHasta: string
+): string {
+    if (!residenciaId || !licenciaValidaHasta) {
+        throw new Error("Residencia ID and license validity date are required.");
+    }
+
+    // Basic validation for licenciaValidaHasta format (can be enhanced)
+    // This regex is a simplified check and might not cover all ISO 8601 subtleties.
+    const iso8601Regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|([+-]\d{2}:\d{2}))$/;
+    if (!iso8601Regex.test(licenciaValidaHasta)) {
+        // Consider logging this error as well
+        throw new Error(`Invalid ISO 8601 date format for licenciaValidaHasta: ${licenciaValidaHasta}`);
+        // Depending on strictness, you might throw an error or allow it if your parsing downstream is robust.
+        // For now, we'll proceed, but stricter validation is recommended for production.
+    }
+
+    const dataToHash = `${residenciaId}-${licenciaValidaHasta}`;
+
+    // In a production environment, fetch the secret key from Secret Manager
+    // const secretKey = process.env.LICENSE_HMAC_SECRET || HMAC_SECRET_KEY_DEV;
+    // For now, using the hardcoded development key:
+    const secretKey = HMAC_SECRET_KEY_DEV;
+
+    const hmac = crypto.createHmac('sha256', secretKey);
+    hmac.update(dataToHash);
+    const token = hmac.digest('hex');
+
+    return token;
+}
 
 // --- End of Helper Functions for License Management ---
 
-// --- Log Action Function ---
-const logAction = async (
-    actionType: LogActionType, // Use the string literals from your enum-like type
-    performedByUid: string,
-    targetUid: string | null = null,
-    details: Record<string, any> = {},
-): Promise<void> => {
-    try {
-        const logEntryData: LogEntryWrite = {
-            actionType,
-            userId: performedByUid, // 'userId' in LogEntry refers to the actor
-            timestamp: (db.constructor as any).FieldValue.serverTimestamp() as any, // Switched to db.constructor path
-            targetUid,
-            details,
-            // residenciaId: details.residenciaId || null, // If you want to log this
-        };
-        await db.collection("logs").add(logEntryData);
-        logger.info(`Action logged: ${actionType} by ${performedByUid}` + (targetUid ? ` on ${targetUid}` : ""), details);
-    } catch (error) {
-        logger.error("Error logging action:", error);
-    }
-};
-
 // --- VERY INSECURE - FOR LOCAL DEVELOPMENT ONLY ---
+const HMAC_SECRET_KEY_DEV = "F#gQb-qXIW{;nWo_$H7rBbl5JnU,=tdefc(wqk@0g56s[gDhAI";
 // --- DELETE THIS FUNCTION BEFORE PRODUCTION ---
 export const createHardcodedMasterUser = onCall(
     {
@@ -498,7 +513,7 @@ export const createUser = onCall(
             await db.collection("users").doc(newUserId).set(userProfileDoc);
             logger.info("Successfully created UserProfile in Firestore for UID:", newUserId);
 
-            await logAction("user_created", callerInfo.uid, newUserId, { email, roles: targetUserRoles, residenciaId: targetResidenciaId });
+            await logAction("userProfile", callerInfo.uid, newUserId, { email, roles: targetUserRoles, residenciaId: targetResidenciaId });
             return { success: true, userId: newUserId, message: "User created successfully." };
 
         } catch (error: any) {
@@ -614,7 +629,7 @@ export const updateUser = onCall(
             await db.collection("users").doc(userIdToUpdate).update(firestoreUpdateData);
             logger.info("UserProfile updated in Firestore:", userIdToUpdate);
 
-            await logAction("user_updated", callerInfo.uid, userIdToUpdate, { updatedFields: Object.keys(profileData) });
+            await logAction("userProfile", callerInfo.uid, userIdToUpdate, { updatedFields: Object.keys(profileData) });
             return { success: true, message: "User updated successfully." };
         } catch (error: any) {
             logger.error("Error updating UserProfile in Firestore:", userIdToUpdate, error);
@@ -682,7 +697,7 @@ export const deleteUser = onCall(
                 logger.info("Successfully deleted UserProfile from Firestore:", userIdToDelete);
             }
 
-            await logAction("user_deleted", callerInfo.uid, userIdToDelete);
+            await logAction("userProfile", callerInfo.uid, userIdToDelete);
             return { success: true, message: "User deleted successfully." };
         } catch (error: any) {
             logger.error("Error deleting UserProfile from Firestore:", userIdToDelete, error);
