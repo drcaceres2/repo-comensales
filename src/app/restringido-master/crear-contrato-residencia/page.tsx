@@ -39,12 +39,14 @@ async function CrearPedidoPrueba (
       contrato: contratoId,
       tipo: 'licencia temporal',
       modoPago: 'libre de costo',
+      moneda: 'HNL',
       montoTotal: 0,
       periodicidad: null,
       fechaInicio: fechaInicioContrato,
       fechaFin: fechaFinPruebaContrato,
       limitacionUsuarios: true,
       cantUsuarios: 10,
+      activo: true,
     };
 
     const docRef = await addDoc(collection(db, 'pedidos'), PedidoData);

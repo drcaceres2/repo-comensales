@@ -72,6 +72,7 @@ const CrearPedidoPage = () => {
   const [limitacionUsuarios, setLimitacionUsuarios] = useState<boolean>(true);
   const [cantUsuarios, setCantUsuarios] = useState<number>(1);
   const [contratoZonaHoraria, setContratoZonaHoraria] = useState<string | null>(null);
+  const [activo, setActivo] = useState<boolean>(true);
 
 
   // --- Data State ---
@@ -326,10 +327,6 @@ const CrearPedidoPage = () => {
 
     try {
       switch (periodicidad) {
-        case 'diaria':
-          numberOfFullPeriods = differenceInDays(end, start);
-          calculatedEndDateForIntegerPeriods = addDays(start, numberOfFullPeriods);
-          break;
         case 'semanal':
           numberOfFullPeriods = differenceInWeeks(end, start);
           calculatedEndDateForIntegerPeriods = addWeeks(start, numberOfFullPeriods);
@@ -414,9 +411,6 @@ const CrearPedidoPage = () => {
 
     try {
       switch (periodicidad) {
-        case 'diaria':
-          numberOfPeriods = differenceInDays(end, start);
-          break;
         case 'semanal':
           numberOfPeriods = differenceInWeeks(end, start);
           break;
@@ -574,12 +568,14 @@ const CrearPedidoPage = () => {
       contrato: selectedContratoId,
       tipo: tipo,
       modoPago: modoPago,
+      moneda: 'HNL',
       montoTotal: finalMontoTotal,
       periodicidad: finalPeriodicidad,
       fechaInicio: finalFechaInicioCampo,
       fechaFin: finalFechaFinCampo,
       limitacionUsuarios: limitacionUsuarios,
       cantUsuarios: limitacionUsuarios ? finalCantUsuarios : undefined, // Use undefined if not limited, as per Pedido interface
+      activo: activo,
     };
 
     // --- Create or Update Logic ---
@@ -635,7 +631,7 @@ const CrearPedidoPage = () => {
     setTipo(pedido.tipo);
     setModoPago(pedido.modoPago);
     setMontoTotal(pedido.montoTotal);
-    setPeriodicidad(pedido.periodicidad);
+    setPeriodicidad(pedido.periodicidad || null);
 
     // Set fechaInicioDate and fechaInicioTime
     if (pedido.fechaInicio && pedido.fechaInicio.fecha && pedido.fechaInicio.zonaHoraria) {
@@ -677,6 +673,8 @@ const CrearPedidoPage = () => {
 
     setLimitacionUsuarios(pedido.limitacionUsuarios);
     setCantUsuarios(pedido.cantUsuarios || (pedido.limitacionUsuarios ? 1 : 0)); // Default to 1 if limited and no value, 0 otherwise
+
+    setActivo(pedido.activo === undefined ? true : pedido.activo); // <<< ADD THIS LINE
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast({ title: "Modo Edición", description: `Editando pedido ID: ${pedido.id}` });
@@ -746,6 +744,8 @@ const CrearPedidoPage = () => {
     setLimitacionUsuarios(true);
     setCantUsuarios(1);
     setSubscriptionWarning(null);
+    setActivo(true); // <<< ADD THIS LINE
+
     // contratoZonaHoraria will be reset by its own useEffect when selectedContratoId is cleared
 
     // Optionally, scroll to top
@@ -960,13 +960,13 @@ const CrearPedidoPage = () => {
                       setFechaFinDate(undefined);
                     }
                   }}
-                  required={tipo !== 'licencia perpetua'}
+                  required={true}
                 />
                 <Input
                   type="time"
                   value={fechaFinTime}
                   onChange={(e) => setFechaFinTime(e.target.value)}
-                  required={tipo !== 'licencia perpetua'}
+                  required={true}
                 />
               </div>
             </div>
@@ -1014,6 +1014,18 @@ const CrearPedidoPage = () => {
                 <p className="text-sm text-muted-foreground">Usuarios ilimitados.</p>
             </div>
           )}
+        </div>
+
+        {/* Activo Checkbox */}
+        <div className="flex items-center space-x-3 pt-2">
+          <Checkbox
+            id="activo"
+            checked={activo}
+            onCheckedChange={(checked) => setActivo(checked as boolean)}
+          />
+          <Label htmlFor="activo" className="font-medium">
+            Pedido Activo
+          </Label>
         </div>
 
         {/* Action Buttons */}

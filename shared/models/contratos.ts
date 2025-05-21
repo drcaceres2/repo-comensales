@@ -1,10 +1,9 @@
-
 import { StringFormat } from "firebase/storage";
 import { UserId, ResidenciaId, campoFechaConZonaHoraria } from "./types"
 
 export type ContratoResidenciaId = string;
 export type ClienteId = string;
-export type PedidoId = String;
+export type PedidoId = string;
 export type FacturaId = string;
 export type FacturaCeroId = 'Factura de un pedido libre de costo';
 
@@ -18,6 +17,13 @@ export type odoo_status_in_payment =
     | "invoicing_legacy"
     | "draft"
     | "cancel";
+
+export type Moneda = 
+    | "HNL"
+    | "USD"
+    | "EUR";
+
+export const monedaOptions: Moneda[] = ['USD', 'HNL', 'EUR'];
 
 export interface EstadoContrato {
     estaActivo: boolean;
@@ -123,12 +129,14 @@ export interface RecordatorioVencimiento {
 
 export interface Factura {
     id: FacturaId;
-    idOrdenCompra: PedidoId;
+    idPedido: PedidoId;
+    fecha: campoFechaConZonaHoraria;
+    fechaPago: campoFechaConZonaHoraria;
     control: 'manual' | 'odoo';
-    estado: 'proforma pospago' | 'no pagado' | 'pago parcial' | 'pagado';
-    idFacturaOdoo?: string | null;
+    idFacturaOdoo?: null;
     estadoDePago: odoo_status_in_payment;
-    montoISV: number;
+    monedaFactura: Moneda;
+    montoPagado: number;
     montoTotal: number;
 }
 
@@ -137,12 +145,14 @@ export interface Pedido {
     contrato: ContratoResidenciaId; 
     tipo: 'suscripcion' | 'licencia temporal' | 'licencia perpetua'; 
     modoPago: 'prepagado' | 'al vencimiento' | 'libre de costo'; 
+    moneda: Moneda; 
     montoTotal: number; 
     periodicidad?: FrecuenciaSuscripcion | null; 
     fechaInicio: campoFechaConZonaHoraria; 
     fechaFin?: campoFechaConZonaHoraria | null; 
     limitacionUsuarios: boolean; 
     cantUsuarios?: number; 
+    activo: boolean;
 }
 
 
