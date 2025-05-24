@@ -1,25 +1,39 @@
-// src/middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 // import { getStorage } from 'firebase-admin/storage'; // Uncomment if using direct GCS access in getLicenseDetails
 
-// --- Firebase Admin Initialization ---
-// Ensure your service account key JSON file is correctly referenced.
-// IMPORTANT: Store your service account key securely and DO NOT commit it to your repository.
-// Use environment variables for production.
-const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
-    ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)
-    : require('../../../serviceAccountKey.json'); // Adjust path as needed for local dev
+let adminApp: App; // Hold the initialized app
+
+// Check if running in an emulated environment
+const isEmulated = process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST;
 
 if (!getApps().length) {
-    initializeApp({
-        credential: cert(serviceAccount),
-        // storageBucket: 'your-license-bucket-name.appspot.com' // Add if using direct GCS access
-    });
+    if (isEmulated) {
+        console.log("Middleware: Initializing Firebase Admin SDK for EMULATORS.");
+        // For emulators, Admin SDK can often initialize without explicit credentials
+        // if the EMULATOR_HOST variables are set in the environment of the middleware.
+        // However, for Next.js middleware, sometimes it still needs a basic config.
+        // Providing a dummy projectId can sometimes help it connect to emulators correctly.
+        adminApp = initializeApp({ projectId: 'comensales-residencia' }); // Replace with your actual project ID
+    } else {
+        console.log("Middleware: Initializing Firebase Admin SDK for PRODUCTION/LIVE.");
+        const serviceAccountKeyJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+        if (!serviceAccountKeyJson) {
+            throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set for production.");
+        }
+        const serviceAccount = JSON.parse(serviceAccountKeyJson);
+        adminApp = initializeApp({
+            credential: cert(serviceAccount),
+            // storageBucket: 'your-license-bucket-name.appspot.com' // Add if using direct GCS access
+        });
+    }
+} else {
+    adminApp = getApps()[0]; // Get the default app if already initialized
 }
+
 const adminAuth = getAuth();
 const adminDb = getFirestore();
 // const adminStorage = getStorage(); // Uncomment if using direct GCS access
