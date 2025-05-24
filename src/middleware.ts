@@ -37,8 +37,8 @@ if (!getApps().length) {
     adminApp = getApps()[0]; // Get the default app if already initialized
 }
 
-const adminAuth = getAuth();
-const adminDb = getFirestore();
+const adminAuth = getAuth(adminApp); // Explicitly pass adminApp
+const adminDb = getFirestore(adminApp); // Explicitly pass adminApp
 // const adminStorage = getStorage(); // Uncomment if using direct GCS access
 
 // Define your license details result type (mirroring getLicenseDetails function's return)
