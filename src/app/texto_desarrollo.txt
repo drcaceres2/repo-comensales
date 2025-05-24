@@ -1,30 +1,12 @@
- ⚠ nodejs runtime support for middleware requires experimental.nodeMiddleware be enabled in your next.config
- ○ Compiling /_not-found ...
- ⨯ node:process
-Module build failed: UnhandledSchemeError: Reading from "node:process" is not handled by plugins (Unhandled scheme).
+C:\src\comensales\repo-comensales>npm run dev
 
+> nextn@0.1.0 dev
+> next dev -p 3001
 
+node:internal/process/promises:391
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
 
-GET http://localhost:3001/ 500 (Internal Server Error)
+[CanaryOnlyError: The experimental feature "experimental.nodeMiddleware" can only be enabled when using the latest canary version of Next.js.]
 
-index.js:640
-Uncaught ModuleBuildError: Module build failed: UnhandledSchemeError: Reading from "node:process" is not handled by plugins (Unhandled scheme).
-Webpack supports "data:" and "file:" URIs by default.
-You may need an additional plugin to handle "node:" URIs.
-    at C:\src\comensales\repo-comensales\node_modules\next\dist\compiled\webpack\bundle5.js:29:408376
-
-websocket.js:42
-[HMR] connected
-
-hook.js:608
-node:process
-Module build failed: UnhandledSchemeError: Reading from "node:process" is not handled by plugins (Unhandled scheme).
-Webpack supports "data:" and "file:" URIs by default.
-You may need an additional plugin to handle "node:" URIs.
-
-[HMR] Invalid message: {"action":"isrManifest","data":{}}
-TypeError: Cannot read properties of undefined (reading '__N_SSP')
-    at handleStaticIndicator (webpack-internal:///(pages-dir-browser)/./node_modules/next/dist/client/components/react-dev-overlay/pages/hot-reloader-client.js:229:124)
-    at processMessage (webpack-internal:///(pages-dir-browser)/./node_modules/next/dist/client/components/react-dev-overlay/pages/hot-reloader-client.js:244:17)
-    at eval (webpack-internal:///(pages-dir-browser)/./node_modules/next/dist/client/components/react-dev-overlay/pages/hot-reloader-client.js:70:13)
-    at WebSocket.handleMessage (webpack-internal:///(page
+Node.js v20.19.1

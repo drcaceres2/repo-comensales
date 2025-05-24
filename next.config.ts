@@ -38,9 +38,7 @@ const nextConfig: NextConfig = {
     '@fullcalendar/daygrid',
     '@fullcalendar/interaction',
   ],
-  experimental: { // <--- ADD THIS
-    nodeMiddleware: true, // <--- AND THIS
-  },
+  // REMOVED experimental: { nodeMiddleware: true },
 };
 
 export default nextConfig;
