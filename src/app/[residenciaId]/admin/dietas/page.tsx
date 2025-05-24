@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+
+// --- UI/UX imports ---
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +12,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Dieta, Residencia, ResidenciaId, LogEntry, LogActionType, UserProfile, UserRole } from '@/models/firestore'; // Added Residencia
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, AlertCircle } from 'lucide-react';
@@ -20,8 +21,10 @@ import { Timestamp, addDoc, collection, doc, getDoc, query, where, getDocs, setD
 import { db, auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 
-// --- Translations Hook ---
 import { useTranslations } from '@/lib/translations'; // Path to your translations hook
+
+// --- This app types ---
+import { Dieta, Residencia, ResidenciaId, LogEntry, LogActionType, UserProfile, UserRole } from '@/../../shared/models/types';
 
 // --- Log Helper ---
 // (createLogEntry function remains the same as in your provided code)
@@ -263,7 +266,7 @@ export default function DietasResidenciaPage(): JSX.Element | null {
             const docRef = await addDoc(collection(db, "dietas"), newDietaData);
             const newDietaWithId: Dieta = { ...newDietaData, id: docRef.id };
             setDietas(prev => [...prev, newDietaWithId].sort((a,b)=>a.nombre.localeCompare(b.nombre)));
-            await createLogEntry('dieta_created', residenciaId, authUser?.uid || null, `Created dieta: ${newDietaWithId.nombre}`, docRef.path);
+            await createLogEntry('dieta', residenciaId, authUser?.uid || null, `Created dieta: ${newDietaWithId.nombre}`, docRef.path);
             toast({ title: t('dietasPage.toastExitoTitle'), description: t('dietasPage.toastDietaAnadidaDescription').replace("{{dietaNombre}}", newDietaWithId.nombre) });
             handleCancelDietaForm();
         } catch (error) {
@@ -302,7 +305,7 @@ export default function DietasResidenciaPage(): JSX.Element | null {
             await updateDoc(dietaRef, updatedDietaData);
             const updatedDietaInState: Dieta = { ...originalDieta, ...updatedDietaData }; // originalDieta has residenciaId and id
             setDietas(prev => prev.map(d => d.id === editingDietaId ? updatedDietaInState : d).sort((a,b)=>a.nombre.localeCompare(b.nombre)));
-            await createLogEntry('dieta_updated', residenciaId, authUser?.uid || null, `Updated dieta: ${updatedDietaInState.nombre}`, dietaRef.path);
+            await createLogEntry('dieta', residenciaId, authUser?.uid || null, `Updated dieta: ${updatedDietaInState.nombre}`, dietaRef.path);
             toast({ title: t('dietasPage.toastExitoTitle'), description: t('dietasPage.toastDietaActualizadaDescription').replace("{{dietaNombre}}", updatedDietaInState.nombre) });
             handleCancelDietaForm();
         } catch (error) {
@@ -321,7 +324,7 @@ export default function DietasResidenciaPage(): JSX.Element | null {
             const dietaRef = doc(db, "dietas", dietaToToggle.id);
             await updateDoc(dietaRef, { isActive: newStatus });
             setDietas(prev => prev.map(d => d.id === dietaToToggle.id ? { ...d, isActive: newStatus } : d).sort((a,b)=>a.nombre.localeCompare(b.nombre)));
-            await createLogEntry('dieta_updated', residenciaId, authUser?.uid || null, `${newStatus ? 'Activated' : 'Deactivated'} dieta: ${dietaToToggle.nombre}`, dietaRef.path);
+            await createLogEntry('dieta', residenciaId, authUser?.uid || null, `${newStatus ? 'Activated' : 'Deactivated'} dieta: ${dietaToToggle.nombre}`, dietaRef.path);
             const statusText = newStatus ? t('dietasPage.toastDietaActivadaTitle') : t('dietasPage.toastDietaDesactivadaTitle');
             toast({ 
                 title: statusText, 
@@ -358,9 +361,9 @@ export default function DietasResidenciaPage(): JSX.Element | null {
                     isDefault: d.id === dietaToSetDefault.id
                 })).sort((a,b)=>a.nombre.localeCompare(b.nombre))
             );
-            await createLogEntry('dieta_updated', residenciaId, authUser?.uid || null, `Set dieta default: ${dietaToSetDefault.nombre}`, doc(db, "dietas", dietaToSetDefault.id).path);
+            await createLogEntry('dieta', residenciaId, authUser?.uid || null, `Set dieta default: ${dietaToSetDefault.nombre}`, doc(db, "dietas", dietaToSetDefault.id).path);
             if (oldDefaultId) {
-                 await createLogEntry('dieta_updated', residenciaId, authUser?.uid || null, `Unset old dieta default (ID: ${oldDefaultId})`, doc(db, "dietas", oldDefaultId).path);
+                 await createLogEntry('dieta', residenciaId, authUser?.uid || null, `Unset old dieta default (ID: ${oldDefaultId})`, doc(db, "dietas", oldDefaultId).path);
             }
             toast({ title: t('dietasPage.toastExitoTitle'), description: t('dietasPage.toastDietaMarcadaDefaultDescription').replace("{{dietaNombre}}", dietaToSetDefault.nombre) });
         } catch (error) {
@@ -381,7 +384,7 @@ export default function DietasResidenciaPage(): JSX.Element | null {
             const dietaRef = doc(db, "dietas", dietaToDelete.id);
             await deleteDoc(dietaRef);
             setDietas(prevDietas => prevDietas.filter(d => d.id !== dietaToDelete.id));
-            await createLogEntry('dieta_deleted', residenciaId, authUser?.uid || null, `Deleted dieta: ${dietaToDelete.nombre} (ID: ${dietaToDelete.id})`, dietaRef.path);
+            await createLogEntry('dieta', residenciaId, authUser?.uid || null, `Deleted dieta: ${dietaToDelete.nombre} (ID: ${dietaToDelete.id})`, dietaRef.path);
             toast({ title: t('dietasPage.toastExitoTitle'), description: t('dietasPage.toastDietaEliminadaDescription').replace("{{dietaNombre}}", dietaToDelete.nombre) });
         } catch (error) {
             console.error("Error deleting dieta: ", error);

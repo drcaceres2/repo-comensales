@@ -62,7 +62,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { writeClientLog, checkAndDisplayTimezoneWarning } from "@/lib/utils";
+import { writeClientLog } from "@/lib/utils";
+import { checkAndDisplayTimezoneWarning } from '@/../../shared/utils/commonUtils'
 
 // Helper for new Comedor
 const getNewComedorDefaults = (residenciaId: string): Omit<Comedor, 'id'> => ({
@@ -613,7 +614,7 @@ useEffect(() => {
         isPrimary: currentHorario.isPrimary === undefined ? false : currentHorario.isPrimary,
       };
 
-      let actionType: LogActionType = 'horario_solicitud_updated';
+      let actionType: LogActionType = 'horario';
       let docIdForLog = currentHorario.id;
 
       if (isEditingHorario && currentHorario.id) {
@@ -622,7 +623,7 @@ useEffect(() => {
         batch.update(horarioRef, dataToUpdate);
         // newPrimaryHorarioId is already currentHorario.id
       } else {
-        actionType = 'horario_solicitud_created';
+        actionType = 'horario_solicitud';
         // For new horario, Firestore will generate ID. We add it to batch and get ref.
         // To get the ID for logging and for newPrimaryHorarioId if it's primary,
         // we must commit the batch partially or create this one doc outside the batch first if it's primary
@@ -641,7 +642,7 @@ useEffect(() => {
         ? horarios.map(h => h.id === currentHorario.id ? { ...h, ...dataPayload } : h)
         : [...horarios, { ...dataPayload, id: newPrimaryHorarioId! }]; // Simulate adding new
 
-      if (currentHorario.isPrimary || actionType === 'horario_solicitud_created' || previousPrimaryHorarioIdToUpdate) {
+      if (currentHorario.isPrimary || actionType === 'horario_solicitud' || previousPrimaryHorarioIdToUpdate) {
           // Re-evaluate primaries after this potential change
           let finalHorariosToCheck = tempHorariosAfterSave;
           if(previousPrimaryHorarioIdToUpdate){ // if an old primary was demoted
@@ -683,8 +684,8 @@ useEffect(() => {
       await batch.commit();
 
       toast({
-        title: actionType === 'horario_solicitud_created' ? "Horario Creado" : "Horario Actualizado",
-        description: `Horario '${currentHorario.nombre}' ${actionType === 'horario_solicitud_created' ? 'creado' : 'actualizado'} con éxito.`,
+        title: actionType === 'horario_solicitud' ? "Horario Creado" : "Horario Actualizado",
+        description: `Horario '${currentHorario.nombre}' ${actionType === 'horario_solicitud' ? 'creado' : 'actualizado'} con éxito.`,
       });
 
       // Logging
@@ -693,7 +694,7 @@ useEffect(() => {
         actionType,
         {
           residenciaId: targetResidenciaId,
-          details: `Horario '${currentHorario.nombre}' (ID: ${docIdForLog}) ${actionType === 'horario_solicitud_created' ? 'creado' : 'actualizado'} por ${authUser.email}. Día: ${DayOfWeekMap[currentHorario.dia]}, Hora: ${currentHorario.horaSolicitud}, Primario: ${currentHorario.isPrimary ? 'Sí':'No'}.` +
+          details: `Horario '${currentHorario.nombre}' (ID: ${docIdForLog}) ${actionType === 'horario_solicitud' ? 'creado' : 'actualizado'} por ${authUser.email}. Día: ${DayOfWeekMap[currentHorario.dia]}, Hora: ${currentHorario.horaSolicitud}, Primario: ${currentHorario.isPrimary ? 'Sí':'No'}.` +
                    (previousPrimaryHorarioIdToUpdate ? ` Horario anterior primario (ID: ${previousPrimaryHorarioIdToUpdate}) fue desmarcado.` : '')
         }
       );
@@ -701,7 +702,7 @@ useEffect(() => {
           const oldPrimaryDetails = horarios.find(h=>h.id === previousPrimaryHorarioIdToUpdate);
           await writeClientLog(
             authUser.uid,
-            'horario_solicitud_updated', // Still an update
+            'horario_solicitud', // Still an update
             {
               residenciaId: targetResidenciaId,
               details: `Horario '${oldPrimaryDetails?.nombre || 'N/A'}' (ID: ${previousPrimaryHorarioIdToUpdate}) desmarcado como primario automáticamente debido a nuevo primario para ${DayOfWeekMap[currentHorario.dia]}. Acción por ${authUser.email}.`
@@ -754,7 +755,7 @@ useEffect(() => {
         });
         await writeClientLog(
             authUser!.uid, // Assumes authUser is not null here due to canEdit check
-            'horario_solicitud_deleted', // Or a more specific 'horario_solicitud_deactivated' if you add it
+            'horario_solicitud', // Or a more specific 'horario_solicitud_deactivated' if you add it
             {
                 residenciaId: targetResidenciaId,
                 details: `Horario '${horarioName}' (ID: ${horarioId}) desactivado (soft delete) por ${authUser!.email}. Alternativas inactivas asociadas: ${asociadasAlternativas.length}.`
@@ -766,7 +767,7 @@ useEffect(() => {
         toast({ title: "Horario Eliminado", description: `Horario '${horarioName}' eliminado permanentemente.` });
         await writeClientLog(
             authUser!.uid,
-            'horario_solicitud_deleted',
+            'horario_solicitud',
             {
                 residenciaId: targetResidenciaId,
                 details: `Horario '${horarioName}' (ID: ${horarioId}) eliminado permanentemente por ${authUser!.email}. No tenía alternativas asociadas.`

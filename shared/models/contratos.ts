@@ -1,4 +1,3 @@
-import { StringFormat } from "firebase/storage";
 import { UserId, ResidenciaId, campoFechaConZonaHoraria } from "./types"
 
 export type ContratoResidenciaId = string;

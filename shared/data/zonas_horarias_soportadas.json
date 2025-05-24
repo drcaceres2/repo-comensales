@@ -1,0 +1,998 @@
+{
+    "Africa": [
+      {
+        "name": "Abidjan",
+        "offset": "UTC+00:00"
+      },
+      {
+        "name": "Algiers",
+        "offset": "UTC+01:00"
+      },
+      {
+        "name": "Lagos",
+        "offset": "UTC+01:00"
+      },
+      {
+        "name": "Johannesburg",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Nairobi",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Addis_Ababa",
+        "offset": "UTC+03:00"
+      }  
+    ],
+    "America": [
+      {
+        "name": "Adak",
+        "offset": "UTC-09:00"
+      },
+      {
+        "name": "Anchorage",
+        "offset": "UTC-08:00"
+      },
+      {
+        "name": "Anguilla",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Antigua",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Araguaina",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Buenos_Aires",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Aruba",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Asuncion",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Atikokan",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Atka",
+        "offset": "UTC-09:00"
+      },
+      {
+        "name": "Bahia",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Bahia_Banderas",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Barbados",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Belem",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Belize",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Blanc-Sablon",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Boa_Vista",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Bogota",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Boise",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Buenos_Aires",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Cambridge_Bay",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Campo_Grande",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Cancun",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Caracas",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Catamarca",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Cayenne",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Cayman",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Chicago",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Chihuahua",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Ciudad_Juarez",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Coral_Harbour",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Cordoba",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Costa_Rica",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Coyhaique",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Creston",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Cuiaba",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Curacao",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Danmarkshavn",
+        "offset": "UTC+00:00"
+      },
+      {
+        "name": "Dawson",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Dawson_Creek",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Denver",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Detroit",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Dominica",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Edmonton",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Eirunepe",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "El_Salvador",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Ensenada",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Fort_Nelson",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Fort_Wayne",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Fortaleza",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Glace_Bay",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Godthab",
+        "offset": "UTC-01:00"
+      },
+      {
+        "name": "Goose_Bay",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Grand_Turk",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Grenada",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Guadeloupe",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Guatemala",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Guayaquil",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Guyana",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Halifax",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Havana",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Hermosillo",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Indianapolis",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Knox",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Indianapolis",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Inuvik",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Iqaluit",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Jamaica",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Jujuy",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Juneau",
+        "offset": "UTC-08:00"
+      },
+      {
+        "name": "Louisville",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Knox_IN",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Kralendijk",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "La_Paz",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Lima",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Los_Angeles",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Louisville",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Lower_Princes",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Maceio",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Managua",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Manaus",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Marigot",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Martinique",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Matamoros",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Mazatlan",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Mendoza",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Menominee",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Merida",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Metlakatla",
+        "offset": "UTC-08:00"
+      },
+      {
+        "name": "Mexico_City",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Miquelon",
+        "offset": "UTC-02:00"
+      },
+      {
+        "name": "Moncton",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Monterrey",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Montevideo",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Montreal",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Montserrat",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Nassau",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "New_York",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Nipigon",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Nome",
+        "offset": "UTC-08:00"
+      },
+      {
+        "name": "Noronha",
+        "offset": "UTC-02:00"
+      },
+      {
+        "name": "Beulah",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Nuuk",
+        "offset": "UTC-01:00"
+      },
+      {
+        "name": "Ojinaga",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Panama",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Pangnirtung",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Paramaribo",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Phoenix",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Port-au-Prince",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Port_of_Spain",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Porto_Acre",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Porto_Velho",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Puerto_Rico",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Punta_Arenas",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Rainy_River",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Rankin_Inlet",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Recife",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Regina",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Resolute",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Rio_Branco",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Rosario",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Santa_Isabel",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Santarem",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Santiago",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Santo_Domingo",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Sao_Paulo",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Scoresbysund",
+        "offset": "UTC-01:00"
+      },
+      {
+        "name": "Shiprock",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Sitka",
+        "offset": "UTC-08:00"
+      },
+      {
+        "name": "St_Barthelemy",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "St_Johns",
+        "offset": "UTC-03:30"
+      },
+      {
+        "name": "St_Kitts",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "St_Lucia",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "St_Thomas",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "St_Vincent",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Swift_Current",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Tegucigalpa",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Thule",
+        "offset": "UTC-03:00"
+      },
+      {
+        "name": "Thunder_Bay",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Tijuana",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Toronto",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Tortola",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Vancouver",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Virgin",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Whitehorse",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Winnipeg",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Yakutat",
+        "offset": "UTC-08:00"
+      },
+      {
+        "name": "Yellowknife",
+        "offset": "UTC-06:00"
+      }
+    ],
+    "Asia": [
+      {
+        "name": "Aden",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Tehran",
+        "offset": "UTC+03:30"
+      },
+      {
+        "name": "Baku",
+        "offset": "UTC+04:00"
+      },
+      {
+        "name": "Kabul",
+        "offset": "UTC+04:30"
+      },
+      {
+        "name": "Almaty",
+        "offset": "UTC+05:00"
+      },
+      {
+        "name": "Calcutta",
+        "offset": "UTC+05:30"
+      },
+      {
+        "name": "Kathmandu",
+        "offset": "UTC+05:45"
+      },
+      {
+        "name": "Bishkek",
+        "offset": "UTC+06:00"
+      },
+      {
+        "name": "Rangoon",
+        "offset": "UTC+06:30"
+      },
+      {
+        "name": "Bangkok",
+        "offset": "UTC+07:00"
+      },
+      {
+        "name": "Brunei",
+        "offset": "UTC+08:00"
+      },
+      {
+        "name": "Chita",
+        "offset": "UTC+09:00"
+      },
+      {
+        "name": "Ust-Nera",
+        "offset": "UTC+10:00"
+      },
+      {
+        "name": "Magadan",
+        "offset": "UTC+11:00"
+      },
+      {
+        "name": "Anadyr",
+        "offset": "UTC+12:00"
+      }
+    ],
+    "Europe": [
+      {
+        "name": "Amsterdam",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Andorra",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Astrakhan",
+        "offset": "UTC+04:00"
+      },
+      {
+        "name": "Athens",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Belfast",
+        "offset": "UTC+01:00"
+      },
+      {
+        "name": "Belgrade",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Berlin",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Bratislava",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Brussels",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Bucharest",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Budapest",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Busingen",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Chisinau",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Copenhagen",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Dublin",
+        "offset": "UTC+01:00"
+      },
+      {
+        "name": "Gibraltar",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Guernsey",
+        "offset": "UTC+01:00"
+      },
+      {
+        "name": "Helsinki",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Isle_of_Man",
+        "offset": "UTC+01:00"
+      },
+      {
+        "name": "Istanbul",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Jersey",
+        "offset": "UTC+01:00"
+      },
+      {
+        "name": "Kaliningrad",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Kiev",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Kirov",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Kyiv",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Lisbon",
+        "offset": "UTC+01:00"
+      },
+      {
+        "name": "Ljubljana",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "London",
+        "offset": "UTC+01:00"
+      },
+      {
+        "name": "Luxembourg",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Madrid",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Malta",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Mariehamn",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Minsk",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Monaco",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Moscow",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Nicosia",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Oslo",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Paris",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Podgorica",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Prague",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Riga",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Rome",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Samara",
+        "offset": "UTC+04:00"
+      },
+      {
+        "name": "San_Marino",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Sarajevo",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Saratov",
+        "offset": "UTC+04:00"
+      },
+      {
+        "name": "Simferopol",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Skopje",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Sofia",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Stockholm",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Tallinn",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Tirane",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Tiraspol",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Ulyanovsk",
+        "offset": "UTC+04:00"
+      },
+      {
+        "name": "Uzhgorod",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Vaduz",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Vatican",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Vienna",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Vilnius",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Volgograd",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Warsaw",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Zagreb",
+        "offset": "UTC+02:00"
+      },
+      {
+        "name": "Zaporozhye",
+        "offset": "UTC+03:00"
+      },
+      {
+        "name": "Zurich",
+        "offset": "UTC+02:00"
+      }
+    ],
+    "US": [
+      {
+        "name": "Alaska",
+        "offset": "UTC-08:00"
+      },
+      {
+        "name": "Aleutian",
+        "offset": "UTC-09:00"
+      },
+      {
+        "name": "Arizona",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Central",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "East-Indiana",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Eastern",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Hawaii",
+        "offset": "UTC-10:00"
+      },
+      {
+        "name": "Indiana-Starke",
+        "offset": "UTC-05:00"
+      },
+      {
+        "name": "Michigan",
+        "offset": "UTC-04:00"
+      },
+      {
+        "name": "Mountain",
+        "offset": "UTC-06:00"
+      },
+      {
+        "name": "Pacific",
+        "offset": "UTC-07:00"
+      },
+      {
+        "name": "Samoa",
+        "offset": "UTC-11:00"
+      }
+    ],
+    "Indian": [
+      {
+        "name": "Mauritius",
+        "offset": "UTC+04:00"
+      }
+    ]
+  }

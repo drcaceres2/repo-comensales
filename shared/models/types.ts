@@ -38,8 +38,7 @@ export type LogActionType =
     'solicitud_autorizacion_requerida' |
     'solicitud_aprobada' |
     'solicitud_rechazada' |
-    'dieta_asignada' |
-    'dieta_desasignada' |
+    'dieta' |
     'semanario' |
     'eleccion' |
     'ausencia' |

@@ -12,7 +12,7 @@ import {
   Licenciamiento
 } from '../../../shared/models/contratos'; // Adjust path as needed
 import { campoFechaConZonaHoraria } from '../../../shared/models/types'; // Adjust path as needed
-import { resultadoComparacionFCZH, compararFCZH, crearFCZH_fecha, addDurationToFCZH } from '../../../src/lib/utils';
+import { resultadoComparacionFCZH, compararFCZH, crearFCZH_fecha, addDurationToFCZH } from '../../../shared/utils/commonUtils';
 
 interface ValidationResult {
     isValid: boolean;
