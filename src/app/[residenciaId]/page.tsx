@@ -62,8 +62,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { writeClientLog } from "@/lib/utils";
-import { checkAndDisplayTimezoneWarning } from '@/../../shared/utils/commonUtils'
+import { writeClientLog, checkAndDisplayTimezoneWarning } from "@/lib/utils";
 
 // Helper for new Comedor
 const getNewComedorDefaults = (residenciaId: string): Omit<Comedor, 'id'> => ({
@@ -614,7 +613,7 @@ useEffect(() => {
         isPrimary: currentHorario.isPrimary === undefined ? false : currentHorario.isPrimary,
       };
 
-      let actionType: LogActionType = 'horario';
+      let actionType: LogActionType = 'horario_solicitud';
       let docIdForLog = currentHorario.id;
 
       if (isEditingHorario && currentHorario.id) {

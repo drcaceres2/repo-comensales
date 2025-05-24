@@ -19,11 +19,9 @@ import { Loader2 } from "lucide-react"; // Import loader icon
 
 // --- Firebase Imports ---
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from '@/lib/firebase'; // Import initialized auth and db instances
 import { doc, getDoc, updateDoc } from "firebase/firestore"; // Import Firestore functions
-
-// --- Auth Hook Import ---
 import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
+import { auth, db } from '@/lib/firebase'; // Import initialized auth and db instances
 
 // --- Model Imports ---
 import { UserProfile, UserRole } from '@/../../shared/models/types'; // Keep UserProfile and UserRole

@@ -41,7 +41,7 @@ async function createLogEntry(
     }
     try {
         const logEntryData: Omit<LogEntry, 'id'> = {
-            timestamp: Timestamp.now(),
+            timestamp: Timestamp.now().toMillis(),
             userId: userId,
             residenciaId: residenciaId,
             actionType: actionType,

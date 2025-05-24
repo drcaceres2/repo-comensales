@@ -8,15 +8,28 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-// Models: Added UserProfile, UserRole
-import { Residencia, TiempoComida, AlternativaTiempoComida, Comedor, DayOfWeekKey, DayOfWeekMap, TipoAccesoAlternativa, LogEntry, LogActionType, ResidenciaId, ComedorId, HorarioSolicitudComida, HorarioSolicitudComidaId, UserProfile, UserRole, TipoAlternativa } from '@/models/firestore';
-// Firestore: Added writeBatch (just in case, though not used here yet)
+import { 
+    Residencia, 
+    TiempoComida, 
+    AlternativaTiempoComida, 
+    Comedor, ComedorId, 
+    DayOfWeekKey, DayOfWeekMap, 
+    TipoAccesoAlternativa, 
+    LogEntry, LogActionType, 
+    ResidenciaId, 
+    HorarioSolicitudComida, HorarioSolicitudComidaId, 
+    UserProfile, UserRole, 
+    TipoAlternativa 
+} from '@/../../shared/models/types';
 import { Timestamp, addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
-// Auth Hook: Added useAuthState
 import { useAuthState } from 'react-firebase-hooks/auth';
-// UI Components: Added missing Badge, Loader2, AlertCircle
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { 
+    AlertDialog, AlertDialogAction, AlertDialogCancel, 
+    AlertDialogContent, AlertDialogDescription, 
+    AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, 
+    AlertDialogTrigger 
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
@@ -201,7 +214,7 @@ async function createLogEntry(
     }
     try {
         const logEntryData: Omit<LogEntry, 'id'> = {
-            timestamp: Timestamp.now(),
+            timestamp: Timestamp.now().toMillis(),
             userId: userId, // Use the passed UID
             residenciaId: residenciaId,
             actionType: actionType,
@@ -476,7 +489,7 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
         try {
             const docRef = await addDoc(collection(db, "tiemposComida"), nuevoTiempoData);
             const newTiempoWithId: TiempoComida = { id: docRef.id, ...nuevoTiempoData };
-            await createLogEntry('tiempo_comida_created', residenciaId, authUser?.uid || null, `Created tiempo: ${nuevoTiempoData.nombre}`, docRef.path);
+            await createLogEntry('tiempo_comida', residenciaId, authUser?.uid || null, `Created tiempo: ${nuevoTiempoData.nombre}`, docRef.path);
             setTiemposComida(prev => sortTiemposComida([...prev, newTiempoWithId]));
             
             setNewTiempoComidaName('');
@@ -536,7 +549,7 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
 
         try {
             await updateDoc(tiempoRef, updatedTiempoData);
-            await createLogEntry('tiempo_comida_updated', residenciaId, authUser?.uid || null, `Updated tiempo: ${updatedTiempoData.nombre}`, tiempoRef.path);
+            await createLogEntry('tiempo_comida', residenciaId, authUser?.uid || null, `Updated tiempo: ${updatedTiempoData.nombre}`, tiempoRef.path);
             
             setTiemposComida(prev =>
                 sortTiemposComida(
@@ -576,7 +589,7 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
                 await deleteDoc(tiempoRef);
                 console.log(`TiempoComida deleted: ${id}`);
      
-                await createLogEntry('tiempo_comida_deleted', residenciaId, authUser?.uid || null, `Deleted tiempo: ${nombre} (ID: ${id})`, tiempoRef.path);     
+                await createLogEntry('tiempo_comida', residenciaId, authUser?.uid || null, `Deleted tiempo: ${nombre} (ID: ${id})`, tiempoRef.path);     
                 // <<< Update state AFTER successful delete >>>
                 setTiemposComida(prev => prev.filter(t => t.id !== id));
                 toast({ title: "Eliminado", description: `Tiempo "${nombre}" eliminado.`, variant: "destructive" });
@@ -675,7 +688,7 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
         try {
             const docRef = await addDoc(collection(db, "alternativas"), nuevaAlternativaData);
             const newAlternativaWithId: AlternativaTiempoComida = { id: docRef.id, ...nuevaAlternativaData };
-            await createLogEntry('alternativa_created', residenciaId, authUser?.uid || null, `Created alternativa: ${nuevaAlternativaData.nombre}`, docRef.path);
+            await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `Created alternativa: ${nuevaAlternativaData.nombre}`, docRef.path);
             // <<< Update state AFTER successful add >>>
             setAlternativas(prev => [...prev, newAlternativaWithId].sort((a,b) => a.nombre.localeCompare(b.nombre))); // Sort here too
             handleCancelAlternativaForm(); // Close form
@@ -735,7 +748,7 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
 
         try {
             await updateDoc(altRef, updatedAlternativaDataForFirestore);
-            await createLogEntry('alternativa_updated', residenciaId, authUser?.uid || null, `Updated alternativa: ${updatedAlternativaDataForFirestore.nombre}`, altRef.path);
+            await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `Updated alternativa: ${updatedAlternativaDataForFirestore.nombre}`, altRef.path);
 
             // Prepare data for local state update (ensure comedorId is string | undefined)
             const updatedAlternativaDataForState: Partial<AlternativaTiempoComida> = {
@@ -774,7 +787,7 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
             await deleteDoc(altRef);
             console.log(`Alternativa deleted: ${id}`);
 
-            await createLogEntry('alternativa_deleted', residenciaId, authUser?.uid || null, `Deleted alternativa: ${nombre} (ID: ${id})`, altRef.path);
+            await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `Deleted alternativa: ${nombre} (ID: ${id})`, altRef.path);
 
             setAlternativas(prev => prev.filter(alt => alt.id !== id));
             toast({ title: "Eliminada", description: `Alternativa "${nombre}" eliminada.`, variant: "destructive" });
@@ -810,7 +823,7 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
                 )
             );
 
-            await createLogEntry('alternativa_updated', residenciaId, authUser?.uid || null, `${newStatus ? 'Activated' : 'Deactivated'} alternativa: ${alternativa?.nombre || id}`, altRef.path);
+            await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `${newStatus ? 'Activated' : 'Deactivated'} alternativa: ${alternativa?.nombre || id}`, altRef.path);
 
             toast({
                 title: newStatus ? "Activada" : "Desactivada",

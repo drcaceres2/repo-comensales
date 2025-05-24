@@ -1,5 +1,3 @@
-// src/lib/firebase.ts
-
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, browserLocalPersistence, setPersistence } from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
@@ -143,7 +141,6 @@ if (useEmulators) {
     }
 
 }
-
 
 setPersistence(auth, browserLocalPersistence)
   .catch((error) => {

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase"; 
 import { useAuthState } from "react-firebase-hooks/auth";
-import { collection, addDoc, serverTimestamp, doc, getDoc, Timestamp } from "firebase/firestore"; 
+import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore"; 
 import { Feedback, UserProfile } from "@/../../shared/models/types";
 
 export default function FeedbackPage() {

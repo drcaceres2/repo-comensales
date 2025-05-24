@@ -1,5 +1,5 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
-import timezonesDataJson from '@/app/zonas_horarias_ejemplos.json'; // Import the JSON data
+import timezonesDataJson from '@/../../shared/data/zonas_horarias_soportadas.json'; // Import the JSON data
 
 // Interface for individual timezone details (name and offset)
 export interface TimezoneDetail {

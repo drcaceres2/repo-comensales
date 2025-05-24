@@ -1,7 +1,6 @@
 'use client';
 
-import type { Metadata } from 'next';
-import { Inter, Geist, Geist_Mono } from 'next/font/google';
+import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Navigation } from '@/components/Navigation';
@@ -16,8 +15,6 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 
 import { Button } from "@/components/ui/button";
 import { LogOut, Loader2, AlertCircle, MessageSquare } from 'lucide-react'; // Added MessageSquare for feedback icon
-
-const inter = Inter({ subsets: ['latin'] });
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

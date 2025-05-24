@@ -1,4 +1,3 @@
-// src/app/admin/crear-residencia/page.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -6,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { UserProfile, Residencia, UserRole, Dieta, LogEntry, LogEntryId, LogActionType } from '@/../../shared/models/types';
+import { UserProfile, Residencia, Dieta } from '@/../../shared/models/types';
 import {
   doc,
   getDoc,
@@ -17,10 +16,7 @@ import {
   getDocs,
   addDoc,
   updateDoc,
-  deleteDoc,
-  writeBatch,
-  serverTimestamp,
-  FieldValue
+  deleteDoc
 } from 'firebase/firestore';
 
 import { Button } from "@/components/ui/button";

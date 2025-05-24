@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase'; // Assuming firebase is initialized in @/lib/firebase
-import { collection, addDoc, getDocs, serverTimestamp, Timestamp, where, query, doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { ContratoResidencia, ContratoResidenciaId, Cliente, ClienteId, ContactoResponsable, RecordatorioVencimiento, EstadoContrato, ClienteProbando, Pedido, PedidoId, Factura } from '@/../../shared/models/contratos'; // Adjust path as needed
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { ContratoResidencia, ContratoResidenciaId, Cliente, ClienteId, ClienteProbando, Pedido } from '@/../../shared/models/contratos'; // Adjust path as needed
 import { UserProfile, UserId, ResidenciaId, campoFechaConZonaHoraria } from '@/../../shared/models/types'; // Adjust path as needed
 import { writeClientLog } from '@/lib/utils'; // Adjust path as needed
 import { Button } from '@/components/ui/button'; // Adjust path as needed

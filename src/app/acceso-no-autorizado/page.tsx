@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation"; // Corrected import
-import { ShieldAlert, LockKeyhole, Info, Home, LogIn } from "lucide-react";
+import { ShieldAlert, LockKeyhole, Info, Home } from "lucide-react";
 import { Button } from "@/components/ui/button"; // Assuming this is your button component
 
 interface AccesoNoAutorizadoPageProps {

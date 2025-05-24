@@ -1,4 +1,3 @@
-// admin/users/page.tsx
 'use client'; // Make it a client component
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -37,12 +36,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea'; // ADDED: Textarea import
 
 // --- Firebase & New Auth Hook Imports ---
-import { User } from "firebase/auth";
 import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 // MODIFIED: Added query and where
-import { doc, getDoc, getDocs, Timestamp, addDoc, collection, setDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import { app, auth, db } from '@/lib/firebase';
 import { formatTimestampForInput } from '@/lib/utils'
 
@@ -50,12 +48,12 @@ import { formatTimestampForInput } from '@/lib/utils'
 // MODIFIED: Added Residencia and CentroCosto
 import { 
     UserProfile, 
-    UserRole, 
+    UserRole,
+    Residencia, 
     ResidenciaId, 
     DietaId, 
     Dieta, 
     CentroCostoId, 
-    Residencia, 
     CentroCosto
 } from '@/../../shared/models/types';
 // import { ZodUndefined } from 'zod';

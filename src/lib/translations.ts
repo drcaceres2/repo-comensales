@@ -112,6 +112,5 @@ export function useTranslations(profileName?: string): UseTranslationsReturn {
     },
     [texts, isLoading]
   );
-
   return { t, isLoading, error, currentProfile: activeProfileName };
 }

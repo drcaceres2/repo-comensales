@@ -3,22 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase'; 
-import { collection, addDoc, getDocs, query, where, doc, updateDoc, deleteDoc, DocumentData, QuerySnapshot, getDoc, DocumentSnapshot, FieldValue, serverTimestamp } from 'firebase/firestore'; // Added getDoc, DocumentSnapshot, FieldValue, serverTimestamp
-import { Cliente, PersonaNaturalHonduras, PersonaNaturalExtranjera, PersonaJuridicaHonduras, PersonaJuridicaExtranjera } from '@/../../shared/models/contratos'; // Corrected path, added LogActionType etc.
-import { UserProfile, LogActionType, UserId, ResidenciaId } from '@/../../shared/models/types'; // Corrected path
+import { collection, addDoc, getDocs, query, where, doc, updateDoc, deleteDoc, DocumentData, getDoc, DocumentSnapshot } from 'firebase/firestore';
+import { Cliente, PersonaNaturalHonduras, PersonaNaturalExtranjera, PersonaJuridicaHonduras, PersonaJuridicaExtranjera } from '@/../../shared/models/contratos';
+import { UserProfile, UserId, ClientLogWrite } from '@/../../shared/models/types';
 import { writeClientLog } from '@/lib/utils'; 
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-
-interface ClientLogWrite {
-    userId: UserId;
-    actionType: LogActionType;
-    timestamp: FieldValue;
-    residenciaId?: ResidenciaId;
-    targetUid?: UserId | null;
-    relatedDocPath?: string;
-    details?: string | object;
-}
 
 type ClienteFormState = Partial<Cliente>;
 

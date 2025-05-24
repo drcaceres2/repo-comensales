@@ -2,11 +2,10 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building, Info, Mail, MapPin, FileText, Cloud, Zap, Wand2, Home, ExternalLink, Watch } from 'lucide-react'; // Added ExternalLink and Watch
+import { Building, Info, Mail, MapPin, FileText, Cloud, Zap, Wand2, Home, ExternalLink, Watch } from 'lucide-react';
 
 export default function AboutPage() {
   const router = useRouter();
@@ -17,7 +16,7 @@ export default function AboutPage() {
   const companyName = "Comercios Electrónicos de Honduras S. de R.L.";
   const rtn = "08259024059873";
   const address = "Tatumbla, Francisco Morazán, Honduras";
-  const email = "ventas@dcventa.shop"; // UPDATED Email
+  const email = "ventas@dcventa.shop";
   const otherShopUrl = "https://www.dcventas.shop";
 
   const handleGoToApp = () => {
