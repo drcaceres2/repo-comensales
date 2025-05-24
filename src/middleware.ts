@@ -1,3 +1,6 @@
+// src/middleware.ts
+export const runtime = 'nodejs'; // Force Node.js runtime
+
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
