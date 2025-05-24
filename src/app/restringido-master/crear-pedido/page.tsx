@@ -491,6 +491,11 @@ const CrearPedidoPage = () => {
     }
 
     if (tipo === 'suscripcion') {
+      if (modoPago === 'libre de costo') {
+        toast({ title: 'Error de Validación', description: 'Un pedido de tipo "suscripción" no puede ser "libre de costo".', variant: 'destructive' });
+        setIsLoading(false);
+        return;
+      }
       if (!periodicidad) {
         toast({ title: 'Error de Validación', description: 'Para pedidos de tipo "suscripción", la periodicidad es obligatoria.', variant: 'destructive' });
         setIsLoading(false);

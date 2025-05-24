@@ -5,7 +5,9 @@ import { db } from './firebase';
 import { LogActionType, ClientLogWrite, UserId, ResidenciaId, campoFechaConZonaHoraria } from '@/../../shared/models/types';
 import { type Toast } from "@/hooks/use-toast"; // <--- ADD THIS IMPORT
 import { toDate, formatInTimeZone } from 'date-fns-tz';
-import { parseISO, isValid, formatISO, format } from 'date-fns'
+import { parseISO, isValid, formatISO, format, intervalToDuration, Duration, add } from 'date-fns';
+import { es } from 'date-fns/locale';
+import timezonesDataJson from '@/app/zonas_horarias_ejemplos.json';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -405,3 +407,147 @@ export const compararSoloFechaFCZH = (
       return "igual";
   }
 };
+
+
+
+/**
+ * Adds a date-fns Duration object to a campoFechaConZonaHoraria.
+ * @param fczh The base date and time with timezone.
+ * @param duration The date-fns Duration object to add.
+ * @returns A new campoFechaConZonaHoraria object with the duration added, or null on error.
+ */
+export function addDurationToFCZH(
+  fczh: campoFechaConZonaHoraria | null | undefined,
+  duration: Duration
+): campoFechaConZonaHoraria | null {
+  if (!fczh || !fczh.fecha || !fczh.zonaHoraria) {
+    console.error("Invalid campoFechaConZonaHoraria input for addDurationToFCZH", fczh);
+    return null;
+  }
+  if (!duration || Object.keys(duration).length === 0) {
+    console.warn("addDurationToFCZH called with an empty or invalid duration object. Returning original fczh.", duration);
+    return null;
+  }
+
+  try {
+    let dateStr = toDateFCZH(fczh);
+    if (!dateStr) {
+      console.warn("No se puede comvertir el campoFechaConZonaHoraria a una cadena de fecha válida.", duration);
+      return null;
+    }
+    const initialDate = new Date(dateStr);
+
+    if (isNaN(initialDate.getTime())) {
+      console.error("Invalid date string in FCZH for parsing:", fczh.fecha);
+      return null;
+    }
+
+    // Use date-fns 'add' function
+    const newDate = add(initialDate, duration);
+
+    // Format the newDate back to your desired string format "YYYY-MM-DD HH:mm:ss.SSS"
+    // This simple formatting might not be robust enough for all timezones or locales.
+    // Using date-fns format function is more reliable.
+    // The 'HH' (00-23) is generally preferred over 'hh' (01-12 with am/pm).
+    const formattedDateString = format(newDate, 'yyyy-MM-dd');
+    const formattedTimeString = format(newDate, 'HH:mm:ss.SSS');
+
+    // Create a new campoFechaConZonaHoraria object
+    // The zonaHoraria of the result is preserved from the input.
+    // This implies the ADDITION was done in the context of that original timezone's local time.
+    return crearFCZH_FechaHora(formattedDateString, formattedTimeString, fczh.zonaHoraria);
+
+  } catch (error) {
+    console.error("Error in addDurationToFCZH:", error);
+    return null;
+  }
+}
+
+export const formatFCZHToMonthYear = (fczh: campoFechaConZonaHoraria | null | undefined): string => {
+  if (!fczh || !fczh.fecha) {
+    return 'N/A';
+  }
+  try {
+    return format(fczh.fecha, 'MMM-yy', { locale: es }); // e.g., "ene-25"
+  } catch (error) {
+    console.error("Error formatting FCZH to MonthYear:", error, fczh);
+    return fczh.fecha; // Fallback to original string on error
+  }
+};
+
+interface TimezoneDetail {
+  name: string; // IANA timezone name e.g., "America/New_York"
+  offset: string; // UTC offset e.g., "-04:00", "+05:30"
+  // Add other properties if they exist
+}
+
+// Interface for the overall timezones data structure (from TimezoneSelector.tsx)
+interface TimezonesData {
+  [region: string]: TimezoneDetail[];
+}
+
+// Cast the imported JSON to our TimezonesData interface
+const timezonesData: TimezonesData = timezonesDataJson as TimezonesData;
+
+/**
+ * Gets the UTC offset string for a given IANA timezone name.
+ * The timezone must be one of the examples defined in '@/app/zonas_horarias_ejemplos.json'.
+ * @param ianaTimezoneName The IANA timezone name (e.g., "America/New_York").
+ * @returns The UTC offset string (e.g., "-04:00") or null if not found.
+ */
+export const getUtcOffsetFromIanaName = (ianaTimezoneName: string): string | null => {
+  if (!ianaTimezoneName) {
+    return null;
+  }
+
+  // Iterate through each region in the timezonesData
+  for (const region in timezonesData) {
+    if (timezonesData.hasOwnProperty(region)) {
+      const timezoneDetailsArray = timezonesData[region];
+      // Find the timezone detail with the matching IANA name
+      const foundTimezone = timezoneDetailsArray.find(
+        (tzDetail) => tzDetail.name === ianaTimezoneName
+      );
+
+      if (foundTimezone) {
+        return foundTimezone.offset; // Return the offset string
+      }
+    }
+  }
+
+  console.warn(`getUtcOffsetFromIanaName: Timezone "${ianaTimezoneName}" not found in zonas_horarias_ejemplos.json`);
+  return null; // Return null if the timezone name is not found
+};
+
+export const toDateFCZH = (fczh: campoFechaConZonaHoraria | null | undefined): string | null => {
+  if (!fczh || !fczh.fecha || !fczh.zonaHoraria) {
+    console.log("Objeto campoFechaConZonaHoraria incompleto, no se puede calcular fecha"); // e.g., "-07:00"
+    return null;
+  }
+  let fechaISO: string = '';
+  const ianaTz = fczh.zonaHoraria;
+  const offset = getUtcOffsetFromIanaName(ianaTz);
+  if (offset) {
+    fechaISO = format(fczh.fecha,"YYYY-MM-DD HH:MM:SS.SSS").replace(" ", "T") + offset.substring(3);
+    return fechaISO;
+  } else {
+    console.log("Error al obtener offset para obtener fecha en formato string");
+    return null;
+  }
+}
+
+export const intervalToDurationFCZH = (fczh1: campoFechaConZonaHoraria | null | undefined, fczh2: campoFechaConZonaHoraria | null | undefined): Duration | null => {
+  if (!fczh1 || !fczh1.fecha || !fczh1.zonaHoraria || !fczh2 || !fczh2.fecha || !fczh2.zonaHoraria) {
+    console.log("Objeto campoFechaConZonaHoraria incompleto, no se puede calcular duración a partir del intervalo"); // e.g., "-07:00"
+    return null;
+  }
+  let duration: Duration = {days:0};
+  const start: string | null = toDateFCZH(fczh1);
+  const end: string | null = toDateFCZH(fczh2);
+  if (!start || !end) {
+    console.log("Problemas al procesar las fechas del intervalo"); // e.g., "-07:00"
+    return null;
+  }
+  duration = intervalToDuration({ start, end });
+  return duration;
+}

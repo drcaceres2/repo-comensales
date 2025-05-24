@@ -981,22 +981,22 @@ export default function HorariosResidenciaPage(): JSX.Element | null { // Allow 
                             <Skeleton className="h-8 w-48 rounded" /> {/* Add Alt Button */}
                         </div>
                         </div>
-</CardContent>
-</Card>
-</div>
-);
+                </CardContent>
+            </Card>
+        </div>
+    );
 }
 
 // 5. Page Data Fetch Error (display after loading done and authorized)
 if (errorPageData && errorPageData !== "Acceso denegado.") {
-return (
-<div className="container mx-auto p-4 text-center">
-<AlertCircle className="h-12 w-12 text-destructive mb-4 mx-auto" />
-<h1 className="text-2xl font-bold text-destructive mb-2">Error al Cargar Datos</h1>
-<p className="mb-4 text-muted-foreground max-w-md mx-auto">{errorPageData}</p>
-<Button onClick={fetchData}>Reintentar Carga</Button> {/* Allow retry */}
-</div>
-);
+    return (
+        <div className="container mx-auto p-4 text-center">
+            <AlertCircle className="h-12 w-12 text-destructive mb-4 mx-auto" />
+            <h1 className="text-2xl font-bold text-destructive mb-2">Error al Cargar Datos</h1>
+            <p className="mb-4 text-muted-foreground max-w-md mx-auto">{errorPageData}</p>
+            <Button onClick={fetchData}>Reintentar Carga</Button> {/* Allow retry */}
+        </div>
+    );
 }
 
 // --- RENDER MAIN CONTENT (Authorized and Data Loaded) ---

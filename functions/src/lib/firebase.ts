@@ -1,0 +1,12 @@
+import * as admin from 'firebase-admin';
+
+// Initialize Firebase Admin SDK only once
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
+const db = admin.firestore();
+const storage = admin.storage();
+const auth = admin.auth();
+
+export { admin, db, storage, auth };

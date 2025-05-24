@@ -20,12 +20,12 @@ import {
     crearFCZH_fecha, 
     // crearFCZH_FechaHora, // if you need to create dates with specific times
     compararFCZH,
-    compararSoloFechaFCZH
+    compararSoloFechaFCZH,
     // Import prepareFechaStringForParsing if it's exported and you want to use it directly,
     // otherwise the comparison functions use it internally.
+    resultadoComparacionFCZH
 } from '@/lib/utils'; // Adjust path if necessary
 import { format } from 'date-fns';
-import type { resultadoComparacionFCZH } from '@/../../shared/models/types'; // Or from contrats if it's there
 import { 
     ContratoResidencia, ContratoResidenciaId, 
     Factura, FacturaId, 
@@ -117,6 +117,14 @@ const validateFacturaData = (
     if (!currentFormData.fechaPago?.fecha) {
         errors.push("La fecha de pago de la factura es obligatoria.");
     }
+    if (!currentFormData.fechaVencimiento?.fecha) {
+        errors.push("La fecha de vencimiento de la factura es obligatoria.");
+    }
+    // Ensure zonaHoraria is also present if fecha is (implicitly handled by how FCZH is built)
+    if (currentFormData.fechaVencimiento?.fecha && !currentFormData.fechaVencimiento?.zonaHoraria) {
+        errors.push("La zona horaria para la fecha de vencimiento es obligatoria si la fecha está presente.");
+    }
+
     if (!currentFormData.monedaFactura) {
         errors.push("La moneda de la factura es obligatoria.");
     }
@@ -214,6 +222,17 @@ const validateFacturaData = (
              errors.push("Para pedidos 'libre de costo', el monto pagado debe ser 0.");
         }
     }
+
+    // Rule 9: Fecha Vencimiento after Fecha Factura
+    if (currentFormData.fecha && currentFormData.fechaVencimiento) {
+        const cmpVencimiento = compararSoloFechaFCZH(currentFormData.fechaVencimiento, currentFormData.fecha);
+        if (cmpVencimiento === "menor") {
+            errors.push("La fecha de vencimiento no puede ser anterior a la fecha de la factura.");
+        } else if (cmpVencimiento === "invalido") {
+            errors.push("Error al comparar la fecha de vencimiento con la fecha de factura (formato inválido o datos faltantes).");
+        }
+    }
+
 
     return errors;
 };
@@ -389,18 +408,45 @@ export default function CrearFacturasPage() {
         return `N/A (ID Contrato: ${pedido.contrato.substring(0, 6)}...)`;
     };
 
-    const handleDateChange = (fieldName: 'fecha' | 'fechaPago', newDate: campoFechaConZonaHoraria | null) => {
+    const handleFechaStringChange = (fieldName: 'fecha' | 'fechaPago' | 'fechaVencimiento', dateValue: string) => {
         setFormData(prev => {
-            // Convert null to undefined for the initially updated field
-            const updatedData = { ...prev, [fieldName]: newDate === null ? undefined : newDate };
-            
-            if (selectedPedido?.modoPago === 'prepagado') {
-                // Also convert null to undefined for the sync'd field
-                if (fieldName === 'fecha') {
-                    updatedData.fechaPago = newDate === null ? undefined : newDate;
-                } else { // fieldName === 'fechaPago'
-                    updatedData.fecha = newDate === null ? undefined : newDate;
-                }
+            const existingFCZH = prev[fieldName]; // This is campoFechaConZonaHoraria | undefined
+            const updatedCampo: campoFechaConZonaHoraria = {
+                fecha: dateValue,
+                zonaHoraria: existingFCZH?.zonaHoraria || defaultTimeZone // Use optional chaining and default
+            };
+
+            const updatedData: Partial<Factura> = { ...prev, [fieldName]: updatedCampo };
+
+            if (selectedPedido?.modoPago === 'prepagado' && (fieldName === 'fecha' || fieldName === 'fechaPago')) {
+                const otherFieldName = fieldName === 'fecha' ? 'fechaPago' : 'fecha';
+                const existingOtherFCZH = prev[otherFieldName];
+                updatedData[otherFieldName] = {
+                    fecha: dateValue, 
+                    zonaHoraria: existingOtherFCZH?.zonaHoraria || defaultTimeZone
+                };
+            }
+           return updatedData;
+        });
+    };
+
+    const handleZonaHorariaChange = (fieldName: 'fecha' | 'fechaPago' | 'fechaVencimiento', timezoneValue: string) => {
+        setFormData(prev => {
+            const existingFCZH = prev[fieldName]; // This is campoFechaConZonaHoraria | undefined
+            const updatedCampo: campoFechaConZonaHoraria = {
+                fecha: existingFCZH?.fecha || '', // Use optional chaining and default for fecha
+                zonaHoraria: timezoneValue
+            };
+
+            const updatedData: Partial<Factura> = { ...prev, [fieldName]: updatedCampo };
+
+            if (selectedPedido?.modoPago === 'prepagado' && (fieldName === 'fecha' || fieldName === 'fechaPago')) {
+                const otherFieldName = fieldName === 'fecha' ? 'fechaPago' : 'fecha';
+                const existingOtherFCZH = prev[otherFieldName];
+                updatedData[otherFieldName] = {
+                    fecha: existingOtherFCZH?.fecha || '',
+                    zonaHoraria: timezoneValue
+                };
             }
             return updatedData;
         });
@@ -455,7 +501,8 @@ export default function CrearFacturasPage() {
         setFormData({
             idPedido: selectedPedido.id as PedidoId,
             fecha: initialFechaFCZH, 
-            fechaPago: initialFechaFCZH, 
+            fechaPago: initialFechaFCZH,
+            fechaVencimiento: initialFechaFCZH, 
             control: 'manual', 
             idFacturaOdoo: null,
             monedaFactura: selectedPedido.moneda,
@@ -503,6 +550,7 @@ export default function CrearFacturasPage() {
                 idPedido: selectedPedido!.id as PedidoId,
                 fecha: formData.fecha!,
                 fechaPago: formData.fechaPago!,
+                fechaVencimiento: formData.fechaVencimiento!,
                 control: 'manual',
                 idFacturaOdoo: null,
                 estadoDePago: calculateEstadoDePago(roundToTwoDecimals(formData.montoTotal), roundToTwoDecimals(formData.montoPagado)),
@@ -551,7 +599,6 @@ export default function CrearFacturasPage() {
             return;
         }
 
-
         const validationErrors = validateFacturaData(formData, selectedPedido, facturas, false); // false for isCreating (it's an update)
         if (validationErrors.length > 0) {
             validationErrors.forEach(err => toast({
@@ -570,6 +617,7 @@ export default function CrearFacturasPage() {
             const updatedFacturaData: Partial<Factura> = {
                 fecha: formData.fecha,
                 fechaPago: formData.fechaPago,
+                fechaVencimiento: formData.fechaVencimiento,
                 monedaFactura: formData.monedaFactura,
                 montoPagado: roundToTwoDecimals(formData.montoPagado),
                 montoTotal: roundToTwoDecimals(formData.montoTotal),
@@ -736,23 +784,64 @@ export default function CrearFacturasPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div>
-                                <Label htmlFor="fecha">Fecha Factura</Label>
+                                <Label htmlFor="fecha_date">Fecha Factura (YYYY-MM-DD)</Label>
+                                <Input
+                                    id="fecha_date"
+                                    type="date"
+                                    value={formData.fecha?.fecha || ''}
+                                    onChange={(e) => handleFechaStringChange('fecha', e.target.value)}
+                                    className="w-full p-2 border rounded mt-1 bg-background text-foreground"
+                                    disabled={isFormFieldsDisabled || !!isViewingNonSubscriptionFactura}
+                                />
+                                <Label htmlFor="fecha_tz" className="mt-2">Zona Horaria (Factura)</Label>
                                 <TimezoneSelector
-                                    id="fecha"
-                                    value={formData.fecha || null}
-                                    onChange={(newFecha: campoFechaConZonaHoraria | null) => handleDateChange('fecha', newFecha)}
-                                    defaultUserTimezone={defaultTimeZone}
+                                    label="Zona Horaria (Factura)" // Use the label prop
+                                    initialTimezone={formData.fecha?.zonaHoraria || defaultTimeZone}
+                                    onTimezoneChange={(tz) => handleZonaHorariaChange('fecha', tz)}
+                                    disabled={isFormFieldsDisabled || !!isViewingNonSubscriptionFactura}
+                                    // Optional: Add selectClassName, labelClassName, containerClassName as needed
+                                    // selectClassName="your-custom-select-class"
+                                    // labelClassName="your-custom-label-class"
+                                    // containerClassName="your-custom-container-class"
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="fechaVencimiento_date">Fecha de vencimiento del pago (YYYY-MM-DD)</Label>
+                                <Input
+                                    id="fechaVencimiento_date"
+                                    type="date"
+                                    value={formData.fechaVencimiento?.fecha || ''}
+                                    onChange={(e) => handleFechaStringChange('fechaVencimiento', e.target.value)}
+                                    className="w-full p-2 border rounded mt-1 bg-background text-foreground"
+                                    disabled={isFormFieldsDisabled || !!isViewingNonSubscriptionFactura}
+                                />
+                                <TimezoneSelector
+                                    label="Zona Horaria (Vencimiento)"
+                                    initialTimezone={formData.fechaVencimiento?.zonaHoraria || defaultTimeZone}
+                                    onTimezoneChange={(tz) => handleZonaHorariaChange('fechaVencimiento', tz)}
                                     disabled={isFormFieldsDisabled || !!isViewingNonSubscriptionFactura}
                                 />
                             </div>
                             <div>
-                                <Label htmlFor="fechaPago">Fecha Límite de Pago</Label>
+                                <Label htmlFor="fechaPago_date">Fecha efectiva de Pago (YYYY-MM-DD)</Label>
+                                <Input
+                                    id="fechaPago_date"
+                                    type="date"
+                                    value={formData.fechaPago?.fecha || ''}
+                                    onChange={(e) => handleFechaStringChange('fechaPago', e.target.value)}
+                                    className="w-full p-2 border rounded mt-1 bg-background text-foreground"
+                                    disabled={isFormFieldsDisabled || !!isViewingNonSubscriptionFactura || (selectedPedido?.modoPago === 'prepagado' && isEditingForm)}
+                                />
+                                <Label htmlFor="fechaPago_tz" className="mt-2">Zona Horaria (Pago)</Label>
                                 <TimezoneSelector
-                                    id="fechaPago"
-                                    value={formData.fechaPago || null}
-                                    onChange={(newFechaPago: campoFechaConZonaHoraria | null) => handleDateChange('fechaPago', newFechaPago)}
-                                    defaultUserTimezone={defaultTimeZone}
-                                    disabled={isFormFieldsDisabled || !!isViewingNonSubscriptionFactura}
+                                    label="Zona Horaria (Pago)" // Use the label prop
+                                    initialTimezone={formData.fechaPago?.zonaHoraria || defaultTimeZone}
+                                    onTimezoneChange={(tz) => handleZonaHorariaChange('fechaPago', tz)}
+                                    disabled={isFormFieldsDisabled || !!isViewingNonSubscriptionFactura || (selectedPedido?.modoPago === 'prepagado' && isEditingForm)}
+                                    // Optional: Add selectClassName, labelClassName, containerClassName as needed
+                                    // selectClassName="your-custom-select-class"
+                                    // labelClassName="your-custom-label-class"
+                                    // containerClassName="your-custom-container-class"
                                 />
                             </div>
                             <div>

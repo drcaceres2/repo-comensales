@@ -5,7 +5,9 @@ export type ContratoResidenciaId = string;
 export type ClienteId = string;
 export type PedidoId = string;
 export type FacturaId = string;
-export type FacturaCeroId = 'Factura de un pedido libre de costo';
+export type FacturaCeroId = string;
+
+export const FacturaCero: FacturaCeroId = 'Factura monto cero creada a partir de Pedido libre de costo';
 
 export type odoo_status_in_payment =
     | "not_paid"
@@ -131,6 +133,7 @@ export interface Factura {
     id: FacturaId;
     idPedido: PedidoId;
     fecha: campoFechaConZonaHoraria;
+    fechaVencimiento: campoFechaConZonaHoraria;
     fechaPago: campoFechaConZonaHoraria;
     control: 'manual' | 'odoo';
     idFacturaOdoo?: null;
@@ -155,8 +158,8 @@ export interface Pedido {
     activo: boolean;
 }
 
-
 export interface Licenciamiento {
+    id: string;
     pedidoId: PedidoId;
     facturaId: FacturaId | FacturaCeroId;
     licenciaId: string;

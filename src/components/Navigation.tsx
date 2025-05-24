@@ -31,7 +31,7 @@ import {
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from "firebase/firestore";
-import { UserProfile, UserRole } from '@/models/firestore';
+import { UserProfile, UserRole } from '@/../../shared/models/types';
 
 interface NavItem {
   id: string;
@@ -107,9 +107,9 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       label: 'Mi Residencia',
       icon: ShieldCheck,
       isAccordion: true,
-      roles: ['residente', 'director', 'invitado', 'asistente', 'auditor'],
+      roles: ['residente', 'director', 'invitado', 'asistente', 'contador'],
       requiresResidenciaIdForHref: true, 
-      checkVisibility: (p) => !!p?.residenciaId && (hasRole('residente') || hasRole('director') || hasRole('invitado') || hasRole('asistente') || hasRole('auditor')),
+      checkVisibility: (p) => !!p?.residenciaId && (hasRole('residente') || hasRole('director') || hasRole('invitado') || hasRole('asistente') || hasRole('contador')),
       children: [
         {
           id: 'elegirComidas',
@@ -157,7 +157,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           icon: FileText,
           href: '/about',
           requiresResidenciaIdForHref: true,
-          roles: ['director', 'auditor'],
+          roles: ['director', 'contador'],
         },
       ],
     },
