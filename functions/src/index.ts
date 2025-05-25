@@ -10,472 +10,27 @@ import { ContratoResidencia, ContratoResidenciaId, PedidoId, Licencia } from "..
 
 import { validateLicenseCreation } from "./lib/licenseValidation"; // ADJUST THIS PATH
 
-interface ValidateLicenseData {
-  contratoId: ContratoResidenciaId;
-  pedidoId: PedidoId;
-}
 
-const licenseBucketName = "lmgmt";
-const licenseFilesPath = "comensales-licencia/";
-// Constants
+
 const SYSTEM_USER_ID: UserId = "SYSTEM_LICENSE_AUDIT" as UserId; // Cast if UserId is a branded type
 const SYSTEM_USER_EMAIL = "system@license-audit.internal";
 
-// --- Interfaces for User Management Payloads ---
+// ------ User CRUD ------
 interface CreateUserDataPayload {
     email: string;
     password?: string; // Optional for cases like inviting an existing auth user to a profile
     profileData: Omit<UserProfile, "id" | "fechaCreacion" | "ultimaActualizacion" | "lastLogin" | "email"> & { email?: string };
     // performedByUid is not needed here, will use context.auth.uid
 }
-
 interface UpdateUserDataPayload {
     userIdToUpdate: string;
     profileData: Partial<Omit<UserProfile, "id" | "email" | "fechaCreacion" | "ultimaActualizacion" | "lastLogin">>;
     // performedByUid is not needed here
 }
-
 interface DeleteUserDataPayload {
     userIdToDelete: string;
     // performedByUid is not needed here
 }
-
-// --- Interface for data being written to the logs collection ---
-interface LogEntryWrite extends Omit<LogEntry, "id" | "timestamp"> {
-    timestamp: admin.firestore.FieldValue; // Keep this as admin.firestore.FieldValue
-    // 'userId' from LogEntry will store the UID of the admin/user performing the action
-}
-
-// --- Interfaces for Security return object ---
-interface CallerSecurityInfo {
-    uid: string;
-    profile?: UserProfile;
-    claims?: Record<string, any>; // Changed from admin.auth.DecodedIdToken
-    isMaster: boolean;
-    isAdmin: boolean;
-}
-
-// --- Interfaces for License Management ---
-interface LicenseData {
-    ResidenciaId: ResidenciaId;
-    licenciaValidaHasta: string; // ISO 8601 date string (e.g., "2024-12-31T23:59:59Z")
-    licenciaActiva: boolean;
-    cantidadUsuarios: number;
-    tokenLicencia: string;
-}
-
-interface LicenseDetailsResult extends LicenseData {
-    status: "valid" | "not_found" | "not_active" | "expired" | "invalid_token" | "error_reading_file";
-    message: string;
-}
-
-// Modified version
-interface GenerateLicenseParams {
-    ResidenciaId: ResidenciaId; // Or your ResidenciaId type
-    licenciaValidaHasta: string; // ISO 8601 date string in "YYYY-MM-DDTHH:MM±HH:MM" or "YYYY-MM-DDTHH:MM:SSZ"
-    licenciaActiva: boolean;
-    cantidadUsuarios: number;
-}
-
-// --- Log Action Function ---
-const logAction = async (
-    actionType: LogActionType, // Use the string literals from your enum-like type
-    performedByUid: string,
-    targetUid: string | null = null,
-    details: Record<string, any> = {},
-): Promise<void> => {
-    try {
-        const logEntryData: LogEntryWrite = {
-            actionType,
-            userId: performedByUid, // 'userId' in LogEntry refers to the actor
-            timestamp: (db.constructor as any).FieldValue.serverTimestamp() as any, // Switched to db.constructor path
-            targetUid,
-            details,
-            // residenciaId: details.residenciaId || null, // If you want to log this
-        };
-        await db.collection("logs").add(logEntryData);
-        functions.logger.info(`Action logged: ${actionType} by ${performedByUid}` + (targetUid ? ` on ${targetUid}` : ""), details);
-    } catch (error) {
-        functions.logger.error("Error logging action:", error);
-    }
-};
-
-async function getCallerSecurityInfo(authContext?: CallableRequest['auth']): Promise<CallerSecurityInfo> {
-    if (!authContext || !authContext.uid) {
-        throw new HttpsError("unauthenticated", "Authentication required.");
-    }
-    const uid = authContext.uid;
-    try {
-        const [userRecord, profileDoc] = await Promise.all([
-            admin.auth().getUser(uid),
-            db.collection("users").doc(uid).get()
-        ]);
-
-        const claims = userRecord.customClaims || {};
-        const profile = profileDoc.exists ? profileDoc.data() as UserProfile : undefined;
-
-        return {
-            uid,
-            profile,
-            claims,
-            isMaster: claims.roles?.includes("master") || false,
-            isAdmin: claims.roles?.includes("admin") || false,
-        };
-    } catch (error) {
-        functions.logger.error("Error fetching caller security info for UID:", uid, error);
-        throw new HttpsError("internal", "Could not verify caller permissions.");
-    }
-}
-
-// --- Helper Functions for License Management ---
-
-/**
- * Generates a JSON license file and stores it in Cloud Storage.
- * Replaces the file if it already exists.
- *
- * @param params - The license data.
- * @returns Promise<void>
- */
-export async function generateLicenseFile(
-    params: GenerateLicenseParams
-): Promise<{ success: boolean; filePath?: string; error?: string }> {
-    // Destructure params - tokenLicencia is no longer expected here
-    const { ResidenciaId, licenciaValidaHasta, licenciaActiva, cantidadUsuarios } = params;
-    // --- Input Validation ---
-    if (!ResidenciaId || typeof ResidenciaId !== 'string' || ResidenciaId.trim() === "") {
-        return {
-            success:false,
-            error: "generateLicenseFile: ResidenciaId is required and must be a non-empty string."
-        }
-    }
-    if (!licenciaValidaHasta || typeof licenciaValidaHasta !== 'string' || licenciaValidaHasta.trim() === "") {
-        return {
-            success:false,
-            error: "generateLicenseFile: licenciaValidaHasta is required and must be a non-empty ISO 8601 date string."
-        }
-    }
-    // Basic check for cantidadUsuarios (already type number by interface, but good practice for runtime)
-    if (typeof cantidadUsuarios !== 'number' || isNaN(cantidadUsuarios) || cantidadUsuarios < 0) {
-        return {
-            success:false,
-            error: `generateLicenseFile: cantidadUsuarios must be a non-negative number. Received: ${cantidadUsuarios}`
-        }
-    }
-    if (typeof licenciaActiva !== 'boolean') {
-        return {
-            success:false,
-            error: `generateLicenseFile: licenciaActiva must be a boolean. Received: ${licenciaActiva}`
-        }
-    }
-
-    // --- Generate Token Internally ---
-    // Assuming ResidenciaId type is compatible with generarTokenLicencia's first parameter
-    const internallyGeneratedToken = generarTokenLicencia(ResidenciaId as ResidenciaId, licenciaValidaHasta);
-
-    const licenseData: LicenseData = {
-        ResidenciaId,
-        licenciaValidaHasta,
-        licenciaActiva,
-        cantidadUsuarios,
-        tokenLicencia: internallyGeneratedToken, // Use the internally generated token
-    };
-
-    const fullPathToFile = `${licenseFilesPath}${ResidenciaId}.json`;
-    const file = storage.bucket(licenseBucketName).file(fullPathToFile);
-
-    try {
-        await file.save(JSON.stringify(licenseData, null, 2), {
-            contentType: "application/json",
-        });
-        functions.logger.info(`License file ${fullPathToFile} generated and saved to ${licenseBucketName}. Token: ${internallyGeneratedToken}`);
-        return {
-            success:true,
-            filePath: fullPathToFile
-        }
-    } catch (error) {
-        functions.logger.error(`Error saving license file ${fullPathToFile}:`, error);
-        // Keep HttpsError if this function is directly or indirectly called by an HTTPS trigger
-        // Otherwise, a standard Error might be more appropriate if it's purely server-side internal.
-        throw new HttpsError("internal", `Could not save license file for ResidenciaId ${ResidenciaId}.`, (error as Error).message);
-    }
-}
-
-/**
- * Retrieves license details from a JSON file in Cloud Storage.
- *
- * @param ResidenciaId - The ID of the Residencia.
- * @returns Promise<LicenseDetailsResult>
- */
-export async function getLicenseDetails(ResidenciaId: string): Promise<LicenseDetailsResult> {
-    const fullPathToFile = `${licenseFilesPath}${ResidenciaId}.json`; // New way with path
-    const file = storage.bucket(licenseBucketName).file(fullPathToFile);
-
-    try {
-        const [exists] = await file.exists();
-        if (!exists) {
-            functions.logger.warn(`License file ${fullPathToFile} not found in ${licenseBucketName}.`);
-            return {
-                ResidenciaId,
-                licenciaValidaHasta: "",
-                licenciaActiva: false,
-                cantidadUsuarios: 0,
-                tokenLicencia: "",
-                status: "not_found",
-                message: "License file is not found.",
-            };
-        }
-
-        const [fileContents] = await file.download();
-        const licenseData = JSON.parse(fileContents.toString()) as LicenseData;
-
-        if (!licenseData.licenciaActiva) {
-            functions.logger.info(`License for ${ResidenciaId} is not active.`);
-            return {
-                ...licenseData,
-                status: "not_active",
-                message: "License not active.",
-            };
-        }
-
-        const expirationDate = new Date(licenseData.licenciaValidaHasta);
-        if (expirationDate < new Date()) {
-            functions.logger.info(`License for ${ResidenciaId} has expired on ${licenseData.licenciaValidaHasta}.`);
-            return {
-                ...licenseData,
-                status: "expired",
-                message: "License expired.",
-            };
-        }
-
-        const tokenCalculado: string = generarTokenLicencia(licenseData.ResidenciaId, licenseData.licenciaValidaHasta);
-        if(!tokenCalculado || (tokenCalculado !== licenseData.tokenLicencia)) {
-            functions.logger.warn(`License for ${ResidenciaId} has an invalid token.`);
-            return {
-                ...licenseData,
-                status: "invalid_token",
-                message: "License expired.",
-            };
-        }
-
-        functions.logger.info(`License details for ${ResidenciaId} retrieved successfully.`);
-        return {
-            ...licenseData,
-            status: "valid",
-            message: "License is valid.",
-        };
-    } catch (error) {
-        functions.logger.error(`Error reading license file ${fullPathToFile} for ${ResidenciaId}:`, error);
-        // Return a generic error structure that still conforms to LicenseDetailsResult
-        return {
-            ResidenciaId,
-            licenciaValidaHasta: "",
-            licenciaActiva: false,
-            cantidadUsuarios: 0,
-            tokenLicencia: "",
-            status: "error_reading_file",
-            message: "Error reading license file.",
-        };
-    }
-}
-
-/**
- * Generates a unique license token (HMAC-SHA256 hash) for a given residencia and license validity date.
- * This function is intended for server-side use only.
- *
- * @param residenciaId The ID of the Residencia.
- * @param licenciaValidaHasta The date (ISO 8601 string) until which the license is valid.
- *                            e.g., "YYYY-MM-DDTHH:MM:SSZ" or "YYYY-MM-DDTHH:MM±HH:MM"
- * @returns A unique license token (HMAC-SHA256 hash as a hex string).
- */
-export function generarTokenLicencia(
-    residenciaId: ResidenciaId, // Or ResidenciaId if you have that type defined and imported
-    licenciaValidaHasta: string
-): string {
-    if (!residenciaId || !licenciaValidaHasta) {
-        throw new Error("Residencia ID and license validity date are required.");
-    }
-
-    // Basic validation for licenciaValidaHasta format (can be enhanced)
-    // This regex is a simplified check and might not cover all ISO 8601 subtleties.
-    const iso8601Regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|([+-]\d{2}:\d{2}))$/;
-    if (!iso8601Regex.test(licenciaValidaHasta)) {
-        // Consider logging this error as well
-        throw new Error(`Invalid ISO 8601 date format for licenciaValidaHasta: ${licenciaValidaHasta}`);
-        // Depending on strictness, you might throw an error or allow it if your parsing downstream is robust.
-        // For now, we'll proceed, but stricter validation is recommended for production.
-    }
-
-    const dataToHash = `${residenciaId}-${licenciaValidaHasta}`;
-
-    // In a production environment, fetch the secret key from Secret Manager
-    // const secretKey = process.env.LICENSE_HMAC_SECRET || HMAC_SECRET_KEY_DEV;
-    // For now, using the hardcoded development key:
-    const secretKey = HMAC_SECRET_KEY_DEV;
-
-    const hmac = crypto.createHmac('sha256', secretKey);
-    hmac.update(dataToHash);
-    const token = hmac.digest('hex');
-
-    return token;
-}
-
-/**
- * Lists all file names within the license files directory in Cloud Storage.
- * This function is intended for server-side use.
- *
- * @returns Promise<string[]> A promise that resolves to an array of file names (full paths within the bucket).
- *                            Returns an empty array if the directory is empty or an error occurs.
- */
-export async function listAllLicenseFileNamesInStorage(): Promise<string[]> {
-    try {
-        // Ensure licenseFilesPath correctly represents a directory prefix (e.g., "licenses/")
-        const [files] = await storage.bucket(licenseBucketName).getFiles({ prefix: licenseFilesPath });
-        
-        if (!files || files.length === 0) {
-            functions.logger.info(`No files found in directory '${licenseFilesPath}' in bucket '${licenseBucketName}'.`);
-            return []; 
-        }
-
-        // The 'name' property of each file object is its full path within the bucket.
-        // We filter out entries that represent the directory itself if licenseFilesPath is a non-empty prefix
-        // and the directory object itself is listed (e.g. "licenses/" if the prefix is "licenses/").
-        const fileNames = files
-            .map(file => file.name)
-            .filter(name => name !== licenseFilesPath); // Avoid listing the directory path itself if it appears as an object
-        
-        functions.logger.info(`Successfully listed ${fileNames.length} file(s) from directory: '${licenseFilesPath}'`);
-        return fileNames;
-
-    } catch (error) {
-        functions.logger.error(`Error listing files in directory '${licenseFilesPath}' in bucket '${licenseBucketName}':`, error);
-        // For server-side functions, throwing the error can be appropriate to indicate failure.
-        // Alternatively, you could return an empty array or a more structured error.
-        throw new Error(`Failed to list files from storage directory '${licenseFilesPath}': ${error instanceof Error ? error.message : String(error)}`);
-    }
-}
-
-
-
-// --- End of Helper Functions for License Management ---
-
-// --- VERY INSECURE - FOR LOCAL DEVELOPMENT ONLY ---
-const HMAC_SECRET_KEY_DEV = "F#gQb-qXIW{;nWo_$H7rBbl5JnU,=tdefc(wqk@0g56s[gDhAI";
-// --- DELETE THIS FUNCTION BEFORE PRODUCTION ---
-export const createHardcodedMasterUser = onCall(
-    {
-        region: "us-central1",
-        cors: ["http://localhost:3001", "http://127.0.0.1:3001"] // Explicitly allow client origin
-    },
-    async (request: CallableRequest<any>) => { // No input data needed
-        functions.logger.warn("********************************************************************");
-        functions.logger.warn("WARNING: Executing createHardcodedMasterUser.");
-        functions.logger.warn("This function is highly insecure and for local development ONLY.");
-        functions.logger.warn("IT MUST BE DELETED BEFORE DEPLOYING TO PRODUCTION.");
-        functions.logger.warn("********************************************************************");
-
-        const hardcodedEmail = "drcaceres@gmail.com";
-        const hardcodedPassword = "123456"; // CHANGE THIS IF YOU CARE EVEN A LITTLE
-        const hardcodedProfileData = {
-            nombre: "Master",
-            apellido: "User (Hardcoded)",
-        };
-
-        // Optional: Check if this hardcoded user already exists to prevent multiple creations
-        try {
-            await admin.auth().getUserByEmail(hardcodedEmail);
-            functions.logger.info(`User ${hardcodedEmail} already exists. Skipping creation.`);
-            const userDoc = await db.collection("users").where("email", "==", hardcodedEmail).limit(1).get();
-            if (!userDoc.empty) {
-                functions.logger.info(`Firestore document for ${hardcodedEmail} also exists.`);
-                 return { success: true, userId: userDoc.docs[0].id, message: "Hardcoded master user already exists." };
-            }
-            functions.logger.warn(`Auth user ${hardcodedEmail} exists, but Firestore profile might be missing or different.`);
-             throw new HttpsError("already-exists", `User ${hardcodedEmail} already exists in Auth. Clean up manually or change hardcoded details.`);
-        } catch (error: any) {
-            if (error.code === "auth/user-not-found") {
-                functions.logger.info(`User ${hardcodedEmail} not found, proceeding with creation.`);
-            } else if (error.code === "already-exists") {
-                 throw error;
-            } else {
-                functions.logger.error("Error checking for existing hardcoded user:", error);
-                throw new HttpsError("internal", "Error checking for existing user: " + error.message);
-            }
-        }
-
-        let newUserRecord: admin.auth.UserRecord;
-        try {
-            newUserRecord = await admin.auth().createUser({
-                email: hardcodedEmail,
-                emailVerified: true,
-                password: hardcodedPassword,
-                displayName: `${hardcodedProfileData.nombre} ${hardcodedProfileData.apellido}`.trim(),
-                disabled: false,
-            });
-            functions.logger.info("Successfully created hardcoded master user in Firebase Auth:", newUserRecord.uid);
-        } catch (error: any) {
-            functions.logger.error("Error creating hardcoded master user in Firebase Auth:", error);
-            throw new HttpsError("internal", `Hardcoded master user Auth creation failed: ${error.message}`);
-        }
-
-        const newUserId = newUserRecord.uid;
-
-        try {
-            const claimsToSet = { roles: ["master"], isActive: true };
-            await admin.auth().setCustomUserClaims(newUserId, claimsToSet);
-            functions.logger.info("Custom claims ('master') set for hardcoded user:", newUserId);
-        } catch (error: any) {
-            functions.logger.error("Error setting custom claims for hardcoded master user:", newUserId, error);
-            await admin.auth().deleteUser(newUserId).catch(delErr => functions.logger.error("Failed to cleanup hardcoded auth user after claims error", delErr));
-            throw new HttpsError("internal", `Setting hardcoded master custom claims failed: ${error.message}`);
-        }
-
-        // Construct the full UserProfile document, ensuring all required fields are present
-        const userProfileDoc: UserProfile = {
-            id: newUserId, // UID from Auth
-            ...hardcodedProfileData,
-            nombreCorto: "DCV",
-            email: hardcodedEmail,
-            fotoPerfil: "",
-            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
-            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
-            isActive: true,
-            roles: ["master"],
-            puedeTraerInvitados: "si", // Added to satisfy UserProfile type
-            fechaDeNacimiento: "", // Provide a default if not in hardcodedProfileData
-            residenciaId: null, 
-            centroCostoPorDefectoId: "",
-            telefonoMovil: "",
-            dietaId: "",
-            numeroDeRopa: "",
-            habitacion: "",
-            universidad: "",
-            carrera: "",
-            dni: "",
-            asistentePermisos: null, 
-            notificacionPreferencias: null, 
-            tieneAutenticacion: true,
-            valorCampoPersonalizado1: "",
-            valorCampoPersonalizado2: "",
-            valorCampoPersonalizado3: "",
-            // lastLogin is optional and typically updated upon login, so can be omitted here
-        };
-
-        try {
-            await db.collection("users").doc(newUserId).set(userProfileDoc);
-            functions.logger.info("Successfully created hardcoded master UserProfile in Firestore:", newUserId);
-            return { success: true, userId: newUserId, message: "Hardcoded master user created successfully. REMEMBER TO DELETE THIS FUNCTION!" };
-        } catch (error: any) {
-            functions.logger.error("Error writing hardcoded master UserProfile to Firestore:", newUserId, error);
-            await admin.auth().deleteUser(newUserId).catch(delErr => functions.logger.error("Failed to cleanup hardcoded auth user after Firestore error", delErr));
-            throw new HttpsError("internal", `Hardcoded master user Firestore write failed: ${error.message}`);
-        }
-    }
-);
-// --- END OF INSECURE HARDCODED FUNCTION ---
-
-
-
-// --- Create User Function ---
 export const createUser = onCall(
     { 
         region: "us-central1",
@@ -591,8 +146,6 @@ export const createUser = onCall(
         }
     }
 );
-
-// --- Update User Function ---
 export const updateUser = onCall(
     { 
         region: "us-central1",
@@ -704,8 +257,6 @@ export const updateUser = onCall(
         }
     }
 );
-
-// --- Delete User Function ---
 export const deleteUser = onCall(
     { 
         region: "us-central1",
@@ -774,6 +325,396 @@ export const deleteUser = onCall(
     }
 );
 
+// ------ User Authentication & Authorization ------
+const cors = require("cors")({
+    origin: ["http://localhost:3001", "https://comensales.app"], // ADD YOUR PRODUCTION URL
+    credentials: true, // Allow cookies to be sent
+});
+export const sessionLogin = functions.https.onRequest(async (request, response) => {
+    cors(request, response, async () => {
+      if (request.method !== "POST") {
+        response.status(405).send("Method Not Allowed");
+        return;
+      }
+  
+      const { idToken } = request.body;
+  
+      if (!idToken) {
+        response.status(400).send("ID token is required.");
+        return;
+      }
+  
+      // Set session expiration.
+      // For PWA and app-like experience, you might want a longer duration.
+      // Max is 14 days.
+      const expiresIn = 60 * 60 * 24 * 14 * 1000; // 14 days in milliseconds
+  
+      try {
+        // Verify the ID token first to ensure it's valid.
+        // This step is implicitly handled by createSessionCookie if the token is from a trusted source (same Firebase project),
+        // but explicit verification can be good for clarity and security if desired.
+        const decodedIdToken = await admin.auth().verifyIdToken(idToken);
+        
+        // Only create a session cookie if the token is valid and not revoked.
+        const isRevoked = !(await admin.auth().verifyIdToken(idToken, true)); // Pass true to check if revoked
+        if (isRevoked) {
+          response.status(401).send("ID token has been revoked.");
+          return;
+        }
+  
+        // Create the session cookie.
+        const sessionCookie = await admin.auth().createSessionCookie(idToken, { expiresIn });
+  
+        // Set cookie policy for session cookie.
+        // For production, use `secure: true`. For local dev with HTTP, `secure: false`.
+        // SameSite=Strict is recommended for session cookies.
+        const options = {
+          maxAge: expiresIn,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production", // True in production
+          sameSite: "strict" as const, // Use "Strict" or "Lax"
+          // path: "/", // Optional: defaults to /
+        };
+  
+        response.cookie("__session", sessionCookie, options); // "__session" is a common name
+  
+        // Respond with success and any user data you want to send back (optional)
+        response.status(200).json({
+          status: "success",
+          uid: decodedIdToken.uid,
+          roles: decodedIdToken.roles,
+          residenciaId: decodedIdToken.residenciaId,
+        });
+      } catch (error) {
+        console.error("Error creating session cookie:", error);
+        response.status(401).send("Unauthorized: Could not create session.");
+      }
+    });
+});
+ export const sessionLogout = functions.https.onRequest(async (request, response) => {
+    cors(request, response, async () => {
+      if (request.method !== "POST") {
+        response.status(405).send("Method Not Allowed");
+        return;
+      }
+      
+      // Clear the __session cookie
+      response.clearCookie("__session", { 
+          httpOnly: true, 
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict" as const,
+          // path: "/", // Ensure path matches the one used for setting
+      });
+      response.status(200).json({ status: "success", message: "Logged out successfully." });
+    });
+  });
+
+// ------ Logging ------
+interface LogEntryWrite extends Omit<LogEntry, "id" | "timestamp"> {
+    timestamp: admin.firestore.FieldValue; // Keep this as admin.firestore.FieldValue
+    // 'userId' from LogEntry will store the UID of the admin/user performing the action
+}
+interface CallerSecurityInfo {
+    uid: string;
+    profile?: UserProfile;
+    claims?: Record<string, any>; // Changed from admin.auth.DecodedIdToken
+    isMaster: boolean;
+    isAdmin: boolean;
+}
+const logAction = async (
+    actionType: LogActionType, // Use the string literals from your enum-like type
+    performedByUid: string,
+    targetUid: string | null = null,
+    details: Record<string, any> = {},
+): Promise<void> => {
+    try {
+        const logEntryData: LogEntryWrite = {
+            actionType,
+            userId: performedByUid, // 'userId' in LogEntry refers to the actor
+            timestamp: (db.constructor as any).FieldValue.serverTimestamp() as any, // Switched to db.constructor path
+            targetUid,
+            details,
+            // residenciaId: details.residenciaId || null, // If you want to log this
+        };
+        await db.collection("logs").add(logEntryData);
+        functions.logger.info(`Action logged: ${actionType} by ${performedByUid}` + (targetUid ? ` on ${targetUid}` : ""), details);
+    } catch (error) {
+        functions.logger.error("Error logging action:", error);
+    }
+};
+async function getCallerSecurityInfo(authContext?: CallableRequest['auth']): Promise<CallerSecurityInfo> {
+    if (!authContext || !authContext.uid) {
+        throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+    const uid = authContext.uid;
+    try {
+        const [userRecord, profileDoc] = await Promise.all([
+            admin.auth().getUser(uid),
+            db.collection("users").doc(uid).get()
+        ]);
+
+        const claims = userRecord.customClaims || {};
+        const profile = profileDoc.exists ? profileDoc.data() as UserProfile : undefined;
+
+        return {
+            uid,
+            profile,
+            claims,
+            isMaster: claims.roles?.includes("master") || false,
+            isAdmin: claims.roles?.includes("admin") || false,
+        };
+    } catch (error) {
+        functions.logger.error("Error fetching caller security info for UID:", uid, error);
+        throw new HttpsError("internal", "Could not verify caller permissions.");
+    }
+}
+
+
+// ------ License Management ------
+const licenseBucketName = "lmgmt";
+const licenseFilesPath = "comensales-licencia/";
+interface LicenseData {
+    ResidenciaId: ResidenciaId;
+    licenciaValidaHasta: string; // ISO 8601 date string (e.g., "2024-12-31T23:59:59Z")
+    licenciaActiva: boolean;
+    cantidadUsuarios: number;
+    tokenLicencia: string;
+}
+interface LicenseDetailsResult extends LicenseData {
+    status: "valid" | "not_found" | "not_active" | "expired" | "invalid_token" | "error_reading_file";
+    message: string;
+}
+interface GenerateLicenseParams {
+    ResidenciaId: ResidenciaId; // Or your ResidenciaId type
+    licenciaValidaHasta: string; // ISO 8601 date string in "YYYY-MM-DDTHH:MM±HH:MM" or "YYYY-MM-DDTHH:MM:SSZ"
+    licenciaActiva: boolean;
+    cantidadUsuarios: number;
+}
+interface ValidateLicenseData {
+    contratoId: ContratoResidenciaId;
+    pedidoId: PedidoId;
+}
+/**
+ * Generates a JSON license file and stores it in Cloud Storage.
+ * Replaces the file if it already exists.
+ *
+ * @param params - The license data.
+ * @returns Promise<void>
+ */
+export async function generateLicenseFile(
+    params: GenerateLicenseParams
+): Promise<{ success: boolean; filePath?: string; error?: string }> {
+    // Destructure params - tokenLicencia is no longer expected here
+    const { ResidenciaId, licenciaValidaHasta, licenciaActiva, cantidadUsuarios } = params;
+    // --- Input Validation ---
+    if (!ResidenciaId || typeof ResidenciaId !== 'string' || ResidenciaId.trim() === "") {
+        return {
+            success:false,
+            error: "generateLicenseFile: ResidenciaId is required and must be a non-empty string."
+        }
+    }
+    if (!licenciaValidaHasta || typeof licenciaValidaHasta !== 'string' || licenciaValidaHasta.trim() === "") {
+        return {
+            success:false,
+            error: "generateLicenseFile: licenciaValidaHasta is required and must be a non-empty ISO 8601 date string."
+        }
+    }
+    // Basic check for cantidadUsuarios (already type number by interface, but good practice for runtime)
+    if (typeof cantidadUsuarios !== 'number' || isNaN(cantidadUsuarios) || cantidadUsuarios < 0) {
+        return {
+            success:false,
+            error: `generateLicenseFile: cantidadUsuarios must be a non-negative number. Received: ${cantidadUsuarios}`
+        }
+    }
+    if (typeof licenciaActiva !== 'boolean') {
+        return {
+            success:false,
+            error: `generateLicenseFile: licenciaActiva must be a boolean. Received: ${licenciaActiva}`
+        }
+    }
+
+    // --- Generate Token Internally ---
+    // Assuming ResidenciaId type is compatible with generarTokenLicencia's first parameter
+    const internallyGeneratedToken = generarTokenLicencia(ResidenciaId as ResidenciaId, licenciaValidaHasta);
+
+    const licenseData: LicenseData = {
+        ResidenciaId,
+        licenciaValidaHasta,
+        licenciaActiva,
+        cantidadUsuarios,
+        tokenLicencia: internallyGeneratedToken, // Use the internally generated token
+    };
+
+    const fullPathToFile = `${licenseFilesPath}${ResidenciaId}.json`;
+    const file = storage.bucket(licenseBucketName).file(fullPathToFile);
+
+    try {
+        await file.save(JSON.stringify(licenseData, null, 2), {
+            contentType: "application/json",
+        });
+        functions.logger.info(`License file ${fullPathToFile} generated and saved to ${licenseBucketName}. Token: ${internallyGeneratedToken}`);
+        return {
+            success:true,
+            filePath: fullPathToFile
+        }
+    } catch (error) {
+        functions.logger.error(`Error saving license file ${fullPathToFile}:`, error);
+        // Keep HttpsError if this function is directly or indirectly called by an HTTPS trigger
+        // Otherwise, a standard Error might be more appropriate if it's purely server-side internal.
+        throw new HttpsError("internal", `Could not save license file for ResidenciaId ${ResidenciaId}.`, (error as Error).message);
+    }
+}
+/**
+ * Retrieves license details from a JSON file in Cloud Storage.
+ *
+ * @param ResidenciaId - The ID of the Residencia.
+ * @returns Promise<LicenseDetailsResult>
+ */
+export async function getLicenseDetails(ResidenciaId: string): Promise<LicenseDetailsResult> {
+    const fullPathToFile = `${licenseFilesPath}${ResidenciaId}.json`; // New way with path
+    const file = storage.bucket(licenseBucketName).file(fullPathToFile);
+
+    try {
+        const [exists] = await file.exists();
+        if (!exists) {
+            functions.logger.warn(`License file ${fullPathToFile} not found in ${licenseBucketName}.`);
+            return {
+                ResidenciaId,
+                licenciaValidaHasta: "",
+                licenciaActiva: false,
+                cantidadUsuarios: 0,
+                tokenLicencia: "",
+                status: "not_found",
+                message: "License file is not found.",
+            };
+        }
+
+        const [fileContents] = await file.download();
+        const licenseData = JSON.parse(fileContents.toString()) as LicenseData;
+
+        if (!licenseData.licenciaActiva) {
+            functions.logger.info(`License for ${ResidenciaId} is not active.`);
+            return {
+                ...licenseData,
+                status: "not_active",
+                message: "License not active.",
+            };
+        }
+
+        const expirationDate = new Date(licenseData.licenciaValidaHasta);
+        if (expirationDate < new Date()) {
+            functions.logger.info(`License for ${ResidenciaId} has expired on ${licenseData.licenciaValidaHasta}.`);
+            return {
+                ...licenseData,
+                status: "expired",
+                message: "License expired.",
+            };
+        }
+
+        const tokenCalculado: string = generarTokenLicencia(licenseData.ResidenciaId, licenseData.licenciaValidaHasta);
+        if(!tokenCalculado || (tokenCalculado !== licenseData.tokenLicencia)) {
+            functions.logger.warn(`License for ${ResidenciaId} has an invalid token.`);
+            return {
+                ...licenseData,
+                status: "invalid_token",
+                message: "License expired.",
+            };
+        }
+
+        functions.logger.info(`License details for ${ResidenciaId} retrieved successfully.`);
+        return {
+            ...licenseData,
+            status: "valid",
+            message: "License is valid.",
+        };
+    } catch (error) {
+        functions.logger.error(`Error reading license file ${fullPathToFile} for ${ResidenciaId}:`, error);
+        // Return a generic error structure that still conforms to LicenseDetailsResult
+        return {
+            ResidenciaId,
+            licenciaValidaHasta: "",
+            licenciaActiva: false,
+            cantidadUsuarios: 0,
+            tokenLicencia: "",
+            status: "error_reading_file",
+            message: "Error reading license file.",
+        };
+    }
+}
+/**
+ * Generates a unique license token (HMAC-SHA256 hash) for a given residencia and license validity date.
+ * This function is intended for server-side use only.
+ *
+ * @param residenciaId The ID of the Residencia.
+ * @param licenciaValidaHasta The date (ISO 8601 string) until which the license is valid.
+ *                            e.g., "YYYY-MM-DDTHH:MM:SSZ" or "YYYY-MM-DDTHH:MM±HH:MM"
+ * @returns A unique license token (HMAC-SHA256 hash as a hex string).
+ */
+export function generarTokenLicencia(
+    residenciaId: ResidenciaId, // Or ResidenciaId if you have that type defined and imported
+    licenciaValidaHasta: string
+): string {
+    if (!residenciaId || !licenciaValidaHasta) {
+        throw new Error("Residencia ID and license validity date are required.");
+    }
+
+    // Basic validation for licenciaValidaHasta format (can be enhanced)
+    // This regex is a simplified check and might not cover all ISO 8601 subtleties.
+    const iso8601Regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|([+-]\d{2}:\d{2}))$/;
+    if (!iso8601Regex.test(licenciaValidaHasta)) {
+        // Consider logging this error as well
+        throw new Error(`Invalid ISO 8601 date format for licenciaValidaHasta: ${licenciaValidaHasta}`);
+        // Depending on strictness, you might throw an error or allow it if your parsing downstream is robust.
+        // For now, we'll proceed, but stricter validation is recommended for production.
+    }
+
+    const dataToHash = `${residenciaId}-${licenciaValidaHasta}`;
+
+    // In a production environment, fetch the secret key from Secret Manager
+    // const secretKey = process.env.LICENSE_HMAC_SECRET || HMAC_SECRET_KEY_DEV;
+    // For now, using the hardcoded development key:
+    const secretKey = HMAC_SECRET_KEY_DEV;
+
+    const hmac = crypto.createHmac('sha256', secretKey);
+    hmac.update(dataToHash);
+    const token = hmac.digest('hex');
+
+    return token;
+}
+/**
+ * Lists all file names within the license files directory in Cloud Storage.
+ * This function is intended for server-side use.
+ *
+ * @returns Promise<string[]> A promise that resolves to an array of file names (full paths within the bucket).
+ *                            Returns an empty array if the directory is empty or an error occurs.
+ */
+export async function listAllLicenseFileNamesInStorage(): Promise<string[]> {
+    try {
+        // Ensure licenseFilesPath correctly represents a directory prefix (e.g., "licenses/")
+        const [files] = await storage.bucket(licenseBucketName).getFiles({ prefix: licenseFilesPath });
+        
+        if (!files || files.length === 0) {
+            functions.logger.info(`No files found in directory '${licenseFilesPath}' in bucket '${licenseBucketName}'.`);
+            return []; 
+        }
+
+        // The 'name' property of each file object is its full path within the bucket.
+        // We filter out entries that represent the directory itself if licenseFilesPath is a non-empty prefix
+        // and the directory object itself is listed (e.g. "licenses/" if the prefix is "licenses/").
+        const fileNames = files
+            .map(file => file.name)
+            .filter(name => name !== licenseFilesPath); // Avoid listing the directory path itself if it appears as an object
+        
+        functions.logger.info(`Successfully listed ${fileNames.length} file(s) from directory: '${licenseFilesPath}'`);
+        return fileNames;
+
+    } catch (error) {
+        functions.logger.error(`Error listing files in directory '${licenseFilesPath}' in bucket '${licenseBucketName}':`, error);
+        // For server-side functions, throwing the error can be appropriate to indicate failure.
+        // Alternatively, you could return an empty array or a more structured error.
+        throw new Error(`Failed to list files from storage directory '${licenseFilesPath}': ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
 export const checkLicenseValidity = onCall<ValidateLicenseData>(async (request) => {
     functions.logger.info("Received license validation request for Contrato ID:", request.data.contratoId, "Pedido ID:", request.data.pedidoId);
     if (!request.auth) {
@@ -801,9 +742,7 @@ export const checkLicenseValidity = onCall<ValidateLicenseData>(async (request) 
       // For other errors, wrap them in a generic HttpsError
       throw new HttpsError("internal", "An internal error occurred during license validation.", error.message);
     }
-  });
-
-// --- Internal types for the audit function ---
+});
 interface ContractAuditInfo {
     contratoId: string;
     residenciaId: ResidenciaId;
@@ -812,7 +751,6 @@ interface ContractAuditInfo {
     proposedUserCount?: number;
     newestLicenciaId?: string;
 }
-
 interface ValidatedGCSLicense {
     residenciaId: ResidenciaId;
     gcsFilePath: string;
@@ -820,7 +758,6 @@ interface ValidatedGCSLicense {
     cantidadUsuarios: number;
     // tokenLicencia: string; // Not strictly needed for comparison logic after validation
 }
-
 export const actualizacionArchivosLicencias = functions.scheduler.onSchedule(
     {
         schedule: "0 0 * * *", // Daily at 00:00
@@ -1121,13 +1058,11 @@ export const actualizacionArchivosLicencias = functions.scheduler.onSchedule(
         return; // PubSub functions should return null or a Promise
     }
 );
-
 interface SingleContractAuditResult {
     auditResult: boolean;
     licenseResult: 'no requerida' | 'licencia sin cambios' | 'licencia instalada' | 'licencia reinstalada' | 'error';
     errorMessage?: string;
 }
-
 export const actualizacionLicenciaContrato = onCall(
     {
         // Enforce a memory limit if this function is expected to be heavier
@@ -1300,3 +1235,122 @@ export const actualizacionLicenciaContrato = onCall(
         }
     }
 );
+
+
+
+
+// --- VERY INSECURE - FOR LOCAL DEVELOPMENT ONLY ---
+// --- DELETE THIS BLOCK BEFORE PRODUCTION ---
+const HMAC_SECRET_KEY_DEV = "F#gQb-qXIW{;nWo_$H7rBbl5JnU,=tdefc(wqk@0g56s[gDhAI";
+export const createHardcodedMasterUser = onCall(
+    {
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"] // Explicitly allow client origin
+    },
+    async (request: CallableRequest<any>) => { // No input data needed
+        functions.logger.warn("********************************************************************");
+        functions.logger.warn("WARNING: Executing createHardcodedMasterUser.");
+        functions.logger.warn("This function is highly insecure and for local development ONLY.");
+        functions.logger.warn("IT MUST BE DELETED BEFORE DEPLOYING TO PRODUCTION.");
+        functions.logger.warn("********************************************************************");
+
+        const hardcodedEmail = "drcaceres@gmail.com";
+        const hardcodedPassword = "123456"; // CHANGE THIS IF YOU CARE EVEN A LITTLE
+        const hardcodedProfileData = {
+            nombre: "Master",
+            apellido: "User (Hardcoded)",
+        };
+
+        // Optional: Check if this hardcoded user already exists to prevent multiple creations
+        try {
+            await admin.auth().getUserByEmail(hardcodedEmail);
+            functions.logger.info(`User ${hardcodedEmail} already exists. Skipping creation.`);
+            const userDoc = await db.collection("users").where("email", "==", hardcodedEmail).limit(1).get();
+            if (!userDoc.empty) {
+                functions.logger.info(`Firestore document for ${hardcodedEmail} also exists.`);
+                 return { success: true, userId: userDoc.docs[0].id, message: "Hardcoded master user already exists." };
+            }
+            functions.logger.warn(`Auth user ${hardcodedEmail} exists, but Firestore profile might be missing or different.`);
+             throw new HttpsError("already-exists", `User ${hardcodedEmail} already exists in Auth. Clean up manually or change hardcoded details.`);
+        } catch (error: any) {
+            if (error.code === "auth/user-not-found") {
+                functions.logger.info(`User ${hardcodedEmail} not found, proceeding with creation.`);
+            } else if (error.code === "already-exists") {
+                 throw error;
+            } else {
+                functions.logger.error("Error checking for existing hardcoded user:", error);
+                throw new HttpsError("internal", "Error checking for existing user: " + error.message);
+            }
+        }
+
+        let newUserRecord: admin.auth.UserRecord;
+        try {
+            newUserRecord = await admin.auth().createUser({
+                email: hardcodedEmail,
+                emailVerified: true,
+                password: hardcodedPassword,
+                displayName: `${hardcodedProfileData.nombre} ${hardcodedProfileData.apellido}`.trim(),
+                disabled: false,
+            });
+            functions.logger.info("Successfully created hardcoded master user in Firebase Auth:", newUserRecord.uid);
+        } catch (error: any) {
+            functions.logger.error("Error creating hardcoded master user in Firebase Auth:", error);
+            throw new HttpsError("internal", `Hardcoded master user Auth creation failed: ${error.message}`);
+        }
+
+        const newUserId = newUserRecord.uid;
+
+        try {
+            const claimsToSet = { roles: ["master"], isActive: true };
+            await admin.auth().setCustomUserClaims(newUserId, claimsToSet);
+            functions.logger.info("Custom claims ('master') set for hardcoded user:", newUserId);
+        } catch (error: any) {
+            functions.logger.error("Error setting custom claims for hardcoded master user:", newUserId, error);
+            await admin.auth().deleteUser(newUserId).catch(delErr => functions.logger.error("Failed to cleanup hardcoded auth user after claims error", delErr));
+            throw new HttpsError("internal", `Setting hardcoded master custom claims failed: ${error.message}`);
+        }
+
+        // Construct the full UserProfile document, ensuring all required fields are present
+        const userProfileDoc: UserProfile = {
+            id: newUserId, // UID from Auth
+            ...hardcodedProfileData,
+            nombreCorto: "DCV",
+            email: hardcodedEmail,
+            fotoPerfil: "",
+            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
+            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
+            isActive: true,
+            roles: ["master"],
+            puedeTraerInvitados: "si", // Added to satisfy UserProfile type
+            fechaDeNacimiento: "", // Provide a default if not in hardcodedProfileData
+            residenciaId: null, 
+            centroCostoPorDefectoId: "",
+            telefonoMovil: "",
+            dietaId: "",
+            numeroDeRopa: "",
+            habitacion: "",
+            universidad: "",
+            carrera: "",
+            dni: "",
+            asistentePermisos: null, 
+            notificacionPreferencias: null, 
+            tieneAutenticacion: true,
+            valorCampoPersonalizado1: "",
+            valorCampoPersonalizado2: "",
+            valorCampoPersonalizado3: "",
+            // lastLogin is optional and typically updated upon login, so can be omitted here
+        };
+
+        try {
+            await db.collection("users").doc(newUserId).set(userProfileDoc);
+            functions.logger.info("Successfully created hardcoded master UserProfile in Firestore:", newUserId);
+            return { success: true, userId: newUserId, message: "Hardcoded master user created successfully. REMEMBER TO DELETE THIS FUNCTION!" };
+        } catch (error: any) {
+            functions.logger.error("Error writing hardcoded master UserProfile to Firestore:", newUserId, error);
+            await admin.auth().deleteUser(newUserId).catch(delErr => functions.logger.error("Failed to cleanup hardcoded auth user after Firestore error", delErr));
+            throw new HttpsError("internal", `Hardcoded master user Firestore write failed: ${error.message}`);
+        }
+    }
+);
+// --- END OF INSECURE BLOCK ---
+

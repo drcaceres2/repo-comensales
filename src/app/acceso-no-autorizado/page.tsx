@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation"; // Corrected import
-import { ShieldAlert, LockKeyhole, Info, Home } from "lucide-react";
+import { ShieldAlert, LockKeyhole, Info, Home, LogOut } from "lucide-react"; // Added LogOut for clarity if needed later
 import { Button } from "@/components/ui/button"; // Assuming this is your button component
+import { useEffect, useState } from "react"; // Added useEffect and useState
 
 interface AccesoNoAutorizadoPageProps {
   searchParams?: {
@@ -13,6 +14,27 @@ interface AccesoNoAutorizadoPageProps {
 export default function AccesoNoAutorizadoPage({ searchParams }: AccesoNoAutorizadoPageProps) {
   const router = useRouter();
   const customMessage = searchParams?.mensaje;
+  const [countdown, setCountdown] = useState(5); // Countdown for redirection
+
+  useEffect(() => {
+    // Countdown timer for redirection
+    const timer = setInterval(() => {
+      setCountdown((prevCountdown) => prevCountdown - 1);
+    }, 1000);
+
+    // Redirect after countdown finishes
+    const redirectTimeout = setTimeout(() => {
+      // If there was a logout function from an auth context, you'd call it here.
+      // Example: auth.signOut();
+      router.push("/"); // Redirect to login page (home page)
+    }, countdown * 1000);
+
+    // Clear timers on component unmount
+    return () => {
+      clearInterval(timer);
+      clearTimeout(redirectTimeout);
+    };
+  }, [router]); // router is stable, but good practice to include if used
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6">
@@ -41,31 +63,26 @@ export default function AccesoNoAutorizadoPage({ searchParams }: AccesoNoAutoriz
           <Button
             variant="outline"
             className="w-full md:w-auto border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-slate-900 transition-colors duration-300"
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/")} // Manual redirect to login/home
           >
             <Home className="mr-2 h-4 w-4" />
-            Ir a Inicio
+            Ir a Inicio / Login
           </Button>
-          <Button
-            variant="outline"
-            className="w-full md:w-auto border-sky-400 text-sky-400 hover:bg-sky-400 hover:text-slate-900 transition-colors duration-300"
-            onClick={() => router.push("/about")} 
+          {/* You could add a "Go Back" button if it makes sense */}
+          {/* <Button
+            variant="ghost"
+            className="w-full md:w-auto text-slate-400 hover:text-yellow-400"
+            onClick={() => router.back()}
           >
-            <Info className="mr-2 h-4 w-4" />
-            Saber Más
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full md:w-auto border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-slate-900 transition-colors duration-300"
-            onClick={() => router.push("/privacidad")}
-          >
-            <ShieldAlert className="mr-2 h-4 w-4" />
-            Privacidad
-          </Button>
+            <Undo2 className="mr-2 h-4 w-4" />
+            Volver Atrás
+          </Button> */}
         </div>
 
-        <p className="mt-10 text-xs text-slate-500">
-          Si crees que esto es un error, por favor contacta al administrador del sistema.
+        <p className="text-sm text-slate-400 mt-8">
+          {countdown > 0 
+            ? `Serás redirigido a la página de inicio en ${countdown} segundos...`
+            : "Redirigiendo..."}
         </p>
       </div>
     </div>

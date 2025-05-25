@@ -17,16 +17,17 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast"; // Keep for notifications
 import { Loader2 } from "lucide-react"; // Import loader icon
 
-// --- Firebase Imports ---
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore"; // Import Firestore functions
-import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
+// --- Firebase Imports ---\n
+// signInWithEmailAndPassword will still be used for the initial client-side auth
+import { signInWithEmailAndPassword, signOut as firebaseSignOut } from "firebase/auth";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase'; // Import initialized auth and db instances
 
-// --- Model Imports ---
+// --- Model Imports ---\n
 import { UserProfile, UserRole } from '@/../../shared/models/types'; // Keep UserProfile and UserRole
 
-// --- LOGO URL ---
+// --- LOGO URL ---\n
 const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/public%2Flogo_web_app_1024x1024.jpg?alt=media&token=3d7a3f7c-71a1-403a-b858-bd0ec567dd10";
 
 // Helper function to redirect based on profile (remains the same)
@@ -34,51 +35,42 @@ const redirectToDashboard = (profile: UserProfile, router: ReturnType<typeof use
     const roles = profile.roles || [];
     const residenciaId = profile.residenciaId;
 
+    // Your existing redirection logic...
     if (roles.includes('admin' as UserRole) || roles.includes('master' as UserRole)) {
-      router.push('/admin/crear-residencia');
-    } else if (roles.includes('director' as UserRole) && residenciaId) {
-      router.push(`/${residenciaId}/solicitar-comensales`);
-    } else if (roles.includes('residente' as UserRole) && residenciaId) {
-      router.push(`/${residenciaId}/elegir-comidas`);
-    } else if (roles.includes('invitado' as UserRole) && residenciaId) {
-      router.push(`/${residenciaId}/bienvenida-invitados`);
-    } else if (roles.includes('asistente' as UserRole) && residenciaId) {
-       router.push(`/${residenciaId}/editar-invitados`); // Assuming this is the correct route for asistente
-    } else if (roles.includes('auditor' as UserRole) && residenciaId) {
-       router.push(`/${residenciaId}/reporte-comidas`); // Assuming this is the correct route for auditor
+      router.push('/admin/crear-residencia'); // Example, adjust to your actual admin start page
+    } else if (residenciaId) { // Simplified check, assuming non-admin roles need residenciaId
+        if (roles.includes('director' as UserRole)) router.push(`/${residenciaId}/solicitar-comensales`);
+        else if (roles.includes('residente' as UserRole)) router.push(`/${residenciaId}/elegir-comidas`);
+        else if (roles.includes('invitado' as UserRole)) router.push(`/${residenciaId}/bienvenida-invitados`);
+        else if (roles.includes('asistente' as UserRole)) router.push(`/${residenciaId}/editar-invitados`); // CHECK PATH
+        else if (roles.includes('auditor' as UserRole)) router.push(`/${residenciaId}/reporte-comidas`); // CHECK PATH
+        else router.push(`/${residenciaId}/page`); // Generic fallback for roles with residenciaId
     } else {
       console.warn("User logged in but has undefined role/residenciaId or unknown role combination:", profile);
-      router.push('/dashboard'); // Fallback redirect
+      // Fallback if residenciaId is missing for roles that need it or no specific redirect found
+      router.push('/acceso-no-autorizado?mensaje=Perfil%20incompleto%20o%20rol%20no%20reconocido.'); 
     }
 };
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-
-  // Use the new hook: returns [user, loading, error]
   const [user, loading, error] = useAuthState(auth);
-
-  // State for Firestore profile data and its loading status
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(false);
-  const [initialAuthCheckDone, setInitialAuthCheckDone] = useState(false); // Track initial auth check
-
-  // State for email/password inputs and login button loading
+  const [initialAuthCheckDone, setInitialAuthCheckDone] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoginLoading, setIsLoginLoading] = useState(false); // Separate loading for login action
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
 
-  // --- Effect for Handling Auth State Changes, Profile Fetching, and Redirection ---
+  // --- Effect for Handling Auth State Changes, Profile Fetching, and Redirection ---\n
   useEffect(() => {
     if (loading) {
-      // Auth state is still being determined, reset flags.
       setInitialAuthCheckDone(false);
-      setProfile(null); // Clear profile while auth is resolving
+      setProfile(null);
       setProfileLoading(false);
       return;
     }
-    // Auth state determined
     setInitialAuthCheckDone(true);
 
     if (error) {
@@ -90,24 +82,22 @@ export default function LoginPage() {
     }
 
     if (user) {
-      // User is logged in.
-      // Fetch profile only if we don't have it and aren't already fetching it.
+      // User is authenticated with Firebase client SDK.
+      // Now, check if profile is loaded. If so, redirect.
+      // The session cookie setting happens during the explicit login action.
+      // If a session cookie already exists and is valid, subsequent page loads would handle it.
       if (!profile && !profileLoading) {
-        console.log("User authenticated, fetching profile...");
+        console.log("User authenticated (client-side), fetching profile...");
         setProfileLoading(true);
         const userDocRef = doc(db, "users", user.uid);
         getDoc(userDocRef)
-          .then(async (userDocSnap) => { // Made this async to await updateDoc
+          .then(async (userDocSnap) => {
             if (userDocSnap.exists()) {
               console.log("Profile fetched successfully.");
               const userProfileData = userDocSnap.data() as UserProfile;
               try {
-                // Update lastLogin timestamp
-                await updateDoc(userDocRef, {
-                  lastLogin: Date.now(),
-                });
+                await updateDoc(userDocRef, { lastLogin: Date.now() });
                 console.log("lastLogin updated successfully.");
-                // Update profile state *after* successful lastLogin update
                 setProfile(userProfileData);
               } catch (updateError) {
                 console.error("Error updating lastLogin:", updateError);
@@ -116,7 +106,6 @@ export default function LoginPage() {
                   description: "No se pudo actualizar la hora de último inicio de sesión.",
                   variant: "destructive",
                 });
-                // Set profile even if lastLogin update fails, so user can proceed
                 setProfile(userProfileData);
               }
             } else {
@@ -127,11 +116,12 @@ export default function LoginPage() {
                   description: "No se encontró tu perfil de usuario. Contacta al administrador.",
                   variant: "destructive",
               });
-              // Optional: sign the user out if profile is critical
-              // auth.signOut();
+              // If profile is critical, sign out to prevent inconsistent state.
+              // This also triggers the !user block below.
+              await firebaseSignOut(auth); 
             }
           })
-          .catch((fetchError) => {
+          .catch(async (fetchError) => {
             console.error("Error fetching user profile:", fetchError);
             setProfile(null);
             toast({
@@ -139,27 +129,28 @@ export default function LoginPage() {
                 description: `No se pudo cargar tu perfil: ${fetchError.message}`,
                 variant: "destructive",
             });
+             // Sign out if profile fetch fails to avoid partial login state
+            await firebaseSignOut(auth); // This await is now valid
           })
           .finally(() => {
             setProfileLoading(false);
           });
+
       } else if (profile) {
-        // Profile is already loaded, proceed with redirection.
-        console.log("User authenticated and profile loaded, redirecting...");
+        // Profile is loaded, proceed with redirection.
+        console.log("User authenticated (client-side) and profile loaded, redirecting...");
         redirectToDashboard(profile, router);
       }
-      // If profileLoading is true, we wait for the fetch to complete.
     } else {
-      // User is signed out, clear profile state.
+      // User is signed out (no active Firebase client session).
       setProfile(null);
       setProfileLoading(false);
-      console.log("User is signed out, staying on login page.");
+      console.log("User is signed out (client-side), staying on login page.");
     }
+  }, [user, loading, error, profile, profileLoading, router, toast]);
 
-  // Dependencies: Watch auth state, profile state, and related loading states.
-  }, [user, loading, error, profile, profileLoading, router, toast]); // Removed db as it's stable from firebase import
 
-  // --- Firebase Login Handler (remains largely the same) ---
+  // --- NEW Login Handler ---\n
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!email || !password) {
@@ -168,34 +159,78 @@ export default function LoginPage() {
     }
     setIsLoginLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // Success toast
-      toast({
-        title: "Inicio de sesión exitoso",
-        description: `Bienvenido de nuevo. Redirigiendo...`,
-      });
-      // NOTE: Redirection is now handled by the useEffect hook above when user/profile become available.
+      // 1. Sign in with Firebase client SDK
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      if (firebaseUser) {
+        // 2. Get ID token
+        const idToken = await firebaseUser.getIdToken(true); // Pass true to force refresh
+
+        // 3. Call your Firebase Function to set the session cookie
+        // IMPORTANT: Replace with your actual Firebase Function URL
+        const sessionLoginUrl = process.env.NEXT_PUBLIC_SESSION_LOGIN_URL || "YOUR_FIREBASE_FUNCTION_SESSION_LOGIN_URL_HERE"; 
+        
+        if (sessionLoginUrl === "YOUR_FIREBASE_FUNCTION_SESSION_LOGIN_URL_HERE") {
+            console.error("CRITICAL: Firebase Function URL for sessionLogin is not configured.");
+            toast({ title: "Configuración Incompleta", description: "La URL para iniciar sesión en el servidor no está configurada.", variant: "destructive"});
+            setIsLoginLoading(false);
+            await firebaseSignOut(auth); // Sign out the client session
+            return;
+        }
+
+        const response = await fetch(sessionLoginUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ idToken }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: "Error setting session cookie." }));
+          throw new Error(errorData.message || `Server error: ${response.status}`);
+        }
+
+        const sessionData = await response.json();
+        console.log("Session cookie set successfully by server:", sessionData);
+
+        // Success toast AFTER session cookie is set
+        toast({
+          title: "Inicio de sesión exitoso",
+          description: `Bienvenido de nuevo. Redirigiendo...`,
+        });
+        // Redirection is now handled by the useEffect hook when `user` (from useAuthState) and `profile` become available.
+        // The useAuthState hook will reflect the client-side login immediately.
+        // The profile fetch will proceed as before.
+      } else {
+        throw new Error("Firebase user not found after sign-in.");
+      }
+
     } catch (loginError: any) {
-      console.error("Login failed:", loginError.code, loginError.message);
+      console.error("Login failed:", loginError);
       let errorMessage = "Ha ocurrido un error al iniciar sesión.";
-      // ... (error handling switch statement remains the same)
-      switch (loginError.code) {
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
-        case 'auth/invalid-credential':
-          errorMessage = "El correo electrónico o la contraseña son incorrectos.";
-          break;
-        case 'auth/invalid-email':
-          errorMessage = "El formato del correo electrónico no es válido.";
-          break;
-        case 'auth/user-disabled':
-          errorMessage = "Esta cuenta ha sido deshabilitada.";
-          break;
-        case 'auth/too-many-requests':
-            errorMessage = "Acceso bloqueado temporalmente debido a demasiados intentos fallidos. Intenta más tarde.";
+      if (loginError.code) { // Firebase auth errors have a code
+        switch (loginError.code) {
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+          case 'auth/invalid-credential':
+            errorMessage = "El correo electrónico o la contraseña son incorrectos.";
             break;
-        default:
-          errorMessage = `Error inesperado (${loginError.code || 'desconocido'}). Por favor, inténtalo de nuevo.`;
+          case 'auth/invalid-email':
+            errorMessage = "El formato del correo electrónico no es válido.";
+            break;
+          case 'auth/user-disabled':
+            errorMessage = "Esta cuenta ha sido deshabilitada.";
+            break;
+          case 'auth/too-many-requests':
+              errorMessage = "Acceso bloqueado temporalmente debido a demasiados intentos fallidos. Intenta más tarde.";
+              break;
+          default:
+            errorMessage = `Error inesperado (${loginError.code}). Por favor, inténtalo de nuevo.`;
+        }
+      } else { // Non-Firebase errors (e.g., network, our custom error from fetch)
+          errorMessage = loginError.message || "Error de conexión o del servidor.";
       }
       toast({ title: "Error de inicio de sesión", description: errorMessage, variant: "destructive" });
     } finally {
@@ -203,9 +238,7 @@ export default function LoginPage() {
     }
   };
 
-  // --- Render Logic ---
-
-  // Show loading screen while initial auth check OR profile fetch (if user logged in) is happening
+  // --- Render Logic (remains largely the same) ---\n
   const showLoadingScreen = loading || (initialAuthCheckDone && user && profileLoading);
   if (showLoadingScreen) {
     return (
@@ -218,17 +251,15 @@ export default function LoginPage() {
     );
   }
 
-  // If authenticated and profile loaded, useEffect should redirect. Show intermediate state.
   if (initialAuthCheckDone && user && profile) {
       return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <span className="ml-2">Redirigiendo...</span>
       </div>
-    ); // Or return null;
+    );
   }
 
-  // Render login form only if initial check is complete and NO user is logged in
   if (initialAuthCheckDone && !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 px-4">
@@ -241,7 +272,7 @@ export default function LoginPage() {
                 width={80}
                 height={80}
                 className="mx-auto mb-4 rounded-full"
-                priority
+                priority // Keep priority for LCP
               />
             )}
             <CardTitle className="text-2xl font-bold">Iniciar Sesión</CardTitle>
@@ -258,7 +289,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoginLoading} // Use login button loading state
+                  disabled={isLoginLoading}
                   autoComplete="email"
                 />
               </div>
@@ -271,7 +302,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoginLoading} // Use login button loading state
+                  disabled={isLoginLoading}
                   autoComplete="current-password"
                 />
               </div>
@@ -287,21 +318,39 @@ export default function LoginPage() {
       </div>
     );
   }
-
-  // Fallback case (e.g., user logged in but profile fetch failed and toast shown)
-  // You might want a specific UI here or just null.
-  // If profile fetch fails, the useEffect shows a toast, but the user isn't redirected.
-  // We need to decide what to show. Maybe allow logout? Or just show nothing.
+  
+  // Fallback for when user is authenticated but profile fetch failed
   if (initialAuthCheckDone && user && !profile && !profileLoading) {
      return (
-       <div className="flex flex-col items-center justify-center min-h-screen">
-         <p className="text-red-600">Error al cargar el perfil. Por favor, contacta al soporte.</p>
-         {/* Optional: Add a logout button here */}
-         <Button variant="outline" onClick={() => auth.signOut()} className="mt-4">Cerrar sesión</Button>
+       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+         <p className="text-red-600 mb-4">
+            Hubo un problema al cargar tu perfil de usuario. Esto puede impedir el acceso completo a la aplicación.
+         </p>
+         <p className="text-sm text-gray-700 mb-6">Por favor, intenta recargar la página o contacta al soporte si el problema persiste.</p>
+         <Button variant="outline" onClick={async () => {
+             setIsLoginLoading(true); // Show loading while signing out
+             await firebaseSignOut(auth);
+             // The session cookie on the server also needs to be cleared.
+             // Call the sessionLogout Firebase Function.
+             try {
+                const sessionLogoutUrl = process.env.NEXT_PUBLIC_SESSION_LOGOUT_URL || "YOUR_FIREBASE_FUNCTION_SESSION_LOGOUT_URL_HERE";
+                if (sessionLogoutUrl === "YOUR_FIREBASE_FUNCTION_SESSION_LOGOUT_URL_HERE") {
+                    console.warn("Session logout URL not configured. Client-side logout only.");
+                } else {
+                    await fetch(sessionLogoutUrl, { method: "POST" });
+                    console.log("Server session logout requested.");
+                }
+             } catch(e) {
+                console.error("Error calling server logout:", e);
+             }
+             // No need to manually set isLoginLoading to false, as component will re-render due to auth state change
+         }} className="mt-4" disabled={isLoginLoading}>
+            {isLoginLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Cerrar sesión e intentar de nuevo
+         </Button>
        </div>
      );
   }
 
-  // Default fallback if none of the above conditions match (should ideally not happen)
-  return null;
+  return null; // Default fallback
 }
