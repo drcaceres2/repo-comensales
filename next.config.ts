@@ -28,9 +28,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  allowedDevOrigins: [
-    'http://localhost:3001'
-  ],
   // Add the transpilePackages option here
   transpilePackages: [
     '@fullcalendar/common',
@@ -38,7 +35,6 @@ const nextConfig: NextConfig = {
     '@fullcalendar/daygrid',
     '@fullcalendar/interaction',
   ],
-  // REMOVED experimental: { nodeMiddleware: true },
 };
 
 export default nextConfig;
