@@ -359,7 +359,7 @@ export function addDurationToFCZH(
     }
   }
 
-  export const intervalToDurationFCZH = (fczh1: campoFechaConZonaHoraria | null | undefined, fczh2: campoFechaConZonaHoraria | null | undefined): Duration | null => {
+export const intervalToDurationFCZH = (fczh1: campoFechaConZonaHoraria | null | undefined, fczh2: campoFechaConZonaHoraria | null | undefined): Duration | null => {
     if (!fczh1 || !fczh1.fecha || !fczh1.zonaHoraria || !fczh2 || !fczh2.fecha || !fczh2.zonaHoraria) {
       console.log("Objeto campoFechaConZonaHoraria incompleto, no se puede calcular duración a partir del intervalo"); // e.g., "-07:00"
       return null;
@@ -373,4 +373,4 @@ export function addDurationToFCZH(
     }
     duration = intervalToDuration({ start, end });
     return duration;
-  }
+}

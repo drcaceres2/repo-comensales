@@ -1,134 +1,8 @@
 import { FieldValue } from 'firebase/firestore';
 
+// --- Usuarios  ---
 export type UserId = string;
 export type UserRole = 'master' | 'admin' | 'director' | 'residente' | 'invitado' | 'asistente' | 'contador';
-export type DietaId = string;
-export type ResidenciaId = string;
-export type CentroCostoId = string;
-export type NotificacionTipo = 'info' | 'accion_requerida' | 'recordatorio' | 'alerta'; // New
-export type ComedorId = string;
-export type TiempoComidaId = string;
-export type AlternativaTiempoComidaId = string;
-export type ComentarioId = string;
-export type HorarioSolicitudComidaId = string;
-
-export type AusenciaId = string;
-export type ExcepcionId = string;
-
-export type ActividadId = string; 
-export type InscripcionActividadId = string; 
-export type TiempoComidaAlternativaUnicaActividadId = string; 
-export type FeedbackId = string; 
-export type RecordatorioId = string;
-
-export type LogEntryId = string;
-export type TipoResidencia = 'estudiantes' | 'profesionales' | 'gente_mayor';
-export type LogActionType =
-    'cliente' |
-    'contrato' |
-    'pedido' |
-    'licencia' |
-    'factura' |
-    'userProfile' |
-    'residencia' |
-    'tiempo_comida' |
-    'alternativa' |
-    'horario_solicitud' |
-    'dieta' |
-    'solicitud_autorizacion_requerida' |
-    'solicitud_aprobada' |
-    'solicitud_rechazada' |
-    'dieta' |
-    'semanario' |
-    'eleccion' |
-    'ausencia' |
-    'comentario' |
-    'modo_eleccion' |
-    'actividad' |        
-    'inscripcion_invitacion' | 
-    'feedback';
-
-    export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
-    export type TipoAccesoAlternativa = 'abierto' | 'autorizado' | 'cerrado';
-    export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requerido' | 'contingencia' | 'contingencia_no_considerada' | 'anulada_por_cambio';
-    export type OrigenEleccion = 
-        'semanario' 
-      | 'excepcion' // excepción que no necesitaba autorización
-      | 'excepcion_autorizada' // excepción que sí necesitaba autorización y fue concedida
-      | 'contingencia' // excepcion que no fue autorizada y quedó la contingencia
-      | 'director' 
-      | 'invitado_wizard'
-      | 'actividad'; 
-    export type TipoAlternativa = 'comedor' | 'paraLlevar' | 'ayuno';
-    export type ActividadEstado = 'borrador' | 'abierta_inscripcion' | 'cerrada_inscripcion' | 'confirmada_finalizada' | 'cancelada';
-    export type TipoAccesoActividad = 'abierta' | 'invitacion_requerida' | 'opcion_unica'; 
-    export type MealCountFuente = 'estandar' | 'actividad'; 
-    export type EstadoInscripcionActividad =
-      | 'invitado_pendiente'   
-      | 'invitado_rechazado'   
-      | 'invitado_aceptado'    
-      | 'inscrito_directo'     
-      | 'cancelado_usuario'    
-      | 'cancelado_admin';     
-    export type TipoSolicitudComidasActividad = 'ninguna' | 'solicitud_unica' | 'diario_externo' | 'diario_residencia' | 'solicitud_inicial_mas_confirmacion_diaria_residencia' | 'solicitud_inicial_mas_confirmacion_diaria_externa';
-    
-    export const DayOfWeekMap: Record<DayOfWeekKey, string> = {
-        lunes: 'Lunes',
-        martes: 'Martes',
-        miercoles: 'Miércoles',
-        jueves: 'Jueves',
-        viernes: 'Viernes',
-        sabado: 'Sábado',
-        domingo: 'Domingo'
-      };
-    export type TipoRecurrente = 'semanal' | 'quincenal' | 'mensual-diasemana' | 'mensual-diames' | 'anual';
-    
-    // --- Notificaciones ---
-    export type NotificacionPrioridad = 'baja' | 'media' | 'alta'; // New
-    
-    export type NotificacionId = string;
-
-    export type grupoUsuarioId = string;
-    
-    // --- Interfaces ---
-
-export interface campoFechaConZonaHoraria {
-    fecha: string; // fecha-hora, fecha u hora guardada en formato ISO: "YYYY-MM-DD" / "yyyy-MM-dd HH:mm" / "yyyy-MM-dd HH:mm:ss" / "HH:mm" / "HH:mm:ss"
-    zonaHoraria: string; // formato IANA de zona horaria
-}
-
-export interface grupoUsuario {
-    id: grupoUsuarioId;
-    etiqueta: string;
-    tipoGrupo: 'eleccion-comidas' | 'centro-de-costo' | 'personalizado';
-    descripcion?: string;
-    centroCostoId?: CentroCostoId;
-}
-
-export interface UsuariosGrupos {
-    id: string;
-    usuario: UserId;
-    grupo: grupoUsuarioId;
-}
-
-export interface PermisosComidaPorGrupo {
-    id: string;
-    grupoPermisos: grupoUsuarioId;
-    usoSemanario: boolean;
-    usoExcepciones: boolean;
-    confirmacionAsistencia: boolean;
-    confirmacionDiariaElecciones: boolean;
-    horarioConfirmacionDiaria?: string; // Hora en ISO 8601 hh:mm en zona horaria de la residencia
-    restriccionAlternativas: boolean;
-    alternativasRestringidas?: alternativaRestringidaDetalle[];
-    autorizacionLocalizacion: boolean;
-}
-
-export interface alternativaRestringidaDetalle {
-    requiereAprobacion: boolean;
-    alternativaRestringida: AlternativaTiempoComidaId;
-}
-
 export interface UserProfile {
     id: UserId;
     nombre: string;
@@ -162,7 +36,6 @@ export interface UserProfile {
     valorCampoPersonalizado2?: string;
     valorCampoPersonalizado3?: string;
 }
-
 export interface NotificacionPreferencias {
     canalEmail: boolean; // Opt-in for email
     canalWhatsApp: boolean; // Opt-in for WhatsApp
@@ -171,8 +44,9 @@ export interface NotificacionPreferencias {
     notificacionesSilenciadas?: boolean; // Mute non-critical notifications
     horaMaxima?: string;
     horaMinima?: string;
-}  
+}
 
+// --- Asistentes ---
 export interface AsistentePermisos {
     usuariosAsistidos?: AsistenciasUsuariosDetalle[];
     gestionUsuarios: boolean;
@@ -185,14 +59,12 @@ export interface AsistentePermisos {
     gestionGrupos: AsistentePermisosDetalle;
     solicitarComensales: AsistentePermisosDetalle;
 }
-
 export interface AsistentePermisosDetalle {
     nivelAcceso: 'Todas' | 'Propias' | 'Ninguna';
     restriccionTiempo: boolean;
     fechaInicio?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
     fechaFin?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
 }
-
 export interface AsistenciasUsuariosDetalle {
     usuarioAsistido: UserId;
     restriccionTiempo: boolean;
@@ -200,6 +72,50 @@ export interface AsistenciasUsuariosDetalle {
     fechaFin?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
 }
 
+// --- Grupos de usuarios y restricción de usuarios ---
+export type grupoUsuarioId = string;
+export interface grupoUsuario {
+    id: grupoUsuarioId;
+    etiqueta: string;
+    tipoGrupo: 'eleccion-comidas' | 'centro-de-costo' | 'personalizado';
+    descripcion?: string;
+    centroCostoId?: CentroCostoId;
+}
+export interface UsuariosGrupos {
+    id: string;
+    usuario: UserId;
+    grupo: grupoUsuarioId;
+}
+export interface PermisosComidaPorGrupo {
+    id: string;
+    grupoPermisos: grupoUsuarioId;
+    usoSemanario: boolean;
+    usoExcepciones: boolean;
+    confirmacionAsistencia: boolean;
+    confirmacionDiariaElecciones: boolean;
+    horarioConfirmacionDiaria?: string; // Hora en ISO 8601 hh:mm en zona horaria de la residencia
+    restriccionAlternativas: boolean;
+    alternativasRestringidas?: alternativaRestringidaDetalle[];
+    autorizacionLocalizacion: boolean;
+}
+export interface alternativaRestringidaDetalle {
+    requiereAprobacion: boolean;
+    alternativaRestringida: AlternativaTiempoComidaId;
+}
+export interface Faltas {
+    id: string;
+    fecha: number; // Timestamp stored as number (millis) from epoch
+    residencia: ResidenciaId;
+    usuario: UserId;
+    titulo: string;
+    descripcion?: string;
+    notificada: boolean;
+    confirmada: boolean;
+    origen: string;
+}
+
+// --- Residencias y propiedades esenciales ---
+export type ResidenciaId = string;
 export interface Residencia {
     id: ResidenciaId; // Not auto-generated by Firestore. Recognizable from final user
     nombre: string;
@@ -251,7 +167,8 @@ export interface Residencia {
 
     estadoContrato: 'activo' | 'prueba' | 'inactivo';
 }
-
+export type TipoResidencia = 'estudiantes' | 'profesionales' | 'gente_mayor';
+export type ComedorId = string;
 export interface Comedor {
     id: ComedorId;
     nombre: string;
@@ -260,18 +177,44 @@ export interface Comedor {
     capacidad?: number; 
     centroCostoPorDefectoId?: CentroCostoId;
 }
+export type HorarioSolicitudComidaId = string;
+export interface HorarioSolicitudComida {
+    id: HorarioSolicitudComidaId;
+    residenciaId: ResidenciaId;
+    nombre: string; 
+    dia: DayOfWeekKey; 
+    horaSolicitud: string; // hora en formato ISO 8601 "HH:mm" en zona horaria de la residencia
+    isPrimary: boolean; 
+    isActive: boolean; 
+}
+export type DietaId = string;
+export interface Dieta {
+    id: DietaId;
+    residenciaId: ResidenciaId;
+    nombre: string;
+    descripcion?: string;
+    isDefault?: boolean; 
+    isActive: boolean;
+}
 
-
+// --- Comidas disponibles para elegir ---
+export type TiempoComidaId = string;
 export interface TiempoComida {
     id: TiempoComidaId;
     nombre: string; 
     residenciaId: ResidenciaId;
     nombreGrupo: string; 
     ordenGrupo: number; 
-    dia: DayOfWeekKey; 
+    dia?: DayOfWeekKey; // null cuando no es aplicación ordinaria
     horaEstimada?: string; 
+    aplicacion: string;
+    /*  Aplicación 'ordinaria' está disponible siempre para elegir. 
+        Extraordinaria sirve para cuando el director quiere poner 
+        "horario de sábado" o "de domingo" sin necesidad de hacer 
+        una alteración de horario detallada. Se pueden crear tantos
+        Tiempos de Comida extraordinarias como se desee. */
 }
-
+export type AlternativaTiempoComidaId = string;
 export interface AlternativaTiempoComida {
     id: AlternativaTiempoComidaId;
     nombre: string; 
@@ -288,59 +231,152 @@ export interface AlternativaTiempoComida {
     comedorId?: ComedorId; 
     esPrincipal: boolean; // La alternativa principal servirá para alimentar el formulario de invitados, actividades y otro. Debe haber una alternativa principal por TiempoComida
     isActive: boolean;
-    esAlteracion: boolean;
 }
-
+export type TipoAlternativa = 'comedor' | 'paraLlevar' | 'ayuno';
+export type TipoAccesoAlternativa = 'abierto' | 'autorizado' | 'cerrado';
+export type AlteracionHorarioId = string;
 export interface AlteracionHorario {
-    id: string;
-    nombre: string;
+    id: AlteracionHorarioId;
+    nombre?: string;
     residenciaId: ResidenciaId;
     descripcion?: string;
     fechaInicio: string; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
     fechaFin: string; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
 }
-
-export interface CentroCosto {
-    id: CentroCostoId;
+export type TiempoComidaModId = string;
+export interface TiempoComidaMod {
+    id: TiempoComidaModId;
+    alteracionId: AlteracionHorarioId;
     residenciaId: ResidenciaId;
-    nombre: string; 
-    descripcion?: string;
-    codigoInterno?: string; 
-    isActive: boolean; 
+    tipoAlteracion: 'agregar'| 'modificar' | 'eliminar';
+    tiempoAfectado?: TiempoComidaId | null; // Si tipoAlteracion='agregar', entonces tiempoAfectado=null
+    nombre?: string; // Si está asociado a un tiempo, entonces nombre puede o no puede ser null
+    nombreGrupo?: string; // Si tipoAlteracion='modificar', entonces nombreGrupo debe existir, de lo contrario debe ser null
+    ordenGrupo?: number | null;  // Si tipoAlteracion='modificar', entonces nombreGrupo debe existir, de lo contrario debe ser null
+    dia?: DayOfWeekKey | null;   // Si tipoAlteracion='modificar', entonces nombreGrupo debe existir, de lo contrario debe ser null
+    horaEstimada?: string | null; 
+}
+export type AlternativaTiempoComidaModId = string;
+export interface AlternativaTiempoComidaMod {
+    id: AlternativaTiempoComidaModId;
+    residenciaId: ResidenciaId;
+    nombre?: string; 
+    tipoAlteracion: 'agregar' | 'modificar' | 'eliminar';
+    tiempoComidaModId: TiempoComidaModId;
+    horarioSolicitudComidaId: HorarioSolicitudComidaId;
+    alternativaAfectada?: AlternativaTiempoComidaId | null; // Solo para tipoAlteracion!='agregar'
+    alternativaDesborde?: AlternativaTiempoComidaId | null; // Opción de configurar una alternativa en caso que no actualice su información
+    tipo?: TipoAlternativa | null;              // Se utiliza solo si tipoAlteracion!='eliminar'
+    tipoAcceso?: TipoAccesoAlternativa | null;  // Se utiliza solo si tipoAlteracion!='eliminar'
+    requiereAprobacion?: boolean | null;        // Se utiliza solo si tipoAlteracion!='eliminar'
+    ventanaInicio?: string | null;              // Se utiliza solo si tipoAlteracion!='eliminar'
+    iniciaDiaAnterior?: boolean | null;         // Se utiliza solo si tipoAlteracion!='eliminar'
+    ventanaFin?: string | null;                 // Se utiliza solo si tipoAlteracion!='eliminar'
+    terminaDiaSiguiente?: boolean | null;       // Se utiliza solo si tipoAlteracion!='eliminar'
+    comedorId?: ComedorId | null;
 }
 
-export interface ConfigContabilidad {
-    nombreEtiquetaCentroCosto?: string; 
-    modeloClasificacion?: 'por-usuario' | 'por-grupo-usuario' | 'por-comedor' | 'detallada';
-    valorizacionComensales: boolean;
-    modoCosteo?: 'general' | 'por-grupo-tiempo-comida' | 'por-tiempo-comida' | 'detallado';
-    costoDiferenciadoDietas: boolean;
-}
-
-export interface comensalesContabilizados {
-    id: string;
-    tiempoDeComida: TiempoComidaId;
-    centroDeCosto: CentroCostoId;
-    dietaContabilizada?: DietaId | null;
-    cantidad: number;
-    costo: number;
-}
-
-export interface LogEntry {
-    id: LogEntryId;
-    timestamp: string | number; // Server will convert to ServerTimestamp, client will handle string/number shall use UTC timezone
+// --- Elecciones de los residentes e invitados
+export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requerido' | 'contingencia' | 'contingencia_no_considerada' | 'anulada_por_cambio';
+export type OrigenEleccion = 
+    | 'semanario' 
+    | 'excepcion' // excepción que no necesitaba autorización
+    | 'excepcion_autorizada' // excepción que sí necesitaba autorización y fue concedida
+    | 'contingencia' // excepcion que no fue autorizada y quedó la contingencia
+    | 'director' 
+    | 'invitado_wizard'
+    | 'actividad'; 
+export interface Semanario {
+    id?: string; 
     userId: UserId;
-    targetUid?: UserId | null;
-    residenciaId?: ResidenciaId; 
-    actionType: LogActionType;
-    relatedDocPath?: string; 
-    details?: string | object; 
+    residenciaId: ResidenciaId;
+    elecciones: {
+        [tiempoComidaId: TiempoComidaId]: AlternativaTiempoComidaId[];
+    };
+    ultimaActualizacion: number; // Timestamp stored as number (millis)
+}
+export interface Eleccion {
+    id?: string;
+    usuarioId: UserId;
+    residenciaId: ResidenciaId;
+    fecha: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
+    tiempoComidaId?: TiempoComidaId;
+    alternativaTiempoComidaId?: AlternativaTiempoComidaId;
+    dietaId?: DietaId;
+    solicitadoAdministracion: boolean;
+    congelado: boolean; // El proceso de solicitud a la administración comenzó y ya no se pueden hacer cambios aunque no se haya hecho la solicitud
+    asistencia?: boolean | null; // null si no se sabe, true si comió, false si no llegó a comer
+    fechaSolicitudAdministracion: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
+    estadoAprobacion: EstadoAprobacion;
+    origen: OrigenEleccion;
+    centroCostoId?: CentroCostoId;
+    comentario?: string;
+    processedForBilling?: boolean;
+    actividadId?: ActividadId;
+    TiempoComidaAlternativaUnicaActividadId?: TiempoComidaAlternativaUnicaActividadId;
+    tipoEleccion: 'regular' | 'actividad';
+    origenCentroCosto?: 'usuario-por-defecto' | 'comedor-por-defecto' | 'manual' | 'modificado';
+}
+export type AusenciaId = string;
+export interface Ausencia {
+    id?: AusenciaId;
+    userId: UserId;
+    residenciaId: ResidenciaId;
+    fechaInicio: string;  // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
+    ultimoTiempoComidaId?: TiempoComidaId | null; 
+    fechaFin: string;  // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
+    primerTiempoComidaId?: TiempoComidaId | null; 
+    retornoPendienteConfirmacion?: boolean; 
+    fechaCreacion: number; // Timestamp stored as number (millis) from epoch
+    motivo?: string; 
+}
+export type ComentarioId = string;
+export interface Comentario {
+    id: ComentarioId;
+    usuarioId: UserId; 
+    destinatarioId?: UserId; 
+    residenciaId: ResidenciaId;
+    texto: string;
+    fechaEnvio: number; // Timestamp stored as number (millis) from epoch
+    leido: boolean;
+    archivado: boolean;
+    relacionadoA?: { 
+        coleccion: 'eleccion' | 'ausencia' | 'usuario'; 
+        documentoId: string;
+    };
 }
 
-export interface ClientLogWrite extends Omit<LogEntry, "id" | "timestamp"> {
-    timestamp: FieldValue; // Type for client-side serverTimestamp()
+// --- Solicitud a la administración ---
+export interface comensalesSolicitadosAdministracion {
+    id: string; 
+    residenciaId: ResidenciaId;
+    fecha: string;  // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
+    tipo: 'residencia' | 'actividad-externa'; // Cuando la actividad es externa, hay un recuento separado de comensales
+    tiempoComidaId?: TiempoComidaId; 
+    alternativaTiempoComidaId?: AlternativaTiempoComidaId;
+    actividadId?: ActividadId;
+    TiempoComidaAlternativaUnicaActividadId?: TiempoComidaAlternativaUnicaActividadId; 
+    dietaId?: DietaId | 'ninguna';
+    totalSolicitadoAdministracion: number; 
 }
+export type RecordatorioId = string;
+export interface Recordatorio {
+    id: RecordatorioId;
+    residenciaId: ResidenciaId;
+    userId: UserId;
+    fechaInicio: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
+    fechaFin: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
+    isSingleDay: boolean;
+    isRecurrente: boolean;
+    recurrenciaRecordatorio?: RecurrenciaRecordatorio;
+    titulo: string;
+    descripcion?: string;
+    color: string;
+}
+export type RecurrenciaRecordatorio = 'semanal' | 'quincenal' | 'mensual-diasemana' | 'mensual-diames' | 'anual';
 
+// --- Actividades ---
+export type ActividadId = string; 
 export interface Actividad {
     //Campos generales
     id: ActividadId;
@@ -373,16 +409,13 @@ export interface Actividad {
     // Campos de costo
     defaultCentroCostoId?: CentroCostoId | null; 
 }
-
-export interface TiempoComidaAlternativaUnicaActividad {
-    id: TiempoComidaAlternativaUnicaActividadId; 
-    nombreTiempoComida_AlternativaUnica: string; 
-    nombreGrupoTiempoComida: string;
-    ordenGrupoTiempoComida: number;
-    fecha: string;  // Timestamp stored as ISO string 
-    horaEstimadaMeal?: string; 
-}
-  
+export type ActividadEstado = 'borrador' | 'abierta_inscripcion' | 'cerrada_inscripcion' | 'confirmada_finalizada' | 'cancelada';
+export type TipoAccesoActividad = 'abierta' | 'invitacion_requerida' | 'opcion_unica'; 
+export type TipoSolicitudComidasActividad = 
+    | 'ninguna' | 'solicitud_unica' | 'diario_externo' | 'diario_residencia' 
+    | 'solicitud_inicial_mas_confirmacion_diaria_residencia' 
+    | 'solicitud_inicial_mas_confirmacion_diaria_externa';
+export type InscripcionActividadId = string;   
 export interface InscripcionActividad {
     id: InscripcionActividadId; 
     actividadId: ActividadId;
@@ -394,101 +427,104 @@ export interface InscripcionActividad {
     fechaInvitacionOriginal?: number | null; // Timestamp as miliseconds from epoch
     nombreInvitadoNoAutenticado?: string; 
 }
-  
-  export interface HorarioSolicitudComida {
-      id: HorarioSolicitudComidaId;
-      residenciaId: ResidenciaId;
-      nombre: string; 
-      dia: DayOfWeekKey; 
-      horaSolicitud: string; // hora en formato ISO 8601 "HH:mm" en zona horaria de la residencia
-      isPrimary: boolean; 
-      isActive: boolean; 
-  }
-  
-  export interface Dieta {
-      id: DietaId;
-      residenciaId: ResidenciaId;
-      nombre: string;
-      descripcion?: string;
-      isDefault?: boolean; 
-      isActive: boolean;
-  }
-  
-  export interface Semanario {
-      id?: string; 
-      userId: UserId;
-      residenciaId: ResidenciaId;
-      elecciones: {
-          [tiempoComidaId: TiempoComidaId]: AlternativaTiempoComidaId[];
-      };
-      ultimaActualizacion: number; // Timestamp stored as number (millis)
-  }
-  
-  export interface Eleccion {
-      id?: string;
-      usuarioId: UserId;
-      residenciaId: ResidenciaId;
-      fecha: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-      tiempoComidaId?: TiempoComidaId;
-      alternativaTiempoComidaId?: AlternativaTiempoComidaId;
-      dietaId?: DietaId;
-      solicitadoAdministracion: boolean;
-      congelado: boolean; // El proceso de solicitud a la administración comenzó y ya no se pueden hacer cambios aunque no se haya hecho la solicitud
-      asistencia?: boolean | null; // null si no se sabe, true si comió, false si no llegó a comer
-      fechaSolicitudAdministracion: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-      estadoAprobacion: EstadoAprobacion;
-      origen: OrigenEleccion;
-      centroCostoId?: CentroCostoId;
-      comentario?: string;
-      processedForBilling?: boolean;
-      actividadId?: ActividadId;
-      TiempoComidaAlternativaUnicaActividadId?: TiempoComidaAlternativaUnicaActividadId;
-      tipoEleccion: 'regular' | 'actividad';
-      origenCentroCosto?: 'usuario-por-defecto' | 'comedor-por-defecto' | 'manual' | 'modificado';
-  }
-  
-  export interface comensalesSolicitadosAdministracion {
-      id: string; 
-      residenciaId: ResidenciaId;
-      fecha: string;  // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-      tipo: 'residencia' | 'actividad-externa'; // Cuando la actividad es externa, hay un recuento separado de comensales
-      tiempoComidaId?: TiempoComidaId; 
-      alternativaTiempoComidaId?: AlternativaTiempoComidaId;
-      actividadId?: ActividadId;
-      TiempoComidaAlternativaUnicaActividadId?: TiempoComidaAlternativaUnicaActividadId; 
-      dietaId?: DietaId | 'ninguna';
-      totalSolicitadoAdministracion: number; 
-  }
-  
-  export interface Ausencia {
-      id?: AusenciaId;
-      userId: UserId;
-      residenciaId: ResidenciaId;
-      fechaInicio: string;  // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-      ultimoTiempoComidaId?: TiempoComidaId | null; 
-      fechaFin: string;  // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-      primerTiempoComidaId?: TiempoComidaId | null; 
-      retornoPendienteConfirmacion?: boolean; 
-      fechaCreacion: number; // Timestamp stored as number (millis) from epoch
-      motivo?: string; 
-  }
-  
-  export interface Comentario {
-      id: ComentarioId;
-      usuarioId: UserId; 
-      destinatarioId?: UserId; 
-      residenciaId: ResidenciaId;
-      texto: string;
-      fechaEnvio: number; // Timestamp stored as number (millis) from epoch
-      leido: boolean;
-      archivado: boolean;
-      relacionadoA?: { 
-          coleccion: 'eleccion' | 'ausencia' | 'usuario'; 
-          documentoId: string;
-      };
-  }
-  
-  export interface Feedback {
+export type EstadoInscripcionActividad =
+    | 'invitado_pendiente' | 'invitado_rechazado' | 'invitado_aceptado'    
+    | 'inscrito_directo'     
+    | 'cancelado_usuario' | 'cancelado_admin';     
+export type TiempoComidaAlternativaUnicaActividadId = string; 
+export interface TiempoComidaAlternativaUnicaActividad {
+    id: TiempoComidaAlternativaUnicaActividadId; 
+    nombreTiempoComida_AlternativaUnica: string; 
+    nombreGrupoTiempoComida: string;
+    ordenGrupoTiempoComida: number;
+    fecha: string;  // Timestamp stored as ISO string 
+    horaEstimadaMeal?: string; 
+}
+
+// --- Notificaciones ---
+export type NotificacionId = string;
+export type NotificacionTipo = 'info' | 'accion_requerida' | 'recordatorio' | 'alerta'; // New
+export type NotificacionPrioridad = 'baja' | 'media' | 'alta'; // New
+export interface Notificacion {
+id: NotificacionId;
+residenciaId: ResidenciaId;
+usuarioId: UserId; // Recipient
+tipo: NotificacionTipo; // e.g., 'info', 'accion_requerida'
+prioridad: NotificacionPrioridad; // e.g., 'alta', 'media'
+titulo: string; // e.g., "Recordatorio: Elige tu comida"
+mensaje: string; // e.g., "Tienes hasta las 8 PM para elegir tu almuerzo."
+relacionadoA?: {
+    coleccion: 'eleccion' | 'actividad' | 'ausencia' | 'mealCount';
+    documentoId: string;
+};
+leido: boolean; // Whether the user has read the notification
+creadoEn: number; // Timestamp stored as number (millis)
+venceEn?: number; // Timestamp stored as number (millis)
+entregadoCorreoEn?: number; // Timestamp stored as number (millis)
+enviadoCorreoA?: string; // Email address
+estadoCorreo?: 'pendiente' | 'enviado' | 'fallido';
+errorcorreo?: string; // Error message if failed
+entregadoSMSEn?: number; // Timestamp stored as number (millis)
+entregadoWAEn?: number; // Timestamp stored as number (millis)
+enviadoWAA: string; // Phone number
+estadoWA: 'pendiente' | 'enviado' | 'fallido';
+errorWA?: string; // Error message if failed
+entregadoEnAppEn?: number; // Timestamp stored as number (millis)
+}
+
+// Contabilidad
+export type CentroCostoId = string;
+export interface CentroCosto {
+    id: CentroCostoId;
+    residenciaId: ResidenciaId;
+    nombre: string; 
+    descripcion?: string;
+    codigoInterno?: string; 
+    isActive: boolean; 
+}
+export interface ConfigContabilidad {
+    nombreEtiquetaCentroCosto?: string; 
+    modeloClasificacion?: 'por-usuario' | 'por-grupo-usuario' | 'por-comedor' | 'detallada';
+    valorizacionComensales: boolean;
+    modoCosteo?: 'general' | 'por-grupo-tiempo-comida' | 'por-tiempo-comida' | 'detallado';
+    costoDiferenciadoDietas: boolean;
+}
+export interface comensalesContabilizados {
+    id: string;
+    tiempoDeComida: TiempoComidaId;
+    centroDeCosto: CentroCostoId;
+    dietaContabilizada?: DietaId | null;
+    cantidad: number;
+    costo: number;
+}
+
+// --- Registro de actividad ---
+export interface ClientLogWrite extends Omit<LogEntry, "id" | "timestamp"> {
+    timestamp: FieldValue; // Type for client-side serverTimestamp()
+}
+export type LogEntryId = string;
+export interface LogEntry {
+    id: LogEntryId;
+    timestamp: string | number; // Server will convert to ServerTimestamp, client will handle string/number shall use UTC timezone
+    userId: UserId;
+    targetUid?: UserId | null;
+    residenciaId?: ResidenciaId; 
+    actionType: LogActionType;
+    relatedDocPath?: string; 
+    details?: string | object; 
+}
+export type LogActionType =
+    'cliente' | 'contrato' | 'pedido' | 'factura' | 'licencia' |
+    'userProfile' | 'residencia' | 'dieta' |
+    'horario_solicitud' | 'tiempo_comida' | 'alternativa' |
+    'semanario' | 'eleccion' | 'ausencia' |
+    'autorizacion' | 'comentario' |
+    'modo_eleccion' |
+    'actividad' |        
+    'inscripcion_invitacion' | 
+    'feedback';
+export type FeedbackId = string; 
+export interface Feedback {
     id?: FeedbackId; 
     userId: UserId; 
     userEmail: string; 
@@ -501,57 +537,20 @@ export interface InscripcionActividad {
     screenResolution?: string; 
     viewportSize?: string; 
     status?: 'nuevo' | 'leido' | 'procesado'; 
-  }
-  
-  export interface Recordatorio {
-      id: RecordatorioId;
-      residenciaId: ResidenciaId;
-      userId: UserId;
-      fechaInicio: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-      fechaFin: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-      isSingleDay: boolean;
-      isRecurrente: boolean;
-      tipoRecurrente?: TipoRecurrente;
-      titulo: string;
-      descripcion?: string;
-      color: string;
-  }
-  
-  export interface Faltas {
-      id: string;
-      fecha: number; // Timestamp stored as number (millis) from epoch
-      residencia: ResidenciaId;
-      usuario: UserId;
-      titulo: string;
-      descripcion?: string;
-      notificada: boolean;
-      confirmada: boolean;
-      origen: string;
-  }
-  
-  export interface Notificacion {
-    id: NotificacionId;
-    residenciaId: ResidenciaId;
-    usuarioId: UserId; // Recipient
-    tipo: NotificacionTipo; // e.g., 'info', 'accion_requerida'
-    prioridad: NotificacionPrioridad; // e.g., 'alta', 'media'
-    titulo: string; // e.g., "Recordatorio: Elige tu comida"
-    mensaje: string; // e.g., "Tienes hasta las 8 PM para elegir tu almuerzo."
-    relacionadoA?: {
-      coleccion: 'eleccion' | 'actividad' | 'ausencia' | 'mealCount';
-      documentoId: string;
-    };
-    leido: boolean; // Whether the user has read the notification
-    creadoEn: number; // Timestamp stored as number (millis)
-    venceEn?: number; // Timestamp stored as number (millis)
-    entregadoCorreoEn?: number; // Timestamp stored as number (millis)
-    enviadoCorreoA?: string; // Email address
-    estadoCorreo?: 'pendiente' | 'enviado' | 'fallido';
-    errorcorreo?: string; // Error message if failed
-    entregadoSMSEn?: number; // Timestamp stored as number (millis)
-    entregadoWAEn?: number; // Timestamp stored as number (millis)
-    enviadoWAA: string; // Phone number
-    estadoWA: 'pendiente' | 'enviado' | 'fallido';
-    errorWA?: string; // Error message if failed
-    entregadoEnAppEn?: number; // Timestamp stored as number (millis)
-  }
+}
+    
+// --- Otros ---
+export interface campoFechaConZonaHoraria {
+    fecha: string; // fecha-hora, fecha u hora guardada en formato ISO: "YYYY-MM-DD" / "yyyy-MM-dd HH:mm" / "yyyy-MM-dd HH:mm:ss" / "HH:mm" / "HH:mm:ss"
+    zonaHoraria: string; // formato IANA de zona horaria
+}
+export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
+export const DayOfWeekMap: Record<DayOfWeekKey, string> = {
+    lunes: 'Lunes',
+    martes: 'Martes',
+    miercoles: 'Miércoles',
+    jueves: 'Jueves',
+    viernes: 'Viernes',
+    sabado: 'Sábado',
+    domingo: 'Domingo'
+};
