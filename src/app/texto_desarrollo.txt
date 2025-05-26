@@ -1,0 +1,61 @@
+✓ Compiled /favicon.ico in 489ms (1348 modules)
+ GET /favicon.ico 200 in 681ms
+ ○ Compiling /restringido-master/crear-residencia ...
+ ✓ Compiled /restringido-master/crear-residencia in 1575ms (2445 modules)
+ GET /restringido-master/crear-residencia 200 in 1754ms
+ ○ Compiling /api/auth-check ...
+ ✓ Compiled /api/auth-check in 635ms (2456 modules)
+Error calling auth check Firebase Function: Unexpected token 'F', "Function u"... is not valid JSON
+ GET /api/auth-check?path=%2Frestringido-master%2Fcrear-residencia 503 in 901ms
+ ○ Compiling /acceso-no-autorizado ...
+ ✓ Compiled /acceso-no-autorizado in 705ms (2469 modules)
+ GET /acceso-no-autorizado 200 in 914ms
+ GET / 200 in 30ms
+ GET /restringido-master/crear-residencia 200 in 36ms
+Error calling auth check Firebase Function: Unexpected token 'F', "Function u"... is not valid JSON
+ GET /api/auth-check?path=%2Frestringido-master%2Fcrear-residencia 503 in 31ms
+ GET /acceso-no-autorizado 200 in 32ms
+ GET / 200 in 21ms
+ GET /restringido-master/crear-residencia 200 in 27ms
+Error calling auth check Firebase Function: Unexpected token 'F', "Function u"... is not valid JSON
+ GET /api/auth-check?path=%2Frestringido-master%2Fcrear-residencia 503 in 38ms
+ GET /acceso-no-autorizado 200 in 28ms
+ GET / 200 in 20ms
+Attempting to connect to Firebase Emulators...
+Using Auth Emulator Host from env: http://127.0.0.1:9099
+Connecting Auth Emulator to http://127.0.0.1:9099
+Using Firestore Emulator Host from env: 127.0.0.1:8080
+Connecting Firestore Emulator to 127.0.0.1:8080
+Using Functions Emulator Host from env: 127.0.0.1:5001
+Connecting Functions Emulator to 127.0.0.1:5001
+Using Storage Emulator Host from env: 127.0.0.1:9199
+Connecting Storage Emulator to 127.0.0.1:9199
+ GET / 200 in 549ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 97ms
+ GET /favicon.ico 200 in 18ms
+ GET /restringido-master/crear-residencia 200 in 27ms
+Error calling auth check Firebase Function: Unexpected token 'F', "Function u"... is not valid JSON
+ GET /api/auth-check?path=%2Frestringido-master%2Fcrear-residencia 503 in 28ms
+ GET /acceso-no-autorizado 200 in 20ms
+ GET / 200 in 17ms
+ GET /restringido-master/crear-residencia 200 in 20ms
+Error calling auth check Firebase Function: Unexpected token 'F', "Function u"... is not valid JSON
+ GET /api/auth-check?path=%2Frestringido-master%2Fcrear-residencia 503 in 20ms
+ GET /acceso-no-autorizado 200 in 32ms
+ GET / 200 in 15ms
+ GET /restringido-master/crear-residencia 200 in 18ms
+Error calling auth check Firebase Function: Unexpected token 'F', "Function u"... is not valid JSON
+ GET /api/auth-check?path=%2Frestringido-master%2Fcrear-residencia 503 in 21ms
+ GET /acceso-no-autorizado 200 in 24ms
+ GET / 200 in 16ms
+ GET /restringido-master/crear-residencia 200 in 27ms
+Error calling auth check Firebase Function: Unexpected token 'F', "Function u"... is not valid JSON
+ GET /api/auth-check?path=%2Frestringido-master%2Fcrear-residencia 503 in 25ms
+ GET /acceso-no-autorizado 200 in 23ms
+ GET / 200 in 15ms
+ GET /restringido-master/crear-residencia 200 in 19ms
+Error calling auth check Firebase Function: Unexpected token 'F', "Function u"... is not valid JSON
+ GET /api/auth-check?path=%2Frestringido-master%2Fcrear-residencia 503 in 19ms
+ GET /acceso-no-autorizado 200 in 23ms
+ GET / 200 in 16ms
+ GET / 200 in 80ms
