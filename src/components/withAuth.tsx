@@ -32,7 +32,7 @@ export default function withAuth<P extends object>(
     useEffect(() => {
       // Define paths that should not trigger the auth check with this HOC
       // These are typically public pages or pages that handle auth states themselves (like login, error pages)
-      const publicPaths = ['/', '/acceso-no-autorizado', '/licencia-vencida', '/privacidad', '/about'];
+      const publicPaths = ['/', '/acceso-no-autorizado', '/licencia-vencida', '/privacidad', '/about', '/crear-master'];
       // Add any other paths that do not require this HOC's protection (e.g. /feedback)
 
       if (publicPaths.includes(pathname)) {

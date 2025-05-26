@@ -17,17 +17,17 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast"; // Keep for notifications
 import { Loader2 } from "lucide-react"; // Import loader icon
 
-// --- Firebase Imports ---\n
+// --- Firebase Imports ---
 // signInWithEmailAndPassword will still be used for the initial client-side auth
 import { signInWithEmailAndPassword, signOut as firebaseSignOut } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase'; // Import initialized auth and db instances
 
-// --- Model Imports ---\n
+// --- Model Imports ---
 import { UserProfile, UserRole } from '@/../../shared/models/types'; // Keep UserProfile and UserRole
 
-// --- LOGO URL ---\n
+// --- LOGO URL ---
 const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/public%2Flogo_web_app_1024x1024.jpg?alt=media&token=3d7a3f7c-71a1-403a-b858-bd0ec567dd10";
 
 // Helper function to redirect based on profile (remains the same)
@@ -37,13 +37,13 @@ const redirectToDashboard = (profile: UserProfile, router: ReturnType<typeof use
 
     // Your existing redirection logic...
     if (roles.includes('admin' as UserRole) || roles.includes('master' as UserRole)) {
-      router.push('/admin/crear-residencia'); // Example, adjust to your actual admin start page
+      router.push('/restringido-master/crear-residencia'); // Example, adjust to your actual admin start page
     } else if (residenciaId) { // Simplified check, assuming non-admin roles need residenciaId
         if (roles.includes('director' as UserRole)) router.push(`/${residenciaId}/solicitar-comensales`);
         else if (roles.includes('residente' as UserRole)) router.push(`/${residenciaId}/elegir-comidas`);
         else if (roles.includes('invitado' as UserRole)) router.push(`/${residenciaId}/bienvenida-invitados`);
-        else if (roles.includes('asistente' as UserRole)) router.push(`/${residenciaId}/editar-invitados`); // CHECK PATH
-        else if (roles.includes('auditor' as UserRole)) router.push(`/${residenciaId}/reporte-comidas`); // CHECK PATH
+        else if (roles.includes('asistente' as UserRole)) router.push(`/${residenciaId}/elecciones-invitados`);
+        else if (roles.includes('contador' as UserRole)) router.push(`/${residenciaId}/contabilidad/reporte-costos`);
         else router.push(`/${residenciaId}/page`); // Generic fallback for roles with residenciaId
     } else {
       console.warn("User logged in but has undefined role/residenciaId or unknown role combination:", profile);
@@ -63,7 +63,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLoginLoading, setIsLoginLoading] = useState(false);
 
-  // --- Effect for Handling Auth State Changes, Profile Fetching, and Redirection ---\n
+  // --- Effect for Handling Auth State Changes, Profile Fetching, and Redirection ---
   useEffect(() => {
     if (loading) {
       setInitialAuthCheckDone(false);
@@ -150,7 +150,7 @@ export default function LoginPage() {
   }, [user, loading, error, profile, profileLoading, router, toast]);
 
 
-  // --- NEW Login Handler ---\n
+  // --- NEW Login Handler ---
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!email || !password) {
@@ -238,7 +238,7 @@ export default function LoginPage() {
     }
   };
 
-  // --- Render Logic (remains largely the same) ---\n
+  // --- Render Logic (remains largely the same) ---
   const showLoadingScreen = loading || (initialAuthCheckDone && user && profileLoading);
   if (showLoadingScreen) {
     return (
