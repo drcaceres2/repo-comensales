@@ -5,7 +5,7 @@ import React, { useState, useEffect, ReactNode } from 'react';
 import {
   Sidebar,
   SidebarTrigger,
-  SidebarContent,
+  // SidebarContent, // Will be replaced by SheetContent from @/components/ui/sheet
   SidebarMenu,
   SidebarMenuItem,
   SidebarFooter,
@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 
 import {
+  SheetContent, // Import SheetContent from shadcn/ui
   SheetTitle,
   SheetDescription,
   SheetHeader as UiSheetHeader,
@@ -564,9 +565,9 @@ export function Navigation() {
   return (
     <Sidebar>
       {triggerContent}
-      {/* Render SidebarContent if trigger is present, and either user is authenticated or there are unauth items */}
+      {/* Render SheetContent if trigger is present, and either user is authenticated or there are unauth items */}
       {triggerContent && (authUser || currentNavConfig.some(item => !item.isAccordion && item.roles === 'unauthenticated') || currentNavConfig.some(item => item.isAccordion && item.children?.some(child => child.roles === 'unauthenticated'))) && (
-        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100">
+        <SheetContent side="left" className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0"> {/* Added side='left' and removed padding p-0 */}
           <UiSheetHeader className="p-4 border-b dark:border-gray-700 text-left">
             <SheetTitle className="text-lg font-semibold">
               {authUser ? 'Menú Principal' : 'Navegación'}
@@ -582,24 +583,24 @@ export function Navigation() {
                 </SheetDescription>
             )}
           </UiSheetHeader>
-          <SidebarMenu className="flex-grow p-4 space-y-2">
+          <SidebarMenu className="flex-grow p-4 space-y-2"> {/* SidebarMenu can stay for structure */}
             <Accordion type="multiple" className="w-full">
               {currentNavConfig.map(item => renderNavItem(item))}
             </Accordion>
           </SidebarMenu>
           {currentFeedbackLink && (
-            <SidebarFooter className="p-4 border-t dark:border-gray-700">
+            <SidebarFooter className="p-4 border-t dark:border-gray-700"> {/* SidebarFooter can stay */}
               {renderNavItem(currentFeedbackLink)}
             </SidebarFooter>
           )}
-        </SidebarContent>
+        </SheetContent>
       )}
       {(authLoading || (!authUser && profileLoading)) && authUser && ( 
-        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100">
-           <div className="flex items-center justify-center h-full">
+        <SheetContent side="left" className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 flex items-center justify-center"> {/* Added side='left' and flex for centering loader */}
+           {/* <div className="flex items-center justify-center h-full"> // This div is redundant with flex on parent */}
             <Loader2 size={32} className="animate-spin" />
-          </div>
-        </SidebarContent>
+          {/* </div> */}
+        </SheetContent>
       )}
     </Sidebar>
   );
