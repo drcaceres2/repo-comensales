@@ -285,28 +285,31 @@ const CrearClientePage = () => {
 
         try {
             const actorUserId = userProfile.id as UserId;
-            const commonLogDetails: Partial<Omit<ClientLogWrite, 'userId' | 'actionType' | 'timestamp'>> = {
-                targetUid: null, 
-                residenciaId: undefined, // Define if applicable, e.g., formState.residenciaId if clients are linked
-            };
-
             if (editingClient && editingClient.id) {
                 const clientId = editingClient.id;
                 const clientRef = doc(db, 'clientes', clientId);
                 await updateDoc(clientRef, formState as DocumentData);
-                await writeClientLog(actorUserId, 'cliente', {
-                    ...commonLogDetails,
-                    relatedDocPath: `clientes/${clientId}`,
-                    details: { action: 'update', clientId: clientId, editorEmail: userProfile.email, newData: formState }
-                });
+                await writeClientLog(
+                    actorUserId, // actorUserId
+                    'cliente', // actionType
+                    { // logDetails
+                      residenciaId: 'No aplica',
+                      details: { action: 'update', clientId: clientId, editorEmail: userProfile.email, newData: formState },
+                      relatedDocPath: `clientes/${clientId}`
+                    }
+                  );
                 toast({ title: "Éxito", description: "Cliente actualizado con éxito" });
             } else {
                 const docRef = await addDoc(collection(db, 'clientes'), formState as DocumentData);
-                await writeClientLog(actorUserId, 'cliente', {
-                    ...commonLogDetails,
-                    relatedDocPath: `clientes/${docRef.id}`,
-                    details: { action: 'create', clientId: docRef.id, creatorEmail: userProfile.email, data: formState }
-                });
+                await writeClientLog(
+                    actorUserId, // actorUserId
+                    'cliente', // actionType
+                    { // logDetails
+                      residenciaId: 'No aplica',
+                      details: { action: 'create', clientId: docRef.id, creatorEmail: userProfile.email, data: formState },
+                      relatedDocPath: `clientes/${docRef.id}`
+                    }
+                  );
                 toast({ title: "Éxito", description: "Cliente creado con éxito" });
             }
             setFormState({});
@@ -332,11 +335,15 @@ const CrearClientePage = () => {
         if (window.confirm("¿Está seguro de que desea eliminar este cliente?")) {
             try {
                 await deleteDoc(doc(db, 'clientes', clientId));
-                await writeClientLog(userProfile.id as UserId, 'cliente', {
-                    targetUid: null,
-                    relatedDocPath: `clientes/${clientId}`,
-                    details: { action: 'delete', clientId: clientId, deleterEmail: userProfile.email }
-                });
+                await writeClientLog(
+                    userProfile.id, // actorUserId
+                    'cliente', // actionType
+                    { // logDetails
+                      residenciaId: 'No aplica',
+                      details: { action: 'delete', clientId: clientId, deleterEmail: userProfile.email },
+                      relatedDocPath: `clientes/${clientId}`
+                    }
+                  );                
                 toast({ title: "Éxito", description: "Cliente eliminado con éxito" });
                 fetchClients(); 
             } catch (err) {

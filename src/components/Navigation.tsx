@@ -10,7 +10,7 @@ import {
   SidebarMenuItem,
   SidebarFooter,
   useSidebar,
-  SidebarHeader, // Assuming SidebarHeader is exported from ./ui/sidebar
+  // SidebarHeader, // No longer explicitly importing if we use SheetHeader
 } from './ui/sidebar';
 
 import {
@@ -50,12 +50,12 @@ import {
   UserPlus,
 } from 'lucide-react';
 
-// Remove imports for SheetTitle, SheetDescription, UiSheetHeader from @/components/ui/sheet
-// import {
-//   SheetTitle,
-//   SheetDescription,
-//   SheetHeader as UiSheetHeader,
-// } from '@/components/ui/sheet';
+// Restore imports for SheetTitle, SheetDescription, UiSheetHeader from @/components/ui/sheet
+import {
+  SheetTitle,
+  SheetDescription,
+  SheetHeader as UiSheetHeader,
+} from '@/components/ui/sheet';
 
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
@@ -562,23 +562,22 @@ export function Navigation() {
       {triggerContent}
       {triggerContent && (authUser || currentNavConfig.some(item => !item.isAccordion && item.roles === 'unauthenticated') || currentNavConfig.some(item => item.isAccordion && item.children?.some(child => child.roles === 'unauthenticated'))) && (
         <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0">
-          {/* Replace UiSheetHeader with SidebarHeader and simple elements */}
-          <SidebarHeader className="p-4 border-b dark:border-gray-700 text-left">
-            <div className="text-lg font-semibold">
+          {/* Use UiSheetHeader from @/components/ui/sheet for the header */}
+          <UiSheetHeader className="p-4 border-b dark:border-gray-700 text-left">
+            <SheetTitle className="text-lg font-semibold">
               {authUser ? 'Menú Principal' : 'Navegación'}
-            </div>
-            {/* Screen-reader descriptions can be kept if SidebarHeader doesn't interfere, or use aria-label on SidebarHeader itself */}
+            </SheetTitle>
             {userProfile?.email && (
-              <div className="sr-only">
+              <SheetDescription className="sr-only">
                  {`Menú de navegación para ${userProfile.email}`}
-              </div>
+              </SheetDescription>
             )}
             {!authUser && (
-                <div className="sr-only">
+                <SheetDescription className="sr-only">
                     Menú de navegación para visitantes
-                </div>
+                </SheetDescription>
             )}
-          </SidebarHeader>
+          </UiSheetHeader>
           <SidebarMenu className="flex-grow p-4 space-y-2">
             <Accordion type="multiple" className="w-full">
               {currentNavConfig.map(item => renderNavItem(item))}

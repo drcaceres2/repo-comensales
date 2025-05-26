@@ -103,10 +103,6 @@
         "offset": "UTC-06:00"
       },
       {
-        "name": "Buenos_Aires",
-        "offset": "UTC-03:00"
-      },
-      {
         "name": "Cambridge_Bay",
         "offset": "UTC-06:00"
       },
@@ -283,10 +279,6 @@
         "offset": "UTC-05:00"
       },
       {
-        "name": "Indianapolis",
-        "offset": "UTC-04:00"
-      },
-      {
         "name": "Inuvik",
         "offset": "UTC-06:00"
       },
@@ -329,10 +321,6 @@
       {
         "name": "Los_Angeles",
         "offset": "UTC-07:00"
-      },
-      {
-        "name": "Louisville",
-        "offset": "UTC-04:00"
       },
       {
         "name": "Lower_Princes",
