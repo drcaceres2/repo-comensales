@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import withAuth from '@/components/withAuth'
 
 // UI Components
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,7 @@ import {
     LogActionType,
     LogEntry, 
     UserId 
-} from '@/models/firestore';
+} from '@/../../shared/models/types';
 
 // Helper to create Log Entries
 async function createLogEntry(
@@ -117,7 +118,7 @@ const formatTimestampForInput = (timestamp: Timestamp | Date | undefined): strin
 };
 
 
-export default function AdminActividadesPage() {
+function AdminActividadesPage() {
     const params = useParams();
     const router = useRouter();
     const residenciaId = params.residenciaId as ResidenciaId;
@@ -736,3 +737,5 @@ export default function AdminActividadesPage() {
         </div>
     );
 }
+
+export default withAuth(AdminActividadesPage());

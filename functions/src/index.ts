@@ -391,7 +391,7 @@ export const sessionLogin = functions.https.onRequest(async (request, response) 
       }
     });
 });
- export const sessionLogout = functions.https.onRequest(async (request, response) => {
+export const sessionLogout = functions.https.onRequest(async (request, response) => {
     cors(request, response, async () => {
       if (request.method !== "POST") {
         response.status(405).send("Method Not Allowed");
@@ -407,7 +407,8 @@ export const sessionLogin = functions.https.onRequest(async (request, response) 
       });
       response.status(200).json({ status: "success", message: "Logged out successfully." });
     });
-  });
+});
+export { checkAuthAndLicense } from "./authMiddleware";
 
 // ------ Logging ------
 interface LogEntryWrite extends Omit<LogEntry, "id" | "timestamp"> {

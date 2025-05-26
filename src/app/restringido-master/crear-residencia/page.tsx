@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import withAuth from '@/components/withAuth';
 import { auth, db } from '@/lib/firebase';
 import { UserProfile, Residencia, Dieta } from '@/../../shared/models/types';
 import {
@@ -86,8 +87,7 @@ const getNewResidenciaDefaults = (): Partial<Residencia> => ({ // Changed return
   textProfile: 'espanol-honduras',
 });
 
-
-export default function CrearResidenciaAdminPage() {
+function CrearResidenciaAdminPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
@@ -1126,3 +1126,5 @@ export default function CrearResidenciaAdminPage() {
     </div>
   );
 }
+
+export default withAuth(CrearResidenciaAdminPage);

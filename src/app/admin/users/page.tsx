@@ -37,6 +37,7 @@ import { Textarea } from '@/components/ui/textarea'; // ADDED: Textarea import
 
 // --- Firebase & New Auth Hook Imports ---
 import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
+import withAuth from '@/components/withAuth';
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 // MODIFIED: Added query and where
@@ -58,7 +59,7 @@ import {
 } from '@/../../shared/models/types';
 // import { ZodUndefined } from 'zod';
 
-export default function UserManagementPage(): JSX.Element | null {
+function UserManagementPage(): JSX.Element | null {
     const ALL_RESIDENCIAS_FILTER_KEY = 'all_residencias';
     const NO_RESIDENCIA_FILTER_KEY = 'no_residencia_assigned';
 
@@ -1745,3 +1746,5 @@ export default function UserManagementPage(): JSX.Element | null {
         </div>
     );
 }
+
+export default withAuth(UserManagementPage)

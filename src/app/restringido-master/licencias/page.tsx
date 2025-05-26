@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import withAuth from '@/components/withAuth';
 import { auth, db } from '@/lib/firebase';
 import {
   collection,
@@ -44,13 +45,16 @@ import {
 
 // Utility and Component imports
 import { 
-    writeClientLog, 
     crearFCZH_FechaHora, 
     addDurationToFCZH, 
-    formatFCZHToMonthYear, 
     toDateFCZH, 
     intervalToDurationFCZH 
+} from '@/../../shared/utils/commonUtils';
+import { 
+  writeClientLog, 
+  formatFCZHToMonthYear, 
 } from '@/lib/utils';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -839,4 +843,4 @@ const LicenciasPage = () => {
   );
 };
 
-export default LicenciasPage;
+export default withAuth(LicenciasPage);

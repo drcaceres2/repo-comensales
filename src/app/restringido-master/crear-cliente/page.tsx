@@ -9,6 +9,7 @@ import { UserProfile, UserId, ClientLogWrite } from '@/../../shared/models/types
 import { writeClientLog } from '@/lib/utils'; 
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import withAuth from '@/components/withAuth';
 
 type ClienteFormState = Partial<Cliente>;
 
@@ -529,4 +530,4 @@ const CrearClientePage = () => {
     );
 };
 
-export default CrearClientePage;
+export default withAuth(CrearClientePage);

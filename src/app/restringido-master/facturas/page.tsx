@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import withAuth from '@/components/withAuth';
 import { auth, db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, Timestamp, serverTimestamp, runTransaction } from 'firebase/firestore'; // Added runTransaction
 import { UserProfile, ResidenciaId, campoFechaConZonaHoraria } from '@/../../shared/models/types'; // Adjust path as needed
@@ -24,7 +25,7 @@ import {
     // Import prepareFechaStringForParsing if it's exported and you want to use it directly,
     // otherwise the comparison functions use it internally.
     resultadoComparacionFCZH
-} from '@/lib/utils'; // Adjust path if necessary
+} from '@/../../shared/utils/commonUtils'; // Adjust path if necessary
 import { format } from 'date-fns';
 import { 
     ContratoResidencia, ContratoResidenciaId, 
@@ -237,7 +238,7 @@ const validateFacturaData = (
     return errors;
 };
 
-export default function CrearFacturasPage() {
+function CrearFacturasPage() {
     const router = useRouter();
     const { toast } = useToast();
     const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
@@ -908,3 +909,5 @@ export default function CrearFacturasPage() {
         </div>
     );
 }
+
+export default withAuth(CrearFacturasPage);
