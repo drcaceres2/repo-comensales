@@ -125,40 +125,54 @@ export default function CrearContratoResidenciaPage() {
     }
 
     const fetchProfileAndClaims = async () => {
-    try {
-        // Fetch custom claims from the auth token
-        const idTokenResult = await authUser.getIdTokenResult(true); // Force refresh
-        const userClaims = idTokenResult.claims;
+      try {
+          setIsLoading(true); // Set loading true at the beginning
+          // Fetch custom claims from the auth token
+          const idTokenResult = await authUser.getIdTokenResult(true); // Force refresh
+          const userClaims = idTokenResult.claims;
+          console.log('Fetched User Claims:', userClaims); // For debugging
 
-        if (userClaims.master === true) {
-        setIsMaster(true);
-        } else {
-        toast({ title: 'Acceso Denegado', description: 'No tienes permiso para acceder a esta página.', variant: 'destructive' });
-        router.replace('/dashboard'); // Redirect to a general dashboard or home
-        setIsLoading(false); // Ensure loading is stopped before redirecting
-        return; // Stop further execution if not master
-        }
+          // 1. Validate 'master' role from ID token claims
+          const hasMasterClaim = Array.isArray(userClaims.roles) && userClaims.roles.includes('master');
 
-        // Fetch user profile document from Firestore
-        const profileDocRef = doc(db, 'users', authUser.uid);
-        const profileSnap = await getDoc(profileDocRef);
-        if (profileSnap.exists()) {
-        const profileData = profileSnap.data() as UserProfile;
-        setUserProfile(profileData);
-        } else {
-        // This case might be less critical if claims already granted access,
-        // but good to log or handle if profile data is essential for other functionalities.
-        toast({ title: 'Advertencia de Perfil', description: 'No se encontró el documento de perfil del usuario, pero el acceso fue concedido por claims.', variant: 'default' });
-        // Depending on requirements, you might not want to redirect here if claims are sufficient.
-        // router.replace('/'); 
-        }
-    } catch (error: any) {
-        toast({ title: 'Error Cargando Perfil o Claims', description: error.message, variant: 'destructive' });
-        router.replace('/');
-    } finally {
-        setIsLoading(false);
-    }
-    };
+          if (!hasMasterClaim) {
+            toast({ title: 'Acceso Denegado', description: 'Permisos insuficientes (claims).', variant: 'destructive' });
+            router.replace('/dashboard'); 
+            setIsLoading(false);
+            return;
+          }
+
+          // 2. Fetch user profile document from Firestore
+          const profileDocRef = doc(db, 'users', authUser.uid);
+          const profileSnap = await getDoc(profileDocRef);
+
+          if (profileSnap.exists()) {
+            const profileData = profileSnap.data() as UserProfile;
+            console.log('Fetched User Profile Data:', profileData); // For debugging
+
+            // 3. Validate 'master' role from Firestore profile document
+            const hasMasterRoleInProfile = Array.isArray(profileData.roles) && profileData.roles.includes('master');
+
+            if (hasMasterRoleInProfile) {
+              // Both claim and profile document confirm master role
+              setUserProfile(profileData);
+              setIsMaster(true);
+            } else {
+              toast({ title: 'Acceso Denegado', description: 'Inconsistencia de permisos (perfil).', variant: 'destructive' });
+              router.replace('/');
+            }
+          } else {
+            // Profile document does not exist, which is necessary for the second part of validation
+            toast({ title: 'Acceso Denegado', description: 'No se encontró el perfil de usuario.', variant: 'destructive' });
+            router.replace('/'); 
+          }
+      } catch (error: any) {
+          toast({ title: 'Error Cargando Perfil o Claims', description: error.message, variant: 'destructive' });
+          router.replace('/');
+      } finally {
+          setIsLoading(false);
+      }
+      };
 
 
     fetchProfileAndClaims();
