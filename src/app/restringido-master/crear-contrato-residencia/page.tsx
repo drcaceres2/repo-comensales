@@ -61,7 +61,7 @@ async function CrearPedidoPrueba (
 }
 
 // --- Main Page Component ---
-function CrearContratoResidenciaPage() {
+export default function CrearContratoResidenciaPage() {
   const [authUser, authLoading, authError] = useAuthState(auth);
   const router = useRouter();
   const { toast } = useToast();
@@ -1078,5 +1078,3 @@ function CrearContratoResidenciaPage() {
     </div>
   );
 }
-
-export default CrearContratoResidenciaPage();
