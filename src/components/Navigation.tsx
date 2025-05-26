@@ -2,21 +2,24 @@
 
 import Link from 'next/link';
 import React, { useState, useEffect, ReactNode } from 'react';
-import {
-  Sidebar,
-  SidebarTrigger,
-  // SidebarContent, // Will be replaced by SheetContent from @/components/ui/sheet
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarFooter,
-  useSidebar,
-} from './ui/sidebar';
+// Remove custom Sidebar imports, use standard Sheet from shadcn/ui
+// import {
+//   Sidebar,
+//   SidebarTrigger,
+//   SidebarMenu,
+//   SidebarMenuItem,
+//   SidebarFooter,
+//   useSidebar,
+// } from './ui/sidebar';
+
+// Keep Accordion for structuring menu items if needed
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from './ui/accordion';
+} from './ui/accordion'; // Assuming this is a standard shadcn/ui accordion or compatible
+
 import {
   Menu,
   Users,
@@ -48,7 +51,9 @@ import {
 } from 'lucide-react';
 
 import {
-  SheetContent, // Import SheetContent from shadcn/ui
+  Sheet, // Import Sheet
+  SheetTrigger, // Import SheetTrigger
+  SheetContent,
   SheetTitle,
   SheetDescription,
   SheetHeader as UiSheetHeader,
@@ -59,18 +64,24 @@ import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from "firebase/firestore";
 import { UserProfile, UserRole } from '@/../../shared/models/types';
 
+// Minimal SidebarMenu, SidebarMenuItem, SidebarFooter if needed for structure/styling
+// These might be replaced by direct styling or simple div wrappers if their only purpose was within the old SidebarContent
+const SidebarMenu = ({ className, children }: { className?: string, children: ReactNode }) => <div className={className}>{children}</div>;
+const SidebarMenuItem = ({ children }: { children: ReactNode }) => <div>{children}</div>;
+const SidebarFooter = ({ className, children }: { className?: string, children: ReactNode }) => <div className={className}>{children}</div>;
+
 interface NavItem {
   id: string;
   label: string;
   icon: LucideIcon;
-  href?: string | ((residenciaIdRelativePath: string) => string); // Modified for clarity with rLink
-  roles?: UserRole[] | 'authenticated' | 'unauthenticated'; // Allow special role strings
+  href?: string | ((residenciaIdRelativePath: string) => string);
+  roles?: UserRole[] | 'authenticated' | 'unauthenticated';
   requiresResidenciaIdForHref?: boolean;
   isAccordion?: boolean;
   children?: NavItem[];
   isFeedbackLink?: boolean;
   checkVisibility?: (profile: UserProfile | null) => boolean;
-  pathTemplate?: string; // For rLink items, to avoid long switch in renderNavItem
+  pathTemplate?: string;
 }
 
 const ALL_AUTHENTICATED_ROLES: UserRole[] = ['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador'];
@@ -79,8 +90,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
   const userRoles = profile?.roles || [];
   const residenciaId = profile?.residenciaId;
 
-  const hasRole = (role: UserRole) => userRoles.includes(role);
-  const rLink = (path: string) => { // path is the part *after* residenciaId
+  const rLink = (path: string) => {
     if (!residenciaId) return '#';
     return `/${residenciaId}${path}`;
   };
@@ -95,21 +105,21 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       roles: ALL_AUTHENTICATED_ROLES,
     },
     {
-      id: 'elegirComidasGlobal', // Differentiating from the one inside a residencia context
-      label: 'Elegir comidas (Global)', // Clarified label for this context
+      id: 'elegirComidasGlobal',
+      label: 'Elegir comidas (Global)',
       icon: ListChecks,
-      href: (residenciaId && profile?.roles.includes('residente')) ? `/${residenciaId}/elegir-comidas` : '#', // Dynamic href based on role and residenciaId
+      href: (residenciaId && profile?.roles.includes('residente')) ? `/${residenciaId}/elegir-comidas` : '#',
       checkVisibility: (p) => !!p?.residenciaId && p.roles.includes('residente'),
       roles: ['residente'],
       requiresResidenciaIdForHref: true,
-      pathTemplate: '/elegir-comidas', // For potential direct use if not handled by dynamic href
+      pathTemplate: '/elegir-comidas',
     },
     {
       id: 'privacidad',
       label: 'Política de privacidad',
       icon: ShieldCheck, 
       href: '/privacidad',
-      roles: 'unauthenticated', // Special role for non-authenticated users
+      roles: 'unauthenticated',
     },
     {
       id: 'aboutPage',
@@ -179,7 +189,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       icon: UserSquare,
       isAccordion: true,
       roles: ['director', 'asistente'],
-      requiresResidenciaIdForHref: true, // Group requires residenciaId if all children do
+      requiresResidenciaIdForHref: true,
       children: [
         {
           id: 'solicitarComensales',
@@ -202,7 +212,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
         {
           id: 'adminAtenciones',
           label: 'Atenciones',
-          icon: Settings, // Or a more specific icon if available
+          icon: Settings,
           href: rLink,
           pathTemplate: '/admin/atenciones',
           roles: ['director', 'asistente'],
@@ -211,7 +221,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
         {
           id: 'adminDietas',
           label: 'Dietas',
-          icon: ListChecks, // Or a food related icon
+          icon: ListChecks,
           href: rLink,
           pathTemplate: '/admin/dietas',
           roles: ['director', 'asistente'],
@@ -278,12 +288,12 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       requiresResidenciaIdForHref: true,
       children: [
         {
-          id: 'invitadoBienvenida', // Changed from bienvenida-invitados to be more specific
-          label: 'Solicitar comidas (asistente)', // This might be for an assistant managing an invitado's choices
+          id: 'invitadoBienvenida',
+          label: 'Solicitar comidas (asistente)',
           icon: ConciergeBell,
           href: rLink,
           pathTemplate: '/bienvenida-invitados',
-          roles: ['invitado'], // Role specified as 'invitado' only
+          roles: ['invitado'],
           requiresResidenciaIdForHref: true,
         },
         {
@@ -298,7 +308,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
         {
           id: 'adminInvitadosNoAuth',
           label: 'Crear invitados sin acceso',
-          icon: UserPlus, // Need to import UserPlus from lucide-react
+          icon: UserPlus,
           href: rLink,
           pathTemplate: '/admin/invitados-no-autenticados',
           roles: ['director', 'asistente'],
@@ -314,10 +324,9 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       icon: ClipboardEdit,
       isAccordion: true,
       roles: ['admin'],
-      // This group can have mixed children regarding residenciaId requirement
       children: [
         {
-          id: 'adminGlobalUsers', // Differentiated from a residencia-specific user creation
+          id: 'adminGlobalUsers',
           label: 'Crear usuarios (Global)',
           icon: Users,
           href: '/admin/users',
@@ -326,18 +335,15 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
         {
           id: 'adminCrearUsuarioPorCorreo',
           label: 'Enviar enlace creación usuario',
-          icon: UserCog, // Or MailPlus
+          icon: UserCog,
           href: rLink,
           pathTemplate: '/admin/crear-usuario-por-correo',
           roles: ['admin'],
           requiresResidenciaIdForHref: true,
         },
-        // The item "/[residenciaId]/admin, 'Comedores y horarios ao/ax'" is tricky.
-        // A link to just '/admin' within a residenciaId context usually implies a dashboard or overview.
-        // Let's assume it's an admin dashboard for the residencia.
         {
           id: 'adminResidenciaDashboard',
-          label: 'Dashboard Admin Residencia', // More descriptive label
+          label: 'Dashboard Admin Residencia',
           icon: Settings,
           href: rLink,
           pathTemplate: '/admin',
@@ -402,7 +408,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       icon: MessageSquare,
       href: '/feedback',
       roles: ALL_AUTHENTICATED_ROLES,
-      isFeedbackLink: true, // Keeps existing behavior for placement
+      isFeedbackLink: true,
     },
   ];
 };
@@ -413,14 +419,13 @@ const isItemVisible = (item: NavItem, profile: UserProfile | null): boolean => {
   }
   const userRoles = profile?.roles || [];
   const residenciaId = profile?.residenciaId;
-  const isAuthenticated = !!profile; // User is authenticated if profile exists
+  const isAuthenticated = !!profile;
 
   if (item.requiresResidenciaIdForHref && !residenciaId && item.href !== '#') return false;
 
   if (item.roles) {
     if (item.roles === 'unauthenticated') {
-      // No specific role required, and authentication status does not prevent visibility.
-      // This item is visible to everyone, authenticated or not.
+      // Visible to everyone
     } else if (item.roles === 'authenticated') {
       if (!isAuthenticated) return false;
     } else if (Array.isArray(item.roles)) {
@@ -438,7 +443,7 @@ export function Navigation() {
   const [authUser, authLoading] = useAuthState(auth);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
-  const { isMobile, setOpenMobile } = useSidebar();
+  // const { isMobile, setOpenMobile } = useSidebar(); // Removed useSidebar hook
 
   useEffect(() => {
     if (authLoading) {
@@ -473,19 +478,17 @@ export function Navigation() {
     let hrefPath = '#';
 
     if (typeof item.href === 'string') {
-      // For static string hrefs, or fully constructed dynamic ones (like for elegirComidasGlobal)
       hrefPath = item.href;
       if (item.requiresResidenciaIdForHref && item.href.includes('[residenciaId]')) {
-        // This was the old way, less common now with rLink and pathTemplate
         if (userProfile?.residenciaId) {
           hrefPath = item.href.replace('[residenciaId]', userProfile.residenciaId);
         } else {
           hrefPath = '#';
         }
       }
-    } else if (typeof item.href === 'function') { // rLink
+    } else if (typeof item.href === 'function') {
       if (userProfile?.residenciaId && item.pathTemplate) {
-        hrefPath = item.href(item.pathTemplate); // item.href is rLink
+        hrefPath = item.href(item.pathTemplate);
       } else if (!userProfile?.residenciaId && item.requiresResidenciaIdForHref) {
         hrefPath = '#';
       }
@@ -511,15 +514,17 @@ export function Navigation() {
     }
 
     return (
-      <SidebarMenuItem key={item.id}>
+      <SidebarMenuItem key={item.id}> {/* This can be a simple div or React.Fragment if SidebarMenuItem is too specific */}
         <Link
           href={hrefPath}
           className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md text-sm"
-          onClick={() => {
-            if (isMobile) {
-              setOpenMobile(false);
-            }
-          }}
+          // onClick={() => {
+          //   // Standard Sheet behavior: clicking a Link often closes the sheet.
+          //   // If explicit close is needed, Sheet's `onOpenChange` and `open` props would be used.
+          //   // if (isMobile) {
+          //   //   setOpenMobile(false);
+          //   // }
+          // }}
         >
           <item.icon size={item.isFeedbackLink ? 18 : 16} />
           <span>{item.label}</span>
@@ -531,43 +536,42 @@ export function Navigation() {
   let triggerContent: ReactNode = null;
   if (authLoading || (!authUser && profileLoading)) {
     triggerContent = (
-      <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" disabled>
-        <Loader2 size={24} className="animate-spin" />
-      </button>
+      <SheetTrigger asChild>
+        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" disabled>
+          <Loader2 size={24} className="animate-spin" />
+        </button>
+      </SheetTrigger>
     );
   } else if (authUser) {
     triggerContent = (
-      <SidebarTrigger asChild>
+      <SheetTrigger asChild>
         <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
           <Menu size={24} />
         </button>
-      </SidebarTrigger>
+      </SheetTrigger>
     );
   } else {
-    // Show trigger for unauthenticated users IF there are unauthenticated links
     const unauthNavConfig = getNavConfig(null);
     const unauthVisibleItems = unauthNavConfig.filter(item => isItemVisible(item, null) && !item.isFeedbackLink);
     if (unauthVisibleItems.length > 0) {
         triggerContent = (
-            <SidebarTrigger asChild>
+            <SheetTrigger asChild>
                 <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
                     <Menu size={24} />
                 </button>
-            </SidebarTrigger>
+            </SheetTrigger>
         );
     }
   }
-
 
   const currentNavConfig = authUser ? menuItems : menuItems.filter(item => isItemVisible(item, null));
   const currentFeedbackLink = authUser ? feedbackLink : (feedbackLink && isItemVisible(feedbackLink, null) ? feedbackLink : undefined);
 
   return (
-    <Sidebar>
+    <Sheet> {/* Replaced Sidebar with Sheet */}
       {triggerContent}
-      {/* Render SheetContent if trigger is present, and either user is authenticated or there are unauth items */}
       {triggerContent && (authUser || currentNavConfig.some(item => !item.isAccordion && item.roles === 'unauthenticated') || currentNavConfig.some(item => item.isAccordion && item.children?.some(child => child.roles === 'unauthenticated'))) && (
-        <SheetContent side="left" className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0"> {/* Added side='left' and removed padding p-0 */}
+        <SheetContent side="left" className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0">
           <UiSheetHeader className="p-4 border-b dark:border-gray-700 text-left">
             <SheetTitle className="text-lg font-semibold">
               {authUser ? 'Menú Principal' : 'Navegación'}
@@ -583,25 +587,23 @@ export function Navigation() {
                 </SheetDescription>
             )}
           </UiSheetHeader>
-          <SidebarMenu className="flex-grow p-4 space-y-2"> {/* SidebarMenu can stay for structure */}
+          <SidebarMenu className="flex-grow p-4 space-y-2"> {/* Using the placeholder SidebarMenu */}
             <Accordion type="multiple" className="w-full">
               {currentNavConfig.map(item => renderNavItem(item))}
             </Accordion>
           </SidebarMenu>
           {currentFeedbackLink && (
-            <SidebarFooter className="p-4 border-t dark:border-gray-700"> {/* SidebarFooter can stay */}
+            <SidebarFooter className="p-4 border-t dark:border-gray-700"> {/* Using the placeholder SidebarFooter */}
               {renderNavItem(currentFeedbackLink)}
             </SidebarFooter>
           )}
         </SheetContent>
       )}
       {(authLoading || (!authUser && profileLoading)) && authUser && ( 
-        <SheetContent side="left" className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 flex items-center justify-center"> {/* Added side='left' and flex for centering loader */}
-           {/* <div className="flex items-center justify-center h-full"> // This div is redundant with flex on parent */}
+        <SheetContent side="left" className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 flex items-center justify-center">
             <Loader2 size={32} className="animate-spin" />
-          {/* </div> */}
         </SheetContent>
       )}
-    </Sidebar>
+    </Sheet>
   );
 }
