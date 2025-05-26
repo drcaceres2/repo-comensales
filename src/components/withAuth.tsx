@@ -6,7 +6,7 @@ import React, { useEffect, useState, ComponentType, ReactNode } from 'react';
 // Define the expected structure of the JSON response from the API
 interface AuthResponse {
   authorized: boolean;
-  reason?: string; // e.g., "INVALID_SESSION_COOKIE", "LICENSE_EXPIRED", "PATH_NOT_ALLOWED"
+  reason?: string; // e.g., "INVALID_SESSION_COOKIE", "LICENSE_EXPIRED"
   message?: string;
   redirectPath?: string; // Suggested redirect path from the backend
 }
@@ -24,22 +24,18 @@ export default function withAuth<P extends object>(
 ) {
   const ComponentWithAuth = (props: P) => {
     const router = useRouter();
-    const pathname = usePathname(); // Get current path
+    const pathname = usePathname(); // Still needed to check against publicPaths
 
     const [isLoading, setIsLoading] = useState(true);
-    const [isAuthorized, setIsAuthorized] = useState(false); // Tracks if user is authorized for the component
+    const [isAuthorized, setIsAuthorized] = useState(false);
 
     useEffect(() => {
-      // Define paths that should not trigger the auth check with this HOC
-      // These are typically public pages or pages that handle auth states themselves (like login, error pages)
       const publicPaths = ['/', '/acceso-no-autorizado', '/licencia-vencida', '/privacidad', '/about', '/crear-master'];
-      // Add any other paths that do not require this HOC's protection (e.g. /feedback)
 
       if (publicPaths.includes(pathname)) {
-        setIsAuthorized(true); // Assume authorized or not relevant for these paths
+        setIsAuthorized(true);
         setIsLoading(false);
-        // Warn if HOC is applied to redirect targets or other special public pages, but not to the main page '/'.
-        if (pathname !== '/') { 
+        if (pathname !== '/') {
              console.warn(`withAuth HOC applied to public or special path ${pathname}. This might be unnecessary or cause redirect loops if ${pathname} is a redirect target.`);
         }
         return;
@@ -48,7 +44,8 @@ export default function withAuth<P extends object>(
       const checkAuthorization = async () => {
         setIsLoading(true);
         try {
-          const response = await fetch(`/api/auth-check?path=${encodeURIComponent(pathname)}`);
+          // Fetch call no longer includes the path query parameter
+          const response = await fetch('/api/auth-check'); 
           
           if (!response.ok) {
             console.error(`Auth check API call failed with status: ${response.status}`);
@@ -79,7 +76,7 @@ export default function withAuth<P extends object>(
       };
 
       checkAuthorization();
-    }, [pathname, router]); // Re-run if path changes
+    }, [pathname, router]); // pathname is still a dependency for the publicPaths check
 
     if (isLoading) {
       return <LoadingComponent />;

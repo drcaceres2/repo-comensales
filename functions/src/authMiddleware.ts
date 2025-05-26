@@ -1,151 +1,77 @@
-import { admin, db } from "./lib/firebase"
-import * as functions from "firebase-functions/v2"
+import { admin } from "./lib/firebase";
+import * as functions from "firebase-functions/v2";
+import { fetchLicenseDetails, LicenseDetailsResult } from "./lib/licenseUtils";
 
-import { PATH_RULES, PathRule } from "./authConfig"; // Assuming authConfig.ts
-import { fetchLicenseDetails, LicenseDetailsResult } from "./lib/licenseUtils"; // Assuming licenseUtils.ts
-
-// Re-use your existing CORS setup if it's global, or define one here
 const corsHandler = require("cors")({
     origin: (process.env.CORS_ORIGINS || "http://localhost:3001,https://your-app-url.com").split(','),
     credentials: true,
-  });
-  
+});
+
 export const checkAuthAndLicense = functions.https.onRequest(async (request, response) => {
     corsHandler(request, response, async () => {
-      // ADD GLOBAL TRY-CATCH here
       try {
-        const sessionCookie = request.cookies.__session || ''; // Make sure "__session" is your cookie name
-        const requestedPath = request.query.path as string; // Expecting path as query param, e.g., /api/auth-check?path=/admin/users
-    
-        if (request.method !== 'GET') { // Or 'POST' if you prefer, but GET is simpler for a check
+        const sessionCookie = request.cookies.__session || '';
+        // const requestedPath = request.query.path as string; // No longer used
+
+        if (request.method !== 'GET') {
             response.status(405).json({ authorized: false, reason: 'METHOD_NOT_ALLOWED', message: 'Método no permitido.' });
             return;
         }
-    
-        if (!requestedPath) {
-            response.status(400).json({ authorized: false, reason: 'MISSING_PATH_PARAM', message: 'El parámetro de ruta es requerido.' });
-            return;
-        }
-    
-        // 0. If user cannot be authenticated, or token lost, return 401.
+
         if (!sessionCookie) {
-          response.status(401).json({ 
-            authorized: false, 
-            reason: 'NO_SESSION_COOKIE', 
-            redirect: '/acceso-no-autorizado', 
-            message: 'Sesión no iniciada o expirada. Por favor, inicia sesión.' 
+          response.status(401).json({
+            authorized: false,
+            reason: 'NO_SESSION_COOKIE',
+            redirect: '/acceso-no-autorizado',
+            message: 'Sesión no iniciada o expirada. Por favor, inicia sesión.'
           });
           return;
         }
-    
+
         let decodedClaims: admin.auth.DecodedIdToken & { roles?: string[], residenciaId?: string };
         try {
-          decodedClaims = await admin.auth().verifySessionCookie(sessionCookie, true); // true checks for revocation
+          decodedClaims = await admin.auth().verifySessionCookie(sessionCookie, true);
         } catch (error: any) {
-          console.warn(`Session cookie verification failed for path "${requestedPath}", Error: ${error.message}`);
-          // Clear the invalid cookie from the client's browser
-          response.clearCookie("__session", { 
-              httpOnly: true, 
-              secure: process.env.NODE_ENV === "production", // from functions env
+          // console.warn(`Session cookie verification failed (path: "${requestedPath}"), Error: ${error.message}`); // Path removed
+          console.warn(`Session cookie verification failed, Error: ${error.message}`);
+          response.clearCookie("__session", {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === "production",
               sameSite: "strict",
-          }); 
-          response.status(401).json({ 
-            authorized: false, 
-            reason: 'INVALID_SESSION_COOKIE', 
-            redirect: '/acceso-no-autorizado', 
-            message: 'Tu sesión es inválida o ha expirado. Por favor, inicia sesión de nuevo.' 
+          });
+          response.status(401).json({
+            authorized: false,
+            reason: 'INVALID_SESSION_COOKIE',
+            redirect: '/acceso-no-autorizado',
+            message: 'Tu sesión es inválida o ha expirado. Por favor, inicia sesión de nuevo.'
           });
           return;
         }
-    
-        const userRoles = decodedClaims.roles || [];
+
         const userResidenciaIdFromClaims = decodedClaims.residenciaId;
         const uid = decodedClaims.uid;
-    
-        // 1. Find the rule for the requested path
-        const pathRule: PathRule | undefined = PATH_RULES.find(rule => rule.pathPattern.test(requestedPath));
-    
-        if (!pathRule) {
-          if (requestedPath === '/' || requestedPath === '/privacidad' || requestedPath === '/acceso-no-autorizado' || requestedPath === '/licencia-vencida') {
-             response.status(200).json({ authorized: true, uid, claims: decodedClaims, message: "Public or auth-flow path allowed." });
-             return;
-          }
-          console.warn(`No PATH_RULE found for "${requestedPath}". Denying access.`);
-          response.status(403).json({ 
-            authorized: false, 
-            reason: 'PATH_RULE_NOT_FOUND', 
-            redirect: '/acceso-no-autorizado', 
-            message: 'Acceso denegado. La ruta solicitada no está configurada para acceso.' 
-          });
-          return;
-        }
-    
-        // 2. Master User Validation
+        const userRoles = decodedClaims.roles || [];
+
         if (userRoles.includes('master')) {
-          try {
-            const userProfileDoc = await db.collection('UserProfiles').doc(uid).get();
-            if (!userProfileDoc.exists || !(userProfileDoc.data()?.roles as string[] || []).includes('master')) {
-              response.status(403).json({ 
-                authorized: false, 
-                reason: 'MASTER_VERIFICATION_FAILED_DB', 
-                redirect: '/acceso-no-autorizado', 
-                message: 'Verificación de Master fallida (perfil de usuario no coincide).' 
-              });
-              return;
-            }
-    
-            if (pathRule.isMasterOnly || pathRule.allowedRoles.includes('master')) {
-                console.log(`Master user ${uid} authorized for path "${requestedPath}".`);
-                response.status(200).json({ authorized: true, uid, claims: decodedClaims });
-                return;
-            } else {
-                console.warn(`Master user ${uid} attempting to access non-master-allowed path "${requestedPath}".`);
-                response.status(403).json({ 
-                    authorized: false, 
-                    reason: 'MASTER_ACCESS_DENIED_TO_PATH', 
-                    redirect: '/acceso-no-autorizado', 
-                    message: pathRule.customMessage || 'Acceso denegado. Esta página no está permitida para tu rol (Master).' 
-                });
-                return;
-            }
-          } catch (dbError: any) {
-            console.error(`Firestore error during master validation for UID ${uid}:`, dbError.message);
-            response.status(500).json({ 
-                authorized: false, 
-                reason: 'MASTER_VALIDATION_DB_ERROR', 
-                redirect: '/acceso-no-autorizado', 
-                message: 'Error interno validando el perfil de Master.' 
+            // console.log(`Master user ${uid} - bypassing residencia-specific license check for path "${requestedPath}".`); // Path removed
+            console.log(`Master user ${uid} - bypassing residencia-specific license check.`);
+            response.status(200).json({ authorized: true, uid, claims: decodedClaims, reason: "MASTER_USER_LICENSE_CHECK_BYPASSED" });
+            return;
+        }
+
+        if (!userResidenciaIdFromClaims) {
+            console.warn(`User ${uid} (roles: ${userRoles.join(', ')}) has no ResidenciaId in claims. Cannot check license.`);
+            response.status(403).json({ 
+              authorized: false, 
+              reason: 'MISSING_RESIDENCIA_ID_IN_CLAIMS_FOR_LICENSE_CHECK', 
+              redirect: '/acceso-no-autorizado', 
+              message: 'No se encontró ID de residencia en tu perfil para la verificación de licencia.' 
             });
             return;
-          }
         }
-    
-        // --- Non-Master User Validation ---
-    
-        const hasRequiredRole = userRoles.some(role => pathRule.allowedRoles.includes(role));
-        if (!hasRequiredRole) {
-          response.status(403).json({ 
-            authorized: false, 
-            reason: 'ROLE_NOT_AUTHORIZED_FOR_PATH', 
-            redirect: '/acceso-no-autorizado', 
-            message: pathRule.customMessage || `Tu rol (${userRoles.join(', ') || 'desconocido'}) no permite acceder a esta sección.` 
-          });
-          return;
-        }
-    
-        if (!userResidenciaIdFromClaims) {
-          console.warn(`User ${uid} (roles: ${userRoles.join(', ')}) has no ResidenciaId in claims for path "${requestedPath}".`);
-          response.status(403).json({ 
-            authorized: false, 
-            reason: 'MISSING_RESIDENCIA_ID_IN_CLAIMS', 
-            redirect: '/acceso-no-autorizado', 
-            message: 'No se encontró ID de residencia en tu perfil. Contacta al soporte.' 
-          });
-          return;
-        }
-    
+
         const licenseDetails: LicenseDetailsResult = await fetchLicenseDetails(userResidenciaIdFromClaims);
-    
+
         if (licenseDetails.status !== 'valid') {
           let message = `La licencia para tu residencia (${userResidenciaIdFromClaims}) no es válida (${licenseDetails.status}).`;
           if (licenseDetails.status === 'not_found') message = `No se encontró una licencia activa para tu residencia (${userResidenciaIdFromClaims}).`;
@@ -155,68 +81,33 @@ export const checkAuthAndLicense = functions.https.onRequest(async (request, res
           else if (licenseDetails.status === 'mismatch') message = `Hay una inconsistencia en los datos de licencia para tu residencia (${userResidenciaIdFromClaims}).`;
           else if (licenseDetails.status === 'error_reading_file') message = `No pudimos verificar el estado de la licencia para tu residencia (${userResidenciaIdFromClaims}).`;
           
+          // console.warn(`License check failed for user ${uid}, residencia ${userResidenciaIdFromClaims} (path "${requestedPath}"): ${licenseDetails.status}`); // Path removed
+          console.warn(`License check failed for user ${uid}, residencia ${userResidenciaIdFromClaims}: ${licenseDetails.status}`);
           response.status(403).json({ 
-            authorized: false, 
+            authorized: false,
             reason: `LICENSE_INVALID_${licenseDetails.status.toUpperCase()}`,
-            redirect: '/licencia-vencida', 
+            redirect: '/licencia-vencida',
             message 
           });
           return;
         }
-    
-        if (licenseDetails.residenciaId !== userResidenciaIdFromClaims) {
-          console.error(`CRITICAL MISMATCH: Claims ResID (${userResidenciaIdFromClaims}) vs License File Content ResID (${licenseDetails.residenciaId || 'N/A'}) for user ${uid}.`);
-          response.status(403).json({ 
-            authorized: false, 
-            reason: 'LICENSE_RESIDENCIA_ID_CONTENT_MISMATCH', 
-            redirect: '/licencia-vencida', 
-            message: 'Inconsistencia crítica en los datos de tu licencia. Por favor, contacta al soporte inmediatamente.' 
-          });
-          return;
-        }
-    
-        if (pathRule.requiresResidenciaInPath) {
-          const pathMatch = requestedPath.match(pathRule.pathPattern);
-          const residenciaIdFromPath = pathMatch ? pathMatch[1] : null;
-    
-          if (!residenciaIdFromPath) {
-            console.warn(`Path "${requestedPath}" requires ResidenciaId in URL as per rule, but not found or pattern mismatch.`);
-            response.status(400).json({ 
-                authorized: false, 
-                reason: 'MISSING_RESIDENCIA_ID_IN_PATH_AS_PER_RULE', 
-                redirect: '/acceso-no-autorizado', 
-                message: 'Esta URL específica requiere un identificador de residencia, pero no se proporcionó correctamente.' 
-            });
-            return;
-          }
-    
-          if (residenciaIdFromPath !== userResidenciaIdFromClaims) {
-            console.warn(`ResidenciaId mismatch: Path (${residenciaIdFromPath}) vs Claims (${userResidenciaIdFromClaims}) for user ${uid} on path "${requestedPath}".`);
-            response.status(403).json({ 
-              authorized: false, 
-              reason: 'RESIDENCIA_ID_MISMATCH_PATH_VS_CLAIMS', 
-              redirect: '/acceso-no-autorizado', 
-              message: `Acceso denegado. Estás intentando acceder a recursos de ${residenciaIdFromPath}, pero tu sesión es para ${userResidenciaIdFromClaims}.` 
-            });
-            return;
-          }
-        }
-    
-        console.log(`User ${uid} (Residencia: ${userResidenciaIdFromClaims}, Roles: ${userRoles.join(', ')}) authorized for path "${requestedPath}". License valid.`);
-        response.status(200).json({ authorized: true, uid, claims: decodedClaims });
+        
+        // console.log(`User ${uid} (Residencia: ${userResidenciaIdFromClaims}, Roles: ${userRoles.join(', ')}) authorized with valid license for path "${requestedPath}".`); // Path removed
+        console.log(`User ${uid} (Residencia: ${userResidenciaIdFromClaims}, Roles: ${userRoles.join(', ')}) authorized with valid license.`);
+        response.status(200).json({ authorized: true, uid, claims: decodedClaims, licenseStatus: licenseDetails.status });
 
       } catch (error: any) {
-        console.error(`Unhandled error in checkAuthAndLicense for path "${request.query.path as string}":`, error.message, error.stack);
+        // console.error(`Unhandled error in checkAuthAndLicense for path "${request.query.path as string}":`, error.message, error.stack); // Path removed
+        console.error(`Unhandled error in checkAuthAndLicense:`, error.message, error.stack);
         if (!response.headersSent) {
           response.status(500).json({
             authorized: false,
             reason: 'INTERNAL_SERVER_ERROR',
-            message: 'Ocurrió un error inesperado en el servidor al verificar la autenticación.',
-            // Consider sending error.message only in non-production environments for security
+            message: 'Ocurrió un error inesperado en el servidor al verificar la licencia.',
             errorDetails: process.env.NODE_ENV !== 'production' ? error.message : undefined,
             errorStack: process.env.NODE_ENV !== 'production' ? error.stack : undefined,
           });
         }
-      } // END GLOBAL TRY-CATCH
+      }
     });
 });

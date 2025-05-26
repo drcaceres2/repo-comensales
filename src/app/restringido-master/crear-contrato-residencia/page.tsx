@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import withAuth from '@/components/withAuth';
 import { auth, db } from '@/lib/firebase'; // Assuming firebase is initialized in @/lib/firebase
 import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ContratoResidencia, ContratoResidenciaId, Cliente, ClienteId, ClienteProbando, Pedido } from '@/../../shared/models/contratos'; // Adjust path as needed
@@ -1080,4 +1079,4 @@ function CrearContratoResidenciaPage() {
   );
 }
 
-export default withAuth(CrearContratoResidenciaPage());
+export default CrearContratoResidenciaPage();

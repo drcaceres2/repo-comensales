@@ -2,23 +2,23 @@
 
 import Link from 'next/link';
 import React, { useState, useEffect, ReactNode } from 'react';
-// Remove custom Sidebar imports, use standard Sheet from shadcn/ui
-// import {
-//   Sidebar,
-//   SidebarTrigger,
-//   SidebarMenu,
-//   SidebarMenuItem,
-//   SidebarFooter,
-//   useSidebar,
-// } from './ui/sidebar';
+// Restore custom Sidebar imports
+import {
+  Sidebar,
+  SidebarTrigger,
+  SidebarContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarFooter,
+  useSidebar,
+} from './ui/sidebar';
 
-// Keep Accordion for structuring menu items if needed
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from './ui/accordion'; // Assuming this is a standard shadcn/ui accordion or compatible
+} from './ui/accordion'; 
 
 import {
   Menu,
@@ -40,20 +40,19 @@ import {
   Info,
   Clock,
   ConciergeBell,
-  Briefcase, // For Licenciamiento
-  UserSquare, // For Directores group
-  Drama, // For Actividades group (Theater masks)
-  Handshake, // For Invitados group
-  ClipboardEdit, // For Administrar Residencia group
-  BookCopy, // For Contabilidad group (Ledger/accounting book)
-  UserCircle2, // For Mi Perfil
-  UserPlus, // For Crear invitados sin acceso
+  Briefcase, 
+  UserSquare, 
+  Drama, 
+  Handshake, 
+  ClipboardEdit, 
+  BookCopy, 
+  UserCircle2,
+  UserPlus,
 } from 'lucide-react';
 
+// Keep SheetTitle, SheetDescription, UiSheetHeader for the header section
+// Remove Sheet, SheetTrigger, SheetContent imports from @/components/ui/sheet
 import {
-  Sheet, // Import Sheet
-  SheetTrigger, // Import SheetTrigger
-  SheetContent,
   SheetTitle,
   SheetDescription,
   SheetHeader as UiSheetHeader,
@@ -64,11 +63,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from "firebase/firestore";
 import { UserProfile, UserRole } from '@/../../shared/models/types';
 
-// Minimal SidebarMenu, SidebarMenuItem, SidebarFooter if needed for structure/styling
-// These might be replaced by direct styling or simple div wrappers if their only purpose was within the old SidebarContent
-const SidebarMenu = ({ className, children }: { className?: string, children: ReactNode }) => <div className={className}>{children}</div>;
-const SidebarMenuItem = ({ children }: { children: ReactNode }) => <div>{children}</div>;
-const SidebarFooter = ({ className, children }: { className?: string, children: ReactNode }) => <div className={className}>{children}</div>;
+// Remove placeholder components for SidebarMenu, SidebarMenuItem, SidebarFooter
 
 interface NavItem {
   id: string;
@@ -443,7 +438,7 @@ export function Navigation() {
   const [authUser, authLoading] = useAuthState(auth);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
-  // const { isMobile, setOpenMobile } = useSidebar(); // Removed useSidebar hook
+  const { isMobile, setOpenMobile } = useSidebar(); // Restored useSidebar hook
 
   useEffect(() => {
     if (authLoading) {
@@ -514,17 +509,15 @@ export function Navigation() {
     }
 
     return (
-      <SidebarMenuItem key={item.id}> {/* This can be a simple div or React.Fragment if SidebarMenuItem is too specific */}
+      <SidebarMenuItem key={item.id}>
         <Link
           href={hrefPath}
           className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md text-sm"
-          // onClick={() => {
-          //   // Standard Sheet behavior: clicking a Link often closes the sheet.
-          //   // If explicit close is needed, Sheet's `onOpenChange` and `open` props would be used.
-          //   // if (isMobile) {
-          //   //   setOpenMobile(false);
-          //   // }
-          // }}
+          onClick={() => { // Restored onClick for mobile
+            if (isMobile) {
+              setOpenMobile(false);
+            }
+          }}
         >
           <item.icon size={item.isFeedbackLink ? 18 : 16} />
           <span>{item.label}</span>
@@ -536,30 +529,31 @@ export function Navigation() {
   let triggerContent: ReactNode = null;
   if (authLoading || (!authUser && profileLoading)) {
     triggerContent = (
-      <SheetTrigger asChild>
+      // Use SidebarTrigger with disabled state
+      <SidebarTrigger asChild>
         <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" disabled>
           <Loader2 size={24} className="animate-spin" />
         </button>
-      </SheetTrigger>
+      </SidebarTrigger>
     );
   } else if (authUser) {
     triggerContent = (
-      <SheetTrigger asChild>
+      <SidebarTrigger asChild>
         <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
           <Menu size={24} />
         </button>
-      </SheetTrigger>
+      </SidebarTrigger>
     );
   } else {
     const unauthNavConfig = getNavConfig(null);
     const unauthVisibleItems = unauthNavConfig.filter(item => isItemVisible(item, null) && !item.isFeedbackLink);
     if (unauthVisibleItems.length > 0) {
         triggerContent = (
-            <SheetTrigger asChild>
+            <SidebarTrigger asChild>
                 <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
                     <Menu size={24} />
                 </button>
-            </SheetTrigger>
+            </SidebarTrigger>
         );
     }
   }
@@ -568,10 +562,11 @@ export function Navigation() {
   const currentFeedbackLink = authUser ? feedbackLink : (feedbackLink && isItemVisible(feedbackLink, null) ? feedbackLink : undefined);
 
   return (
-    <Sheet> {/* Replaced Sidebar with Sheet */}
+    <Sidebar> {/* Reverted to custom Sidebar */}
       {triggerContent}
       {triggerContent && (authUser || currentNavConfig.some(item => !item.isAccordion && item.roles === 'unauthenticated') || currentNavConfig.some(item => item.isAccordion && item.children?.some(child => child.roles === 'unauthenticated'))) && (
-        <SheetContent side="left" className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0">
+        // Use custom SidebarContent
+        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0">
           <UiSheetHeader className="p-4 border-b dark:border-gray-700 text-left">
             <SheetTitle className="text-lg font-semibold">
               {authUser ? 'Menú Principal' : 'Navegación'}
@@ -587,23 +582,25 @@ export function Navigation() {
                 </SheetDescription>
             )}
           </UiSheetHeader>
-          <SidebarMenu className="flex-grow p-4 space-y-2"> {/* Using the placeholder SidebarMenu */}
+          {/* Use custom SidebarMenu and SidebarFooter */}
+          <SidebarMenu className="flex-grow p-4 space-y-2">
             <Accordion type="multiple" className="w-full">
               {currentNavConfig.map(item => renderNavItem(item))}
             </Accordion>
           </SidebarMenu>
           {currentFeedbackLink && (
-            <SidebarFooter className="p-4 border-t dark:border-gray-700"> {/* Using the placeholder SidebarFooter */}
+            <SidebarFooter className="p-4 border-t dark:border-gray-700">
               {renderNavItem(currentFeedbackLink)}
             </SidebarFooter>
           )}
-        </SheetContent>
+        </SidebarContent>
       )}
       {(authLoading || (!authUser && profileLoading)) && authUser && ( 
-        <SheetContent side="left" className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 flex items-center justify-center">
+        // Use custom SidebarContent for loading state as well
+        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 flex items-center justify-center">
             <Loader2 size={32} className="animate-spin" />
-        </SheetContent>
+        </SidebarContent>
       )}
-    </Sheet>
+    </Sidebar>
   );
 }

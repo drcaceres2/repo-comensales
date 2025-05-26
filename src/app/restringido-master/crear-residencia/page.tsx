@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import withAuth from '@/components/withAuth';
 import { auth, db } from '@/lib/firebase';
 import { UserProfile, Residencia, Dieta } from '@/../../shared/models/types';
 import {
@@ -1127,4 +1126,4 @@ function CrearResidenciaAdminPage() {
   );
 }
 
-export default withAuth(CrearResidenciaAdminPage);
+export default CrearResidenciaAdminPage;

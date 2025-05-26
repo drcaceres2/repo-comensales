@@ -2,10 +2,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } //, useSearchParams // Potentially for master user to get residenciaId
-from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import withAuth from '@/components/withAuth'
 import { auth, db } from '@/lib/firebase';
 import {
   UserProfile,
@@ -84,7 +84,7 @@ const getNewHorarioDefaults = (residenciaId: string): Omit<HorarioSolicitudComid
 });
 
 
-export default function ResidenciaHorariosComedoresPage() {
+function ResidenciaHorariosComedoresPage() {
   const router = useRouter();
   // const searchParams = useSearchParams(); // For master to potentially get residenciaId from query
   const { toast } = useToast();
@@ -1230,3 +1230,4 @@ useEffect(() => {
   );
 }
 
+export default withAuth(ResidenciaHorariosComedoresPage);

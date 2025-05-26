@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import withAuth from '@/components/withAuth';
 import { auth, db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, Timestamp, serverTimestamp, runTransaction } from 'firebase/firestore'; // Added runTransaction
 import { UserProfile, ResidenciaId, campoFechaConZonaHoraria } from '@/../../shared/models/types'; // Adjust path as needed
@@ -910,4 +909,4 @@ function CrearFacturasPage() {
     );
 }
 
-export default withAuth(CrearFacturasPage);
+export default CrearFacturasPage;

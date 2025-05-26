@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import withAuth from '@/components/withAuth';
 import { auth, db } from '@/lib/firebase';
 import {
   collection,
@@ -843,4 +842,4 @@ const LicenciasPage = () => {
   );
 };
 
-export default withAuth(LicenciasPage);
+export default LicenciasPage;
