@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import React, { useState, useEffect, ReactNode } from 'react';
-// Restore custom Sidebar imports
 import {
   Sidebar,
   SidebarTrigger,
@@ -11,6 +10,7 @@ import {
   SidebarMenuItem,
   SidebarFooter,
   useSidebar,
+  SidebarHeader, // Assuming SidebarHeader is exported from ./ui/sidebar
 } from './ui/sidebar';
 
 import {
@@ -50,20 +50,17 @@ import {
   UserPlus,
 } from 'lucide-react';
 
-// Keep SheetTitle, SheetDescription, UiSheetHeader for the header section
-// Remove Sheet, SheetTrigger, SheetContent imports from @/components/ui/sheet
-import {
-  SheetTitle,
-  SheetDescription,
-  SheetHeader as UiSheetHeader,
-} from '@/components/ui/sheet';
+// Remove imports for SheetTitle, SheetDescription, UiSheetHeader from @/components/ui/sheet
+// import {
+//   SheetTitle,
+//   SheetDescription,
+//   SheetHeader as UiSheetHeader,
+// } from '@/components/ui/sheet';
 
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from "firebase/firestore";
 import { UserProfile, UserRole } from '@/../../shared/models/types';
-
-// Remove placeholder components for SidebarMenu, SidebarMenuItem, SidebarFooter
 
 interface NavItem {
   id: string;
@@ -438,7 +435,7 @@ export function Navigation() {
   const [authUser, authLoading] = useAuthState(auth);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
-  const { isMobile, setOpenMobile } = useSidebar(); // Restored useSidebar hook
+  const { isMobile, setOpenMobile } = useSidebar(); 
 
   useEffect(() => {
     if (authLoading) {
@@ -513,7 +510,7 @@ export function Navigation() {
         <Link
           href={hrefPath}
           className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md text-sm"
-          onClick={() => { // Restored onClick for mobile
+          onClick={() => { 
             if (isMobile) {
               setOpenMobile(false);
             }
@@ -529,7 +526,6 @@ export function Navigation() {
   let triggerContent: ReactNode = null;
   if (authLoading || (!authUser && profileLoading)) {
     triggerContent = (
-      // Use SidebarTrigger with disabled state
       <SidebarTrigger asChild>
         <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" disabled>
           <Loader2 size={24} className="animate-spin" />
@@ -562,27 +558,27 @@ export function Navigation() {
   const currentFeedbackLink = authUser ? feedbackLink : (feedbackLink && isItemVisible(feedbackLink, null) ? feedbackLink : undefined);
 
   return (
-    <Sidebar> {/* Reverted to custom Sidebar */}
+    <Sidebar>
       {triggerContent}
       {triggerContent && (authUser || currentNavConfig.some(item => !item.isAccordion && item.roles === 'unauthenticated') || currentNavConfig.some(item => item.isAccordion && item.children?.some(child => child.roles === 'unauthenticated'))) && (
-        // Use custom SidebarContent
         <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0">
-          <UiSheetHeader className="p-4 border-b dark:border-gray-700 text-left">
-            <SheetTitle className="text-lg font-semibold">
+          {/* Replace UiSheetHeader with SidebarHeader and simple elements */}
+          <SidebarHeader className="p-4 border-b dark:border-gray-700 text-left">
+            <div className="text-lg font-semibold">
               {authUser ? 'Menú Principal' : 'Navegación'}
-            </SheetTitle>
+            </div>
+            {/* Screen-reader descriptions can be kept if SidebarHeader doesn't interfere, or use aria-label on SidebarHeader itself */}
             {userProfile?.email && (
-              <SheetDescription className="sr-only">
+              <div className="sr-only">
                  {`Menú de navegación para ${userProfile.email}`}
-              </SheetDescription>
+              </div>
             )}
             {!authUser && (
-                <SheetDescription className="sr-only">
+                <div className="sr-only">
                     Menú de navegación para visitantes
-                </SheetDescription>
+                </div>
             )}
-          </UiSheetHeader>
-          {/* Use custom SidebarMenu and SidebarFooter */}
+          </SidebarHeader>
           <SidebarMenu className="flex-grow p-4 space-y-2">
             <Accordion type="multiple" className="w-full">
               {currentNavConfig.map(item => renderNavItem(item))}
@@ -596,7 +592,6 @@ export function Navigation() {
         </SidebarContent>
       )}
       {(authLoading || (!authUser && profileLoading)) && authUser && ( 
-        // Use custom SidebarContent for loading state as well
         <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 flex items-center justify-center">
             <Loader2 size={32} className="animate-spin" />
         </SidebarContent>
