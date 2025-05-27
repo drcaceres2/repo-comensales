@@ -75,17 +75,17 @@ export default function CrearContratoResidenciaPage() {
   const [clientePruebaNombre, setClientePruebaNombre] = useState('');
   const [pruebaSolucion, setPruebaSolucion] = useState<boolean>(true); // For managing trial solution
   const [allResidencias, setAllResidencias] = useState<{ id: ResidenciaId; nombre: string; zonaHoraria?: string }[]>([]);
-  const [fechaInicioDate, setFechaInicioDate] = useState<Date | undefined>(new Date());
+  const [fechaInicioDate, setFechaInicioDate] = useState<Date | null>(new Date());
   const [fechaInicioTime, setFechaInicioTime] = useState<string>(formatInTimeZone(new Date(), 'UTC', 'HH:mm')); // Default to current time in UTC
   const [esIndefinido, setEsIndefinido] = useState<boolean>(false);
-  const [fechaFinDate, setFechaFinDate] = useState<Date | undefined>(undefined);
+  const [fechaFinDate, setFechaFinDate] = useState<Date | null>(null);
   const [fechaFinTime, setFechaFinTime] = useState<string>('12:00');  
   const [correoOficial, setCorreoOficial] = useState('');
   const [selectedResidenciaId, setSelectedResidenciaId] = useState<ResidenciaId | ''>('');
   const [residenciaZonaHoraria, setResidenciaZonaHoraria] = useState<string | null>(null); // To store the TZ of the selected Residencia
   const [allResidenciasConContrato, setAllResidenciasConContrato] = useState<Set<ResidenciaId>>(new Set());
   const [allResidenciasSinContrato, setAllResidenciasSinContrato] = useState<{ id: ResidenciaId; nombre: string; zonaHoraria?: string }[]>([]);
-  const [fechaFinPruebaDate, setFechaFinPruebaDate] = useState<Date | undefined>(undefined);
+  const [fechaFinPruebaDate, setFechaFinPruebaDate] = useState<Date | null>(null);
   const [fechaFinPruebaTime, setFechaFinPruebaTime] = useState<string>('23:59'); // Or a suitable default
   // pruebaSolucion state (already there or add it if you removed it from previous attempt)
 // const [pruebaSolucion, setPruebaSolucion] = useState<boolean>(true);
@@ -264,7 +264,7 @@ export default function CrearContratoResidenciaPage() {
     // you might want to clear fechaFinPruebaDate.
     // If so, uncomment the following:
     // else {
-    //   setFechaFinPruebaDate(undefined);
+    //   setFechaFinPruebaDate(null);
     //   // setFechaFinPruebaTime('00:00'); // Or your desired default time
     // }
   }, [fechaInicioDate, pruebaSolucion, setFechaFinPruebaDate]); // Add setFechaFinPruebaTime to dependencies if you manage it here
@@ -529,7 +529,7 @@ export default function CrearContratoResidenciaPage() {
         const updatedContratoData: Partial<Omit<ContratoResidencia, 'id' | 'cliente' | 'fechaCreacionObjeto'>> = {
             residencia: selectedResidenciaId,
             fechaInicio: finalFechaInicio,
-            fechaFin: esIndefinido ? undefined : finalFechaFin,
+            fechaFin: esIndefinido ? null : finalFechaFin,
             esIndefinido: esIndefinido,
             correoOficialComunicacion: correoOficial,
             // contactosResponsables, recordatorios, etc., are not on this form for editing yet
@@ -565,11 +565,11 @@ export default function CrearContratoResidenciaPage() {
             cliente: finalClienteId,
             residencia: selectedResidenciaId,
             fechaInicio: finalFechaInicio,
-            fechaFin: esIndefinido ? undefined : finalFechaFin, // Or null, depending on your model preference
+            fechaFin: esIndefinido ? null : finalFechaFin, // Or null, depending on your model preference
             esIndefinido: esIndefinido,
             correoOficialComunicacion: correoOficial,
             contactosResponsables: [],
-            recordatorios: undefined, // Or null
+            recordatorios: null,
             pruebaSolucion: pruebaSolucion, // MODIFIED: Use the 'pruebaSolucion' state variable
             fechaFinPrueba: calculatedFechaFinPrueba, // MODIFIED: Use the 'calculatedFechaFinPrueba' variable
             fechaCreacionObjeto: clientNowInUTC,
@@ -750,7 +750,7 @@ export default function CrearContratoResidenciaPage() {
       setFechaFinDate(toDate(dateStr, { timeZone: contratoToEdit.fechaFin.zonaHoraria }));
       setFechaFinTime(timeStr || '00:00');
     } else {
-      setFechaFinDate(undefined);
+      setFechaFinDate(null);
       setFechaFinTime('12:00');
     }
     setCorreoOficial(contratoToEdit.correoOficialComunicacion);
@@ -771,7 +771,7 @@ export default function CrearContratoResidenciaPage() {
     setFechaInicioDate(new Date());
     setFechaInicioTime(formatInTimeZone(new Date(), 'UTC', 'HH:mm'));
     setEsIndefinido(false);
-    setFechaFinDate(undefined);
+    setFechaFinDate(null);
     setFechaFinTime('12:00');
     setSelectedClienteId('');
     // setFechaFinTimezone('UTC'); // Or keep previous one for consistency
@@ -918,7 +918,7 @@ export default function CrearContratoResidenciaPage() {
                   const [year, month, day] = e.target.value.split('-').map(Number);
                   setFechaInicioDate(new Date(Date.UTC(year, month - 1, day)));
                 } else {
-                  setFechaInicioDate(undefined);
+                  setFechaInicioDate(null);
                 }
               }}
             />
@@ -949,7 +949,7 @@ export default function CrearContratoResidenciaPage() {
                     const [year, month, day] = e.target.value.split('-').map(Number);
                     setFechaFinDate(new Date(Date.UTC(year, month - 1, day)));
                   } else {
-                    setFechaFinDate(undefined);
+                    setFechaFinDate(null);
                   }
                 }}
               />

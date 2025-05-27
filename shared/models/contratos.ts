@@ -112,7 +112,7 @@ export interface ContratoResidencia {
     esIndefinido: boolean;
     correoOficialComunicacion: string; // Correo electrónico principal de comunicación
     contactosResponsables: ContactoResponsable[]; // Puede ser un UsuarioId o un ContactoExterno
-    recordatorios?: RecordatorioVencimiento[];
+    recordatorios?: RecordatorioVencimiento[] | null;
     pruebaSolucion: boolean;
     fechaFinPrueba?: campoFechaConZonaHoraria | null; // El trial siempre es al principio, se supone fecha de inicio la fecha de inicio del contrato
     fechaCreacionObjeto: campoFechaConZonaHoraria;
