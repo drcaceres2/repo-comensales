@@ -292,6 +292,15 @@ export default function CrearContratoResidenciaPage() {
     }
   }, [selectedResidenciaId, allResidencias, toast]);
 
+  // --- useEffect to filter Residencias that don't have a contract ---
+  useEffect(() => {
+    const residenciasFiltradas = allResidencias.filter(
+      res => !allResidenciasConContrato.has(res.id)
+    );
+    setAllResidenciasSinContrato(residenciasFiltradas);
+  }, [allResidencias, allResidenciasConContrato]);
+
+
   // --- useEffect to fetch Clientes ---
   useEffect(() => {
     const fetchClientes = async () => {
