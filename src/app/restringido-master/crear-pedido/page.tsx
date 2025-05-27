@@ -62,12 +62,12 @@ const CrearPedidoPage = () => {
   const [modoPago, setModoPago] = useState<'prepagado' | 'al vencimiento' | 'libre de costo'>('prepagado');
   const [montoTotal, setMontoTotal] = useState<number>(0);
   const [periodicidad, setPeriodicidad] = useState<FrecuenciaSuscripcion | null>('mensual');
-  const [fechaInicioDate, setFechaInicioDate] = useState<Date | undefined>(new Date());
+  const [fechaInicioDate, setFechaInicioDate] = useState<Date | null>(new Date());
   const [fechaInicioTime, setFechaInicioTime] = useState<string>(formatInTimeZone(new Date(), 'UTC', 'HH:mm'));
-  const [fechaFinDate, setFechaFinDate] = useState<Date | undefined>(undefined);
+  const [fechaFinDate, setFechaFinDate] = useState<Date | null>(null);
   const [fechaFinTime, setFechaFinTime] = useState<string>('23:59');
   const [limitacionUsuarios, setLimitacionUsuarios] = useState<boolean>(true);
-  const [cantUsuarios, setCantUsuarios] = useState<number>(1);
+  const [cantUsuarios, setCantUsuarios] = useState<number>(10);
   const [contratoZonaHoraria, setContratoZonaHoraria] = useState<string | null>(null);
   const [activo, setActivo] = useState<boolean>(true);
 
@@ -508,7 +508,7 @@ const CrearPedidoPage = () => {
         setIsLoading(false);
         return;
       }
-      finalFechaFinDate = undefined; // No end date for perpetual license
+      finalFechaFinDate = null; // No end date for perpetual license
       finalFechaFinTime = '';       // No end time
     } else {
       // For 'suscripcion' or 'licencia temporal', fechaFin is required
@@ -576,7 +576,7 @@ const CrearPedidoPage = () => {
       fechaInicio: finalFechaInicioCampo,
       fechaFin: finalFechaFinCampo,
       limitacionUsuarios: limitacionUsuarios,
-      cantUsuarios: limitacionUsuarios ? finalCantUsuarios : undefined, // Use undefined if not limited, as per Pedido interface
+      cantUsuarios: limitacionUsuarios ? finalCantUsuarios : 0, // Use null if not limited, as per Pedido interface
       activo: activo,
     };
 
@@ -665,18 +665,18 @@ const CrearPedidoPage = () => {
         } catch (err) {
             console.error("Error parsing fechaFin for edit:", err);
             toast({title: "Error de Datos", description: "No se pudo cargar la fecha de fin del pedido.", variant: "destructive"});
-            setFechaFinDate(undefined);
+            setFechaFinDate(null);
             setFechaFinTime('23:59');
         }
     } else {
-      setFechaFinDate(undefined);
+      setFechaFinDate(null);
       setFechaFinTime('23:59'); // Default or appropriate reset
     }
 
     setLimitacionUsuarios(pedido.limitacionUsuarios);
     setCantUsuarios(pedido.cantUsuarios || (pedido.limitacionUsuarios ? 1 : 0)); // Default to 1 if limited and no value, 0 otherwise
 
-    setActivo(pedido.activo === undefined ? true : pedido.activo); // <<< ADD THIS LINE
+    setActivo(pedido.activo === null ? true : pedido.activo); // <<< ADD THIS LINE
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast({ title: "Modo Edición", description: `Editando pedido ID: ${pedido.id}` });
@@ -741,10 +741,10 @@ const CrearPedidoPage = () => {
     setPeriodicidad('mensual'); // Default or null if preferred
     setFechaInicioDate(new Date());
     setFechaInicioTime(formatInTimeZone(new Date(), contratoZonaHoraria || 'UTC', 'HH:mm')); // Use contract's TZ or UTC
-    setFechaFinDate(undefined);
+    setFechaFinDate(null);
     setFechaFinTime('23:59');
     setLimitacionUsuarios(true);
-    setCantUsuarios(1);
+    setCantUsuarios(10);
     setSubscriptionWarning(null);
     setActivo(true); // <<< ADD THIS LINE
 
@@ -932,7 +932,7 @@ const CrearPedidoPage = () => {
                     const [year, month, day] = e.target.value.split('-').map(Number);
                     setFechaInicioDate(new Date(Date.UTC(year, month - 1, day)));
                   } else {
-                    setFechaInicioDate(undefined);
+                    setFechaInicioDate(null);
                   }
                 }}
                 required
@@ -959,7 +959,7 @@ const CrearPedidoPage = () => {
                       const [year, month, day] = e.target.value.split('-').map(Number);
                       setFechaFinDate(new Date(Date.UTC(year, month - 1, day)));
                     } else {
-                      setFechaFinDate(undefined);
+                      setFechaFinDate(null);
                     }
                   }}
                   required={true}
@@ -1117,7 +1117,7 @@ const CrearPedidoPage = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 text-sm">
                     <p><strong>Tipo:</strong> <span className="capitalize">{pedido.tipo}</span></p>
                     <p><strong>Modo Pago:</strong> <span className="capitalize">{pedido.modoPago}</span></p>
-                    <p><strong>Monto Total:</strong> {pedido.montoTotal.toLocaleString(undefined, { style: 'currency', currency: 'USD' })} {/* Adjust currency as needed */}</p>
+                    <p><strong>Monto Total:</strong> {pedido.montoTotal.toLocaleString('es-HN', { style: 'currency', currency: 'HNL' })} {/* Adjust currency as needed */}</p>
                     
                     {pedido.tipo === 'suscripcion' && pedido.periodicidad && (
                       <p><strong>Periodicidad:</strong> <span className="capitalize">{pedido.periodicidad}</span></p>
