@@ -167,7 +167,7 @@ const LicenciasPage = () => {
     const fetchPedidos = async () => {
       setLoadingPedidos(true);
       try {
-        const q = query(collection(db, 'pedidos'), where('contratoResidenciaId', '==', selectedContratoId), orderBy('fechaInicio', 'desc'));
+        const q = query(collection(db, 'pedidos'), where('contrato', '==', selectedContratoId), orderBy('fechaInicio', 'desc'));
         const querySnapshot = await getDocs(q);
         const fetchedPedidos: Pedido[] = [];
         querySnapshot.forEach((doc) => {

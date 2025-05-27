@@ -8,15 +8,16 @@ import { auth, db } from '@/lib/firebase';
 import { UserProfile, Residencia, Dieta } from '@/../../shared/models/types';
 import {
   doc,
-  getDoc,
   collection,
-  query,
-  where,
-  orderBy,
+  getDoc,
   getDocs,
   addDoc,
+  setDoc,
   updateDoc,
-  deleteDoc
+  deleteDoc,
+  query,
+  where,
+  orderBy
 } from 'firebase/firestore';
 
 import { Button } from "@/components/ui/button";
@@ -424,41 +425,68 @@ function CrearResidenciaAdminPage() {
         }
       } else if (!isEditing && isMasterUser) {
         // CREATE
-        const { id, ...newResidenciaData } = residenciaDataForSubmit; // Ensure 'id' is not part of the data payload
-        const docRef = await addDoc(collection(db, 'residencias'), newResidenciaData);
+        const customId = currentResidencia.id?.trim(); // Get the custom ID from the form state
+
+        if (!customId) {
+          toast({ title: "Error de Validación", description: "El ID de la Residencia (Slug) es obligatorio.", variant: "destructive" });
+          setFormLoading(false);
+          setResidenciaIdError("El ID de la Residencia (Slug) es obligatorio."); // Set specific error for ID field
+          return;
+        }
+        setResidenciaIdError(null); // Clear any previous ID error
+
+        // Optional: Check if ID already exists
+        const existingDocRef = doc(db, 'residencias', customId);
+        const existingDocSnap = await getDoc(existingDocRef);
+        if (existingDocSnap.exists()) {
+          toast({ title: "Error de Duplicidad", description: `Ya existe una residencia con el ID '${customId}'. El ID debe ser único.`, variant: "destructive" });
+          setResidenciaIdError(`El ID '${customId}' ya está en uso. Por favor, elige otro.`);
+          setFormLoading(false);
+          return;
+        }
         
-        // Creating a Default Dieta (assuming this logic remains)
+        // 'id' is now customId, so we don't destructure it from residenciaDataForSubmit.
+        // residenciaDataForSubmit already contains all fields *except* id if getNewResidenciaDefaults and handleInputChange are correct.
+        // However, the Residencia interface includes 'id', but Firestore's setDoc/addDoc data should not include it.
+        const { id: idFromData, ...newResidenciaData } = residenciaDataForSubmit; // Explicitly remove 'id' if it's there
+
+        const residenciaRef = doc(db, 'residencias', customId); // Create a reference with the custom ID
+        await setDoc(residenciaRef, newResidenciaData); // Use setDoc with the custom ID
+
+        // Creating a Default Dieta
         try {
           const defaultDieta: Omit<Dieta, 'id'> = {
             nombre: "Normal",
             descripcion: "Ningún régimen especial",
             isDefault: true,
             isActive: true,
-            residenciaId: docRef.id,
+            residenciaId: customId, // Use the customId here
           };
-          await addDoc(collection(db, 'dietas'), defaultDieta);
+          await addDoc(collection(db, 'dietas'), defaultDieta); // Still use addDoc for dietas if its ID is auto-generated
           toast({
             title: "Éxito Parcial",
-            description: `Residencia '${newResidenciaData.nombre}' (ID: ${docRef.id}) y Dieta 'Normal' por defecto creadas.`,
+            description: `Residencia '${newResidenciaData.nombre}' (ID: ${customId}) y Dieta 'Normal' por defecto creadas.`,
           });
         } catch (dietaError) {
           console.error("Error creating default dieta:", dietaError);
           toast({
             title: "Advertencia: Dieta por Defecto Falló",
-            description: `Residencia '${newResidenciaData.nombre}' (ID: ${docRef.id}) creada, pero falló la creación de la dieta por defecto. Error: ${dietaError instanceof Error ? dietaError.message : String(dietaError)}`,
+            description: `Residencia '${newResidenciaData.nombre}' (ID: ${customId}) creada, pero falló la creación de la dieta por defecto. Error: ${dietaError instanceof Error ? dietaError.message : String(dietaError)}`,
             variant: "destructive",
             duration: 10000,
           });
         }
-        toast({ title: "Residencia Creada", description: `Residencia '${newResidenciaData.nombre}' creada con ID: ${docRef.id}.` });
-        if (userProfile?.id) { 
+        // The main success toast is now covered by the "Éxito Parcial" or the warning. 
+        // If you want a separate one just for the residencia:
+        // toast({ title: "Residencia Creada", description: `Residencia '${newResidenciaData.nombre}' creada con ID: ${customId}.` });
+
+        if (userProfile?.id) {
           await writeClientLog(
-            userProfile.id, // actorUserId
-            'residencia', // actionType
-            { // logDetails
-              residenciaId: docRef.id,
-              details: `Residencia '${newResidenciaData.nombre || ''}' (ID: ${docRef.id}) creada por ${userProfile.email}.`
-              // relatedDocPath: `residencias/${docRef.id}` // Optional
+            userProfile.id,
+            'residencia',
+            {
+              residenciaId: customId, // Use the customId here
+              details: `Residencia '${newResidenciaData.nombre || ''}' (ID: ${customId}) creada por ${userProfile.email}.`
             }
           );
         }

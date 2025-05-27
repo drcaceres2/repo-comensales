@@ -1,0 +1,3 @@
+C:\src\comensales\repo-comensales\src\lib\utils.ts:102 
+
+Error writing client log: FirebaseError: Function addDoc() called with invalid data. Unsupported field value: undefined (found in field residenciaId in document logs/aWQG4KicShgzOqG0KGWV)
