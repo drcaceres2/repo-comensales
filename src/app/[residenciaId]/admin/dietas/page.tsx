@@ -20,6 +20,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { Timestamp, addDoc, collection, doc, getDoc, query, where, getDocs, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import withAuth from '@/components/withAuth'
 
 import { useTranslations } from '@/lib/translations'; // Path to your translations hook
 
@@ -56,7 +57,7 @@ async function createLogEntry(
     }
 }
 
-export default function DietasResidenciaPage(): JSX.Element | null {
+function DietasResidenciaPage(): JSX.Element | null {
     const params = useParams();
     const router = useRouter();
     const residenciaId = params.residenciaId as ResidenciaId;
@@ -677,3 +678,5 @@ function DietaForm({
         </div>
     );
 }
+
+export default withAuth(DietasResidenciaPage);

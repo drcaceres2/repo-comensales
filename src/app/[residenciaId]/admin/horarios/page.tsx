@@ -24,6 +24,7 @@ import {
 import { Timestamp, addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import withAuth from '@/components/withAuth';
 import { 
     AlertDialog, AlertDialogAction, AlertDialogCancel, 
     AlertDialogContent, AlertDialogDescription, 
@@ -229,7 +230,7 @@ async function createLogEntry(
     }
 }
 
-export default function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
+function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const params = useParams();
     const router = useRouter();
     const residenciaId = params.residenciaId as ResidenciaId;
@@ -1318,3 +1319,5 @@ return (
 </div>
 );
 }
+
+export default withAuth(HorariosResidenciaPage);
