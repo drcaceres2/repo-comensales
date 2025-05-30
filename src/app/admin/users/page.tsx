@@ -1747,4 +1747,5 @@ function UserManagementPage(): JSX.Element | null {
     );
 }
 
-export default withAuth(UserManagementPage)
+// export default withAuth(UserManagementPage);
+export default UserManagementPage;
