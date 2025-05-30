@@ -82,7 +82,6 @@ interface SingleContractAuditFunctionResult {
   errorMessage?: string;
 }
 
-
 const LicenciasPage = () => {
   const [user, loadingAuth, errorAuth] = useAuthState(auth);
   const router = useRouter();

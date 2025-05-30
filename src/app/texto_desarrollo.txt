@@ -1,3 +1,23 @@
-C:\src\comensales\repo-comensales\src\lib\utils.ts:102 
+User authenticated (client-side), fetching profile...
 
-Error writing client log: FirebaseError: Function addDoc() called with invalid data. Unsupported field value: undefined (found in field residenciaId in document logs/aWQG4KicShgzOqG0KGWV)
+hook.js:608 
+Error fetching user profile: FirebaseError: 
+false for 'get' @ L16
+overrideMethod @ hook.js:608
+error @ C:\src\client\components\globals\intercept-console-error.ts:40
+Navigation.useEffect @ C:\src\comensales-residencia\src\components\Navigation.tsx:453
+Promise.catch (async)
+
+hook.js:608 
+Error fetching user profile: FirebaseError: 
+false for 'get' @ L16
+overrideMethod @ hook.js:608
+error @ C:\src\client\components\globals\intercept-console-error.ts:40
+LoginPage.useEffect @ C:\src\comensales-residencia\src\app\page.tsx:125
+Promise.catch (async)
+
+C:\src\comensales-residencia\src\app\page.tsx:148 
+User is signed out (client-side), staying on login page.
+
+C:\src\comensales-residencia\src\app\page.tsx:196 
+Session cookie set successfully by server: {status: 'success', uid: 'fjUZE5IWWgj2awKkzdSQw0yOsslK', roles: Array(1)}
