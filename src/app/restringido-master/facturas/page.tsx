@@ -268,7 +268,7 @@ function CrearFacturasPage() {
         const fetchProfile = async () => {
             setProfileLoading(true);
             try {
-                const userDocRef = doc(db, 'userProfiles', authUser.uid);
+                const userDocRef = doc(db, 'users', authUser.uid);
                 const userDocSnap = await getDoc(userDocRef);
                 if (userDocSnap.exists()) {
                     const profileData = userDocSnap.data() as UserProfile;

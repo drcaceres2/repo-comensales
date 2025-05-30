@@ -114,9 +114,6 @@ function CrearResidenciaAdminPage() {
   const [formData, setFormData] = useState<Partial<Omit<Residencia, 'id'>>>(getNewResidenciaDefaults());
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // State for timezones
-  const [timezones, setTimezones] = useState<TimezonesData>({});
-
   // --- useEffect: Handle Auth State & Fetch Profile ---
   useEffect(() => {
     if (authFirebaseLoading) {
@@ -687,7 +684,7 @@ function CrearResidenciaAdminPage() {
                   label="Zona Horaria"
                   initialTimezone={currentResidencia.zonaHoraria || getNewResidenciaDefaults().zonaHoraria}
                   onTimezoneChange={handleTimezoneChange}
-                  disabled={formLoading || Object.keys(timezones).length === 0 || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                   // You can pass custom classNames if needed, e.g.:
                   // selectClassName="w-full p-2 border rounded mt-1 bg-background text-foreground"
                   // containerClassName="mb-4"

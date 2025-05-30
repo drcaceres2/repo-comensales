@@ -1,5 +1,6 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import timezonesDataJson from '@/../../shared/data/zonas_horarias_soportadas.json'; // Import the JSON data
+const DEFAULT_TIMEZONE_STRING = "America/Tegucigalpa";
 
 // Interface for individual timezone details (name and offset)
 export interface TimezoneDetail {
@@ -40,29 +41,39 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({
   const [selectedCity, setSelectedCity] = useState<string>("");
 
   useEffect(() => {
-    if (initialTimezone) {
-      const parts = initialTimezone.split('/');
+    let regionToSet = "";
+    let cityToSet = "";
+
+    // Helper to attempt parsing and validating a timezone string
+    const parseAndValidateTimezone = (tzString: string | undefined): boolean => {
+      if (!tzString) return false;
+      
+      const parts = tzString.split('/');
       const region = parts[0];
       const city = parts.slice(1).join('/'); // City can contain '/'
 
-      if (region && timezonesData[region]) {
-        setSelectedRegion(region);
-        if (city && timezonesData[region].find(tz => tz.name === city)) {
-          setSelectedCity(city);
-        } else {
-          setSelectedCity(""); // Reset city if not found in new region or initial city is invalid
-        }
-      } else {
-        // If region from initialTimezone is not in our list, reset both
-        setSelectedRegion("");
-        setSelectedCity("");
+      // Check if the region exists and the city is found within that region's timezones
+      if (region && timezonesData[region] && city && timezonesData[region].find(tz => tz.name === city)) {
+        regionToSet = region;
+        cityToSet = city;
+        return true;
       }
-    } else {
-      // No initial timezone, reset
-      setSelectedRegion("");
-      setSelectedCity("");
+      return false;
+    };
+
+    // 1. Try to set timezone from the initialTimezone prop
+    if (!parseAndValidateTimezone(initialTimezone)) {
+      // 2. If initialTimezone was not provided or was invalid,
+      //    attempt to set timezone from DEFAULT_TIMEZONE_STRING.
+      //    If this also fails (e.g., default string is somehow not in the JSON),
+      //    regionToSet and cityToSet will remain "", leading to "-- Select --" in dropdowns.
+      parseAndValidateTimezone(DEFAULT_TIMEZONE_STRING);
     }
-  }, [initialTimezone]); // timezonesData is a module constant, not needed in deps
+
+    setSelectedRegion(regionToSet);
+    setSelectedCity(cityToSet);
+
+  }, [initialTimezone]); // timezonesData is a module constant and doesn't need to be a dependency
 
   // useEffect to call onTimezoneChange when a valid city in a valid region is selected
   useEffect(() => {
