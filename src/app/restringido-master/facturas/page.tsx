@@ -258,7 +258,7 @@ function CrearFacturasPage() {
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // For disabling buttons during async ops
     const [formData, setFormData] = useState<Partial<Factura>>({});
     const [isEditingForm, setIsEditingForm] = useState<boolean>(false); 
-    const [contratosResidenciaMap, setContratosResidenciaMap] = useState<Map<ContratoResidenciaId, Partial<ContratoResidencia>>>(new Map());
+    const [contratosResidenciaMap, setContratosResidenciaMap] = useState<Map<ContratoResidenciaId, { id: ContratoResidenciaId, residencia: ResidenciaId }>>(new Map());
 
     const defaultTimeZone = 'America/Tegucigalpa';
 
@@ -292,17 +292,17 @@ function CrearFacturasPage() {
             try {
                 const contratosCollectionRef = collection(db, 'contratosResidencia'); // Verify this collection name
                 const querySnapshot = await getDocs(contratosCollectionRef);
-                const fetchedContratosMap = new Map<ContratoResidenciaId, Partial<ContratoResidencia>>();
+                const fetchedContratosMap = new Map<ContratoResidenciaId, { id: ContratoResidenciaId; residencia: ResidenciaId }>();
                 querySnapshot.docs.forEach(doc => {
                     const data = doc.data();
-                    // Ensure the document has the idResidencia field
-                    if (data.idResidencia) {
+                    // Ensure the document has the residencia field
+                    if (data.residencia) {
                         fetchedContratosMap.set(doc.id as ContratoResidenciaId, {
                             id: doc.id as ContratoResidenciaId,
-                            idResidencia: data.idResidencia as ResidenciaId
-                     } as Partial<ContratoResidencia>);
+                            residencia: data.residencia as ResidenciaId
+                     });
                     } else {
-                        console.warn(`ContratoResidencia document ${doc.id} is missing 'idResidencia' field.`);
+                        console.warn(`ContratoResidencia document ${doc.id} is missing 'residencia' field.`);
                     }
                 });
                 setContratosResidenciaMap(fetchedContratosMap);
@@ -404,7 +404,7 @@ function CrearFacturasPage() {
         if (contrato && contrato.residencia) {
             return contrato.residencia; // This is the human-readable ResidenciaId
         }
-        // Fallback if contract not found in map or is missing idResidencia
+        // Fallback if contract not found in map or is missing residencia
         return `N/A (ID Contrato: ${pedido.contrato.substring(0, 6)}...)`;
     };
 
