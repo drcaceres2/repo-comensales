@@ -315,7 +315,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       label: 'Administrar Residencia',
       icon: ClipboardEdit,
       isAccordion: true,
-      roles: ['admin'],
+      roles: ['admin', 'master'],
       children: [
         {
           id: 'adminGlobalUsers',
