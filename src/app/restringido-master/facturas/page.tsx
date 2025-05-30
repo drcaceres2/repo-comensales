@@ -315,7 +315,6 @@ function CrearFacturasPage() {
         fetchContratos();
     }, [isMasterUser, toast]); // Added toast to dependency array
 
-
     useEffect(() => {
         if (!isMasterUser) {
             setPedidos([]); setSelectedPedido(null); setSelectedPedidoId(""); return;
@@ -361,15 +360,62 @@ function CrearFacturasPage() {
                 });
             setFacturas(sortedFacturas);
 
-            if (selectedPedido.tipo !== 'suscripcion' && sortedFacturas.length > 0) {
-                setSelectedFactura(sortedFacturas[0]);
-                setFormData(sortedFacturas[0]);
-                setIsEditingForm(false); 
+            if (selectedPedido.tipo !== 'suscripcion') {
+                // Non-Subscription Pedido (e.g., 'licencia temporal')
+                if (sortedFacturas.length > 0) {
+                    // Non-subscription with an existing invoice: View/Edit existing
+                    setSelectedFactura(sortedFacturas[0]);
+                    setFormData(sortedFacturas[0]);
+                    setIsEditingForm(false); // Start in view mode
+                } else {
+                    // Non-subscription with NO existing invoice: Prepare to CREATE a new one
+                    setSelectedFactura(null);
+                    
+                    // Initialize formData for a new invoice.
+                    // This logic can be similar to the start of handleAddNewFacturaSubscription
+                    // or a new helper function. For example:
+                    const tempDate = new Date();
+                    const year = tempDate.getFullYear();
+                    const month = String(tempDate.getMonth() + 1).padStart(2, '0');
+                    const day = String(tempDate.getDate()).padStart(2, '0');
+                    const todayDateString = `${year}-${month}-${day}`;
+                    const initialFechaFCZH = crearFCZH_fecha(todayDateString, defaultTimeZone); // Ensure defaultTimeZone is accessible
+
+                    if (!initialFechaFCZH) {
+                        toast({ title: "Error Interno", description: "No se pudo generar la fecha inicial para la factura.", variant: "destructive" });
+                        setFormData({});
+                        setIsEditingForm(false); 
+                    } else {
+                        let initialMontoTotal = selectedPedido.montoTotal; // For non-subscription, usually the full amount
+                        let initialMontoPagado = 0; // Default to 0 for new invoice
+
+                        if (selectedPedido.modoPago === 'libre de costo') {
+                            initialMontoTotal = 0;
+                            initialMontoPagado = 0;
+                        }
+
+                        setFormData({
+                            idPedido: selectedPedido.id as PedidoId,
+                            fecha: initialFechaFCZH,
+                            fechaPago: initialFechaFCZH, 
+                            fechaVencimiento: initialFechaFCZH,
+                            control: 'manual',
+                            idFacturaOdoo: null,
+                            monedaFactura: selectedPedido.moneda,
+                            montoPagado: initialMontoPagado,
+                            montoTotal: initialMontoTotal,
+                            estadoDePago: calculateEstadoDePago(initialMontoTotal, initialMontoPagado),
+                        });
+                        setIsEditingForm(true); // <<<< SET TO TRUE TO SHOW THE FORM FOR CREATION
+                    }
+                }
             } else {
-                setSelectedFactura(null); 
-                setFormData({}); 
-                setIsEditingForm(false); 
+                // Subscription Pedido: User must explicitly click "Añadir Factura"
+                setSelectedFactura(null);
+                setFormData({});
+                setIsEditingForm(false);
             }
+
         } catch (error: any) {
             setFacturasError("Error al cargar las facturas: " + error.message); setFacturas([]);
         }
