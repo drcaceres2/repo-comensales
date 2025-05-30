@@ -1320,4 +1320,4 @@ return (
 );
 }
 
-export default withAuth(HorariosResidenciaPage);
+export default HorariosResidenciaPage;

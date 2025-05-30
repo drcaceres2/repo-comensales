@@ -679,4 +679,4 @@ function DietaForm({
     );
 }
 
-export default withAuth(DietasResidenciaPage);
+export default DietasResidenciaPage;

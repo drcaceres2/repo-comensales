@@ -17,7 +17,7 @@ import {
   DayOfWeekKey,
   DayOfWeekMap,
   CentroCosto,
-  LogActionType, // <--- ADD THIS
+  LogActionType,
   ClientLogWrite, 
   UserId,
   ResidenciaId
@@ -407,20 +407,18 @@ function ResidenciaHorariosComedoresPage() {
     fetchAlternativasParaValidacion // <--- ADD TO DEPENDENCY ARRAY
   ]);
 
-// --- useEffect: Check for Timezone Differences ---
-useEffect(() => {
-  if (residenciaDetails?.zonaHoraria && !timezoneWarningShown) {
-    const warningWasDisplayed = checkAndDisplayTimezoneWarning(
-      residenciaDetails.zonaHoraria,
-      toast // Pass the toast function from useToast()
-    );
-    if (warningWasDisplayed) {
-      setTimezoneWarningShown(true); // Update state to prevent showing warning again
+  // --- useEffect: Check for Timezone Differences ---
+  useEffect(() => {
+    if (residenciaDetails?.zonaHoraria && !timezoneWarningShown) {
+      const warningWasDisplayed = checkAndDisplayTimezoneWarning(
+        residenciaDetails.zonaHoraria,
+        toast // Pass the toast function from useToast()
+      );
+      if (warningWasDisplayed) {
+        setTimezoneWarningShown(true); // Update state to prevent showing warning again
+      }
     }
-  }
-}, [residenciaDetails, timezoneWarningShown, toast]); // Keep toast in dependencies
-
-
+  }, [residenciaDetails, timezoneWarningShown, toast]); // Keep toast in dependencies
 
     // --- Comedor Form Handlers ---
   const handleInputChangeComedor = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -785,7 +783,6 @@ useEffect(() => {
       setFormLoadingHorario(false);
     }
   };
-
 
   // --- Render Logic ---
   if (authFirebaseLoading || (profileLoading && authUser)) {
@@ -1230,4 +1227,4 @@ useEffect(() => {
   );
 }
 
-export default withAuth(ResidenciaHorariosComedoresPage);
+export default ResidenciaHorariosComedoresPage;

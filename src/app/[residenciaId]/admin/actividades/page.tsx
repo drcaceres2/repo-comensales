@@ -738,4 +738,4 @@ function AdminActividadesPage() {
     );
 }
 
-export default withAuth(AdminActividadesPage);
+export default AdminActividadesPage;

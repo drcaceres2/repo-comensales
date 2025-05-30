@@ -322,7 +322,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           label: 'Crear usuarios (Global)',
           icon: Users,
           href: '/admin/users',
-          roles: ['admin'],
+          roles: ['admin', 'master'],
         },
         {
           id: 'adminCrearUsuarioPorCorreo',
