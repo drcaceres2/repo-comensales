@@ -34,7 +34,8 @@ interface DeleteUserDataPayload {
 export const createUser = onCall(
     { 
         region: "us-central1",
-        cors: ["http://localhost:3001", "http://127.0.0.1:3001"] // Explicitly allow client origin
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"], // Explicitly allow client origin
+        timeoutSeconds: 300,
     },
     async (request: CallableRequest<CreateUserDataPayload>) => {
         const callerInfo = await getCallerSecurityInfo(request.auth);
