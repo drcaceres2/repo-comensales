@@ -426,20 +426,47 @@ function CrearFacturasPage() {
         fetchFacturasForSelectedPedido();
     }, [selectedPedido]);
 
+    // useEffect (around L381 in your full file)
+
     useEffect(() => {
-        if (!selectedPedido || !formData || Object.keys(formData).length === 0) return;
-        let currentMontoTotal = formData.montoTotal;
-        let currentMontoPagado = formData.montoPagado;
+        // Guard: Only run if selectedPedido is present and formData has the necessary fields to avoid errors on initial renders.
+        // Explicitly check for undefined because 0 is a valid amount.
+        if (!selectedPedido || !formData || typeof formData.montoTotal === 'undefined' || typeof formData.montoPagado === 'undefined') {
+            return;
+        }
+
+        let desiredMontoTotal = formData.montoTotal;
+        let desiredMontoPagado = formData.montoPagado;
+
+        // Adjust for 'libre de costo'
         if (selectedPedido.modoPago === 'libre de costo') {
-            currentMontoTotal = 0; currentMontoPagado = 0;
+            desiredMontoTotal = 0;
+            desiredMontoPagado = 0;
         }
-        if (currentMontoTotal !== undefined && currentMontoPagado !== undefined) {
-            const newEstado = calculateEstadoDePago(currentMontoTotal, currentMontoPagado);
-            if (newEstado !== formData.estadoDePago || currentMontoTotal !== formData.montoTotal || currentMontoPagado !== formData.montoPagado) {
-                 setFormData(prev => ({...prev, montoTotal: currentMontoTotal, montoPagado: currentMontoPagado, estadoDePago: newEstado}));
-            }
+
+        // Calculate the desired estadoDePago based on potentially adjusted amounts
+        const desiredEstadoDePago = calculateEstadoDePago(desiredMontoTotal, desiredMontoPagado);
+
+        // Only update state if there's an actual change in any of the relevant fields
+        if (
+            formData.montoTotal !== desiredMontoTotal ||
+            formData.montoPagado !== desiredMontoPagado ||
+            formData.estadoDePago !== desiredEstadoDePago
+        ) {
+            setFormData(prev => ({
+                ...prev, // Preserve other formData fields
+                montoTotal: desiredMontoTotal,
+                montoPagado: desiredMontoPagado,
+                estadoDePago: desiredEstadoDePago,
+            }));
         }
-    }, [formData.montoTotal, formData.montoPagado, selectedPedido, formData.estadoDePago]);
+    }, [
+        formData.montoTotal,
+        formData.montoPagado,
+        formData.estadoDePago, // This dependency is important
+        selectedPedido       // Essential for selectedPedido.modoPago
+        // The 'formData' object itself should not be a dependency, only its relevant primitive fields.
+    ]);
 
     // In facturas/page.tsx, inside CrearFacturasPage component
     const getDisplayResidenciaIdForPedido = (pedido: Pedido): string => {
