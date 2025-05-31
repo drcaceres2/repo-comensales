@@ -10,6 +10,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -18,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app, auth, db } from '@/lib/firebase'; // Assuming you have a firebase client initialized
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 
 import { UserProfile } from '@/../../shared/models/types'; // Import interfaces
@@ -52,12 +62,9 @@ const deleteUserCallable = httpsCallable<DeleteUserData, void>(functions, 'delet
 const listUsersCallable = httpsCallable<{}, UserProfile[]>(functions, 'listUsers');
 
 const AdminUsersPage = () => {
-  const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
-  const [adminUserProfile, setAdminUserProfile] = useState<UserProfile | null>(null);
-  const [authLoading, setAuthLoading] = useState<boolean>(true);
-  const [adminProfileError, setAdminProfileError] = useState<string | null>(null);
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
-  // const { user, userProfile, loading: authLoading } = useAuth(); // Get auth state and user profile
+  const [user, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+    // const { user, userProfile, loading: authLoading } = useAuth(); // Get auth state and user profile
   const router = useRouter();
   const { toast } = useToast();
 
@@ -66,7 +73,50 @@ const AdminUsersPage = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [newUser, setNewUser] = useState<UserDataForCreation>({ email: '', roles: ['user'] });
+  const [newUser, setNewUser] = useState<Omit<UserProfile,'id'>>({
+    // Core User Info
+    nombre: '',
+    apellido: '',
+    email: '', // Email is sent to CF for auth, also stored in profile
+
+    // New fields from UserProfile requirements
+    nombreCorto: '', // ADDED (use undefined if empty for cleaner objects)
+    fotoPerfil: null, // ADDED - Placeholder for now, to be uploaded to Firebase Storage later
+    tieneAutenticacion: true, // REQUIREMENT - User has Firebase Auth entry
+
+    // Roles and Status
+    roles: [], // Assume roles are validated and present
+    isActive: true,
+
+    // Residencia and Related
+    residenciaId: null, // `finalResidenciaId` should be determined before this block
+    dietaId: undefined,
+    
+    // Personal and Contact Info
+    fechaDeNacimiento: null,
+    telefonoMovil: undefined,
+    dni: undefined,
+    
+    // Residencia-specific details (if applicable to role)
+    numeroDeRopa: undefined,
+    habitacion: undefined,
+    universidad: undefined,
+    carrera: undefined,
+    
+    // Permissions and Preferences
+    puedeTraerInvitados: 'no',
+    asistentePermisos: null, // REQUIREMENT - Set to null explicitly
+    notificacionPreferencias: null, // If managed by this form
+
+    // Centro de Costo and Custom Fields
+    centroCostoPorDefectoId: undefined,
+    valorCampoPersonalizado1: undefined,
+    valorCampoPersonalizado2: undefined,
+    valorCampoPersonalizado3: undefined,
+
+    // Ensure all other fields from your UserProfile definition are considered here
+    // For example, if 'modoEleccion' is still part of UserProfile:
+  });
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [deletingUser, setDeletingUser] = useState<UserProfile | null>(null);
   const [residenciaOptions, setResidenciaOptions] = useState<{ id: string; name: string }[]>([]); // Populate this with actual residences
@@ -74,72 +124,59 @@ const AdminUsersPage = () => {
   useEffect(() => {
     if (authFirebaseLoading) {
         console.log("Auth state loading (useAuthState)...");
-        setAdminProfileLoading(true);
-        setIsAuthorized(false);
         return;
     }
 
     if (authFirebaseError) {
         console.error("Firebase Auth Error (useAuthState):", authFirebaseError);
         toast({ title: "Error de Autenticación", description: authFirebaseError.message, variant: "destructive" });
-        setAdminProfileLoading(false);
-        setAdminUserProfile(null);
-        setAdminProfileError(authFirebaseError.message);
-        setIsAuthorized(false);
         router.replace('/');
         return;
     }
 
-    if (!authUser) {
+    if (!user) {
         console.log("No Firebase user (authUser is null). Redirecting to login.");
-        setAdminProfileLoading(false);
-        setAdminUserProfile(null);
-        setAdminProfileError(null); 
-        setIsAuthorized(false);
         router.replace('/');
         return;
     }
-    console.log("Admin user authenticated via Firebase (UID:", authUser.uid,"). Fetching admin's profile...");
-    setAdminProfileLoading(true);
-    setAdminProfileError(null);
-    const adminDocRef = doc(db, "users", authUser.uid);
+    console.log("Admin user authenticated via Firebase (UID:", user.uid,"). Fetching admin's profile...");
+    const adminDocRef = doc(db, "users", user.uid);
 
     getDoc(adminDocRef)
-        .then((docSnap) => {
-            if (docSnap.exists()) {
-                setAdminUserProfile(docSnap.data() as UserProfile);
-                console.log("Admin's profile fetched:", docSnap.data());
-            } else {
-                console.error("Admin's profile not found in Firestore for UID:", authUser.uid);
-                setAdminUserProfile(null);
-                setAdminProfileError("Perfil de administrador no encontrado. No estás autorizado.");
-                toast({ title: "Error de Perfil", description: "No se encontró tu perfil de administrador.", variant: "destructive" });
-            }
-        })
-        .catch((error) => {
-            console.error("Error fetching admin's profile:", error);
-            setAdminUserProfile(null);
-            setAdminProfileError(`Error al cargar tu perfil: ${error.message}`);
-            toast({ title: "Error Cargando Perfil Administrador", description: `No se pudo cargar tu perfil: ${error.message}`, variant: "destructive" });
-        })
-        .finally(() => {
-            setAdminProfileLoading(false);
-            console.log("Admin profile fetch attempt finished.");
-        });
-   }, [authUser, authFirebaseLoading, authFirebaseError, router, toast]);
+      .then((docSnap) => {
+          if (docSnap.exists()) {
+              setUserProfile(docSnap.data() as UserProfile);
+              console.log("Admin's profile fetched:", docSnap.data());
+          } else {
+              console.error("Admin's profile not found in Firestore for UID:", user.uid);
+              router.replace('/');
+              return;
+          }
+      })
+      .catch((error) => {
+          console.error("Error fetching admin's profile:", error);
+          setUserProfile(null);
+          toast({ title: "Error Cargando Perfil Administrador", description: `No se pudo cargar tu perfil: ${error.message}`, variant: "destructive" });
+          router.replace('/');
+          return;
+      })
+      .finally(() => {
+          console.log("Admin profile fetch attempt finished.");
+      });
+  }, [user, authFirebaseLoading, router, toast]);
 
   useEffect(() => {
     if (!authFirebaseLoading) {
       // Check for roles after auth state is loaded
       const hasRequiredRole = userProfile?.roles?.includes('master') || userProfile?.roles?.includes('admin');
-      if (!authUser || !hasRequiredRole) {
+      if (!user || !hasRequiredRole) {
         router.push('/acceso-no-autorizado'); // Redirect if not authorized
       } else {
         fetchUsers();
         fetchResidencias(); // Fetch residences for dropdown
       }
     }
-  }, [user, userProfile, authLoading, router]);
+  }, [user, userProfile, authFirebaseLoading, router]);
 
   const fetchResidencias = async () => {
     try {
@@ -153,20 +190,58 @@ const AdminUsersPage = () => {
     }
   };
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
+    console.log("Fetching users to manage from Firestore...");
     setLoading(true);
     try {
-      // TODO: Implement fetching users based on user profile roles (master fetches all, admin fetches within their residence)
-      console.error("Error fetching users:", error);
-      toast({
-        title: "Error fetching users.",
-        description: "Could not load user list.",
-        variant: "destructive",
-      });
+        const usersCol = collection(db, "users");
+        const querySnapshot = await getDocs(usersCol);
+        const usersData: UserProfile[] = [];
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            usersData.push({
+                id: doc.id,
+                nombre: data.nombre || '',
+                apellido: data.apellido || '',
+                nombreCorto: data.nombreCorto || '',
+                fotoPerfil: data.fotoPerfil || '',
+                email: data.email || '',
+                roles: data.roles || [],
+                isActive: data.isActive === undefined ? true : data.isActive,
+                residenciaId: data.residenciaId || undefined, 
+                dietaId: data.dietaId || undefined,
+                numeroDeRopa: data.numeroDeRopa || undefined,
+                habitacion: data.habitacion || undefined,
+                universidad: data.universidad || undefined,
+                carrera: data.carrera || undefined,
+                dni: data.dni || undefined,
+                fechaDeNacimiento: data.fechaDeNacimiento || undefined, 
+                centroCostoPorDefectoId: data.centroCostoPorDefectoId || undefined,
+                puedeTraerInvitados: data.puedeTraerInvitados || 'no',
+                valorCampoPersonalizado1: data.valorCampoPersonalizado1 || undefined,
+                valorCampoPersonalizado2: data.valorCampoPersonalizado2 || undefined,
+                valorCampoPersonalizado3: data.valorCampoPersonalizado3 || undefined,
+                telefonoMovil: data.telefonoMovil || undefined,
+                asistentePermisos: data.asistentePermisos || undefined,
+                notificacionPreferencias: data.notificacionPreferencias || undefined,
+                tieneAutenticacion: true,
+            });
+        });
+        console.log("Fetched users to manage:", usersData);
+        setUsers(usersData.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre))); 
+    } catch (error) {
+        console.error("Error fetching users to manage:", error);
+        toast({
+            title: "Error al Cargar Usuarios",
+            description: "No se pudieron obtener los datos de los usuarios.",
+            variant: "destructive",
+        });
+        setUsers([]);
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+  }, [toast]); 
+
 
   const handleCreateUser = async () => {
     try {
@@ -241,7 +316,7 @@ const AdminUsersPage = () => {
     }
   };
 
-  if (authLoading || loading) {
+  if (authFirebaseLoading || loading) {
     return <div>Loading...</div>; // Or a more sophisticated loading spinner
   }
 
@@ -261,29 +336,29 @@ const AdminUsersPage = () => {
         <TableHeader>
           <TableRow>
             <TableHead>Email</TableHead>
-            <TableHead>Display Name</TableHead>
+            <TableHead>Nombre completo</TableHead>
             <TableHead>Roles</TableHead>
             <TableHead>Residencia</TableHead>
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {users.map((user) => (
-            <TableRow key={user.id}>
-              <TableCell>{user.email}</TableCell>
-              <TableCell>{user.displayName}</TableCell>
-              <TableCell>{user.roles.join(', ')}</TableCell>
-              <TableCell>{user.residenciaId || 'N/A'}</TableCell>
+          {users.map((usr) => (
+            <TableRow key={usr.id}>
+              <TableCell>{usr.email}</TableCell>
+              <TableCell>{`${usr.nombre} ${usr.apellido}`}</TableCell>
+              <TableCell>{usr.roles.join(', ')}</TableCell>
+              <TableCell>{usr.residenciaId || 'N/A'}</TableCell>
               <TableCell>
                 <Button variant="outline" size="sm" className="mr-2" onClick={() => {
-                  setEditingUser(user);
+                  setEditingUser(usr);
                   setIsEditDialogOpen(true);
                 }}>Edit</Button>
                 <Button variant="destructive" size="sm" onClick={() => {
-                    setDeletingUser(user);
+                    setDeletingUser(usr);
                     setIsDeleteDialogOpen(true);
                 }} {/* TODO: Check if deletion is allowed based on roles and user being deleted */}
-                disabled={userProfile?.uid === user.uid || user.roles.includes('master')} // Prevent deleting self or master
+                disabled={userProfile?.id === usr.id || usr.roles.includes('master')} // Prevent deleting self or master
                 >Delete</Button>
               </TableCell>
             </TableRow>
@@ -302,8 +377,8 @@ const AdminUsersPage = () => {
               <Label htmlFor="email" className="text-right">Email</Label>
               <Input id="email" type="email" value={newUser.email} onChange={(e) => setNewUser({...newUser, email: e.target.value})} className="col-span-3" />
             </div>
-             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="password" className="text-right">Password</Label>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="password" className="text-right">Contraseña</Label>
               <Input id="password" type="password" value={newUser.password || ''} onChange={(e) => setNewUser({...newUser, password: e.target.value})} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -329,7 +404,10 @@ const AdminUsersPage = () => {
                     <SelectItem value="">No Residence</SelectItem> {/* Only allow 'No Residence' for master users */}
                   {residenciaOptions.map(res => (
                     <SelectItem key={res.id} value={res.id}>{res.name}</SelectItem>
-                  ))} {/* TODO: Filter residences based on userProfile */}
+                  ))}
+                </SelectContent>
+                   {/* TODO: Filter residences based on userProfile */}
+              </Select>
                     onCheckedChange={(checked) => {
                        const updatedRoles = checked ? [...(newUser.roles || []), 'admin'] : (newUser.roles || []).filter(role => role !== 'admin');
                        setNewUser({...newUser, roles: updatedRoles});
@@ -410,6 +488,7 @@ const AdminUsersPage = () => {
 
        {/* Delete User Dialog */}
       {/* TODO: Use AlertDialog component */}
+      <AlertDialog>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>

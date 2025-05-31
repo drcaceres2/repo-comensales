@@ -128,7 +128,7 @@ function UserManagementPage(): JSX.Element | null {
             email: '',
             isActive: true,
             roles: [],
-            residenciaId: initialResidenciaId,
+            residenciaId: '',
             dietaId: '',
             numeroDeRopa: '',
             habitacion: '',
@@ -415,6 +415,12 @@ function UserManagementPage(): JSX.Element | null {
             .then((docSnap) => {
                 if (docSnap.exists()) {
                     setAdminUserProfile(docSnap.data() as UserProfile);
+                    if (adminUserProfile) { if (adminUserProfile.residenciaId) {
+                        setFormData(prevFormData => ({
+                            ...prevFormData,
+                            residenciaId: adminUserProfile.residenciaId!, // Use non-null assertion as we've checked
+                        }));
+                    }}
                     console.log("Admin's profile fetched:", docSnap.data());
                 } else {
                     console.error("Admin's profile not found in Firestore for UID:", authUser.uid);
