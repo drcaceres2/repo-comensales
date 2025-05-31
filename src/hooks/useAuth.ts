@@ -80,4 +80,3 @@ export const useAuth = (): AuthHookResult => {
     error: authError || authFirebaseError,
   };
 };
-'''
