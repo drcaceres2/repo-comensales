@@ -439,6 +439,7 @@ function UserManagementPage(): JSX.Element | null {
                 setAdminProfileLoading(false);
                 console.log("Admin profile fetch attempt finished.");
             });
+        console.log(`useEffect formData.residenciaId=${formData.residenciaId}`);
     }, [authUser, authFirebaseLoading, authFirebaseError, router, toast]);
 
     useEffect(() => {
@@ -513,6 +514,7 @@ function UserManagementPage(): JSX.Element | null {
 
     const handleFormChange = (field: keyof Omit<UserFormData, 'roles'>, value: string | boolean | number | undefined) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+        console.log(`handleFormChange formData.residenciaId=${formData.residenciaId}`);
     };
 
     const handleRoleChange = (role: UserRole, checked: boolean) => {
@@ -557,6 +559,7 @@ function UserManagementPage(): JSX.Element | null {
 
             return { ...prev, roles: updatedRoles, dietaId, residenciaId /* asistentePermisos is already null */ };
         });
+        console.log(`handleRoleChange formData.residenciaId=${formData.residenciaId}`);
     };
 
     const handleSelectChange = (field: 'residenciaId' | 'dietaId' | 'grupoUsuario' | 'puedeTraerInvitados' | 'centroCostoPorDefectoId', value: string) => {
