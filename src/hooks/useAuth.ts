@@ -19,8 +19,11 @@ export const useAuth = (): AuthHookResult => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userProfileLoading, setUserProfileLoading] = useState<boolean>(false);
   const [authError, setAuthError] = useState<Error | null | undefined>(null);
-
+  
+  console.log(`HOOK-inicial: Los estados son authFirebaseLoading=${authFirebaseLoading} y userProfileLoading=${userProfileLoading}`);
+    
   useEffect(() => {
+    console.log(`HOOK-useeffect: Los estados son authFirebaseLoading=${authFirebaseLoading} y userProfileLoading=${userProfileLoading}`);
     const fetchUserProfile = async () => {
       if (authUser) {
         setUserProfileLoading(true);
@@ -72,6 +75,7 @@ export const useAuth = (): AuthHookResult => {
 
     fetchUserProfile();
   }, [authUser]);
+  console.log(`HOOK-final: Los estados son authFirebaseLoading=${authFirebaseLoading} y userProfileLoading=${userProfileLoading}`);
 
   return {
     authUser,

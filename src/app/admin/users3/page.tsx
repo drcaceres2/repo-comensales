@@ -47,8 +47,9 @@ const UserManagementPage: React.FC = () => {
     const [availableCentrosCosto, setAvailableCentrosCosto] = useState<{ id: string, nombre: string }[]>([]);
     const [residencias, setResidencias] = useState<{ id: string, nombre: string }[]>([]);
     const [residenciaConfig, setResidenciaConfig] = useState<Residencia | null>(null); // State to hold the configuration of the selected residence
-
+    console.log(`USERS3: Los estados son loading=${loading} y up.id=${userProfile ? userProfile.id : "nulo"}`);
     useEffect(() => {
+        console.log(`USERS3-use effect: Los estados son loading=${loading} y up.id=${userProfile ? userProfile.id : "nulo"}`);
         if (!loading && !userProfile) {
             // Redirect to unauthorized page if not authenticated or no user profile
             router.push('/acceso-no-autorizado');
