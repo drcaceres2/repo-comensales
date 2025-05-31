@@ -414,13 +414,17 @@ function UserManagementPage(): JSX.Element | null {
         getDoc(adminDocRef)
             .then((docSnap) => {
                 if (docSnap.exists()) {
-                    setAdminUserProfile(docSnap.data() as UserProfile);
-                    if (adminUserProfile) { if (adminUserProfile.residenciaId) {
+                    const fetchedProfile = docSnap.data() as UserProfile;
+                    setAdminUserProfile(fetchedProfile); // Update the state
+
+                    // Now, check the fetched data directly
+                    if (fetchedProfile.residenciaId && !fetchedProfile.roles.includes('master')) { // Added roles check for clarity and correctness
                         setFormData(prevFormData => ({
                             ...prevFormData,
-                            residenciaId: adminUserProfile.residenciaId!, // Use non-null assertion as we've checked
+                            residenciaId: fetchedProfile.residenciaId!,
                         }));
-                    }}
+                    }
+
                     console.log("Admin's profile fetched:", docSnap.data());
                 } else {
                     console.error("Admin's profile not found in Firestore for UID:", authUser.uid);
@@ -439,7 +443,6 @@ function UserManagementPage(): JSX.Element | null {
                 setAdminProfileLoading(false);
                 console.log("Admin profile fetch attempt finished.");
             });
-        console.log(`useEffect formData.residenciaId=${formData.residenciaId}`);
     }, [authUser, authFirebaseLoading, authFirebaseError, router, toast]);
 
     useEffect(() => {
@@ -514,7 +517,6 @@ function UserManagementPage(): JSX.Element | null {
 
     const handleFormChange = (field: keyof Omit<UserFormData, 'roles'>, value: string | boolean | number | undefined) => {
         setFormData(prev => ({ ...prev, [field]: value }));
-        console.log(`handleFormChange formData.residenciaId=${formData.residenciaId}`);
     };
 
     const handleRoleChange = (role: UserRole, checked: boolean) => {
@@ -559,7 +561,6 @@ function UserManagementPage(): JSX.Element | null {
 
             return { ...prev, roles: updatedRoles, dietaId, residenciaId /* asistentePermisos is already null */ };
         });
-        console.log(`handleRoleChange formData.residenciaId=${formData.residenciaId}`);
     };
 
     const handleSelectChange = (field: 'residenciaId' | 'dietaId' | 'grupoUsuario' | 'puedeTraerInvitados' | 'centroCostoPorDefectoId', value: string) => {
