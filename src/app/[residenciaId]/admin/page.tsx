@@ -573,7 +573,7 @@ function ResidenciaHorariosComedoresPage() {
         return;
     }
 
-    if (!/^\\d{2}:\\d{2}$/.test(currentHorario.horaSolicitud)) {
+    if (!/^\d{2}:\d{2}$/.test(currentHorario.horaSolicitud)) {
         toast({ title: "Formato Incorrecto", description: "La hora debe estar en formato HH:MM (ej. 13:30).", variant: "destructive" });
         return;
     }
