@@ -1369,25 +1369,25 @@ function UserManagementPage(): JSX.Element | null {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {/* Render options based on whether the admin is master or not */}
-                                        {(adminUserProfile?.roles.includes('master') || !adminUserProfile?.residenciaId)
-                                            ? (
-                                                // Master or admin without residencia: show all options
-                                                Object.entries(residences).map(([id, res]) => (
-                                                    <SelectItem key={id} value={id}>{res.nombre}</SelectItem>
-                                                ))
-                                            ) : (adminUserProfile?.residenciaId && residences[adminUserProfile.residenciaId])
-                                            ? (
-                                                // Non-master admin with residencia: show only their residencia
-                                                <SelectItem key={adminUserProfile.residenciaId} value={adminUserProfile.residenciaId}>
-                                                    {residences[adminUserProfile.residenciaId].nombre}
+                                        {(adminUserProfile?.roles.includes('master') || !adminUserProfile?.residenciaId) ? (
+                                            // Master or admin without residencia: show all options
+                                            Object.entries(residences).map(([id, res]) => (
+                                                <SelectItem key={id} value={id}>
+                                                    {res.nombre}
                                                 </SelectItem>
-                                            ) : (
-                                                // Fallback if admin's residencia somehow isn't in the list (shouldn't happen)
-                                                <SelectItem value="loading" disabled>Cargando residencias...</SelectItem>
-                                            )
-                                        }
-                                        {/* Handle loading state */}
-                                        {Object.keys(residences).length === 0 && <SelectItem value="loading" disabled>Cargando residencias...</SelectItem>}
+                                            ))
+                                        ) : adminUserProfile?.residenciaId && residences[adminUserProfile.residenciaId] ? (
+                                            // Non-master admin with residencia: show only their residencia
+                                            <SelectItem key={adminUserProfile.residenciaId} value={adminUserProfile.residenciaId}>
+                                                {residences[adminUserProfile.residenciaId].nombre}
+                                            </SelectItem>
+                                        ) : (
+                                            // Handle loading state or fallback for admin with missing residencia
+                                            // Use a unique key here, perhaps incorporating a timestamp or a more descriptive key
+                                            <SelectItem key="residences-loading-or-fallback" value="loading" disabled>
+                                                {Object.keys(residences).length === 0 ? "Cargando residencias..." : "Error cargando residencia asignada..."}
+                                            </SelectItem>
+                                        )}
                                     </SelectContent>
                                 </Select>
                                   {isResidenciaConditionallyRequired && !formData.residenciaId && <p className="text-xs text-destructive mt-1">Requerido para el rol seleccionado.</p>}
