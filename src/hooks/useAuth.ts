@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { UserProfile } from '@/../../shared/models/types';
+import { UserProfile, UserRole } from '@/../../shared/models/types';
 import { User as FirebaseUser } from 'firebase/auth';
 
 interface AuthHookResult {
@@ -34,13 +34,13 @@ export const useAuth = (): AuthHookResult => {
             
             // Validate roles
             const tokenResult = await authUser.getIdTokenResult();
-            const tokenRoles = tokenResult.claims.roles || [];
+            const tokenRoles = Array.isArray(tokenResult.claims.roles) ? tokenResult.claims.roles : [];
             
             const firestoreRoles = userProfileData.roles || [];
             
             const rolesMatch = 
               tokenRoles.length === firestoreRoles.length && 
-              tokenRoles.every((role: string) => firestoreRoles.includes(role));
+              tokenRoles.every((role) => firestoreRoles.includes(role as UserRole));
 
             if (rolesMatch) {
               setUserProfile(userProfileData);
