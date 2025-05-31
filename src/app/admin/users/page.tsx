@@ -530,8 +530,15 @@ function UserManagementPage(): JSX.Element | null {
             }
 
             let dietaId = prev.dietaId;
-            const residenciaRequiredForRole = updatedRoles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r));
-            const residenciaId = residenciaRequiredForRole ? prev.residenciaId : '';
+            let residenciaRequiredForRole: boolean;
+            let residenciaId: string | undefined;
+            if(adminUserProfile?.roles.includes('master')) {
+                residenciaRequiredForRole = updatedRoles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r));
+                residenciaId = residenciaRequiredForRole ? prev.residenciaId : '';
+            } else {
+                residenciaRequiredForRole = true;
+                residenciaId = prev.residenciaId;
+            }
 
             if (role === 'residente') {
                 if (checked && residenciaId && dietas.length > 0) {
