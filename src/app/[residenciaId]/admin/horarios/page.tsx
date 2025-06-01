@@ -280,7 +280,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     // --- Form States (remain the same) ---
     // TiempoComida Add/Edit
     const [newTiempoComidaName, setNewTiempoComidaName] = useState('');
-    const [newTiempoComidaDia, setNewTiempoComidaDia] = useState<DayOfWeekKey | ''>('');
+    const [newTiempoComidaDia, setNewTiempoComidaDia] = useState<DayOfWeekKey | undefined>(undefined);
     const [newTiempoComidaHoraEstimada, setNewTiempoComidaHoraEstimada] = useState('');
     const [newTiempoComidaNombreGrupo, setNewTiempoComidaNombreGrupo] = useState('');
     const [newTiempoComidaOrdenGrupo, setNewTiempoComidaOrdenGrupo] = useState<number | string>('');
@@ -288,7 +288,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const [isAddingTiempo, setIsAddingTiempo] = useState(false);
     const [editingTiempoComidaId, setEditingTiempoComidaId] = useState<string | null>(null);
     const [editTiempoComidaName, setEditTiempoComidaName] = useState('');
-    const [editTiempoComidaDia, setEditTiempoComidaDia] = useState<DayOfWeekKey | ''>('');
+    const [editTiempoComidaDia, setEditTiempoComidaDia] = useState<DayOfWeekKey | undefined>(undefined);
     const [editTiempoComidaHoraEstimada, setEditTiempoComidaHoraEstimada] = useState('');
     const [editTiempoComidaNombreGrupo, setEditTiempoComidaNombreGrupo] = useState('');
     const [editTiempoComidaOrdenGrupo, setEditTiempoComidaOrdenGrupo] = useState<number | string>('');
@@ -504,21 +504,25 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
 
         // Basic Validations (as before)
         if (!trimmedNombreEspecifico) { toast({ title: "Error", description: "El Nombre específico es requerido.", variant: "destructive" }); return; }
-        if (!newTiempoComidaDia) { toast({ title: "Error", description: "El Día es requerido.", variant: "destructive" }); return; }
+        if (!newTiempoComidaDia && newAplicacionOrdinaria) { toast({ title: "Error", description: "El Día es requerido para tiempos ordinarios.", variant: "destructive" }); return; }
         if (!trimmedNombreGrupo) { toast({ title: "Error", description: "El Nombre de Grupo es requerido.", variant: "destructive" }); return; }
         if (!Number.isInteger(ordenGrupoNum) || ordenGrupoNum <= 0) { toast({ title: "Error", description: "El Orden de Grupo debe ser un número entero positivo.", variant: "destructive" }); return; }
         if (newTiempoComidaHoraEstimada && !/^\d{2}:\d{2}$/.test(newTiempoComidaHoraEstimada)) { toast({ title: "Error", description: "La Hora Estimada debe tener el formato HH:MM.", variant: "destructive" }); return; }
 
         // --- NEW: Uniqueness Validation for nombreGrupo and dia ---
-        const existingTiempoComida = tiemposComida.find(
-            tc => tc.nombreGrupo.toLowerCase() === trimmedNombreGrupo.toLowerCase() &&
-                  tc.dia === newTiempoComidaDia
-        );
+        const existingTiempoComida = 
+            newAplicacionOrdinaria ?
+            tiemposComida.find(
+                tc => tc.nombreGrupo.toLowerCase() === trimmedNombreGrupo.toLowerCase() &&
+                tc.dia === newTiempoComidaDia) :
+            false;
 
         if (existingTiempoComida) {
             toast({
                 title: "Conflicto de Horario",
-                description: `Ya existe un tiempo de comida para el grupo "${trimmedNombreGrupo}" el día ${DayOfWeekMap[newTiempoComidaDia]}. Solo se permite uno.`,
+                description: newTiempoComidaDia ? 
+                    `Ya existe un tiempo de comida para el grupo "${trimmedNombreGrupo}" el día ${DayOfWeekMap[newTiempoComidaDia]}. Solo se permite uno.` : 
+                    "No se pudo crear el tiempo de comida: Día inválido",
                 variant: "destructive",
                 duration: 7000,
             });
@@ -530,7 +534,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         const nuevoTiempoData: Omit<TiempoComida, 'id'> = {
             residenciaId: residenciaId,
             nombre: trimmedNombreEspecifico,
-            dia: newTiempoComidaDia,
+            dia: newAplicacionOrdinaria ? newTiempoComidaDia : undefined,
             horaEstimada: newTiempoComidaHoraEstimada || undefined,
             nombreGrupo: trimmedNombreGrupo,
             ordenGrupo: ordenGrupoNum,
@@ -544,7 +548,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             setTiemposComida(prev => sortTiemposComida([...prev, newTiempoWithId]));
             
             setNewTiempoComidaName('');
-            setNewTiempoComidaDia('');
+            setNewTiempoComidaDia(undefined);
             setNewTiempoComidaHoraEstimada('');
             setNewTiempoComidaNombreGrupo('');
             setNewTiempoComidaOrdenGrupo('');
@@ -565,22 +569,25 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
 
         // Basic Validations (as before)
         if (!trimmedEditNombreEspecifico) { toast({ title: "Error", description: "Nombre específico requerido.", variant: "destructive" }); return; }
-        if (!editTiempoComidaDia) { toast({ title: "Error", description: "Día requerido.", variant: "destructive" }); return; }
+        if (!editTiempoComidaDia && editAplicacionOrdinaria) { toast({ title: "Error", description: "Día requerido para tiempos ordinarios.", variant: "destructive" }); return; }
         if (!trimmedEditNombreGrupo) { toast({ title: "Error", description: "Nombre de Grupo requerido.", variant: "destructive" }); return; }
         if (!Number.isInteger(ordenGrupoNum) || ordenGrupoNum <= 0) { toast({ title: "Error", description: "Orden de Grupo debe ser número entero positivo.", variant: "destructive" }); return; }
         if (editTiempoComidaHoraEstimada && !/^\d{2}:\d{2}$/.test(editTiempoComidaHoraEstimada)) { toast({ title: "Error", description: "Hora Estimada formato HH:MM.", variant: "destructive" }); return; }
 
         // --- NEW: Uniqueness Validation for nombreGrupo and dia (excluding self) ---
-        const conflictingTiempoComida = tiemposComida.find(
-            tc => tc.id !== editingTiempoComidaId && // Exclude the current item being edited
-                  tc.nombreGrupo.toLowerCase() === trimmedEditNombreGrupo.toLowerCase() &&
-                  tc.dia === editTiempoComidaDia
-        );
+        const conflictingTiempoComida = editAplicacionOrdinaria ?
+            tiemposComida.find(
+                tc => tc.id !== editingTiempoComidaId && // Exclude the current item being edited
+                tc.nombreGrupo.toLowerCase() === trimmedEditNombreGrupo.toLowerCase() &&
+                tc.dia === editTiempoComidaDia) :
+            false;
 
         if (conflictingTiempoComida) {
             toast({
                 title: "Conflicto de Horario",
-                description: `Ya existe otro tiempo de comida para el grupo "${trimmedEditNombreGrupo}" el día ${DayOfWeekMap[editTiempoComidaDia]}. Solo se permite uno.`,
+                description: editTiempoComidaDia ? 
+                    `Ya existe otro tiempo de comida para el grupo "${trimmedEditNombreGrupo}" el día ${DayOfWeekMap[editTiempoComidaDia]}. Solo se permite uno.` :
+                    "No se pudo editar el tiempo de comida: día inválido.",
                 variant: "destructive",
                 duration: 7000,
             });
@@ -592,7 +599,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         const tiempoRef = doc(db, "tiemposComida", editingTiempoComidaId);
         const updatedTiempoData: Partial<TiempoComida> = {
             nombre: trimmedEditNombreEspecifico,
-            dia: editTiempoComidaDia,
+            dia: editAplicacionOrdinaria ? editTiempoComidaDia : undefined,
             horaEstimada: editTiempoComidaHoraEstimada || undefined,
             nombreGrupo: trimmedEditNombreGrupo,
             ordenGrupo: ordenGrupoNum,
@@ -968,7 +975,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const handleEditTiempoComida = (tiempo: TiempoComida) => {
         setEditingTiempoComidaId(tiempo.id);
         setEditTiempoComidaName(tiempo.nombre);
-        setEditTiempoComidaDia(tiempo.dia!);
+        setEditTiempoComidaDia(tiempo.dia);
         setEditTiempoComidaHoraEstimada(tiempo.horaEstimada || '');
         // <<< Populate group edit state >>>
         setEditTiempoComidaNombreGrupo(tiempo.nombreGrupo);
@@ -977,7 +984,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const handleCancelEdit = () => {
         setEditingTiempoComidaId(null);
         setEditTiempoComidaName('');
-        setEditTiempoComidaDia('');
+        setEditTiempoComidaDia(undefined);
         setEditTiempoComidaHoraEstimada('');
         // <<< Clear group edit state >>>
         setEditTiempoComidaNombreGrupo('');
@@ -1146,7 +1153,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                         disabled={isSavingEditTiempo}
                                     />
                                     <Label htmlFor={`edit-aplicacion-ordinaria-${tiempo.id}`} className="font-normal">
-                                        ¿Requiere Aprobación? *
+                                        ¿Tiempo Ordinario? (Quitar para días feriados o extraordinarios) *
                                     </Label>
                                 </div>
                                 <div></div> {/* Spacer */}
@@ -1163,7 +1170,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                 <div className='flex-grow'>
                                     <span className="font-semibold text-lg">{tiempo.nombre}</span>
                                     <span className="block text-sm text-muted-foreground">
-                                        Grupo: {tiempo.nombreGrupo} (Orden: {tiempo.ordenGrupo}) | Día: {DayOfWeekMap[tiempo.dia!]} {tiempo.horaEstimada && `| Hora: ~${tiempo.horaEstimada}`}
+                                        Grupo: {tiempo.nombreGrupo} (Orden: {tiempo.ordenGrupo}) | Día: {tiempo.dia ? DayOfWeekMap[tiempo.dia] : "Dia no definido"} {tiempo.horaEstimada && `| Hora: ~${tiempo.horaEstimada}`}
                                     </span>
                                     <span className="font-semibold text-lg">{tiempo.aplicacionOrdinaria ? "Tiempo ordinario" : "Tiempo extraordinario"}</span>
                                 </div>
@@ -1285,7 +1292,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                     const alternativasVisibles = alternativasParaEsteTiempo.filter(alt => showInactiveAlternativas || alt.isActive);
                     return (
                         <div key={tiempo.id} className={`mb-6 p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-sm ${isTiempoFormActive ? 'opacity-50 pointer-events-none' : ''}`}>
-                            <h4 className="font-semibold text-xl mb-4 border-b pb-2 text-primary">{tiempo.nombre} <span className="text-sm font-normal text-muted-foreground">({DayOfWeekMap[tiempo.dia!]})</span></h4>
+                            <h4 className="font-semibold text-xl mb-4 border-b pb-2 text-primary">{tiempo.nombre} <span className="text-sm font-normal text-muted-foreground">({tiempo.dia ? DayOfWeekMap[tiempo.dia] : "Día indefinido"})</span></h4>
                             <ul className="space-y-3 mb-4"> {/* Increased spacing */}
                             {alternativasVisibles.map(alt => (
                                 <li key={alt.id} className={`p-3 rounded-md border ${alt.isActive ? '' : 'bg-slate-100 dark:bg-slate-800/50 opacity-70'} ${editingAlternativaId === alt.id ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
