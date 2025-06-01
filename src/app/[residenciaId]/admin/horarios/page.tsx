@@ -171,12 +171,12 @@ function AlternativaForm({
                     // Enable even for ayuno, as it dictates *when* the choice (even ayuno) must be made
                     disabled={isSaving || availableHorarios.length === 0}
                 >
-                    <SelectTrigger id="alt-horario-solicitud"><SelectValue placeholder="Seleccione una regla..." /></SelectTrigger>
+                    <SelectTrigger id="alt-horario-solicitud"><SelectValue placeholder="Seleccione un horario..." /></SelectTrigger>
                     <SelectContent>
-                        {availableHorarios.length === 0 ? (<SelectItem value="-" disabled>No hay reglas de solicitud</SelectItem>) : (availableHorarios.map(h => (<SelectItem key={h.id} value={h.id}>{h.nombre} ({DayOfWeekMap[h.dia]} {h.horaSolicitud})</SelectItem>)))}
+                        {availableHorarios.length === 0 ? (<SelectItem value="-" disabled>No hay horarios de solicitud</SelectItem>) : (availableHorarios.map(h => (<SelectItem key={h.id} value={h.id}>{h.nombre} ({DayOfWeekMap[h.dia]} {h.horaSolicitud})</SelectItem>)))}
                     </SelectContent>
                 </Select>
-                {availableHorarios.length === 0 && <p className="text-xs text-red-500 mt-1">Defina (y active) reglas de solicitud en la config. general.</p>}
+                {availableHorarios.length === 0 && <p className="text-xs text-red-500 mt-1">Defina (y active) horarios de solicitud en la config. general.</p>}
                 {!formData.horarioSolicitudComidaId && <p className="text-xs text-destructive mt-1">Este campo es requerido.</p>}
             </div>
 
@@ -284,6 +284,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const [newTiempoComidaHoraEstimada, setNewTiempoComidaHoraEstimada] = useState('');
     const [newTiempoComidaNombreGrupo, setNewTiempoComidaNombreGrupo] = useState('');
     const [newTiempoComidaOrdenGrupo, setNewTiempoComidaOrdenGrupo] = useState<number | string>('');
+    const [newAplicacionOrdinaria, setNewAplicacionOrdinaria] = useState<boolean>(true);
     const [isAddingTiempo, setIsAddingTiempo] = useState(false);
     const [editingTiempoComidaId, setEditingTiempoComidaId] = useState<string | null>(null);
     const [editTiempoComidaName, setEditTiempoComidaName] = useState('');
@@ -291,6 +292,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const [editTiempoComidaHoraEstimada, setEditTiempoComidaHoraEstimada] = useState('');
     const [editTiempoComidaNombreGrupo, setEditTiempoComidaNombreGrupo] = useState('');
     const [editTiempoComidaOrdenGrupo, setEditTiempoComidaOrdenGrupo] = useState<number | string>('');
+    const [editAplicacionOrdinaria, setEditAplicacionOrdinaria] = useState<boolean>(true);
     const [isSavingEditTiempo, setIsSavingEditTiempo] = useState(false);
     const [isAddingTraditionalScheme, setIsAddingTraditionalScheme] = useState(false);
 
@@ -309,14 +311,33 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     ];
     const daysOfWeekForScheme: DayOfWeekKey[] = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
 
+    // Helper function to get sort order for a day, handling undefined
+    const getDaySortOrder = (day: DayOfWeekKey | undefined): number => {
+        const dayOrder: { [key in DayOfWeekKey]: number } = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 7 };
+        if (day === undefined) {
+            // Assign a sort value for undefined days.
+            // Using 0 here will place them at the beginning of the sort order.
+            // You could use a higher number like 8 to place them at the end.
+            return 0;
+        }
+        return dayOrder[day];
+    };
 
     // Sort function for TiemposComida (remains the same)
     const sortTiemposComida = (tiempos: TiempoComida[]) => {
-        const dayOrder: { [key in DayOfWeekKey]: number } = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 7 };
+        // Remove the local dayOrder definition here if you moved it into the helper
+        // const dayOrder: { [key in DayOfWeekKey]: number } = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 7 };
+    
         return tiempos.sort((a, b) => {
-            const groupDiff = a.ordenGrupo - b.ordenGrupo; if (groupDiff !== 0) return groupDiff;
-            const dayDiff = dayOrder[a.dia] - dayOrder[b.dia]; if (dayDiff !== 0) return dayDiff;
-            const timeA = a.horaEstimada || '00:00'; const timeB = b.horaEstimada || '00:00';
+            const groupDiff = a.ordenGrupo - b.ordenGrupo;
+            if (groupDiff !== 0) return groupDiff;
+    
+            // Use the helper function to get the sort order for days
+            const dayDiff = getDaySortOrder(a.dia) - getDaySortOrder(b.dia);
+            if (dayDiff !== 0) return dayDiff;
+    
+            const timeA = a.horaEstimada || '00:00';
+            const timeB = b.horaEstimada || '00:00';
             return timeA.localeCompare(timeB);
         });
     };
@@ -337,11 +358,14 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             );
 
             if (!hasActiveFastingOption) {
-                missingFastingDetails.push(`- ${tc.nombreGrupo} (${DayOfWeekMap[tc.dia]}): ${tc.nombre}`);
+                if(tc.dia)
+                    missingFastingDetails.push(`- ${tc.nombreGrupo} (${DayOfWeekMap[tc.dia]}): ${tc.nombre}`);
+                else
+                    missingFastingDetails.push(`- ${tc.nombreGrupo} (Día desconocido): ${tc.nombre}`);
             }
         });
 
-        if (missingFastingDetails.length > 0) {
+        if (missingFastingDetails.length > 0) { // Add check for DayOfWeekMap
             toast({
                 title: "Advertencia: Opciones de Ayuno Faltantes",
                 description: (
@@ -510,6 +534,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             horaEstimada: newTiempoComidaHoraEstimada || undefined,
             nombreGrupo: trimmedNombreGrupo,
             ordenGrupo: ordenGrupoNum,
+            aplicacionOrdinaria: newAplicacionOrdinaria,
         };
 
         try {
@@ -571,6 +596,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             horaEstimada: editTiempoComidaHoraEstimada || undefined,
             nombreGrupo: trimmedEditNombreGrupo,
             ordenGrupo: ordenGrupoNum,
+            aplicacionOrdinaria: editAplicacionOrdinaria,
         };
 
         try {
@@ -653,6 +679,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                         horaEstimada: mealGroup.horaEstimada,
                         nombreGrupo: mealGroup.nombreGrupo,
                         ordenGrupo: mealGroup.ordenGrupo,
+                        aplicacionOrdinaria: true,
                     };
                     
                     const tiempoDocRef = doc(collection(db, "tiemposComida")); // Create new doc ref for ID
@@ -688,42 +715,63 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaInicio || !/^\d\d:\d\d$/.test(alternativeFormData.ventanaInicio))) { toast({ title: "Error", description: "Ventana Inicio es requerida (HH:MM).", variant: "destructive" }); return; }
         if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaFin || !/^\d\d:\d\d$/.test(alternativeFormData.ventanaFin))) { toast({ title: "Error", description: "Ventana Fin es requerida (HH:MM).", variant: "destructive" }); return; }
         if (tipoSeleccionado === 'comedor' && !alternativeFormData.comedorId) { toast({ title: "Error", description: "Comedor Específico es requerido para tipo 'Comedor'.", variant: "destructive" }); return; }
-        if (!alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Regla de Solicitud es requerida.", variant: "destructive" }); return; }
+        if (!alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Hoario de Solicitud es requerido.", variant: "destructive" }); return; }
         // tipoAcceso defaults if not set for non-ayuno, so validation might not be needed unless specific logic required
 
         setIsSavingAlternativa(true);
 
         // Prepare data - Enforce ayuno rules
         const isAyuno = tipoSeleccionado === 'ayuno';
-        const nuevaAlternativaData: Omit<AlternativaTiempoComida, 'id'> = {
+
+        // Start building the data object
+        const nuevaAlternativaData: Omit<AlternativaTiempoComida, 'id' | 'comedorId'> & { comedorId?: string | null } = {
             residenciaId: residenciaId,
-            tiempoComidaId: addingAlternativaTo,
+            tiempoComidaId: addingAlternativaTo!,
             nombre: alternativeFormData.nombre!.trim(),
-            tipo: tipoSeleccionado,
+            tipo: tipoSeleccionado!,
             tipoAcceso: isAyuno ? 'abierto' : (alternativeFormData.tipoAcceso || 'abierto'),
             requiereAprobacion: isAyuno ? false : (alternativeFormData.tipoAcceso === 'autorizado'),
             ventanaInicio: isAyuno ? '00:00' : alternativeFormData.ventanaInicio!,
             ventanaFin: isAyuno ? '00:00' : alternativeFormData.ventanaFin!,
             horarioSolicitudComidaId: alternativeFormData.horarioSolicitudComidaId!,
-            comedorId: isAyuno ? undefined : (tipoSeleccionado === 'comedor' ? alternativeFormData.comedorId : undefined),
             isActive: true, // Default to active
             iniciaDiaAnterior: isAyuno ? false : (alternativeFormData.iniciaDiaAnterior ?? false),
             terminaDiaSiguiente: isAyuno ? false : (alternativeFormData.terminaDiaSiguiente ?? false),
+            esPrincipal: alternativeFormData.esPrincipal ?? false, // Assuming you added this field
         };
+
+        // Conditionally add comedorId only if tipo is 'comedor'
+        if (tipoSeleccionado === 'comedor' && alternativeFormData.comedorId) {
+            nuevaAlternativaData.comedorId = alternativeFormData.comedorId;
+        } else if (isAyuno) {
+             // Optionally set to null for ayuno if you prefer null over undefined for some reason,
+             // but omitting is cleaner if the field is truly not applicable.
+             // If you want to explicitly set null for ayuno, use:
+             // nuevaAlternativaData.comedorId = null;
+             // Otherwise, just let it be omitted if not added in the 'comedor' check above.
+        }
+         // For 'paraLlevar' and other non-'comedor' types, comedorId will be omitted.
+
 
         try {
             const docRef = await addDoc(collection(db, "alternativas"), nuevaAlternativaData);
-            const newAlternativaWithId: AlternativaTiempoComida = { id: docRef.id, ...nuevaAlternativaData };
+            const newAlternativaWithId: AlternativaTiempoComida = { 
+                id: docRef.id, 
+                ...nuevaAlternativaData,
+                // Ensure comedorId is included even if it was omitted in the data sent to Firestore,
+                // but set to undefined locally if it wasn't applicable.
+                comedorId: (tipoSeleccionado === 'comedor' && alternativeFormData.comedorId) ? alternativeFormData.comedorId : undefined
+            };
             await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `Created alternativa: ${nuevaAlternativaData.nombre}`, docRef.path);
-            // <<< Update state AFTER successful add >>>
-            setAlternativas(prev => [...prev, newAlternativaWithId].sort((a,b) => a.nombre.localeCompare(b.nombre))); // Sort here too
-            handleCancelAlternativaForm(); // Close form
-            toast({ title: "Éxito", description: `Alternativa "${nuevaAlternativaData.nombre}" añadida.` });
+
+            setAlternativas(prev => [...prev, newAlternativaWithId].sort((a,b) => a.nombre.localeCompare(b.nombre)));
+            handleCancelAlternativaForm();
+            toast({ title: "Éxito", description: `Alternativa \"${nuevaAlternativaData.nombre}\" añadida.` });
         } catch (error) {
              console.error("Error adding Alternativa: ", error);
              toast({ title: "Error", description: `No se pudo añadir la Alternativa. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
-        } finally { 
-            setIsSavingAlternativa(false); 
+        } finally {
+            setIsSavingAlternativa(false);
         }
     };
     const handleSaveAlternativa = async () => {
@@ -736,7 +784,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaInicio || !/^\d{2}:\d{2}$/.test(alternativeFormData.ventanaInicio))) { toast({ title: "Error", description: "Ventana Inicio requerida (HH:MM).", variant: "destructive" }); return; }
         if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaFin || !/^\d{2}:\d{2}$/.test(alternativeFormData.ventanaFin))) { toast({ title: "Error", description: "Ventana Fin requerida (HH:MM).", variant: "destructive" }); return; }
         if (tipoSeleccionado === 'comedor' && !alternativeFormData.comedorId) { toast({ title: "Error", description: "Comedor Específico requerido para tipo 'Comedor'.", variant: "destructive" }); return; }
-        if (!alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Regla de Solicitud requerida.", variant: "destructive" }); return; }
+        if (!alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Horario de Solicitud requerido.", variant: "destructive" }); return; }
 
         setIsSavingAlternativa(true);
         const altRef = doc(db, "alternativas", editingAlternativaId);
@@ -749,13 +797,14 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             nombre: alternativeFormData.nombre!.trim(),
             tipo: tipoSeleccionado,
             tipoAcceso: isAyuno ? 'abierto' : (alternativeFormData.tipoAcceso || 'abierto'),
-            requiereAprobacion: isAyuno ? false : (alternativeFormData.tipoAcceso === 'autorizado'),
+            requiereAprobacion: isAyuno ? false : (alternativeFormData.requiereAprobacion),
             ventanaInicio: isAyuno ? '00:00' : alternativeFormData.ventanaInicio!,
             ventanaFin: isAyuno ? '00:00' : alternativeFormData.ventanaFin!,
             horarioSolicitudComidaId: alternativeFormData.horarioSolicitudComidaId!,
             isActive: alternativeFormData.isActive === undefined ? originalAlt?.isActive ?? true : alternativeFormData.isActive,
             iniciaDiaAnterior: isAyuno ? false : (alternativeFormData.iniciaDiaAnterior ?? false),
             terminaDiaSiguiente: isAyuno ? false : (alternativeFormData.terminaDiaSiguiente ?? false),
+            esPrincipal: alternativeFormData.esPrincipal,
         };
 
         if (isAyuno) {
@@ -869,8 +918,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         setAlternativeFormData({
             tipo: 'comedor', tipoAcceso: 'abierto', requiereAprobacion: false,
             ventanaInicio: '13:00', ventanaFin: '14:00', comedorId: '',
-            isActive: true, iniciaDiaAnterior: false, terminaDiaSiguiente: false,
-            // <<< Set default HorarioSolicitud if available >>>
+            isActive: true, iniciaDiaAnterior: false, terminaDiaSiguiente: false, esPrincipal: false,
             horarioSolicitudComidaId: horariosSolicitud.length > 0 ? horariosSolicitud[0].id : '',
         });
     };
@@ -881,7 +929,6 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         console.log("Closing Add/Edit Alternativa form");
     };
     const handleAlternativaFormChange = (field: keyof AlternativaTiempoComida, value: any) => {
-        console.log("Form change:", field, value);
         setAlternativeFormData(prev => {
             let updatedData = { ...prev, [field]: value };
 
@@ -904,16 +951,10 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                  updatedData.ventanaFin = prev.ventanaFin === '00:00' ? undefined : prev.ventanaFin;
             }
 
-            // Auto-set requiereAprobacion based on tipoAcceso (unless it's ayuno)
-            if (updatedData.tipo !== 'ayuno' && field === 'tipoAcceso') {
-                 updatedData.requiereAprobacion = (value === 'autorizado');
-            }
-
             // Clear comedorId if tipo is not 'comedor' (and not ayuno)
             if (updatedData.tipo !== 'comedor' && updatedData.tipo !== 'ayuno') {
                  updatedData.comedorId = undefined;
             }
-
 
             return updatedData;
         });
@@ -927,7 +968,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const handleEditTiempoComida = (tiempo: TiempoComida) => {
         setEditingTiempoComidaId(tiempo.id);
         setEditTiempoComidaName(tiempo.nombre);
-        setEditTiempoComidaDia(tiempo.dia);
+        setEditTiempoComidaDia(tiempo.dia!);
         setEditTiempoComidaHoraEstimada(tiempo.horaEstimada || '');
         // <<< Populate group edit state >>>
         setEditTiempoComidaNombreGrupo(tiempo.nombreGrupo);
@@ -1094,6 +1135,20 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                     <Input id={`edit-tiempo-orden-${tiempo.id}`} type="number" min="1" step="1" value={editTiempoComidaOrdenGrupo} onChange={(e) => setEditTiempoComidaOrdenGrupo(e.target.value)} placeholder="Ej. 1, 2, 3" disabled={isSavingEditTiempo}/>
                                     <p className="text-xs text-muted-foreground mt-1">Orden numérico (1=primero).</p>
                                 </div>
+                            </div>
+                            {/* Row 3: Aplicacion Ordinaria */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <Checkbox
+                                        id={`edit-aplicacion-ordinaria-${tiempo.id}`}
+                                        checked={editAplicacionOrdinaria}
+                                        onCheckedChange={(checked) => setEditAplicacionOrdinaria(Boolean(checked))}
+                                        disabled={isSavingEditTiempo}
+                                    />
+                                    <Label htmlFor={`edit-aplicacion-ordinaria-${tiempo.id}`} className="font-normal">
+                                        ¿Requiere Aprobación? *
+                                    </Label>
+                                </div>
                                 <div></div> {/* Spacer */}
                             </div>
                             {/* Action Buttons */}
@@ -1103,35 +1158,36 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                             </div>
                         </div>
                         ) : (
-                        // --- DISPLAY ROW for TiempoComida ---
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                            <div className='flex-grow'>
-                                <span className="font-semibold text-lg">{tiempo.nombre}</span>
-                                <span className="block text-sm text-muted-foreground">
-                                    Grupo: {tiempo.nombreGrupo} (Orden: {tiempo.ordenGrupo}) | Día: {DayOfWeekMap[tiempo.dia]} {tiempo.horaEstimada && `| Hora: ~${tiempo.horaEstimada}`}
-                                </span>
-                            </div>
-                            {/* Action Buttons */}
-                            <div className="space-x-2 flex-shrink-0 mt-2 sm:mt-0">
-                                <Button variant="outline" size="sm" onClick={() => handleEditTiempoComida(tiempo)} disabled={isTiempoFormActive || isAlternativaFormActive}>Editar</Button>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                            <Button variant="destructive" size="sm" disabled={isTiempoFormActive || isAlternativaFormActive || alternativas.some(alt => alt.tiempoComidaId === tiempo.id)}>Eliminar</Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>¿Confirmar Eliminación?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                Se eliminará "{tiempo.nombre}". Esta acción no se puede deshacer.
-                                                {alternativas.some(alt => alt.tiempoComidaId === tiempo.id) && <span className="font-semibold text-destructive block mt-2">Primero debe eliminar las alternativas asociadas.</span>}
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteTiempoComida(tiempo.id, tiempo.nombre)} className={buttonVariants({ variant: "destructive" })} disabled={alternativas.some(alt => alt.tiempoComidaId === tiempo.id)}>Sí, Eliminar</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                            // --- DISPLAY ROW for TiempoComida ---
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                <div className='flex-grow'>
+                                    <span className="font-semibold text-lg">{tiempo.nombre}</span>
+                                    <span className="block text-sm text-muted-foreground">
+                                        Grupo: {tiempo.nombreGrupo} (Orden: {tiempo.ordenGrupo}) | Día: {DayOfWeekMap[tiempo.dia!]} {tiempo.horaEstimada && `| Hora: ~${tiempo.horaEstimada}`}
+                                    </span>
+                                    <span className="font-semibold text-lg">{tiempo.aplicacionOrdinaria ? "Tiempo ordinario" : "Tiempo extraordinario"}</span>
+                                </div>
+                                {/* Action Buttons */}
+                                <div className="space-x-2 flex-shrink-0 mt-2 sm:mt-0">
+                                    <Button variant="outline" size="sm" onClick={() => handleEditTiempoComida(tiempo)} disabled={isTiempoFormActive || isAlternativaFormActive}>Editar</Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                                <Button variant="destructive" size="sm" disabled={isTiempoFormActive || isAlternativaFormActive || alternativas.some(alt => alt.tiempoComidaId === tiempo.id)}>Eliminar</Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>¿Confirmar Eliminación?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Se eliminará "{tiempo.nombre}". Esta acción no se puede deshacer.
+                                                    {alternativas.some(alt => alt.tiempoComidaId === tiempo.id) && <span className="font-semibold text-destructive block mt-2">Primero debe eliminar las alternativas asociadas.</span>}
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteTiempoComida(tiempo.id, tiempo.nombre)} className={buttonVariants({ variant: "destructive" })} disabled={alternativas.some(alt => alt.tiempoComidaId === tiempo.id)}>Sí, Eliminar</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </div>
                             </div>
                         )}
@@ -1229,7 +1285,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                     const alternativasVisibles = alternativasParaEsteTiempo.filter(alt => showInactiveAlternativas || alt.isActive);
                     return (
                         <div key={tiempo.id} className={`mb-6 p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-sm ${isTiempoFormActive ? 'opacity-50 pointer-events-none' : ''}`}>
-                            <h4 className="font-semibold text-xl mb-4 border-b pb-2 text-primary">{tiempo.nombre} <span className="text-sm font-normal text-muted-foreground">({DayOfWeekMap[tiempo.dia]})</span></h4>
+                            <h4 className="font-semibold text-xl mb-4 border-b pb-2 text-primary">{tiempo.nombre} <span className="text-sm font-normal text-muted-foreground">({DayOfWeekMap[tiempo.dia!]})</span></h4>
                             <ul className="space-y-3 mb-4"> {/* Increased spacing */}
                             {alternativasVisibles.map(alt => (
                                 <li key={alt.id} className={`p-3 rounded-md border ${alt.isActive ? '' : 'bg-slate-100 dark:bg-slate-800/50 opacity-70'} ${editingAlternativaId === alt.id ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
@@ -1259,7 +1315,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                                 </div>
                                                 <p className="text-sm text-muted-foreground mt-1">
                                                     Ventana: {alt.ventanaInicio}{alt.iniciaDiaAnterior ? ' (d. ant.)' : ''} - {alt.ventanaFin}{alt.terminaDiaSiguiente ? ' (d. sig.)' : ''}
-                                                    {alt.comedorId && ` | ${comedores.find(c => c.id === alt.comedorId)?.nombre || '?'}`} | Regla:
+                                                    {alt.comedorId && ` | ${comedores.find(c => c.id === alt.comedorId)?.nombre || '?'}`} | Horario:
                                                     <span className="italic"> {horariosSolicitud.find(h => h.id === alt.horarioSolicitudComidaId)?.nombre || 'N/A'}</span>
                                                 </p>
                                             </div>

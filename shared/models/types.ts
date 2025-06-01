@@ -207,7 +207,7 @@ export interface TiempoComida {
     ordenGrupo: number; 
     dia?: DayOfWeekKey; // null cuando no es aplicación ordinaria
     horaEstimada?: string; 
-    aplicacion: string;
+    aplicacionOrdinaria: boolean;
     /*  Aplicación 'ordinaria' está disponible siempre para elegir. 
         Extraordinaria sirve para cuando el director quiere poner 
         "horario de sábado" o "de domingo" sin necesidad de hacer 
