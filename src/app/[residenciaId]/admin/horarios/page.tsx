@@ -1250,16 +1250,30 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                             </div>
                             {/* Row 2: Grupo, Orden */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <Label htmlFor="new-tiempo-grupo">Nombre de Grupo *</Label>
-                                        <Input id="new-tiempo-grupo" value={newTiempoComidaNombreGrupo} onChange={(e) => setNewTiempoComidaNombreGrupo(e.target.value)} placeholder="Ej. Desayuno, Almuerzo" disabled={isAddingTiempo}/>
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="new-tiempo-orden">Orden de Grupo *</Label>
-                                        <Input id="new-tiempo-orden" type="number" min="1" step="1" value={newTiempoComidaOrdenGrupo} onChange={(e) => setNewTiempoComidaOrdenGrupo(e.target.value)} placeholder="Ej. 1" disabled={isAddingTiempo}/>
-                                    </div>
-                                    <div></div> {/* Spacer */}
+                                <div>
+                                    <Label htmlFor="new-tiempo-grupo">Nombre de Grupo *</Label>
+                                    <Input id="new-tiempo-grupo" value={newTiempoComidaNombreGrupo} onChange={(e) => setNewTiempoComidaNombreGrupo(e.target.value)} placeholder="Ej. Desayuno, Almuerzo" disabled={isAddingTiempo}/>
                                 </div>
+                                <div>
+                                    <Label htmlFor="new-tiempo-orden">Orden de Grupo *</Label>
+                                    <Input id="new-tiempo-orden" type="number" min="1" step="1" value={newTiempoComidaOrdenGrupo} onChange={(e) => setNewTiempoComidaOrdenGrupo(e.target.value)} placeholder="Ej. 1" disabled={isAddingTiempo}/>
+                                </div>
+                            </div>
+                            {/* Row 3: Aplicacion Ordinaria */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <Checkbox
+                                        id="new-aplicacion-ordinaria"
+                                        checked={newAplicacionOrdinaria}
+                                        onCheckedChange={(checked) => setNewAplicacionOrdinaria(Boolean(checked))}
+                                        disabled={isAddingTiempo}
+                                    />
+                                    <Label htmlFor={"new-aplicacion-ordinaria"} className="font-normal">
+                                        ¿Tiempo Ordinario? (Quitar para días feriados o extraordinarios) *
+                                    </Label>
+                                </div>
+                                <div></div> {/* Spacer */}
+                            </div>
                             <Button onClick={handleAddTiempoComida} disabled={isAddingTiempo} size="lg">
                                 {isAddingTiempo ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
                                 {isAddingTiempo ? 'Añadiendo...' : '+ Añadir Tiempo'}
