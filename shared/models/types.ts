@@ -206,7 +206,7 @@ export interface TiempoComida {
     nombreGrupo: string; 
     ordenGrupo: number; 
     dia?: DayOfWeekKey | null; // null cuando no es aplicación ordinaria
-    horaEstimada?: string; 
+    horaEstimada?: string | null; 
     aplicacionOrdinaria: boolean;
     /*  Aplicación 'ordinaria' está disponible siempre para elegir. 
         Extraordinaria sirve para cuando el director quiere poner 

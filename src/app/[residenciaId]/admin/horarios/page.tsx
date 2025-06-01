@@ -281,7 +281,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     // TiempoComida Add/Edit
     const [newTiempoComidaName, setNewTiempoComidaName] = useState('');
     const [newTiempoComidaDia, setNewTiempoComidaDia] = useState<DayOfWeekKey | null>(null);
-    const [newTiempoComidaHoraEstimada, setNewTiempoComidaHoraEstimada] = useState('');
+    const [newTiempoComidaHoraEstimada, setNewTiempoComidaHoraEstimada] = useState<string | null>(null);
     const [newTiempoComidaNombreGrupo, setNewTiempoComidaNombreGrupo] = useState('');
     const [newTiempoComidaOrdenGrupo, setNewTiempoComidaOrdenGrupo] = useState<number | string>('');
     const [newAplicacionOrdinaria, setNewAplicacionOrdinaria] = useState<boolean>(true);
@@ -289,7 +289,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const [editingTiempoComidaId, setEditingTiempoComidaId] = useState<string | null>(null);
     const [editTiempoComidaName, setEditTiempoComidaName] = useState('');
     const [editTiempoComidaDia, setEditTiempoComidaDia] = useState<DayOfWeekKey | null>(null);
-    const [editTiempoComidaHoraEstimada, setEditTiempoComidaHoraEstimada] = useState('');
+    const [editTiempoComidaHoraEstimada, setEditTiempoComidaHoraEstimada] = useState<string | null>(null);
     const [editTiempoComidaNombreGrupo, setEditTiempoComidaNombreGrupo] = useState('');
     const [editTiempoComidaOrdenGrupo, setEditTiempoComidaOrdenGrupo] = useState<number | string>('');
     const [editAplicacionOrdinaria, setEditAplicacionOrdinaria] = useState<boolean>(true);
@@ -535,7 +535,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             residenciaId: residenciaId,
             nombre: trimmedNombreEspecifico,
             dia: newAplicacionOrdinaria ? newTiempoComidaDia : null,
-            horaEstimada: newTiempoComidaHoraEstimada || undefined,
+            horaEstimada: newTiempoComidaHoraEstimada || null,
             nombreGrupo: trimmedNombreGrupo,
             ordenGrupo: ordenGrupoNum,
             aplicacionOrdinaria: newAplicacionOrdinaria,
@@ -549,7 +549,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             
             setNewTiempoComidaName('');
             setNewTiempoComidaDia(null);
-            setNewTiempoComidaHoraEstimada('');
+            setNewTiempoComidaHoraEstimada(null);
             setNewTiempoComidaNombreGrupo('');
             setNewTiempoComidaOrdenGrupo('');
             toast({ title: "Éxito", description: `Tiempo "${nuevoTiempoData.nombre}" añadido.` });
@@ -1131,7 +1131,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                 </div>
                                 <div>
                                     <Label htmlFor={`edit-tiempo-hora-${tiempo.id}`}>Hora Estimada (Opcional)</Label>
-                                    <Input id={`edit-tiempo-hora-${tiempo.id}`} type="time" value={editTiempoComidaHoraEstimada} onChange={(e) => setEditTiempoComidaHoraEstimada(e.target.value)} placeholder="HH:MM" disabled={isSavingEditTiempo} step="900" />
+                                    <Input id={`edit-tiempo-hora-${tiempo.id}`} type="time" value={editTiempoComidaHoraEstimada ?? ""} onChange={(e) => setEditTiempoComidaHoraEstimada(e.target.value || null)} placeholder="HH:MM" disabled={isSavingEditTiempo} step="900" />
                                 </div>
                             </div>
                             {/* Row 2: Grupo, Orden */}
@@ -1254,7 +1254,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                 </div>
                                 <div>
                                     <Label htmlFor="new-tiempo-hora">Hora Estimada (Opcional)</Label>
-                                    <Input id="new-tiempo-hora" type="time" value={newTiempoComidaHoraEstimada} onChange={(e) => setNewTiempoComidaHoraEstimada(e.target.value)} placeholder="HH:MM" disabled={isAddingTiempo} step="900"/>
+                                    <Input id="new-tiempo-hora" type="time" value={newTiempoComidaHoraEstimada ?? ""} onChange={(e) => setNewTiempoComidaHoraEstimada(e.target.value || null)} placeholder="HH:MM" disabled={isAddingTiempo} step="900"/>
                                 </div>
                             </div>
                             {/* Row 2: Grupo, Orden */}
