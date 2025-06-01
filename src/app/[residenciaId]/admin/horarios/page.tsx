@@ -1250,6 +1250,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                         <SelectTrigger id="new-tiempo-dia"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                                         <SelectContent>{availableDays.map(({ key, label }) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent>
                                     </Select>
+                                    {(!newTiempoComidaDia && newAplicacionOrdinaria ) && <p className="text-xs text-destructive mt-1">Dia requerido para tiempos ordinarios.</p>}
                                 </div>
                                 <div>
                                     <Label htmlFor="new-tiempo-hora">Hora Estimada (Opcional)</Label>
