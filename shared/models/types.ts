@@ -205,7 +205,7 @@ export interface TiempoComida {
     residenciaId: ResidenciaId;
     nombreGrupo: string; 
     ordenGrupo: number; 
-    dia?: DayOfWeekKey; // null cuando no es aplicación ordinaria
+    dia?: DayOfWeekKey | null; // null cuando no es aplicación ordinaria
     horaEstimada?: string; 
     aplicacionOrdinaria: boolean;
     /*  Aplicación 'ordinaria' está disponible siempre para elegir. 

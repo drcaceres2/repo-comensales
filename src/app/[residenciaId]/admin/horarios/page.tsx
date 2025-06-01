@@ -280,7 +280,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     // --- Form States (remain the same) ---
     // TiempoComida Add/Edit
     const [newTiempoComidaName, setNewTiempoComidaName] = useState('');
-    const [newTiempoComidaDia, setNewTiempoComidaDia] = useState<DayOfWeekKey | undefined>(undefined);
+    const [newTiempoComidaDia, setNewTiempoComidaDia] = useState<DayOfWeekKey | null>(null);
     const [newTiempoComidaHoraEstimada, setNewTiempoComidaHoraEstimada] = useState('');
     const [newTiempoComidaNombreGrupo, setNewTiempoComidaNombreGrupo] = useState('');
     const [newTiempoComidaOrdenGrupo, setNewTiempoComidaOrdenGrupo] = useState<number | string>('');
@@ -288,7 +288,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const [isAddingTiempo, setIsAddingTiempo] = useState(false);
     const [editingTiempoComidaId, setEditingTiempoComidaId] = useState<string | null>(null);
     const [editTiempoComidaName, setEditTiempoComidaName] = useState('');
-    const [editTiempoComidaDia, setEditTiempoComidaDia] = useState<DayOfWeekKey | undefined>(undefined);
+    const [editTiempoComidaDia, setEditTiempoComidaDia] = useState<DayOfWeekKey | null>(null);
     const [editTiempoComidaHoraEstimada, setEditTiempoComidaHoraEstimada] = useState('');
     const [editTiempoComidaNombreGrupo, setEditTiempoComidaNombreGrupo] = useState('');
     const [editTiempoComidaOrdenGrupo, setEditTiempoComidaOrdenGrupo] = useState<number | string>('');
@@ -312,9 +312,9 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const daysOfWeekForScheme: DayOfWeekKey[] = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
 
     // Helper function to get sort order for a day, handling undefined
-    const getDaySortOrder = (day: DayOfWeekKey | undefined): number => {
+    const getDaySortOrder = (day: DayOfWeekKey | null | undefined): number => {
         const dayOrder: { [key in DayOfWeekKey]: number } = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 7 };
-        if (day === undefined) {
+        if (day === null || day === undefined) {
             // Assign a sort value for undefined days.
             // Using 0 here will place them at the beginning of the sort order.
             // You could use a higher number like 8 to place them at the end.
@@ -534,7 +534,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         const nuevoTiempoData: Omit<TiempoComida, 'id'> = {
             residenciaId: residenciaId,
             nombre: trimmedNombreEspecifico,
-            dia: newAplicacionOrdinaria ? newTiempoComidaDia : undefined,
+            dia: newAplicacionOrdinaria ? newTiempoComidaDia : null,
             horaEstimada: newTiempoComidaHoraEstimada || undefined,
             nombreGrupo: trimmedNombreGrupo,
             ordenGrupo: ordenGrupoNum,
@@ -548,7 +548,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             setTiemposComida(prev => sortTiemposComida([...prev, newTiempoWithId]));
             
             setNewTiempoComidaName('');
-            setNewTiempoComidaDia(undefined);
+            setNewTiempoComidaDia(null);
             setNewTiempoComidaHoraEstimada('');
             setNewTiempoComidaNombreGrupo('');
             setNewTiempoComidaOrdenGrupo('');
@@ -599,7 +599,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         const tiempoRef = doc(db, "tiemposComida", editingTiempoComidaId);
         const updatedTiempoData: Partial<TiempoComida> = {
             nombre: trimmedEditNombreEspecifico,
-            dia: editAplicacionOrdinaria ? editTiempoComidaDia : undefined,
+            dia: editAplicacionOrdinaria ? editTiempoComidaDia : null,
             horaEstimada: editTiempoComidaHoraEstimada || undefined,
             nombreGrupo: trimmedEditNombreGrupo,
             ordenGrupo: ordenGrupoNum,
@@ -628,7 +628,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             setIsSavingEditTiempo(false);
         }
     };
-    const handleDeleteTiempoComida = async (id: string, nombre: string) => { /* ... */
+    const handleDeleteTiempoComida = async (id: string, nombre: string) => {
             // Check for associated alternatives (using current state - assumes state is up-to-date)
             const hasAnyAlternativas = alternativas.some(alt => alt.tiempoComidaId === id);
             if (hasAnyAlternativas) {
@@ -660,7 +660,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                 console.error("Error deleting TiempoComida: ", error);
                 toast({ title: "Error", description: `No se pudo eliminar el Tiempo de Comida. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
             }
-        };
+    };
     const handleAddTraditionalScheme = async () => {
         if (tiemposComida.length > 0) {
             toast({ title: "Información", description: "El esquema tradicional solo se puede añadir si no hay tiempos de comida existentes.", variant: "default" });
@@ -975,7 +975,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const handleEditTiempoComida = (tiempo: TiempoComida) => {
         setEditingTiempoComidaId(tiempo.id);
         setEditTiempoComidaName(tiempo.nombre);
-        setEditTiempoComidaDia(tiempo.dia);
+        setEditTiempoComidaDia(tiempo.dia ?? null);
         setEditTiempoComidaHoraEstimada(tiempo.horaEstimada || '');
         // <<< Populate group edit state >>>
         setEditTiempoComidaNombreGrupo(tiempo.nombreGrupo);
@@ -984,7 +984,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const handleCancelEdit = () => {
         setEditingTiempoComidaId(null);
         setEditTiempoComidaName('');
-        setEditTiempoComidaDia(undefined);
+        setEditTiempoComidaDia(null);
         setEditTiempoComidaHoraEstimada('');
         // <<< Clear group edit state >>>
         setEditTiempoComidaNombreGrupo('');
@@ -1120,7 +1120,11 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                 </div>
                                 <div>
                                     <Label htmlFor={`edit-tiempo-dia-${tiempo.id}`}>Día *</Label>
-                                    <Select value={editTiempoComidaDia} onValueChange={(value) => setEditTiempoComidaDia(value as DayOfWeekKey)} disabled={isSavingEditTiempo}>
+                                    <Select value={editTiempoComidaDia ?? ""} 
+                                            onValueChange={(value) => 
+                                                {if(value==="") setEditTiempoComidaDia(null)
+                                                else setEditTiempoComidaDia(value as DayOfWeekKey)}} 
+                                            disabled={isSavingEditTiempo}>
                                         <SelectTrigger id={`edit-tiempo-dia-${tiempo.id}`}><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                                         <SelectContent>{availableDays.map(({ key, label }) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent>
                                     </Select>
@@ -1237,8 +1241,12 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                     <Input id="tiempo-nombre" value={newTiempoComidaName} onChange={(e) => setNewTiempoComidaName(e.target.value)} placeholder="Ej. Almuerzo Lunes" disabled={isAddingTiempo}/>
                                 </div>
                                 <div>
-                                    <Label htmlFor="new-tiempo-dia">Día *</Label>
-                                    <Select value={newTiempoComidaDia} onValueChange={(value) => setNewTiempoComidaDia(value as DayOfWeekKey)} disabled={isAddingTiempo}>
+                                    <Label htmlFor="new-tiempo-dia">Día {newAplicacionOrdinaria ? "*" : ""}</Label>
+                                    <Select value={newTiempoComidaDia ?? ""} 
+                                            onValueChange={(value) => 
+                                                {if (value === "") setNewTiempoComidaDia(null)
+                                                else setNewTiempoComidaDia(value as DayOfWeekKey)}} 
+                                            disabled={isAddingTiempo}>
                                         <SelectTrigger id="new-tiempo-dia"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                                         <SelectContent>{availableDays.map(({ key, label }) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent>
                                     </Select>
