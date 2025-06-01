@@ -15,12 +15,13 @@ import {
     Comedor, ComedorId, 
     DayOfWeekKey, DayOfWeekMap, 
     TipoAccesoAlternativa, 
-    LogEntry, LogActionType, 
+    LogEntry, LogActionType, ClientLogWrite,
     ResidenciaId, 
     HorarioSolicitudComida, HorarioSolicitudComidaId, 
     UserProfile, UserRole, 
     TipoAlternativa 
 } from '@/../../shared/models/types';
+import { writeClientLog } from '@/lib/utils';
 import { Timestamp, addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -111,8 +112,8 @@ function AlternativaForm({
                  <p className="text-xs text-muted-foreground mt-1">Nombre descriptivo para esta opción.</p>
             </div>
 
-             {/* Comedor (Conditional - NOT shown for ayuno) */}
-             {formData.tipo === 'comedor' && !isAyuno && ( // Hide if ayuno
+            {/* Comedor (Conditional - NOT shown for ayuno) */}
+            {formData.tipo === 'comedor' && !isAyuno && ( // Hide if ayuno
                 <div>
                     <Label htmlFor="alt-comedor">Comedor Específico *</Label>
                     <Select
@@ -126,7 +127,7 @@ function AlternativaForm({
                         </SelectContent>
                     </Select>
                     {availableComedores.length === 0 && <p className="text-xs text-red-500 mt-1">Defina comedores en la configuración general.</p>}
-                     {!formData.comedorId && <p className="text-xs text-destructive mt-1">Requerido para tipo 'Comedor'.</p>}
+                    {!formData.comedorId && <p className="text-xs text-destructive mt-1">Requerido para tipo 'Comedor'.</p>}
                 </div>
             )}
 
@@ -163,7 +164,7 @@ function AlternativaForm({
 
             {/* Horario Solicitud Dropdown (ALWAYS required) */}
             <div>
-                <Label htmlFor="alt-horario-solicitud">Regla de Solicitud Asociada *</Label>
+                <Label htmlFor="alt-horario-solicitud">Horario Solicitud Administración *</Label>
                 <Select
                     value={formData.horarioSolicitudComidaId || ''}
                     onValueChange={(value) => onFormChange('horarioSolicitudComidaId', value)}
@@ -177,6 +178,34 @@ function AlternativaForm({
                 </Select>
                 {availableHorarios.length === 0 && <p className="text-xs text-red-500 mt-1">Defina (y active) reglas de solicitud en la config. general.</p>}
                 {!formData.horarioSolicitudComidaId && <p className="text-xs text-destructive mt-1">Este campo es requerido.</p>}
+            </div>
+
+            {/* Checkbox for requiereAprobacion */}
+            <div className="flex items-center space-x-2">
+            <Checkbox
+                id="requiereAprobacion"
+                name="requiereAprobacion"
+                checked={formData.requiereAprobacion || false} // Use || false to handle undefined
+                onCheckedChange={(checked) => onFormChange('requiereAprobacion', Boolean(checked))}
+                disabled={isSaving} // Disable while saving
+            />
+            <Label htmlFor="requiereAprobacion" className="font-normal">
+                ¿Requiere Aprobación?
+            </Label>
+            </div>
+
+            {/* Checkbox for esPrincipal */}
+            <div className="flex items-center space-x-2">
+                <Checkbox
+                    id="esPrincipal"
+                    name="esPrincipal"
+                    checked={formData.esPrincipal || false} // Use || false to handle undefined
+                    onCheckedChange={(checked) => onFormChange('esPrincipal', Boolean(checked))}
+                    disabled={isSaving} // Disable while saving
+                />
+                <Label htmlFor="esPrincipal" className="font-normal">
+                    ¿Es Alternativa Principal?
+                </Label>
             </div>
 
             {/* isActive is only shown during EDIT */}
@@ -209,19 +238,15 @@ async function createLogEntry(
     details?: string,
     relatedDocPath?: string
 ) {
-    if (!userId) {
-        console.warn("Cannot create log entry: User ID is null.");
-        return; // Don't log if user is not identified
-    }
+    if (!userId)
+        userId = '';
     try {
-        const logEntryData: Omit<LogEntry, 'id'> = {
-            timestamp: Timestamp.now().toMillis(),
-            userId: userId, // Use the passed UID
+        const logEntryData: Partial<Omit<ClientLogWrite, 'userId' | 'actionType' | 'timestamp'>> = {
             residenciaId: residenciaId,
-            actionType: actionType,
             relatedDocPath: relatedDocPath,
             details: details,
         };
+        writeClientLog(userId,actionType,logEntryData);
         console.log("Log Entry:", logEntryData);
         // Uncomment to write to Firestore
         // await addDoc(collection(db, "logEntries"), logEntryData);
@@ -286,7 +311,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
 
 
     // Sort function for TiemposComida (remains the same)
-    const sortTiemposComida = (tiempos: TiempoComida[]) => { /* ... same as before ... */
+    const sortTiemposComida = (tiempos: TiempoComida[]) => {
         const dayOrder: { [key in DayOfWeekKey]: number } = { lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, domingo: 7 };
         return tiempos.sort((a, b) => {
             const groupDiff = a.ordenGrupo - b.ordenGrupo; if (groupDiff !== 0) return groupDiff;
@@ -296,7 +321,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         });
     };
 
-    // --- NEW: Check for missing fasting options ---
+    // --- Check for missing fasting options ---
     const checkAndWarnMissingFastingOptions = useCallback(() => {
         if (!tiemposComida || tiemposComida.length === 0 || !alternativas) {
             return;
@@ -363,7 +388,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                 getDocs(query(collection(db, "tiemposComida"), where("residenciaId", "==", residenciaId))),
                 getDocs(query(collection(db, "alternativas"), where("residenciaId", "==", residenciaId))),
                 getDocs(query(collection(db, "comedores"), where("residenciaId", "==", residenciaId))),
-                getDocs(query(collection(db, "horariosSolicitud"), where("residenciaId", "==", residenciaId), where("isActive", "==", true))) // Fetch only active horarios
+                getDocs(query(collection(db, "horariosSolicitudComida"), where("residenciaId", "==", residenciaId), where("isActive", "==", true))) // Fetch only active horarios
             ]);
 
             // Process Residencia
@@ -660,8 +685,8 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         const tipoSeleccionado = alternativeFormData.tipo;
         if (!tipoSeleccionado) { toast({ title: "Error", description: "Debe seleccionar un Tipo.", variant: "destructive" }); return; }
         if (!alternativeFormData.nombre?.trim()) { toast({ title: "Error", description: "Nombre es requerido.", variant: "destructive" }); return; }
-        if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaInicio || !/^\\d\\d:\\d\\d$/.test(alternativeFormData.ventanaInicio))) { toast({ title: "Error", description: "Ventana Inicio es requerida (HH:MM).", variant: "destructive" }); return; }
-        if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaFin || !/^\\d\\d:\\d\\d$/.test(alternativeFormData.ventanaFin))) { toast({ title: "Error", description: "Ventana Fin es requerida (HH:MM).", variant: "destructive" }); return; }
+        if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaInicio || !/^\d\d:\d\d$/.test(alternativeFormData.ventanaInicio))) { toast({ title: "Error", description: "Ventana Inicio es requerida (HH:MM).", variant: "destructive" }); return; }
+        if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaFin || !/^\d\d:\d\d$/.test(alternativeFormData.ventanaFin))) { toast({ title: "Error", description: "Ventana Fin es requerida (HH:MM).", variant: "destructive" }); return; }
         if (tipoSeleccionado === 'comedor' && !alternativeFormData.comedorId) { toast({ title: "Error", description: "Comedor Específico es requerido para tipo 'Comedor'.", variant: "destructive" }); return; }
         if (!alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Regla de Solicitud es requerida.", variant: "destructive" }); return; }
         // tipoAcceso defaults if not set for non-ayuno, so validation might not be needed unless specific logic required
@@ -951,373 +976,373 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
 
     // 3. Not Authorized (after profile loaded, no errors)
     // Use errorPageData which is set during authorization check if access denied
-     if (!isAuthorized) {
-         return (
-             <div className="container mx-auto p-4 text-center">
-                <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-               <h1 className="text-2xl font-bold text-destructive mb-4">Acceso Denegado</h1>
-               <p className="text-muted-foreground max-w-md mx-auto">
-                   No tienes permiso (admin/master o director de esta residencia) para gestionar los horarios y alternativas de esta residencia.
-                </p>
-                <Button onClick={() => router.push('/admin/residencia')} className="mt-6">
-                   Volver a Residencias
-                </Button>
-             </div>
-           );
-     }
+    if (!isAuthorized) {
+        return (
+            <div className="container mx-auto p-4 text-center">
+            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+            <h1 className="text-2xl font-bold text-destructive mb-4">Acceso Denegado</h1>
+            <p className="text-muted-foreground max-w-md mx-auto">
+                No tienes permiso (admin/master o director de esta residencia) para gestionar los horarios y alternativas de esta residencia.
+            </p>
+            <Button onClick={() => router.push('/admin/residencia')} className="mt-6">
+                Volver a Residencias
+            </Button>
+            </div>
+        );
+    }
 
     // 4. Page Data Loading (only shown if authorized)
-    if (isLoadingPageData) {
-         return (
-          <div className="container mx-auto p-4 space-y-6">
-            <Skeleton className="h-8 w-3/4 mb-4" /> {/* Title */}
-            {/* Skeleton for Tiempos Card */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>
-                        <Skeleton className="h-6 w-48" />
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <Skeleton className="h-4 w-full mb-4" /> <div className="space-y-3"> <Skeleton className="h-12 w-full rounded-md" /> <Skeleton className="h-12 w-full rounded-md" /> </div> </CardContent>
-            </Card>
-             {/* Skeleton for Alternativas Card */}
-             <Card>
-                <CardHeader><CardTitle><Skeleton className="h-6 w-56" /></CardTitle></CardHeader>
-                <CardContent> 
-                    <Skeleton className="h-4 w-full mb-4" /> 
-                    <div className="mb-4 p-3 border rounded"> 
-                        <Skeleton className="h-6 w-1/3 mb-3 pb-2 border-b" /> 
-                        <div className="space-y-2 mb-3"> 
-                            <Skeleton className="h-16 w-full rounded-md" /> 
-                        </div> 
-                        <div className="mt-3 pt-3 border-t"> 
-                            <Skeleton className="h-8 w-48 rounded" /> {/* Add Alt Button */}
+     if (isLoadingPageData) {
+        return (
+            <div className="container mx-auto p-4 space-y-6">
+                <Skeleton className="h-8 w-3/4 mb-4" /> {/* Title */}
+                {/* Skeleton for Tiempos Card */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>
+                            <Skeleton className="h-6 w-48" />
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Skeleton className="h-4 w-full mb-4" /> <div className="space-y-3"> <Skeleton className="h-12 w-full rounded-md" /> <Skeleton className="h-12 w-full rounded-md" /> </div> </CardContent>
+                </Card>
+                {/* Skeleton for Alternativas Card */}
+                <Card>
+                    <CardHeader><CardTitle><Skeleton className="h-6 w-56" /></CardTitle></CardHeader>
+                    <CardContent> 
+                        <Skeleton className="h-4 w-full mb-4" /> 
+                        <div className="mb-4 p-3 border rounded"> 
+                            <Skeleton className="h-6 w-1/3 mb-3 pb-2 border-b" /> 
+                            <div className="space-y-2 mb-3"> 
+                                <Skeleton className="h-16 w-full rounded-md" /> 
+                            </div> 
+                            <div className="mt-3 pt-3 border-t"> 
+                                <Skeleton className="h-8 w-48 rounded" /> {/* Add Alt Button */}
+                            </div>
                         </div>
-                        </div>
-                </CardContent>
-            </Card>
-        </div>
-    );
-}
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
 
-// 5. Page Data Fetch Error (display after loading done and authorized)
-if (errorPageData && errorPageData !== "Acceso denegado.") {
+    // 5. Page Data Fetch Error (display after loading done and authorized)
+    if (errorPageData && errorPageData !== "Acceso denegado.") {
+        return (
+            <div className="container mx-auto p-4 text-center">
+                <AlertCircle className="h-12 w-12 text-destructive mb-4 mx-auto" />
+                <h1 className="text-2xl font-bold text-destructive mb-2">Error al Cargar Datos</h1>
+                <p className="mb-4 text-muted-foreground max-w-md mx-auto">{errorPageData}</p>
+                <Button onClick={fetchData}>Reintentar Carga</Button> {/* Allow retry */}
+            </div>
+        );
+    }
+
+    // --- RENDER MAIN CONTENT (Authorized and Data Loaded) ---
+    const isTiempoFormActive = isAddingTiempo || !!editingTiempoComidaId;
+    const isAlternativaFormActive = !!addingAlternativaTo || !!editingAlternativaId;
+
     return (
-        <div className="container mx-auto p-4 text-center">
-            <AlertCircle className="h-12 w-12 text-destructive mb-4 mx-auto" />
-            <h1 className="text-2xl font-bold text-destructive mb-2">Error al Cargar Datos</h1>
-            <p className="mb-4 text-muted-foreground max-w-md mx-auto">{errorPageData}</p>
-            <Button onClick={fetchData}>Reintentar Carga</Button> {/* Allow retry */}
-        </div>
+    <div className="container mx-auto p-4 space-y-8"> {/* Increased spacing */}
+        <h1 className="text-3xl font-bold tracking-tight">
+        Gestionar Tiempos y Alternativas para <span className="text-primary">{residenciaNombre}</span>
+        </h1>
+
+        {/* ================== Section for TiemposComida ================== */}
+        <Card>
+            <CardHeader>
+                <CardTitle>Tiempos de Comida</CardTitle>
+                <p className="text-sm text-muted-foreground pt-1">
+                Define los momentos específicos (ej. Almuerzo Lunes), agrupándolos (ej. Almuerzo) y ordenándolos para la vista del residente.
+                </p>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-4"> {/* Increased spacing */}
+                {tiemposComida.map(tiempo => (
+                    <div key={tiempo.id} className={`p-4 border rounded-lg shadow-sm ${editingTiempoComidaId === tiempo.id ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700' : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
+                    {editingTiempoComidaId === tiempo.id ? (
+                        // --- EDIT FORM for TiempoComida ---
+                        <div className="space-y-4">
+                            <h4 className="font-semibold text-lg border-b pb-2">Editando: {tiempo.nombreGrupo} - {tiempo.nombre}</h4>
+                            {/* Row 1: Nombre, Dia, Hora */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <Label htmlFor={`edit-tiempo-nombre-${tiempo.id}`}>Nombre Específico *</Label>
+                                    <Input id={`edit-tiempo-nombre-${tiempo.id}`} value={editTiempoComidaName} onChange={(e) => setEditTiempoComidaName(e.target.value)} placeholder="Ej. Almuerzo Lunes" disabled={isSavingEditTiempo}/>
+                                </div>
+                                <div>
+                                    <Label htmlFor={`edit-tiempo-dia-${tiempo.id}`}>Día *</Label>
+                                    <Select value={editTiempoComidaDia} onValueChange={(value) => setEditTiempoComidaDia(value as DayOfWeekKey)} disabled={isSavingEditTiempo}>
+                                        <SelectTrigger id={`edit-tiempo-dia-${tiempo.id}`}><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+                                        <SelectContent>{availableDays.map(({ key, label }) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label htmlFor={`edit-tiempo-hora-${tiempo.id}`}>Hora Estimada (Opcional)</Label>
+                                    <Input id={`edit-tiempo-hora-${tiempo.id}`} type="time" value={editTiempoComidaHoraEstimada} onChange={(e) => setEditTiempoComidaHoraEstimada(e.target.value)} placeholder="HH:MM" disabled={isSavingEditTiempo} step="900" />
+                                </div>
+                            </div>
+                            {/* Row 2: Grupo, Orden */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <Label htmlFor={`edit-tiempo-grupo-${tiempo.id}`}>Nombre de Grupo *</Label>
+                                    <Input id={`edit-tiempo-grupo-${tiempo.id}`} value={editTiempoComidaNombreGrupo} onChange={(e) => setEditTiempoComidaNombreGrupo(e.target.value)} placeholder="Ej. Almuerzo, Cena" disabled={isSavingEditTiempo}/>
+                                    <p className="text-xs text-muted-foreground mt-1">Para agrupar en UI.</p>
+                                </div>
+                                <div>
+                                    <Label htmlFor={`edit-tiempo-orden-${tiempo.id}`}>Orden de Grupo *</Label>
+                                    <Input id={`edit-tiempo-orden-${tiempo.id}`} type="number" min="1" step="1" value={editTiempoComidaOrdenGrupo} onChange={(e) => setEditTiempoComidaOrdenGrupo(e.target.value)} placeholder="Ej. 1, 2, 3" disabled={isSavingEditTiempo}/>
+                                    <p className="text-xs text-muted-foreground mt-1">Orden numérico (1=primero).</p>
+                                </div>
+                                <div></div> {/* Spacer */}
+                            </div>
+                            {/* Action Buttons */}
+                            <div className="flex space-x-2 pt-2">
+                                    <Button onClick={handleSaveEditTiempoComida} disabled={isSavingEditTiempo}>{isSavingEditTiempo ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}{isSavingEditTiempo ? 'Guardando...' : 'Guardar Cambios'}</Button>
+                                <Button variant="outline" onClick={handleCancelEdit} disabled={isSavingEditTiempo}>Cancelar</Button>
+                            </div>
+                        </div>
+                        ) : (
+                        // --- DISPLAY ROW for TiempoComida ---
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                            <div className='flex-grow'>
+                                <span className="font-semibold text-lg">{tiempo.nombre}</span>
+                                <span className="block text-sm text-muted-foreground">
+                                    Grupo: {tiempo.nombreGrupo} (Orden: {tiempo.ordenGrupo}) | Día: {DayOfWeekMap[tiempo.dia]} {tiempo.horaEstimada && `| Hora: ~${tiempo.horaEstimada}`}
+                                </span>
+                            </div>
+                            {/* Action Buttons */}
+                            <div className="space-x-2 flex-shrink-0 mt-2 sm:mt-0">
+                                <Button variant="outline" size="sm" onClick={() => handleEditTiempoComida(tiempo)} disabled={isTiempoFormActive || isAlternativaFormActive}>Editar</Button>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                            <Button variant="destructive" size="sm" disabled={isTiempoFormActive || isAlternativaFormActive || alternativas.some(alt => alt.tiempoComidaId === tiempo.id)}>Eliminar</Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>¿Confirmar Eliminación?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Se eliminará "{tiempo.nombre}". Esta acción no se puede deshacer.
+                                                {alternativas.some(alt => alt.tiempoComidaId === tiempo.id) && <span className="font-semibold text-destructive block mt-2">Primero debe eliminar las alternativas asociadas.</span>}
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteTiempoComida(tiempo.id, tiempo.nombre)} className={buttonVariants({ variant: "destructive" })} disabled={alternativas.some(alt => alt.tiempoComidaId === tiempo.id)}>Sí, Eliminar</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))}
+                </div>
+                {/* --- BEGIN: Traditional Scheme Button --- */}
+                {tiemposComida.length === 0 && !isLoadingPageData && !isAddingTiempo && !editingTiempoComidaId && (
+                    <div className="text-center py-6 border-b mb-6">
+                        <p className="text-muted-foreground mb-4">
+                            No hay Tiempos de Comida definidos para esta residencia.
+                        </p>
+                        <Button
+                            onClick={handleAddTraditionalScheme}
+                            disabled={isAddingTraditionalScheme || isAddingTiempo || !!editingTiempoComidaId}
+                            size="lg"
+                            variant="outline"
+                        >
+                            {isAddingTraditionalScheme ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            {isAddingTraditionalScheme ? 'Añadiendo Esquema...' : 'Añadir Esquema Tradicional (Desayuno, Almuerzo, Cena x7 días)'}
+                        </Button>
+                        <p className="text-xs text-muted-foreground mt-2">
+                            Esto creará automáticamente 21 tiempos de comida (Ej: Desayuno Lunes, Almuerzo Lunes, etc.).
+                        </p>
+                    </div>
+                )}
+                {/* --- END: Traditional Scheme Button --- */}
+
+                {/* --- ADD FORM for TiempoComida --- */}
+                {!editingTiempoComidaId && (
+                    <div className={`mt-6 pt-6 border-t ${isAlternativaFormActive ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <h3 className="font-semibold mb-3 text-xl">Añadir Nuevo Tiempo de Comida</h3>
+                        <div className="space-y-4 p-4 border rounded bg-slate-50 dark:bg-slate-800/30">
+                            {/* Row 1: Nombre, Dia, Hora */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <Label htmlFor="tiempo-nombre">Nombre Específico *</Label>
+                                    <Input id="tiempo-nombre" value={newTiempoComidaName} onChange={(e) => setNewTiempoComidaName(e.target.value)} placeholder="Ej. Almuerzo Lunes" disabled={isAddingTiempo}/>
+                                </div>
+                                <div>
+                                    <Label htmlFor="new-tiempo-dia">Día *</Label>
+                                    <Select value={newTiempoComidaDia} onValueChange={(value) => setNewTiempoComidaDia(value as DayOfWeekKey)} disabled={isAddingTiempo}>
+                                        <SelectTrigger id="new-tiempo-dia"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
+                                        <SelectContent>{availableDays.map(({ key, label }) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label htmlFor="new-tiempo-hora">Hora Estimada (Opcional)</Label>
+                                    <Input id="new-tiempo-hora" type="time" value={newTiempoComidaHoraEstimada} onChange={(e) => setNewTiempoComidaHoraEstimada(e.target.value)} placeholder="HH:MM" disabled={isAddingTiempo} step="900"/>
+                                </div>
+                            </div>
+                            {/* Row 2: Grupo, Orden */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <Label htmlFor="new-tiempo-grupo">Nombre de Grupo *</Label>
+                                        <Input id="new-tiempo-grupo" value={newTiempoComidaNombreGrupo} onChange={(e) => setNewTiempoComidaNombreGrupo(e.target.value)} placeholder="Ej. Desayuno, Almuerzo" disabled={isAddingTiempo}/>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="new-tiempo-orden">Orden de Grupo *</Label>
+                                        <Input id="new-tiempo-orden" type="number" min="1" step="1" value={newTiempoComidaOrdenGrupo} onChange={(e) => setNewTiempoComidaOrdenGrupo(e.target.value)} placeholder="Ej. 1" disabled={isAddingTiempo}/>
+                                    </div>
+                                    <div></div> {/* Spacer */}
+                                </div>
+                            <Button onClick={handleAddTiempoComida} disabled={isAddingTiempo} size="lg">
+                                {isAddingTiempo ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                                {isAddingTiempo ? 'Añadiendo...' : '+ Añadir Tiempo'}
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+
+        {/* ================== Section for Alternativas ================== */}
+        <Card>
+            <CardHeader>
+                <CardTitle>Alternativas de Comida</CardTitle>
+                <p className="text-sm text-muted-foreground pt-1">Define las opciones específicas (Comedor, Para Llevar) disponibles para cada Tiempo de Comida.</p>
+            </CardHeader>
+            <CardContent>
+                {/* Toggle Inactive */}
+                <div className="flex items-center space-x-2 mb-4">
+                    <Checkbox id="show-inactive-alternativas" checked={showInactiveAlternativas} onCheckedChange={(checked) => setShowInactiveAlternativas(Boolean(checked))} disabled={isTiempoFormActive || isAlternativaFormActive} />
+                    <Label htmlFor="show-inactive-alternativas" className="text-sm">Mostrar alternativas inactivas</Label>
+                </div>
+
+                {/* Loop through TiemposComida to group Alternativas */}
+                {tiemposComida.length === 0 && !isLoadingPageData && (
+                    <p className="text-muted-foreground text-center py-6">Defina primero un Tiempo de Comida para poder añadir alternativas.</p>
+                )}
+                {tiemposComida.map(tiempo => {
+                    const alternativasParaEsteTiempo = alternativas.filter(alt => alt.tiempoComidaId === tiempo.id);
+                    const alternativasVisibles = alternativasParaEsteTiempo.filter(alt => showInactiveAlternativas || alt.isActive);
+                    return (
+                        <div key={tiempo.id} className={`mb-6 p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-sm ${isTiempoFormActive ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <h4 className="font-semibold text-xl mb-4 border-b pb-2 text-primary">{tiempo.nombre} <span className="text-sm font-normal text-muted-foreground">({DayOfWeekMap[tiempo.dia]})</span></h4>
+                            <ul className="space-y-3 mb-4"> {/* Increased spacing */}
+                            {alternativasVisibles.map(alt => (
+                                <li key={alt.id} className={`p-3 rounded-md border ${alt.isActive ? '' : 'bg-slate-100 dark:bg-slate-800/50 opacity-70'} ${editingAlternativaId === alt.id ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
+                                    {editingAlternativaId === alt.id ? (
+                                        // EDIT FORM for Alternativa
+                                        <AlternativaForm
+                                            formData={alternativeFormData}
+                                            onFormChange={handleAlternativaFormChange}
+                                            onSubmit={handleSaveAlternativa}
+                                            onCancel={handleCancelAlternativaForm}
+                                            isSaving={isSavingAlternativa}
+                                            availableComedores={comedores}
+                                            availableHorarios={horariosSolicitud}
+                                            formTitle={`Editando Alternativa`}
+                                            submitButtonText="Guardar Cambios"
+                                        />
+                                    ) : (
+                                        // DISPLAY ROW for Alternativa
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                            {/* Details */}
+                                            <div className="flex-grow">
+                                                <span className="font-medium text-lg">{alt.nombre}</span>
+                                                <span className={`text-xs ml-2 font-semibold ${alt.isActive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{alt.isActive ? '(Activo)' : '(Inactivo)'}</span>
+                                                <div className="mt-1 space-x-1">
+                                                    <Badge variant={alt.tipo === 'comedor' ? 'default' : 'secondary'} className="capitalize">{alt.tipo === 'comedor' ? 'Comedor' : 'P/Llevar'}</Badge>
+                                                    <Badge variant="outline" className="capitalize">{alt.tipoAcceso}</Badge>
+                                                </div>
+                                                <p className="text-sm text-muted-foreground mt-1">
+                                                    Ventana: {alt.ventanaInicio}{alt.iniciaDiaAnterior ? ' (d. ant.)' : ''} - {alt.ventanaFin}{alt.terminaDiaSiguiente ? ' (d. sig.)' : ''}
+                                                    {alt.comedorId && ` | ${comedores.find(c => c.id === alt.comedorId)?.nombre || '?'}`} | Regla:
+                                                    <span className="italic"> {horariosSolicitud.find(h => h.id === alt.horarioSolicitudComidaId)?.nombre || 'N/A'}</span>
+                                                </p>
+                                            </div>
+                                            {/* Actions */}
+                                            <div className="space-x-1 flex-shrink-0 mt-2 sm:mt-0">
+                                                <Button variant="outline" size="sm" onClick={() => handleOpenEditAlternativaForm(alt)} disabled={isAlternativaFormActive || isTiempoFormActive}>Editar</Button>
+                                                <Button variant={alt.isActive ? "ghost" : "secondary"} size="sm" onClick={() => handleToggleAlternativaActive(alt.id, !alt.isActive)} disabled={isAlternativaFormActive || isTiempoFormActive}>{alt.isActive ? 'Desac.' : 'Activar'}</Button>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button variant="destructive" size="sm" disabled={isAlternativaFormActive || isTiempoFormActive}>Eliminar</Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>¿Eliminar Alternativa?</AlertDialogTitle>
+                                                            <AlertDialogDescription>Se eliminará "{alt.nombre}". Esta acción no se puede deshacer.</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteAlternativa(alt.id, alt.nombre)} className={buttonVariants({ variant: "destructive" })}>Sí, Eliminar</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        </div>
+                                    )}
+                                </li>
+                            ))}
+                            {alternativasVisibles.length === 0 && <p className="text-sm text-muted-foreground px-2 py-1 text-center">{showInactiveAlternativas ? 'No hay alternativas inactivas para este tiempo.' : 'No hay alternativas activas para este tiempo.'}</p>}
+                            </ul>
+                            {/* Add Alternativa Button/Form */}
+                            <div className="mt-3 pt-3 border-t">
+                                {!isAlternativaFormActive && ( <Button variant="outline" size="sm" onClick={() => handleOpenAddAlternativaForm(tiempo.id)} disabled={isTiempoFormActive}>+ Añadir Alternativa a este Tiempo</Button> )}
+                                {addingAlternativaTo === tiempo.id && (
+                                    <AlternativaForm
+                                        formData={alternativeFormData}
+                                        onFormChange={handleAlternativaFormChange}
+                                        onSubmit={handleAddAlternativa}
+                                        onCancel={handleCancelAlternativaForm}
+                                        isSaving={isSavingAlternativa}
+                                        availableComedores={comedores}
+                                        availableHorarios={horariosSolicitud}
+                                        formTitle={`Añadir Alternativa a ${tiempo.nombre}`}
+                                        submitButtonText="Añadir Alternativa"
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {/* Section for Orphaned alternatives - requires loading finished */}
+                {!isLoadingPageData && alternativas.filter(alt => !tiemposComida.find(tc => tc.id === alt.tiempoComidaId)).length > 0 && (
+                <div className="mt-6 p-4 border rounded border-orange-300 bg-orange-50 dark:bg-orange-900/30">
+                    <h4 className="font-semibold text-orange-700 dark:text-orange-300">Alternativas Huérfanas</h4>
+                    <p className="text-xs text-orange-600 dark:text-orange-400">Edite o elimine estas alternativas, ya que su Tiempo de Comida asociado ya no existe.</p>
+                    <ul className="list-disc list-inside mt-2 space-y-1">
+                    {alternativas
+                        .filter(alt => !tiemposComida.find(tc => tc.id === alt.tiempoComidaId))
+                        .map(alt => (
+                            <li key={alt.id} className="text-sm text-orange-700 dark:text-orange-300 flex justify-between items-center">
+                                <span>{alt.nombre} <span className="text-xs">({alt.isActive ? 'Activa':'Inactiva'})</span></span>
+                                    <div className="space-x-2">
+                                    <Button variant="link" size="sm" className="text-orange-700 dark:text-orange-300 h-auto p-0 underline" onClick={() => handleOpenEditAlternativaForm(alt)} disabled={isTiempoFormActive || isAlternativaFormActive}>Editar</Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="link" size="sm" className="text-red-600 dark:text-red-400 h-auto p-0 underline" disabled={isTiempoFormActive || isAlternativaFormActive}>Eliminar</Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader> <AlertDialogTitle>¿Eliminar Alternativa Huérfana?</AlertDialogTitle> <AlertDialogDescription>Se eliminará "{alt.nombre}".</AlertDialogDescription> </AlertDialogHeader>
+                                                <AlertDialogFooter> <AlertDialogCancel>Cancelar</AlertDialogCancel> <AlertDialogAction onClick={() => handleDeleteAlternativa(alt.id, alt.nombre)} className={buttonVariants({ variant: "destructive" })}>Sí, Eliminar</AlertDialogAction> </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                </li>
+                        ))
+                    }
+                    </ul>
+                </div>
+                )}
+            </CardContent>
+        </Card>
+    </div>
     );
-}
-
-// --- RENDER MAIN CONTENT (Authorized and Data Loaded) ---
-const isTiempoFormActive = isAddingTiempo || !!editingTiempoComidaId;
-const isAlternativaFormActive = !!addingAlternativaTo || !!editingAlternativaId;
-
-return (
-<div className="container mx-auto p-4 space-y-8"> {/* Increased spacing */}
-<h1 className="text-3xl font-bold tracking-tight">
-Gestionar Tiempos y Alternativas para <span className="text-primary">{residenciaNombre}</span>
-</h1>
-
-{/* ================== Section for TiemposComida ================== */}
-<Card>
-<CardHeader>
-<CardTitle>Tiempos de Comida</CardTitle>
-<p className="text-sm text-muted-foreground pt-1">
-Define los momentos específicos (ej. Almuerzo Lunes), agrupándolos (ej. Almuerzo) y ordenándolos para la vista del residente.
-</p>
-</CardHeader>
-<CardContent>
-<div className="space-y-4"> {/* Increased spacing */}
-{tiemposComida.map(tiempo => (
-    <div key={tiempo.id} className={`p-4 border rounded-lg shadow-sm ${editingTiempoComidaId === tiempo.id ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700' : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
-       {editingTiempoComidaId === tiempo.id ? (
-           // --- EDIT FORM for TiempoComida ---
-           <div className="space-y-4">
-                <h4 className="font-semibold text-lg border-b pb-2">Editando: {tiempo.nombreGrupo} - {tiempo.nombre}</h4>
-                {/* Row 1: Nombre, Dia, Hora */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                   <div>
-                       <Label htmlFor={`edit-tiempo-nombre-${tiempo.id}`}>Nombre Específico *</Label>
-                       <Input id={`edit-tiempo-nombre-${tiempo.id}`} value={editTiempoComidaName} onChange={(e) => setEditTiempoComidaName(e.target.value)} placeholder="Ej. Almuerzo Lunes" disabled={isSavingEditTiempo}/>
-                   </div>
-                   <div>
-                       <Label htmlFor={`edit-tiempo-dia-${tiempo.id}`}>Día *</Label>
-                       <Select value={editTiempoComidaDia} onValueChange={(value) => setEditTiempoComidaDia(value as DayOfWeekKey)} disabled={isSavingEditTiempo}>
-                           <SelectTrigger id={`edit-tiempo-dia-${tiempo.id}`}><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                           <SelectContent>{availableDays.map(({ key, label }) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent>
-                       </Select>
-                   </div>
-                   <div>
-                       <Label htmlFor={`edit-tiempo-hora-${tiempo.id}`}>Hora Estimada (Opcional)</Label>
-                       <Input id={`edit-tiempo-hora-${tiempo.id}`} type="time" value={editTiempoComidaHoraEstimada} onChange={(e) => setEditTiempoComidaHoraEstimada(e.target.value)} placeholder="HH:MM" disabled={isSavingEditTiempo} step="900" />
-                   </div>
-                </div>
-                {/* Row 2: Grupo, Orden */}
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <Label htmlFor={`edit-tiempo-grupo-${tiempo.id}`}>Nombre de Grupo *</Label>
-                        <Input id={`edit-tiempo-grupo-${tiempo.id}`} value={editTiempoComidaNombreGrupo} onChange={(e) => setEditTiempoComidaNombreGrupo(e.target.value)} placeholder="Ej. Almuerzo, Cena" disabled={isSavingEditTiempo}/>
-                        <p className="text-xs text-muted-foreground mt-1">Para agrupar en UI.</p>
-                    </div>
-                     <div>
-                        <Label htmlFor={`edit-tiempo-orden-${tiempo.id}`}>Orden de Grupo *</Label>
-                        <Input id={`edit-tiempo-orden-${tiempo.id}`} type="number" min="1" step="1" value={editTiempoComidaOrdenGrupo} onChange={(e) => setEditTiempoComidaOrdenGrupo(e.target.value)} placeholder="Ej. 1, 2, 3" disabled={isSavingEditTiempo}/>
-                         <p className="text-xs text-muted-foreground mt-1">Orden numérico (1=primero).</p>
-                    </div>
-                    <div></div> {/* Spacer */}
-                 </div>
-               {/* Action Buttons */}
-               <div className="flex space-x-2 pt-2">
-                    <Button onClick={handleSaveEditTiempoComida} disabled={isSavingEditTiempo}>{isSavingEditTiempo ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}{isSavingEditTiempo ? 'Guardando...' : 'Guardar Cambios'}</Button>
-                   <Button variant="outline" onClick={handleCancelEdit} disabled={isSavingEditTiempo}>Cancelar</Button>
-               </div>
-           </div>
-        ) : (
-           // --- DISPLAY ROW for TiempoComida ---
-           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-               <div className='flex-grow'>
-                   <span className="font-semibold text-lg">{tiempo.nombre}</span>
-                   <span className="block text-sm text-muted-foreground">
-                       Grupo: {tiempo.nombreGrupo} (Orden: {tiempo.ordenGrupo}) | Día: {DayOfWeekMap[tiempo.dia]} {tiempo.horaEstimada && `| Hora: ~${tiempo.horaEstimada}`}
-                   </span>
-               </div>
-               {/* Action Buttons */}
-               <div className="space-x-2 flex-shrink-0 mt-2 sm:mt-0">
-                   <Button variant="outline" size="sm" onClick={() => handleEditTiempoComida(tiempo)} disabled={isTiempoFormActive || isAlternativaFormActive}>Editar</Button>
-                   <AlertDialog>
-                       <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="sm" disabled={isTiempoFormActive || isAlternativaFormActive || alternativas.some(alt => alt.tiempoComidaId === tiempo.id)}>Eliminar</Button>
-                       </AlertDialogTrigger>
-                       <AlertDialogContent>
-                           <AlertDialogHeader>
-                               <AlertDialogTitle>¿Confirmar Eliminación?</AlertDialogTitle>
-                               <AlertDialogDescription>
-                                   Se eliminará "{tiempo.nombre}". Esta acción no se puede deshacer.
-                                   {alternativas.some(alt => alt.tiempoComidaId === tiempo.id) && <span className="font-semibold text-destructive block mt-2">Primero debe eliminar las alternativas asociadas.</span>}
-                               </AlertDialogDescription>
-                           </AlertDialogHeader>
-                           <AlertDialogFooter>
-                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                               <AlertDialogAction onClick={() => handleDeleteTiempoComida(tiempo.id, tiempo.nombre)} className={buttonVariants({ variant: "destructive" })} disabled={alternativas.some(alt => alt.tiempoComidaId === tiempo.id)}>Sí, Eliminar</AlertDialogAction>
-                           </AlertDialogFooter>
-                       </AlertDialogContent>
-                   </AlertDialog>
-                </div>
-            </div>
-        )}
-    </div>
-))}
-</div>
-{/* --- BEGIN: Traditional Scheme Button --- */}
-{tiemposComida.length === 0 && !isLoadingPageData && !isAddingTiempo && !editingTiempoComidaId && (
-    <div className="text-center py-6 border-b mb-6">
-        <p className="text-muted-foreground mb-4">
-            No hay Tiempos de Comida definidos para esta residencia.
-        </p>
-        <Button
-            onClick={handleAddTraditionalScheme}
-            disabled={isAddingTraditionalScheme || isAddingTiempo || !!editingTiempoComidaId}
-            size="lg"
-            variant="outline"
-        >
-            {isAddingTraditionalScheme ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
-            {isAddingTraditionalScheme ? 'Añadiendo Esquema...' : 'Añadir Esquema Tradicional (Desayuno, Almuerzo, Cena x7 días)'}
-        </Button>
-        <p className="text-xs text-muted-foreground mt-2">
-            Esto creará automáticamente 21 tiempos de comida (Ej: Desayuno Lunes, Almuerzo Lunes, etc.).
-        </p>
-    </div>
-)}
-{/* --- END: Traditional Scheme Button --- */}
-
-{/* --- ADD FORM for TiempoComida --- */}
-{!editingTiempoComidaId && (
-<div className={`mt-6 pt-6 border-t ${isAlternativaFormActive ? 'opacity-50 pointer-events-none' : ''}`}>
-   <h3 className="font-semibold mb-3 text-xl">Añadir Nuevo Tiempo de Comida</h3>
-   <div className="space-y-4 p-4 border rounded bg-slate-50 dark:bg-slate-800/30">
-       {/* Row 1: Nombre, Dia, Hora */}
-       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-           <div>
-               <Label htmlFor="tiempo-nombre">Nombre Específico *</Label>
-               <Input id="tiempo-nombre" value={newTiempoComidaName} onChange={(e) => setNewTiempoComidaName(e.target.value)} placeholder="Ej. Almuerzo Lunes" disabled={isAddingTiempo}/>
-           </div>
-           <div>
-               <Label htmlFor="new-tiempo-dia">Día *</Label>
-               <Select value={newTiempoComidaDia} onValueChange={(value) => setNewTiempoComidaDia(value as DayOfWeekKey)} disabled={isAddingTiempo}>
-                   <SelectTrigger id="new-tiempo-dia"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
-                   <SelectContent>{availableDays.map(({ key, label }) => (<SelectItem key={key} value={key}>{label}</SelectItem>))}</SelectContent>
-               </Select>
-           </div>
-           <div>
-               <Label htmlFor="new-tiempo-hora">Hora Estimada (Opcional)</Label>
-               <Input id="new-tiempo-hora" type="time" value={newTiempoComidaHoraEstimada} onChange={(e) => setNewTiempoComidaHoraEstimada(e.target.value)} placeholder="HH:MM" disabled={isAddingTiempo} step="900"/>
-           </div>
-       </div>
-       {/* Row 2: Grupo, Orden */}
-       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-                <Label htmlFor="new-tiempo-grupo">Nombre de Grupo *</Label>
-                <Input id="new-tiempo-grupo" value={newTiempoComidaNombreGrupo} onChange={(e) => setNewTiempoComidaNombreGrupo(e.target.value)} placeholder="Ej. Desayuno, Almuerzo" disabled={isAddingTiempo}/>
-            </div>
-             <div>
-                <Label htmlFor="new-tiempo-orden">Orden de Grupo *</Label>
-                <Input id="new-tiempo-orden" type="number" min="1" step="1" value={newTiempoComidaOrdenGrupo} onChange={(e) => setNewTiempoComidaOrdenGrupo(e.target.value)} placeholder="Ej. 1" disabled={isAddingTiempo}/>
-            </div>
-             <div></div> {/* Spacer */}
-         </div>
-       <Button onClick={handleAddTiempoComida} disabled={isAddingTiempo} size="lg">
-           {isAddingTiempo ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-           {isAddingTiempo ? 'Añadiendo...' : '+ Añadir Tiempo'}
-       </Button>
-   </div>
-</div>
-)}
-</CardContent>
-</Card>
-
-{/* ================== Section for Alternativas ================== */}
-<Card>
-<CardHeader>
-<CardTitle>Alternativas de Comida</CardTitle>
-<p className="text-sm text-muted-foreground pt-1">Define las opciones específicas (Comedor, Para Llevar) disponibles para cada Tiempo de Comida.</p>
-</CardHeader>
-<CardContent>
-{/* Toggle Inactive */}
-<div className="flex items-center space-x-2 mb-4">
-<Checkbox id="show-inactive-alternativas" checked={showInactiveAlternativas} onCheckedChange={(checked) => setShowInactiveAlternativas(Boolean(checked))} disabled={isTiempoFormActive || isAlternativaFormActive} />
-<Label htmlFor="show-inactive-alternativas" className="text-sm">Mostrar alternativas inactivas</Label>
-</div>
-
-{/* Loop through TiemposComida to group Alternativas */}
-{tiemposComida.length === 0 && !isLoadingPageData && (
-<p className="text-muted-foreground text-center py-6">Defina primero un Tiempo de Comida para poder añadir alternativas.</p>
-)}
-{tiemposComida.map(tiempo => {
-const alternativasParaEsteTiempo = alternativas.filter(alt => alt.tiempoComidaId === tiempo.id);
-const alternativasVisibles = alternativasParaEsteTiempo.filter(alt => showInactiveAlternativas || alt.isActive);
-return (
-   <div key={tiempo.id} className={`mb-6 p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-sm ${isTiempoFormActive ? 'opacity-50 pointer-events-none' : ''}`}>
-        <h4 className="font-semibold text-xl mb-4 border-b pb-2 text-primary">{tiempo.nombre} <span className="text-sm font-normal text-muted-foreground">({DayOfWeekMap[tiempo.dia]})</span></h4>
-        <ul className="space-y-3 mb-4"> {/* Increased spacing */}
-        {alternativasVisibles.map(alt => (
-               <li key={alt.id} className={`p-3 rounded-md border ${alt.isActive ? '' : 'bg-slate-100 dark:bg-slate-800/50 opacity-70'} ${editingAlternativaId === alt.id ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
-                   {editingAlternativaId === alt.id ? (
-                       // EDIT FORM for Alternativa
-                       <AlternativaForm
-                           formData={alternativeFormData}
-                           onFormChange={handleAlternativaFormChange}
-                           onSubmit={handleSaveAlternativa}
-                           onCancel={handleCancelAlternativaForm}
-                           isSaving={isSavingAlternativa}
-                           availableComedores={comedores}
-                           availableHorarios={horariosSolicitud}
-                           formTitle={`Editando Alternativa`}
-                           submitButtonText="Guardar Cambios"
-                       />
-                   ) : (
-                       // DISPLAY ROW for Alternativa
-                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                           {/* Details */}
-                           <div className="flex-grow">
-                               <span className="font-medium text-lg">{alt.nombre}</span>
-                               <span className={`text-xs ml-2 font-semibold ${alt.isActive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{alt.isActive ? '(Activo)' : '(Inactivo)'}</span>
-                               <div className="mt-1 space-x-1">
-                                   <Badge variant={alt.tipo === 'comedor' ? 'default' : 'secondary'} className="capitalize">{alt.tipo === 'comedor' ? 'Comedor' : 'P/Llevar'}</Badge>
-                                   <Badge variant="outline" className="capitalize">{alt.tipoAcceso}</Badge>
-                               </div>
-                               <p className="text-sm text-muted-foreground mt-1">
-                                   Ventana: {alt.ventanaInicio}{alt.iniciaDiaAnterior ? ' (d. ant.)' : ''} - {alt.ventanaFin}{alt.terminaDiaSiguiente ? ' (d. sig.)' : ''}
-                                   {alt.comedorId && ` | ${comedores.find(c => c.id === alt.comedorId)?.nombre || '?'}`} | Regla:
-                                   <span className="italic"> {horariosSolicitud.find(h => h.id === alt.horarioSolicitudComidaId)?.nombre || 'N/A'}</span>
-                               </p>
-                           </div>
-                           {/* Actions */}
-                           <div className="space-x-1 flex-shrink-0 mt-2 sm:mt-0">
-                               <Button variant="outline" size="sm" onClick={() => handleOpenEditAlternativaForm(alt)} disabled={isAlternativaFormActive || isTiempoFormActive}>Editar</Button>
-                               <Button variant={alt.isActive ? "ghost" : "secondary"} size="sm" onClick={() => handleToggleAlternativaActive(alt.id, !alt.isActive)} disabled={isAlternativaFormActive || isTiempoFormActive}>{alt.isActive ? 'Desac.' : 'Activar'}</Button>
-                               <AlertDialog>
-                                   <AlertDialogTrigger asChild>
-                                       <Button variant="destructive" size="sm" disabled={isAlternativaFormActive || isTiempoFormActive}>Eliminar</Button>
-                                   </AlertDialogTrigger>
-                                   <AlertDialogContent>
-                                       <AlertDialogHeader>
-                                           <AlertDialogTitle>¿Eliminar Alternativa?</AlertDialogTitle>
-                                           <AlertDialogDescription>Se eliminará "{alt.nombre}". Esta acción no se puede deshacer.</AlertDialogDescription>
-                                       </AlertDialogHeader>
-                                       <AlertDialogFooter>
-                                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                           <AlertDialogAction onClick={() => handleDeleteAlternativa(alt.id, alt.nombre)} className={buttonVariants({ variant: "destructive" })}>Sí, Eliminar</AlertDialogAction>
-                                       </AlertDialogFooter>
-                                   </AlertDialogContent>
-                               </AlertDialog>
-                           </div>
-                       </div>
-                   )}
-               </li>
-           ))}
-           {alternativasVisibles.length === 0 && <p className="text-sm text-muted-foreground px-2 py-1 text-center">{showInactiveAlternativas ? 'No hay alternativas inactivas para este tiempo.' : 'No hay alternativas activas para este tiempo.'}</p>}
-        </ul>
-        {/* Add Alternativa Button/Form */}
-        <div className="mt-3 pt-3 border-t">
-            {!isAlternativaFormActive && ( <Button variant="outline" size="sm" onClick={() => handleOpenAddAlternativaForm(tiempo.id)} disabled={isTiempoFormActive}>+ Añadir Alternativa a este Tiempo</Button> )}
-            {addingAlternativaTo === tiempo.id && (
-                <AlternativaForm
-                    formData={alternativeFormData}
-                    onFormChange={handleAlternativaFormChange}
-                    onSubmit={handleAddAlternativa}
-                    onCancel={handleCancelAlternativaForm}
-                    isSaving={isSavingAlternativa}
-                    availableComedores={comedores}
-                    availableHorarios={horariosSolicitud}
-                    formTitle={`Añadir Alternativa a ${tiempo.nombre}`}
-                    submitButtonText="Añadir Alternativa"
-                />
-            )}
-        </div>
-   </div>
-);
-})}
-
-{/* Section for Orphaned alternatives - requires loading finished */}
-{!isLoadingPageData && alternativas.filter(alt => !tiemposComida.find(tc => tc.id === alt.tiempoComidaId)).length > 0 && (
-<div className="mt-6 p-4 border rounded border-orange-300 bg-orange-50 dark:bg-orange-900/30">
-    <h4 className="font-semibold text-orange-700 dark:text-orange-300">Alternativas Huérfanas</h4>
-    <p className="text-xs text-orange-600 dark:text-orange-400">Edite o elimine estas alternativas, ya que su Tiempo de Comida asociado ya no existe.</p>
-    <ul className="list-disc list-inside mt-2 space-y-1">
-       {alternativas
-           .filter(alt => !tiemposComida.find(tc => tc.id === alt.tiempoComidaId))
-           .map(alt => (
-               <li key={alt.id} className="text-sm text-orange-700 dark:text-orange-300 flex justify-between items-center">
-                   <span>{alt.nombre} <span className="text-xs">({alt.isActive ? 'Activa':'Inactiva'})</span></span>
-                    <div className="space-x-2">
-                       <Button variant="link" size="sm" className="text-orange-700 dark:text-orange-300 h-auto p-0 underline" onClick={() => handleOpenEditAlternativaForm(alt)} disabled={isTiempoFormActive || isAlternativaFormActive}>Editar</Button>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="link" size="sm" className="text-red-600 dark:text-red-400 h-auto p-0 underline" disabled={isTiempoFormActive || isAlternativaFormActive}>Eliminar</Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader> <AlertDialogTitle>¿Eliminar Alternativa Huérfana?</AlertDialogTitle> <AlertDialogDescription>Se eliminará "{alt.nombre}".</AlertDialogDescription> </AlertDialogHeader>
-                                <AlertDialogFooter> <AlertDialogCancel>Cancelar</AlertDialogCancel> <AlertDialogAction onClick={() => handleDeleteAlternativa(alt.id, alt.nombre)} className={buttonVariants({ variant: "destructive" })}>Sí, Eliminar</AlertDialogAction> </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    </div>
-                </li>
-           ))
-       }
-    </ul>
-</div>
-)}
-</CardContent>
-</Card>
-</div>
-);
 }
 
 export default HorariosResidenciaPage;
