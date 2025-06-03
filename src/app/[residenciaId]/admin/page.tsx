@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import withAuth from '@/components/withAuth'
+import withAuth from '@/components/withAuth';
 import { auth, db } from '@/lib/firebase';
 import {
   UserProfile,

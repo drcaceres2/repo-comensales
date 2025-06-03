@@ -2,11 +2,13 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
-import { LogActionType, ClientLogWrite, UserId, campoFechaConZonaHoraria } from '@/../../shared/models/types';
+import { UserProfile, LogActionType, ClientLogWrite, UserId, campoFechaConZonaHoraria } from '@/../../shared/models/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { type Toast } from "@/hooks/use-toast";
 import timezonesDataJson from '@/../../shared/data/zonas_horarias_soportadas.json';
+import { ParsedToken, IdTokenResult } from "firebase/auth";
+import { getDoc, doc } from 'firebase/firestore';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -158,3 +160,42 @@ export const getUtcOffsetFromIanaName = (ianaTimezoneName: string): string | nul
   console.warn(`getUtcOffsetFromIanaName: Timezone "${ianaTimezoneName}" not found in zonas_horarias_ejemplos.json`);
   return null; // Return null if the timezone name is not found
 };
+
+export async function validarResidenciaUsuario({
+  authUser,
+  claims,
+  params,
+}: {
+  authUser: any | undefined;
+  claims: ParsedToken | undefined;
+  params: any | undefined;
+}): Promise<UserProfile> {
+  if (!authUser || !authUser.id || !claims || !params) {
+    throw new Error('No se encontró el usuario autenticado en la base de datos.');
+  }
+  const userProfileRef = doc(db, 'users', authUser.uid)
+  const userProfileDoc = await getDoc(userProfileRef);
+  let userProfileData: UserProfile;
+  if (userProfileDoc.exists()) {
+    userProfileData = userProfileDoc.data() as UserProfile;
+  } else {
+    throw new Error('No se encontró el usuario autenticado en la base de datos.');
+  }
+  if (!claims || !claims.roles || !Array.isArray(claims.roles) || !userProfileData.roles || !Array.isArray(userProfileData.roles) || claims.roles.sort().toString() !== userProfileData.roles.sort().toString()) {
+    throw new Error('Inconsistencia en los roles del usuario.');
+  }
+  if (claims.residenciaId !== userProfileData.residenciaId || claims.residenciaId !== params.residenciaId) {
+    throw new Error('Inconsistencia en la residencia del usuario.');
+  }
+
+  if (!userProfileData.residenciaId) {
+    throw new Error('No se encontró la residencia en el perfil del usuario.');
+  }
+
+  return userProfileData;
+}
+
+export async function getUserProfileData(userId: string): Promise<UserProfile | null> {
+  const userProfileDoc = await getDoc(doc(db, 'users', userId));
+  return userProfileDoc.exists() ? (userProfileDoc.data() as UserProfile) : null;
+}

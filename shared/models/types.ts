@@ -76,6 +76,7 @@ export interface AsistenciasUsuariosDetalle {
 export type grupoUsuarioId = string;
 export interface grupoUsuario {
     id: grupoUsuarioId;
+    residenciaId: ResidenciaId;
     etiqueta: string;
     tipoGrupo: 'eleccion-comidas' | 'centro-de-costo' | 'personalizado';
     descripcion?: string;
@@ -84,11 +85,13 @@ export interface grupoUsuario {
 export interface UsuariosGrupos {
     id: string;
     usuario: UserId;
+    residenciaId: ResidenciaId;
     grupo: grupoUsuarioId;
 }
 export interface PermisosComidaPorGrupo {
     id: string;
     grupoPermisos: grupoUsuarioId;
+    residenciaId: ResidenciaId;
     usoSemanario: boolean;
     usoExcepciones: boolean;
     confirmacionAsistencia: boolean;
