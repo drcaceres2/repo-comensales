@@ -723,7 +723,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     };
 
     // --- CRUD Handlers for Alternativa (Updated to use authUser.uid for logs) ---
-    const handleAddAlternativa = async () => {
+    const handleAddAlternativa = async (tiempo: TiempoComida) => {
         if (!addingAlternativaTo) return;
 
         // Validation
@@ -733,9 +733,9 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaInicio || !/^\d\d:\d\d$/.test(alternativeFormData.ventanaInicio))) { toast({ title: "Error", description: "Ventana Inicio es requerida (HH:MM).", variant: "destructive" }); return; }
         if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaFin || !/^\d\d:\d\d$/.test(alternativeFormData.ventanaFin))) { toast({ title: "Error", description: "Ventana Fin es requerida (HH:MM).", variant: "destructive" }); return; }
         if (tipoSeleccionado === 'comedor' && !alternativeFormData.comedorId) { toast({ title: "Error", description: "Comedor Específico es requerido para tipo 'Comedor'.", variant: "destructive" }); return; }
-        if (!alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Hoario de Solicitud es requerido.", variant: "destructive" }); return; }
+        if (tiempo.aplicacionOrdinaria && !alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Hoario de Solicitud es requerido para tiempos de comida ordinarios.", variant: "destructive" }); return; }
         // tipoAcceso defaults if not set for non-ayuno, so validation might not be needed unless specific logic required
-
+        
         setIsSavingAlternativa(true);
 
         // Prepare data - Enforce ayuno rules
@@ -751,7 +751,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             requiereAprobacion: isAyuno ? false : (alternativeFormData.tipoAcceso === 'autorizado'),
             ventanaInicio: isAyuno ? '00:00' : alternativeFormData.ventanaInicio!,
             ventanaFin: isAyuno ? '00:00' : alternativeFormData.ventanaFin!,
-            horarioSolicitudComidaId: alternativeFormData.horarioSolicitudComidaId!,
+            horarioSolicitudComidaId: tiempo.aplicacionOrdinaria ? alternativeFormData.horarioSolicitudComidaId! : ( alternativeFormData.horarioSolicitudComidaId ?? null ),
             isActive: true, // Default to active
             iniciaDiaAnterior: isAyuno ? false : (alternativeFormData.iniciaDiaAnterior ?? false),
             terminaDiaSiguiente: isAyuno ? false : (alternativeFormData.terminaDiaSiguiente ?? false),
@@ -792,7 +792,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             setIsSavingAlternativa(false);
         }
     };
-    const handleSaveAlternativa = async () => {
+    const handleSaveAlternativa = async (tiempo: TiempoComida) => {
         if (!editingAlternativaId) return;
 
         // Validation (as before)
@@ -802,7 +802,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaInicio || !/^\d{2}:\d{2}$/.test(alternativeFormData.ventanaInicio))) { toast({ title: "Error", description: "Ventana Inicio requerida (HH:MM).", variant: "destructive" }); return; }
         if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaFin || !/^\d{2}:\d{2}$/.test(alternativeFormData.ventanaFin))) { toast({ title: "Error", description: "Ventana Fin requerida (HH:MM).", variant: "destructive" }); return; }
         if (tipoSeleccionado === 'comedor' && !alternativeFormData.comedorId) { toast({ title: "Error", description: "Comedor Específico requerido para tipo 'Comedor'.", variant: "destructive" }); return; }
-        if (!alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Horario de Solicitud requerido.", variant: "destructive" }); return; }
+        if (tiempo.aplicacionOrdinaria && !alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Horario de Solicitud requerido.", variant: "destructive" }); return; }
 
         setIsSavingAlternativa(true);
         const altRef = doc(db, "alternativas", editingAlternativaId);
@@ -818,7 +818,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             requiereAprobacion: isAyuno ? false : (alternativeFormData.requiereAprobacion),
             ventanaInicio: isAyuno ? '00:00' : alternativeFormData.ventanaInicio!,
             ventanaFin: isAyuno ? '00:00' : alternativeFormData.ventanaFin!,
-            horarioSolicitudComidaId: alternativeFormData.horarioSolicitudComidaId!,
+            horarioSolicitudComidaId: tiempo.aplicacionOrdinaria ? alternativeFormData.horarioSolicitudComidaId! : ( alternativeFormData.horarioSolicitudComidaId ?? null ),
             isActive: alternativeFormData.isActive === undefined ? originalAlt?.isActive ?? true : alternativeFormData.isActive,
             iniciaDiaAnterior: isAyuno ? false : (alternativeFormData.iniciaDiaAnterior ?? false),
             terminaDiaSiguiente: isAyuno ? false : (alternativeFormData.terminaDiaSiguiente ?? false),
@@ -1336,7 +1336,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                             formData={alternativeFormData}
                                             formTiempoComida={tiempo}
                                             onFormChange={handleAlternativaFormChange}
-                                            onSubmit={handleSaveAlternativa}
+                                            onSubmit={() => handleSaveAlternativa(tiempo)}
                                             onCancel={handleCancelAlternativaForm}
                                             isSaving={isSavingAlternativa}
                                             availableComedores={comedores}
@@ -1395,7 +1395,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                         formData={alternativeFormData}
                                         formTiempoComida={tiempo}
                                         onFormChange={handleAlternativaFormChange}
-                                        onSubmit={handleAddAlternativa}
+                                        onSubmit={() => handleAddAlternativa(tiempo)}
                                         onCancel={handleCancelAlternativaForm}
                                         isSaving={isSavingAlternativa}
                                         availableComedores={comedores}
