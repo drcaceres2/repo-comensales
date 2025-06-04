@@ -8,6 +8,7 @@ import { Firestore } from 'firebase/firestore'; // Removed doc, getDoc, collecti
 import { auth, db } from '@/lib/firebase';
 import withAuth from '@/components/withAuth';
 import { UserProfile, PermisosComidaPorGrupo, Semanario, Eleccion, Ausencia, Actividad } from '@/../../shared/models/types';
+import SelectorUsuariosEC from './components/SelectorUsuariosEC2';
 
 interface ElegirComidasContextProps {
   loggedUser: UserProfile | null;
@@ -68,11 +69,9 @@ const ElegirComidasPage = () => {
   if (authLoading) {
     return <div>Loading user authentication...</div>;
   }
-
   if (authError) {
     return <div>Error loading authentication: {authError.message}</div>;
   }
-
   if (!authUser) {
     return <div>User not authenticated. Please log in.</div>;
   }
@@ -103,7 +102,7 @@ const ElegirComidasPage = () => {
       setIsLoadingLoggedUser,
       isLoadingSelectedUserData,
       setIsLoadingSelectedUserData,
-      residenciaId, // residenciaId from state
+      residenciaId,
       setResidenciaId: setResidenciaId,
       userSemanario,
       setUserSemanario,
@@ -121,9 +120,7 @@ const ElegirComidasPage = () => {
         <h1>Meal Selection {residenciaId ? `(Residencia: ${residenciaId})` : '(Select Residencia)'}</h1>
         
         <div style={componentContainerStyle}>
-          <h2>1. User Selector Component</h2>
-          {/* UserSelectorComponent will be responsible for setting residenciaId, loggedUser, selectedUser, permissions */}
-          <div style={placeholderContentStyle}>Placeholder for User Selector.</div>
+          <SelectorUsuariosEC />
         </div>
 
         {/* isLoadingSelectedUserData is still available for components to use generally, 

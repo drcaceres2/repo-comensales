@@ -228,7 +228,7 @@ export interface AlternativaTiempoComida {
     iniciaDiaAnterior?: boolean; 
     ventanaFin: string; // hora en formato ISO 8601 "HH:mm" en zona horaria de la residencia
     terminaDiaSiguiente?: boolean; 
-    horarioSolicitudComidaId: HorarioSolicitudComidaId; 
+    horarioSolicitudComidaId?: HorarioSolicitudComidaId | null; 
     tiempoComidaId: TiempoComidaId; 
     residenciaId: ResidenciaId;
     comedorId?: ComedorId; 

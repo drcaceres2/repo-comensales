@@ -22,7 +22,7 @@ import {
     TipoAlternativa 
 } from '@/../../shared/models/types';
 import { writeClientLog } from '@/lib/utils';
-import { Timestamp, addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
+import { addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import withAuth from '@/components/withAuth';
@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Textarea } from "@/components/ui/textarea";
+// import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge'; // Added Badge
@@ -42,6 +42,7 @@ import { Badge } from '@/components/ui/badge'; // Added Badge
 // AlternativaForm component remains unchanged
 interface AlternativaFormProps {
     formData: Partial<AlternativaTiempoComida>;
+    formTiempoComida: TiempoComida;
     onFormChange: (field: keyof AlternativaTiempoComida, value: any) => void;
     onSubmit: () => Promise<void>;
     onCancel: () => void;
@@ -53,6 +54,7 @@ interface AlternativaFormProps {
 }
 function AlternativaForm({
     formData,
+    formTiempoComida,
     onFormChange,
     onSubmit,
     onCancel,
@@ -164,7 +166,7 @@ function AlternativaForm({
 
             {/* Horario Solicitud Dropdown (ALWAYS required) */}
             <div>
-                <Label htmlFor="alt-horario-solicitud">Horario Solicitud Administración *</Label>
+                <Label htmlFor="alt-horario-solicitud">Horario Solicitud Administración { formTiempoComida.aplicacionOrdinaria ? "*" : "" }</Label>
                 <Select
                     value={formData.horarioSolicitudComidaId || ''}
                     onValueChange={(value) => onFormChange('horarioSolicitudComidaId', value)}
@@ -177,7 +179,7 @@ function AlternativaForm({
                     </SelectContent>
                 </Select>
                 {availableHorarios.length === 0 && <p className="text-xs text-red-500 mt-1">Defina (y active) horarios de solicitud en la config. general.</p>}
-                {!formData.horarioSolicitudComidaId && <p className="text-xs text-destructive mt-1">Este campo es requerido.</p>}
+                {formTiempoComida.aplicacionOrdinaria ? ( !formData.horarioSolicitudComidaId && <p className="text-xs text-destructive mt-1">Este campo es requerido.</p> ) : (<p className="text-xs text-red-500 mt-1">El horario de solicitud de comida de una alternativa no ordinaria es opcional.</p>) }
             </div>
 
             {/* Checkbox for requiereAprobacion */}
@@ -396,7 +398,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     // --- Fetch Page Data Function (Now includes Residencia name) ---
     const fetchData = useCallback(async () => {
         if (!residenciaId) {
-            setErrorPageData("ID de Residencia no encontrado en la URL.");
+            setErrorPageData("ID de Residencia no encontrado.");
             setIsLoadingPageData(false);
             return;
         }
@@ -451,8 +453,17 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     useEffect(() => {
         // ... (This effect remains exactly the same as in dietas/page.tsx) ...
         if (authFirebaseLoading) { setAdminProfileLoading(true); setIsAuthorized(false); return; }
-        if (authFirebaseError) { console.error("Firebase Auth Error:", authFirebaseError); toast({ title: "Error de Autenticación", description: authFirebaseError.message, variant: "destructive" }); setAdminProfileLoading(false); setAdminUserProfile(null); setAdminProfileError(authFirebaseError.message); setIsAuthorized(false); router.replace('/'); return; }
-        if (!authUser) { console.log("No Firebase user. Redirecting."); setAdminProfileLoading(false); setAdminUserProfile(null); setAdminProfileError(null); setIsAuthorized(false); router.replace('/'); return; }
+        if (authFirebaseError) { 
+            console.error("Firebase Auth Error:", authFirebaseError); 
+            toast({ title: "Error de Autenticación", description: authFirebaseError.message, variant: "destructive" }); 
+            setAdminProfileLoading(false); setAdminUserProfile(null); setAdminProfileError(authFirebaseError.message); setIsAuthorized(false); 
+            router.replace('/'); return; 
+        }
+        if (!authUser) { 
+            console.log("No Firebase user. Redirecting."); 
+            setAdminProfileLoading(false); setAdminUserProfile(null); setAdminProfileError(null); setIsAuthorized(false); 
+            router.replace('/'); return; 
+        }
 
         console.log("Admin authenticated (UID:", authUser.uid,"). Fetching profile...");
         setAdminProfileLoading(true); setAdminProfileError(null);
@@ -1323,6 +1334,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                         // EDIT FORM for Alternativa
                                         <AlternativaForm
                                             formData={alternativeFormData}
+                                            formTiempoComida={tiempo}
                                             onFormChange={handleAlternativaFormChange}
                                             onSubmit={handleSaveAlternativa}
                                             onCancel={handleCancelAlternativaForm}
@@ -1381,6 +1393,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                 {addingAlternativaTo === tiempo.id && (
                                     <AlternativaForm
                                         formData={alternativeFormData}
+                                        formTiempoComida={tiempo}
                                         onFormChange={handleAlternativaFormChange}
                                         onSubmit={handleAddAlternativa}
                                         onCancel={handleCancelAlternativaForm}
