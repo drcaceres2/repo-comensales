@@ -19,6 +19,7 @@ const {
   isLoadingLoggedUser, setIsLoadingLoggedUser, 
   isLoadingSelectedUserData, setIsLoadingSelectedUserData,
   residenciaId, setResidenciaId,
+  residencia, setResidencia,
   auth, db
 } = useElegirComidas();
 
@@ -43,6 +44,7 @@ function fechaEstaEnIntervalo(
 }
 async function obtenerAsistidosResidentesFiltrados(
   userProfileData: any,
+  userResidencia: Residencia,
 ): Promise<UserProfile[]> {
   const now = new Date();
   const assistedUsers: AsistenciasUsuariosDetalle[] =
@@ -80,26 +82,16 @@ async function obtenerAsistidosResidentesFiltrados(
     residenteIds.includes(a.usuarioAsistido)
   );
 
-  // Obtener datos de la residencia (zona horaria)
-  let residencia: Residencia | undefined = undefined;
-  if (residenciaId) {
-    const residenciaRef = doc(db, 'residencias', residenciaId);
-    const docSnap = await getDoc(residenciaRef);
-    if (docSnap.exists()) {
-      residencia = docSnap.data() as Residencia;
-    }
-  }
-
   // Filtrar por restricción de tiempo
   const filtradosIds = assistedUsersResidentes
     .filter((a) => {
       if (!a.restriccionTiempo) return true;
-      if (a.fechaInicio && a.fechaFin && residencia) {
+      if (a.fechaInicio && a.fechaFin && userResidencia) {
         return fechaEstaEnIntervalo(
           now,
           a.fechaInicio,
           a.fechaFin,
-          residencia.zonaHoraria
+          userResidencia.zonaHoraria
         );
       }
       return false;
@@ -160,9 +152,23 @@ const SelectorUsuariosEC = () => {
           return;
         }
 
+        let residencia: Residencia | undefined = undefined;
+        if (residenciaId) {
+          const residenciaRef = doc(db, 'residencias', residenciaId);
+          const docSnap = await getDoc(residenciaRef);
+          if (docSnap.exists()) {
+            residencia = docSnap.data() as Residencia;
+          }
+        }      
+        if (!residencia) {
+          router.push(`/acceso-no-autorizado?mensaje=${encodeURIComponent('Problemas al cargar la residencia del usuario.')}`);
+          return;
+        }
+
         // Access granted: Update loggedUser
         setLoggedUser(userProfileData);
         setResidenciaId(userProfileData.residenciaId!);
+        setResidencia(residencia)
 
         // Fetch available users for selection
         let users: UserProfile[] = [];
@@ -174,7 +180,7 @@ const SelectorUsuariosEC = () => {
         } else if (userProfileData.roles.includes('asistente')) {
           if (userProfileData.asistentePermisos && userProfileData.asistentePermisos.gestionUsuarios && userProfileData.asistentePermisos.usuariosAsistidos && userProfileData.asistentePermisos.usuariosAsistidos.length > 0) {
             // Fetch assisted users with 'residente' role and within timeframe
-            users = await obtenerAsistidosResidentesFiltrados(userProfileData);
+            users = await obtenerAsistidosResidentesFiltrados(userProfileData,residencia);
             // Incluir al propio asistente si también es residente
             if (userProfileData.roles.includes('residente')) {
               const yaIncluido = users.some(u => u.id === userProfileData.id); // o `uid` si usás ese campo
@@ -200,7 +206,7 @@ const SelectorUsuariosEC = () => {
       }
     };
     fetchData();
-  }, [authUser, loading, error, router, setResidenciaId, setLoggedUser, setSelectedUser, setIsLoadingLoggedUser]);
+  }, [authUser, loading, error, router, setResidenciaId, setResidencia, setLoggedUser, setSelectedUser, setIsLoadingLoggedUser]);
 
   useEffect(() => {
     const fetchMealPermissions = async () => {

@@ -216,6 +216,7 @@ export interface TiempoComida {
         "horario de sábado" o "de domingo" sin necesidad de hacer 
         una alteración de horario detallada. Se pueden crear tantos
         Tiempos de Comida extraordinarias como se desee. */
+    isActive: boolean;
 }
 export type AlternativaTiempoComidaId = string;
 export interface AlternativaTiempoComida {
@@ -346,6 +347,40 @@ export interface Comentario {
     relacionadoA?: { 
         coleccion: 'eleccion' | 'ausencia' | 'usuario'; 
         documentoId: string;
+    };
+}
+export interface celdaSemanarioDesnormalizado {
+    // Información del TiempoComida base
+    tiempoComidaId?: TiempoComidaId | null;
+    tiempoComidaModId?: TiempoComidaModId | null;
+
+    nombreTiempoComida: string; // "Desayuno lunes" por ejemplo, para referencia
+  
+    // Lista de alternativas que son válidas para este slot
+    alternativasDisponibles: AlternativaTiempoComidaId[];
+    hayAlternativasRestringidas: boolean;
+    alternativasRestringidas: AlternativaTiempoComidaId[];
+    hayAlternativasAlteradas: boolean;
+    alternativasAlteradas: AlternativaTiempoComidaModId[];
+    hayActividadInscrita: boolean;
+    alternativaActividadInscrita: TiempoComidaAlternativaUnicaActividadId[];
+    hayActividadParaInscribirse: boolean;
+    actividadesDisponibles: ActividadId[];  
+    hayAusencia: boolean;
+    ausenciaAplicable: AusenciaId;
+    eleccionSemanario: AlternativaTiempoComidaId;
+}
+export type diaSemanarioDesnormalizado = {
+    [key in DayOfWeekKey]: celdaSemanarioDesnormalizado;
+};
+export interface semanarioDesnormalizado {
+    userId: UserId;
+    residenciaId: ResidenciaId;
+    semana: string; // Número de semana en formato ISO 8601 "YYYY-Www"
+  
+    // Mapa anidado para la tabla: { nombreGrupo: { dia: AlternativasDisponiblesSlot } }
+    tabla: {
+        [nombreGrupo: string]: diaSemanarioDesnormalizado; // <--- ¡Aquí está el cambio!
     };
 }
 
