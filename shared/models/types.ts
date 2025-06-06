@@ -381,7 +381,7 @@ export interface SemanarioDesnormalizado {
     // Mapa anidado para la tabla: { nombreGrupo: { dia: AlternativasDisponiblesSlot } }
     tabla: {
         [nombreGrupo: string]: {
-          [dia: string]: celdaSemanarioDesnormalizado;
+          [dia: string]: CeldaSemanarioDesnormalizado;
         };
       };
 }

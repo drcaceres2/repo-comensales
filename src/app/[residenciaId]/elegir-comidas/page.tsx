@@ -12,7 +12,7 @@ import {
   Residencia, ResidenciaId, TiempoComida, AlternativaTiempoComida, HorarioSolicitudComida,
   AlteracionHorario, TiempoComidaMod, AlternativaTiempoComidaMod,
   Semanario, Eleccion, Ausencia, Actividad, InscripcionActividad, TiempoComidaAlternativaUnicaActividad, Comentario,
-  semanarioDesnormalizado,
+  SemanarioDesnormalizado,
 } from '@/../../shared/models/types';
 import SelectorUsuariosEC from './components/SelectorUsuariosEC2';
 
@@ -67,8 +67,8 @@ interface userContextProps {
   setUserInscripciones: React.Dispatch<React.SetStateAction<InscripcionActividad[]>>;
   userComentarios: Comentario[];
   setUserComentarios: React.Dispatch<React.SetStateAction<Comentario[]>>;
-  semanarioUI: semanarioDesnormalizado | null;
-  setSemanarioUI: React.Dispatch<React.SetStateAction<semanarioDesnormalizado | null>>;
+  semanarioUI: SemanarioDesnormalizado | null;
+  setSemanarioUI: React.Dispatch<React.SetStateAction<SemanarioDesnormalizado | null>>;
 }
 
 const MainContext = createContext<MainContextProps | undefined>(undefined);
@@ -129,7 +129,7 @@ const ElegirComidasPage = () => {
   const [userAusencias, setUserAusencias] = useState<Ausencia[]>([]);
   const [userInscripciones, setUserInscripciones] = useState<InscripcionActividad[]>([]);
   const [userComentarios, setUserComentarios] = useState<Comentario[]>([]);
-  const [semanarioUI, setSemanarioUI] = useState<semanarioDesnormalizado | null>(null);
+  const [semanarioUI, setSemanarioUI] = useState<SemanarioDesnormalizado | null>(null);
 
   if (authLoading) {
     return <div>Loading user authentication...</div>;
