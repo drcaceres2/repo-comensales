@@ -6,7 +6,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, doc, getDoc, getDocs, query, where, orderBy } from 'firebase/firestore'
 import { UserProfile, PermisosComidaPorGrupo, Semanario, Eleccion, Ausencia, Actividad, Residencia, AsistenciasUsuariosDetalle } from '@/../../shared/models/types';
 // import { ElegirComidasContextProps } from '../page';
-import { useElegirComidas } from '../page';
+import { useLoginC } from '../page';
 import { parse } from 'date-fns'
 import { fromZonedTime } from 'date-fns-tz'
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns'
@@ -16,12 +16,12 @@ const {
   loggedUser, setLoggedUser, 
   selectedUser, setSelectedUser, 
   selectedUserMealPermissions, setSelectedUserMealPermissions, 
+  residencia, setResidencia,
+  residenciaId, setResidenciaId,
   isLoadingLoggedUser, setIsLoadingLoggedUser, 
   isLoadingSelectedUserData, setIsLoadingSelectedUserData,
-  residenciaId, setResidenciaId,
-  residencia, setResidencia,
   auth, db
-} = useElegirComidas();
+} = useLoginC();
 
 function fechaEstaEnIntervalo(
   fecha: Date,

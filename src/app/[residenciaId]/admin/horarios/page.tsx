@@ -287,6 +287,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const [newTiempoComidaNombreGrupo, setNewTiempoComidaNombreGrupo] = useState('');
     const [newTiempoComidaOrdenGrupo, setNewTiempoComidaOrdenGrupo] = useState<number | string>('');
     const [newAplicacionOrdinaria, setNewAplicacionOrdinaria] = useState<boolean>(true);
+    const [newTiempoComidaIsActive, setNewTiempoComidaIsActive] = useState<boolean>(true);
     const [isAddingTiempo, setIsAddingTiempo] = useState(false);
     const [editingTiempoComidaId, setEditingTiempoComidaId] = useState<string | null>(null);
     const [editTiempoComidaName, setEditTiempoComidaName] = useState('');
@@ -295,6 +296,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const [editTiempoComidaNombreGrupo, setEditTiempoComidaNombreGrupo] = useState('');
     const [editTiempoComidaOrdenGrupo, setEditTiempoComidaOrdenGrupo] = useState<number | string>('');
     const [editAplicacionOrdinaria, setEditAplicacionOrdinaria] = useState<boolean>(true);
+    const [editTiempoComidaIsActive, setEditTiempoComidaIsActive] = useState<boolean>(true);
     const [isSavingEditTiempo, setIsSavingEditTiempo] = useState(false);
     const [isAddingTraditionalScheme, setIsAddingTraditionalScheme] = useState(false);
 
@@ -550,6 +552,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             nombreGrupo: trimmedNombreGrupo,
             ordenGrupo: ordenGrupoNum,
             aplicacionOrdinaria: newAplicacionOrdinaria,
+            isActive: newTiempoComidaIsActive,
         };
 
         try {
@@ -563,6 +566,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             setNewTiempoComidaHoraEstimada(null);
             setNewTiempoComidaNombreGrupo('');
             setNewTiempoComidaOrdenGrupo('');
+            setNewTiempoComidaIsActive(true);
             toast({ title: "Éxito", description: `Tiempo "${nuevoTiempoData.nombre}" añadido.` });
         } catch (error) {
             console.error("Error adding TiempoComida: ", error);
@@ -615,6 +619,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             nombreGrupo: trimmedEditNombreGrupo,
             ordenGrupo: ordenGrupoNum,
             aplicacionOrdinaria: editAplicacionOrdinaria,
+            isActive: editTiempoComidaIsActive,
         };
 
         try {
@@ -698,6 +703,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                         nombreGrupo: mealGroup.nombreGrupo,
                         ordenGrupo: mealGroup.ordenGrupo,
                         aplicacionOrdinaria: true,
+                        isActive: true,
                     };
                     
                     const tiempoDocRef = doc(collection(db, "tiemposComida")); // Create new doc ref for ID
@@ -1158,7 +1164,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                     <p className="text-xs text-muted-foreground mt-1">Orden numérico (1=primero).</p>
                                 </div>
                             </div>
-                            {/* Row 3: Aplicacion Ordinaria */}
+                            {/* Row 3: Aplicacion Ordinaria, isActive */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <Checkbox
@@ -1169,6 +1175,17 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                     />
                                     <Label htmlFor={`edit-aplicacion-ordinaria-${tiempo.id}`} className="font-normal">
                                         ¿Tiempo Ordinario? (Quitar para días feriados o extraordinarios) *
+                                    </Label>
+                                </div>
+                                <div>
+                                    <Checkbox
+                                        id={`edit-aplicacion-ordinaria-${tiempo.id}`}
+                                        checked={editTiempoComidaIsActive}
+                                        onCheckedChange={(checked) => setEditTiempoComidaIsActive(Boolean(checked))}
+                                        disabled={isSavingEditTiempo}
+                                    />
+                                    <Label htmlFor={`edit-aplicacion-ordinaria-${tiempo.id}`} className="font-normal">
+                                        Activo (Quitar desactivar el tiempod de comida) *
                                     </Label>
                                 </div>
                                 <div></div> {/* Spacer */}
@@ -1279,7 +1296,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                     <Input id="new-tiempo-orden" type="number" min="1" step="1" value={newTiempoComidaOrdenGrupo} onChange={(e) => setNewTiempoComidaOrdenGrupo(e.target.value)} placeholder="Ej. 1" disabled={isAddingTiempo}/>
                                 </div>
                             </div>
-                            {/* Row 3: Aplicacion Ordinaria */}
+                            {/* Row 3: Aplicacion Ordinaria, isActive */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <Checkbox
@@ -1290,6 +1307,17 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                     />
                                     <Label htmlFor={"new-aplicacion-ordinaria"} className="font-normal">
                                         ¿Tiempo Ordinario? (Quitar para días feriados o extraordinarios) *
+                                    </Label>
+                                </div>
+                                <div>
+                                    <Checkbox
+                                        id="new-aplicacion-ordinaria"
+                                        checked={newTiempoComidaIsActive}
+                                        onCheckedChange={(checked) => setNewTiempoComidaIsActive(Boolean(checked))}
+                                        disabled={isAddingTiempo}
+                                    />
+                                    <Label htmlFor={"new-aplicacion-ordinaria"} className="font-normal">
+                                        Activo (Quitar desactivar el tiempod de comida) *
                                     </Label>
                                 </div>
                                 <div></div> {/* Spacer */}

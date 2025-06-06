@@ -264,7 +264,7 @@ export type AlternativaTiempoComidaModId = string;
 export interface AlternativaTiempoComidaMod {
     id: AlternativaTiempoComidaModId;
     residenciaId: ResidenciaId;
-    nombre?: string; 
+    nombre?: string | null; 
     tipoAlteracion: 'agregar' | 'modificar' | 'eliminar';
     tiempoComidaModId: TiempoComidaModId;
     horarioSolicitudComidaId: HorarioSolicitudComidaId;
@@ -295,7 +295,7 @@ export interface Semanario {
     userId: UserId;
     residenciaId: ResidenciaId;
     elecciones: {
-        [tiempoComidaId: TiempoComidaId]: AlternativaTiempoComidaId[];
+        [tiempoComidaId: TiempoComidaId]: AlternativaTiempoComidaId | null;
     };
     ultimaActualizacion: number; // Timestamp stored as number (millis)
 }
@@ -349,39 +349,41 @@ export interface Comentario {
         documentoId: string;
     };
 }
-export interface celdaSemanarioDesnormalizado {
+export interface CeldaSemanarioDesnormalizado {
     // Información del TiempoComida base
-    tiempoComidaId?: TiempoComidaId | null;
-    tiempoComidaModId?: TiempoComidaModId | null;
+    tiempoComidaId?: TiempoComidaId | null; // null en caso de horario alterado y añadido
+    alternativasDisponiblesId: AlternativaTiempoComidaId[];
 
-    nombreTiempoComida: string; // "Desayuno lunes" por ejemplo, para referencia
-  
-    // Lista de alternativas que son válidas para este slot
-    alternativasDisponibles: AlternativaTiempoComidaId[];
-    hayAlternativasRestringidas: boolean;
-    alternativasRestringidas: AlternativaTiempoComidaId[];
     hayAlternativasAlteradas: boolean;
-    alternativasAlteradas: AlternativaTiempoComidaModId[];
+    tiempoComidaModId?: TiempoComidaModId | null;
+    alternativasModId: AlternativaTiempoComidaModId[];
+    
+    nombreTiempoComida: string; // "Desayuno lunes" por ejemplo, para referencia
+
+    // Lista de alternativas que son válidas para este slot
+    hayAlternativasRestringidas: boolean;
+    alternativasRestringidasId: AlternativaTiempoComidaId[];
     hayActividadInscrita: boolean;
-    alternativaActividadInscrita: TiempoComidaAlternativaUnicaActividadId[];
+    alternativaActividadInscritaId: TiempoComidaAlternativaUnicaActividadId[];
     hayActividadParaInscribirse: boolean;
     actividadesDisponibles: ActividadId[];  
     hayAusencia: boolean;
-    ausenciaAplicable: AusenciaId;
-    eleccionSemanario: AlternativaTiempoComidaId;
+    ausenciaAplicableId: AusenciaId;
+    eleccionSemanarioId?: AlternativaTiempoComidaId | null;
 }
-export type diaSemanarioDesnormalizado = {
-    [key in DayOfWeekKey]: celdaSemanarioDesnormalizado;
-};
-export interface semanarioDesnormalizado {
+export interface SemanarioDesnormalizado {
     userId: UserId;
     residenciaId: ResidenciaId;
     semana: string; // Número de semana en formato ISO 8601 "YYYY-Www"
-  
+
+    ordenGruposComida: { nombreGrupo: string; ordenGrupo: number }[];  
+
     // Mapa anidado para la tabla: { nombreGrupo: { dia: AlternativasDisponiblesSlot } }
     tabla: {
-        [nombreGrupo: string]: diaSemanarioDesnormalizado; // <--- ¡Aquí está el cambio!
-    };
+        [nombreGrupo: string]: {
+          [dia: string]: celdaSemanarioDesnormalizado;
+        };
+      };
 }
 
 // --- Solicitud a la administración ---
@@ -429,9 +431,9 @@ export interface Actividad {
     //Campos de cálculo de comidas
     fechaInicio: string; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
     fechaFin: string; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
-    ultimoTiempoComidaAntes?: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
-    primerTiempoComidaDespues?: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
-    planComidas?: TiempoComidaAlternativaUnicaActividad[]; 
+    ultimoTiempoComidaAntes: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
+    primerTiempoComidaDespues: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
+    planComidas: TiempoComidaAlternativaUnicaActividad[]; 
     tipoSolicitudComidas: TipoSolicitudComidasActividad;
     estadoSolicitudAdministracion: 'no_solicitado' | 'solicitud_inicial_realizada' | 'completada';
     comedorActividad?: ComedorId | null;
