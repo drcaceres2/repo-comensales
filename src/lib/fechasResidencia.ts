@@ -1,4 +1,4 @@
-import { format, FormatOptions, getDay, addDays } from 'date-fns';
+import { format, getDay, addDays, endOfDay, startOfDay, startOfWeek, endOfWeek, isWithinInterval, isBefore, isAfter, parseISO } from 'date-fns';
 import { fromZonedTime, toZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { DayOfWeekKey } from '@/../../shared/models/types';
 import { es } from 'date-fns/locale'; // Spanish locale for ISO 8601 week (Monday first)
@@ -27,7 +27,6 @@ export const dayKeyToDateFnsNumber = (day: DayOfWeekKey): number => {
 // Helper to get a Date object for a specific DayOfWeekKey within a given week (represented by its start date)
 export const dayOfWeekKeyToDate = (dayKey: DayOfWeekKey, weekStartDate: Date): Date => {
   const targetDayIndex = dayKeyToDateFnsNumber(dayKey); // 0 (Sun) - 6 (Sat)
-  const weekStartDayIndex = getDay(weekStartDate); // 0 (Sun) - 6 (Sat)
   
   // Calculate difference, ensuring we handle week wrap-around correctly if weekStartDate is not Sunday
   // Since our weekStartDate is Monday (from startOfWeek with locale:es, weekStartsOn:1)
@@ -36,6 +35,7 @@ export const dayOfWeekKeyToDate = (dayKey: DayOfWeekKey, weekStartDate: Date): D
   // A simpler way: startOfWeek already gives Monday. Add days based on the difference from Monday.
   let daysToAdd = targetDayIndex - 1; // Assuming Monday is 1 from dayKeyToDateFnsNumber
   if (dayKey === 'domingo') daysToAdd = 6; // Sunday is 6 days after Monday
+
 
   return addDays(weekStartDate, daysToAdd);
 };
@@ -51,132 +51,191 @@ export const formatToDayOfWeekKey = (date: Date): DayOfWeekKey => {
   else dayName = dayString as DayOfWeekKey; 
   return dayName;
 };
-interface HorarioComidaProps {
-  fecha: string; // "YYYY-MM-DD"
+interface formatoIsoCompletoProps {
+  fecha: string | Date; // "YYYY-MM-DD"
   hora?: string; // "HH:MM"
   zonaHoraria: string; // "Europe/Madrid"
 }
-export function formatoIsoCompleto({ fecha, hora, zonaHoraria }: HorarioComidaProps): Date | null {
-  
-  if (!fecha || !zonaHoraria ) {
-    console.log("Faltan parámetros (formatIsoCompleto2)");
-    return null;
-  }
-
-  let fechaHoraString: string;
-  let fechaIsoCompleto: Date;
-  if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/.test(fecha)) {
-    if(!hora || hora === fecha.slice(12,5)){
-      fechaHoraString = fecha;
-      fechaIsoCompleto = new Date(
-        format(
-          toZonedTime(fechaHoraString, zonaHoraria),
-          'YYYY-MM-DDTHH:mmXXX', 
-          { timeZone: zonaHoraria } as FormatOptions
-        )
-      )
-    } else {
-      console.log("Información contradictoria (formatIsoCompleto2)");
-      return null;  
-    }
-  } else {
-    if(/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-      if (!hora) {
-        fechaHoraString = `${fecha}T00:00`;
-      } else if(/^\d{2}:\d{2}$/.test(hora) || /^\d{2}:\d{2}:\d{2}$/.test(hora)) {
-        fechaHoraString = `${fecha}T${hora}`;
+export function formatoIsoCompletoString({ fecha, hora, zonaHoraria }: formatoIsoCompletoProps): string | null {
+  if (!fecha || !zonaHoraria ) { console.log("Faltan parámetros (formatoIsoCompletoString)"); return null; }
+  let fechaIsoString: string; 
+  let fechaIsoStringZonaResidencia: string;
+  if(typeof fecha === 'string') {
+    if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/.test(fecha) || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}:\d{2}$/.test(fecha)) {
+      if(!hora || hora === fecha.slice(12,5)){
+        fechaIsoStringZonaResidencia = formatInTimeZone(fecha, zonaHoraria, 'YYYY-MM-DDTHH:mm:ssXXX');
       } else {
-        console.log("Formato inválido de fecha y/o hora (formatoIsoCompleto");
-        return null;
+        console.log("Información contradictoria (formatIsoCompleto)");
+        return null;  
       }
-    } else if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(fecha) || /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(fechaHora)) {
-      fechaHoraString = fecha.replace(" ", "T");
-    } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(fecha) 
-            || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(fecha)
-            || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(fecha))
-    {
-      fechaHoraString = fecha;
     } else {
-      console.log("Formato de fechaHora incorrecto (formatIsoCompleto2)");
-      return null;
+      if(/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+        if (!hora) {
+          fechaIsoString = `${fecha}T00:00`;
+        } else if(/^\d{2}:\d{2}$/.test(hora) || /^\d{2}:\d{2}:\d{2}$/.test(hora)) {
+          fechaIsoString = `${fecha}T${hora}`;
+        } else {
+          console.log("Formato inválido de fecha y/o hora (formatoIsoCompleto");
+          return null;
+        }
+      } else if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(fecha) 
+              || /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(fecha)) {
+        fechaIsoString = fecha.replace(" ", "T");
+      } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(fecha) 
+              || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(fecha))
+      {
+        fechaIsoString = fecha;
+      } else { 
+        console.log("Formato de fecha incorrecto (formatIsoCompleto2)"); 
+        return null; 
+      }
+      fechaIsoStringZonaResidencia = formatInTimeZone(
+        toZonedTime(
+          fromZonedTime(
+            fechaIsoString, 
+            zonaHoraria), 
+          zonaHoraria),
+          zonaHoraria,
+        'YYYY-MM-DDTHH:mm:ssXXX'
+      );
     }
-    const fechaHoraEnZonaResidencia = fromZonedTime(fechaHoraString, zonaHoraria);
-    fechaIsoCompleto = new Date(
-      format(
-        toZonedTime(fechaHoraEnZonaResidencia, zonaHoraria),
-        'YYYY-MM-DDTHH:mmXXX', 
-        { timeZone: zonaHoraria } as FormatOptions
-      )
-    )
-  }
-
-  return fechaIsoCompleto;
-}
-
-
-interface HorarioComidaProps1 {
-  fecha: string; // "YYYY-MM-DD"
-  hora?: string; // "HH:MM"
-  zonaHoraria: string; // "Europe/Madrid"
-}
-export function formatoIsoCompleto1({ fecha, hora, zonaHoraria } : HorarioComidaProps1): Date | null {
-  
-  if (!fecha || !zonaHoraria ) return null;
-  if (!hora) hora='00:00';
-
-  // 1. Combina fecha y hora en un string ISO-like
-  const fechaHoraString = `${fecha}T${hora}`;
-
-  // 2. Crea un objeto Date que representa ese momento EXACTO en la zona horaria de la residencia.
-  // Primero lo convertimos a UTC para tener una referencia universal y luego lo formateamos.
-  const fechaHoraEnZonaResidencia = fromZonedTime(fechaHoraString, zonaHoraria);
-
-  // 3. Formatea la fecha para mostrarla al usuario. 
-  // La formateamos de vuelta a la zona horaria original para asegurarnos de que se muestre correctamente.
-  return new 
-    Date(
-      format(
-        toZonedTime(fechaHoraEnZonaResidencia, zonaHoraria),
-        'YYYY-MM-DDTHH:mmXXX', 
-        { timeZone: zonaHoraria } as FormatOptions
-      )
-    );
-}
-interface HorarioComidaProps2 {
-  fechaHora: string; // "YYYY-MM-DD HH:MM"
-  zonaHoraria: string; // "Europe/Madrid"
-}
-export function formatoIsoCompleto2({ fechaHora, zonaHoraria}: HorarioComidaProps2): Date | null {
-  
-  if (!fechaHora || !zonaHoraria ) {
-    console.log("Faltan parámetros (formatIsoCompleto2)");
-    return null;
-  }
-
-  let fechaHoraString: string;
-  if(/^\d{4}-\d{2}-\d{2}$/.test(fechaHora)) {
-    fechaHoraString = `${fechaHora}T00:00`;
-  } else if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(fechaHora) || /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(fechaHora)) {
-    fechaHoraString = fechaHora.replace(" ", "T");
-  } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(fechaHora)) {
-    fechaHoraString = fechaHora;
   } else {
-    console.log("Formato de fechaHora incorrecto (formatIsoCompleto2)");
+    fechaIsoStringZonaResidencia = formatInTimeZone(fecha, zonaHoraria, 'YYYY-MM-DDTHH:mm:ssXXX');
+  }
+  return fechaIsoStringZonaResidencia;
+}
+export function formatoIsoCompletoDate({ fecha, hora, zonaHoraria }: formatoIsoCompletoProps): Date | null {
+  const fechaString = formatoIsoCompletoString({ fecha, hora, zonaHoraria });
+  if (!fechaString) return null;
+  return new Date(fechaString);
+}
+export function formatoIsoFinalDiaString({ fecha, hora, zonaHoraria }: formatoIsoCompletoProps): string | null {
+  if (!fecha || !zonaHoraria ) { console.log("Faltan parámetros (formatoIsoFinalDiaString)"); return null; }
+  const fechaIsoStringZonaResidencia = formatoIsoCompletoString({ fecha, hora, zonaHoraria });
+  if (!fechaIsoStringZonaResidencia) {
+    console.log("No se recibió una fecha válida para obtener el final del dia (formatoIsoFinalDiaString)");
     return null;
   }
+  return formatInTimeZone(endOfDay(fechaIsoStringZonaResidencia),zonaHoraria,'YYYY-MM-DDTHH:mm:ssXXX');
+}
+export function formatoIsoInicioDiaString({ fecha, hora, zonaHoraria }: formatoIsoCompletoProps): string | null {
+  if (!fecha || !zonaHoraria ) { console.log("Faltan parámetros (formatIsoInicioDiaString)"); return null; }
+  const fechaIsoStringZonaResidencia = formatoIsoCompletoString({ fecha, hora, zonaHoraria });
+  if (!fechaIsoStringZonaResidencia) {
+    console.log("No se recibió una fecha válida para obtener el final del dia (formatoIsoFinalDiaString)");
+    return null;
+  }
+  return formatInTimeZone(startOfDay(fechaIsoStringZonaResidencia),zonaHoraria,'YYYY-MM-DDTHH:mm:ssXXX');
+}
+export function formatoIsoFinalSemanaString({ fecha, hora, zonaHoraria }: formatoIsoCompletoProps): string | null {
+  if (!fecha || !zonaHoraria ) { console.log("Faltan parámetros (formatoIsoFinalSemanaString)"); return null; }
+  const fechaIsoStringZonaResidencia = formatoIsoCompletoString({ fecha, hora, zonaHoraria });
+  if (!fechaIsoStringZonaResidencia) {
+    console.log("No se recibió una fecha válida para obtener el final del dia (formatoIsoFinalSemanaString)");
+    return null;
+  }
+  return formatInTimeZone(endOfWeek(fechaIsoStringZonaResidencia,{ locale: es, weekStartsOn: 1 }),zonaHoraria,'YYYY-MM-DDTHH:mm:ssXXX');
+}
+export function formatoIsoInicioSemanaString({ fecha, hora, zonaHoraria }: formatoIsoCompletoProps): string | null {
+  if (!fecha || !zonaHoraria ) { console.log("Faltan parámetros (formatoIsoFinalSemanaString)"); return null; }
+  const fechaIsoStringZonaResidencia = formatoIsoCompletoString({ fecha, hora, zonaHoraria });
+  if (!fechaIsoStringZonaResidencia) {
+    console.log("No se recibió una fecha válida para obtener el final del dia (formatoIsoFinalSemanaString)");
+    return null;
+  }
+  return formatInTimeZone(startOfWeek(fechaIsoStringZonaResidencia,{ locale: es, weekStartsOn: 1 }),zonaHoraria,'YYYY-MM-DDTHH:mm:ssXXX');
+}
+export function fechaNormalizadaADate(fechaNormalizada: string): Date {
+  return new Date(fechaNormalizada);
+}
+// Checks if a targetDate is within the effective range of an item with fechaAplicacion and fechaFinAplicacion
+export const estaDentroFechas = (fecha: Date | string, fechaInicio: Date | string, fechaFin: Date | string, zonaHoraria: string): boolean | null => {
+  if (!fecha || !fechaInicio || !fechaFin || !zonaHoraria) {
+    console.log('No se obtuvieron suficientes parámetros (estaDentroFechas)')
+    return null;
+  }
+  const fechaIso = formatoIsoCompletoDate({fecha, zonaHoraria});
+  const fechaInicioIso = formatoIsoInicioDiaString({fecha: fechaInicio, zonaHoraria});
+  const fechaFinIso = formatoIsoFinalDiaString({fecha: fechaFin, zonaHoraria});
+  if (!fechaIso || !fechaInicioIso || !fechaFinIso) {
+    console.log('Fallo en la conversión de fechas (estaDentroFechas)');
+    return null;
+  }
+  return isWithinInterval(fechaIso, { start: fechaInicioIso, end: fechaFinIso });
+};
+export type resultadoComparacionIntervalo = 'anterior' | 'igual inicio' | 'dentro' | 'igual final' | 'posterior';
+export const comparacionFechaSinHoraIntervalo = (fecha: Date | string, fechaInicio: Date | string, fechaFin: Date | string, zonaHoraria: string): resultadoComparacionIntervalo | null => {
+  if (!fecha || !fechaInicio || !fechaFin || !zonaHoraria) {
+    console.log('No se obtuvieron suficientes parámetros (estaDentroFechas)')
+    return null;
+  }
+  const fechaIso = formatoIsoCompletoDate({fecha, zonaHoraria});
+  const fechaInicioIso = formatoIsoInicioDiaString({fecha: fechaInicio, zonaHoraria});
+  const fechaFinIso = formatoIsoFinalDiaString({fecha: fechaFin, zonaHoraria});
+  if (!fechaIso || !fechaInicioIso || !fechaFinIso) {
+    console.log('Fallo en la conversión de fechas (estaDentroFechas)');
+    return null;
+  }
+  const fechaIsoSinHora = parseISO(format(fechaIso, "YYYY-MM-DD"));
+  const fechaInicioIsoSinHora = parseISO(format(fechaInicioIso, "YYYY-MM-DD"));
+  const fechaFinIsoSinHora = parseISO(format(fechaFinIso, "YYYY-MM-DD"));
+  if (fechaIsoSinHora === fechaInicioIsoSinHora) return 'igual inicio';
+  else if (fechaIsoSinHora === fechaFinIsoSinHora) return 'igual final';
+  else if (fechaIsoSinHora < fechaInicioIsoSinHora) return 'anterior';
+  else if (fechaIsoSinHora > fechaFinIsoSinHora) return 'posterior';
+  else return 'dentro';
+};
 
-  // 1. Crea un objeto Date que representa ese momento EXACTO en la zona horaria de la residencia.
-  // Primero lo convertimos a UTC para tener una referencia universal y luego lo formateamos.
-  const fechaHoraEnZonaResidencia = fromZonedTime(fechaHora, zonaHoraria);
+export const esAnteriorOIgualFechaSinHora = (fecha1: Date | string, fecha2: Date | string, zonaHoraria: string): boolean | null => {
+  if (!fecha1 || !fecha2 || !zonaHoraria) {
+    console.log('No se obtuvieron suficientes parámetros (esAnterior)')
+    return null;
+  }
+  const fecha1Iso = formatoIsoCompletoString({fecha: fecha1, zonaHoraria});
+  const fecha2Iso = formatoIsoCompletoString({fecha: fecha2, zonaHoraria});
+  if (!fecha1Iso || !fecha2Iso) {
+    console.log('Las fechas proporcionadas no son válidas (esAnterior)')
+    return null;
+  }
+  const fecha1IsoSinHora = format(fecha1Iso, "YYYY-MM-DD");
+  const fecha2IsoSinHora = format(fecha1Iso, "YYYY-MM-DD");
+  return isBefore(fecha1IsoSinHora, fecha2IsoSinHora) || fecha1IsoSinHora===fecha2IsoSinHora;
+}
+export type resultadoComparacionFecha = 'antes' | 'igual' | 'despues';
+export const comprararFechasSinHora = (fecha1: Date | string, fecha2: Date | string, zonaHoraria: string): resultadoComparacionFecha | null => {
+  if (!fecha1 || !fecha2 || !zonaHoraria) {
+    console.log('No se obtuvieron suficientes parámetros (comprararFechasSinHora)');
+    return null;
+  }
+  const fecha1Iso = formatoIsoCompletoString({fecha: fecha1, zonaHoraria});
+  const fecha2Iso = formatoIsoCompletoString({fecha: fecha2, zonaHoraria});
+  if (!fecha1Iso || !fecha2Iso) {
+    console.log('Las fechas proporcionadas no son válidas (comprararFechasSinHora)');
+    return null;
+  }
+  const fecha1IsoSinHora = format(fecha1Iso, "YYYY-MM-DD");
+  const fecha2IsoSinHora = format(fecha1Iso, "YYYY-MM-DD");
+  if(fecha1IsoSinHora===fecha2IsoSinHora)
+    return 'igual';
+  else if(isBefore(fecha1IsoSinHora, fecha2IsoSinHora))
+    return 'antes';
+  else if(isAfter(fecha1IsoSinHora, fecha2IsoSinHora))
+    return 'despues';
+  else {
+    console.log('Fallo en la comparación de fechas (comprararFechasSinHora)');
+    return null;
+  }
+}
 
-  // 3. Formatea la fecha para mostrarla al usuario. 
-  // La formateamos de vuelta a la zona horaria original para asegurarnos de que se muestre correctamente.
-  return new 
-    Date(
-      format(
-        toZonedTime(fechaHoraEnZonaResidencia, zonaHoraria),
-        'YYYY-MM-DDTHH:mmXXX', 
-        { timeZone: zonaHoraria } as FormatOptions
-      )
-    );
+export const agregarDias = (fecha1: Date | string, dias: number, zonaHoraria: string): Date | null => {
+  if (!fecha1 || !dias || !zonaHoraria) {
+    console.log('No se obtuvieron suficientes parámetros (agregarDias)');
+    return null;
+  }
+  const fecha1Iso = formatoIsoCompletoString({fecha: fecha1, zonaHoraria});
+  if (!fecha1Iso) {
+    console.log('La fecha proporcionada no es válida (agregarDias)');
+    return null;
+  }
+  return addDays(fecha1Iso, dias);
 }

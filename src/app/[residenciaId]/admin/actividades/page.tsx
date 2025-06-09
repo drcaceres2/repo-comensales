@@ -3,17 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
-    Timestamp,
-    collection, 
-    addDoc, 
-    getDocs, 
-    doc, 
-    getDoc, 
-    updateDoc, 
-    deleteDoc, 
-    query, 
-    where, 
-    orderBy, 
+    Timestamp, collection, 
+    doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, 
+    query, where, orderBy, 
     writeBatch 
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
@@ -29,14 +21,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogTrigger,
+    AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    AlertDialogContent, AlertDialogDescription 
+} from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Trash2, Edit, AlertCircle, CalendarIcon, XIcon } from 'lucide-react';
 
 // Types from firestore.ts
 import {
     Residencia,
     Actividad,
+    ActividadId,
     ActividadMealDefinition,
+    ActividadMealDefinitionId,
     ActividadEstado,
     TipoAccesoActividad,
     CentroCosto,
@@ -44,8 +42,6 @@ import {
     UserProfile,
     UserRole,
     ResidenciaId,
-    ActividadId,
-    ActividadMealDefinitionId,
     CentroCostoId,
     TiempoComidaId,
     DayOfWeekMap, 
