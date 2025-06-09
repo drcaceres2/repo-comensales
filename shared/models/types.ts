@@ -36,6 +36,24 @@ export interface UserProfile {
     valorCampoPersonalizado2?: string;
     valorCampoPersonalizado3?: string;
 }
+export interface Administradora {
+    id: UserId;
+    residenciaId?: ResidenciaId | null;
+    nombre: string;
+    apellido: string;
+    nombreCorto: string;
+    email: string;
+    fotoPerfil?: string | null;
+    isActive: boolean;
+    telefonoMovil?: string;
+    fechaDeNacimiento?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
+    notificacionPreferencias?: NotificacionPreferencias | null; 
+    tieneAutenticacion: boolean;
+
+    fechaCreacion?: number | null;      // Milliseconds since epoch, or null 
+    ultimaActualizacion?: number | null; // Milliseconds since epoch, or null
+    lastLogin?: number | null;          // Milliseconds since epoch, or null (if you track this)
+}
 export interface NotificacionPreferencias {
     canalEmail: boolean; // Opt-in for email
     canalWhatsApp: boolean; // Opt-in for WhatsApp
@@ -207,7 +225,7 @@ export interface TiempoComida {
     nombre: string; 
     residenciaId: ResidenciaId;
     nombreGrupo: string; 
-    ordenGrupo: number; 
+    ordenGrupo: number;
     dia?: DayOfWeekKey | null; // null cuando no es aplicación ordinaria
     horaEstimada?: string | null; 
     aplicacionOrdinaria: boolean;
@@ -255,9 +273,9 @@ export interface TiempoComidaMod {
     tipoAlteracion: 'agregar'| 'modificar' | 'eliminar';
     tiempoAfectado?: TiempoComidaId | null; // Si tipoAlteracion='agregar', entonces tiempoAfectado=null
     nombre?: string; // Si está asociado a un tiempo, entonces nombre puede o no puede ser null
-    nombreGrupo?: string; // Si tipoAlteracion='modificar', entonces nombreGrupo debe existir, de lo contrario debe ser null
-    ordenGrupo?: number | null;  // Si tipoAlteracion='modificar', entonces nombreGrupo debe existir, de lo contrario debe ser null
-    dia?: DayOfWeekKey | null;   // Si tipoAlteracion='modificar', entonces nombreGrupo debe existir, de lo contrario debe ser null
+    nombreGrupo?: string | null; // Si tipoAlteracion='agregar', entonces nombreGrupo debe existir, de lo contrario debe ser null
+    ordenGrupo?: number | null;  // Si tipoAlteracion='agregar', entonces nombreGrupo debe existir, de lo contrario debe ser null
+    dia?: DayOfWeekKey | null;   // Si tipoAlteracion='agregar', entonces nombreGrupo debe existir, de lo contrario debe ser null
     horaEstimada?: string | null; 
 }
 export type AlternativaTiempoComidaModId = string;
@@ -353,7 +371,7 @@ export interface CeldaSemanarioDesnormalizado {
     // Información del TiempoComida base
     tiempoComidaId?: TiempoComidaId | null; // null en caso de horario alterado y añadido
     alternativasDisponiblesId: AlternativaTiempoComidaId[];
-
+    
     hayAlternativasAlteradas: boolean;
     tiempoComidaModId?: TiempoComidaModId | null;
     alternativasModId: AlternativaTiempoComidaModId[];
@@ -364,11 +382,12 @@ export interface CeldaSemanarioDesnormalizado {
     hayAlternativasRestringidas: boolean;
     alternativasRestringidasId: AlternativaTiempoComidaId[];
     hayActividadInscrita: boolean;
-    alternativaActividadInscritaId: TiempoComidaAlternativaUnicaActividadId[];
+    actividadesInscritasId: InscripcionActividadId[];
+    alternativasActividadInscritaId: TiempoComidaAlternativaUnicaActividadId[];
     hayActividadParaInscribirse: boolean;
-    actividadesDisponibles: ActividadId[];  
+    actividadesDisponiblesId: ActividadId[];  
     hayAusencia: boolean;
-    ausenciaAplicableId: AusenciaId;
+    ausenciaAplicableId: AusenciaId | null;
     eleccionSemanarioId?: AlternativaTiempoComidaId | null;
 }
 export interface SemanarioDesnormalizado {
@@ -376,7 +395,7 @@ export interface SemanarioDesnormalizado {
     residenciaId: ResidenciaId;
     semana: string; // Número de semana en formato ISO 8601 "YYYY-Www"
 
-    ordenGruposComida: { nombreGrupo: string; ordenGrupo: number }[];  
+    ordenGruposComida: {nombreGrupo: string; ordenGrupo: number }[];  
 
     // Mapa anidado para la tabla: { nombreGrupo: { dia: AlternativasDisponiblesSlot } }
     tabla: {
