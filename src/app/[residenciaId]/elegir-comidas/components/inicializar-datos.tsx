@@ -6,6 +6,7 @@ import { useLoginC, useResidenciaC, useUserC } from '../page'; // Assuming useLo
 import {
   collection,
   doc,
+  addDoc,
   getDoc,
   getDocs,
   query,
@@ -73,7 +74,7 @@ const InicializarDatos: React.FC = () => {
   const contextUser = useUserC();
 
   if (!contextLogin || !contextResidencia || !contextUser) {
-    // console.error("InicializarDatos: Context is not available.");
+    console.error("InicializarDatos: Context is not available.");
     // This component should not render or should show an error if context is missing.
     // Depending on how useLoginC is implemented, it might throw an error itself if context is undefined.
     return <div>Error: Contexto de comidas no disponible.</div>;
@@ -157,7 +158,7 @@ const InicializarDatos: React.FC = () => {
         let localHorariosSolicitud = residenciaHorariosSolicitud || [];
 
         if (needsResidenceBaseFetch) {
-          // console.log(`InicializarDatos: Fetching residence-wide base data for ${residenciaId}`);
+          console.log(`InicializarDatos: Fetching residence-wide base data for ${residenciaId}`);
           const tiemposComidaQuery = query(collection(db, 'residencias', residenciaId, 'tiemposComida'), where('isActive', '==', true));
           const alternativasTiempoComidaQuery = query(collection(db, 'residencias', residenciaId, 'alternativasTiempoComida'), where('isActive', '==', true));
           const horariosSolicitudQuery = query(collection(db, 'residencias', residenciaId, 'horariosSolicitudComida'), where('isActive', '==', true));
@@ -245,7 +246,7 @@ const InicializarDatos: React.FC = () => {
               const sundayBeforeCurrentMonday = subDays(currentAffectedPeriodStart, 1);
               if (isBefore(sundayBeforeCurrentMonday, currentAffectedPeriodStart)) {
                 currentAffectedPeriodStart = startOfDay(sundayBeforeCurrentMonday);
-                // console.log(`Extended affectedPeriodStart to ${format(currentAffectedPeriodStart, 'yyyy-MM-dd')} due to 'iniciaDiaAnterior' on Monday`);
+                console.log(`Extended affectedPeriodStart to ${format(currentAffectedPeriodStart, 'yyyy-MM-dd')} due to 'iniciaDiaAnterior' on Monday`);
               }
             }
           }
@@ -349,27 +350,79 @@ const InicializarDatos: React.FC = () => {
         }
         setResidenciaActividadesParaResidentes(actividadesData);
         setResidenciaAlternativasActividades(tcauaData);
-        // console.log("InicializarDatos: Actividades and TCAUA fetched for affected period.");
+        console.log("InicializarDatos: Actividades and TCAUA fetched for affected period.");
 
         // --- Step 2: Fetch User-Specific Data ---
         // This data is fetched every time selectedUser changes, as this whole useEffect reruns.
-        // console.log(`InicializarDatos: Fetching user-specific data for ${selectedUser.id} within period ${format(finalAffectedPeriod.start, 'yyyy-MM-dd')} to ${format(finalAffectedPeriod.end, 'yyyy-MM-dd')}`);
+        console.log(`InicializarDatos: Fetching user-specific data for ${selectedUser.id} within period ${format(finalAffectedPeriod.start, 'yyyy-MM-dd')} to ${format(finalAffectedPeriod.end, 'yyyy-MM-dd')}`);
         const userId = selectedUser.id;
 
         // 2.1 Semanario object for this user and residenciaId
         const semanarioQuery = query(
           collection(db, 'users', userId, 'semanarios'),
-          where('residenciaId', '==', residenciaId)
-          // limit(1) // Assuming one semanario per user per residencia
+          where('residenciaId', '==', residenciaId),
+          // limit(2) // Limit to 2 to efficiently check if more than one exists
         );
         const semanarioSnap = await getDocs(semanarioQuery);
         let userSemanarioData: Semanario | null = null;
-        if (!semanarioSnap.empty) {
-          // Assuming there's at most one semanario document per user/residencia
-          userSemanarioData = { id: semanarioSnap.docs[0].id, ...semanarioSnap.docs[0].data() } as Semanario;
+
+        if (semanarioSnap.size > 1) {
+            // (2) More than one Semanario found, which is an error state.
+            console.error(`Error de integridad de datos: El usuario ${userId} tiene ${semanarioSnap.size} documentos de Semanario para la residencia ${residenciaId}. Debería haber solo uno.`);
+            // Optionally, throw an error to halt the process, as this is a critical issue.
+            throw new Error("Múltiples documentos de Semanario encontrados para el usuario.");
+
+        } else if (semanarioSnap.size === 1) {
+            // (3) Exactly one Semanario found, proceed as normal.
+            const doc = semanarioSnap.docs[0];
+            userSemanarioData = { id: doc.id, ...doc.data() } as Semanario;
+            console.log("User Semanario fetched: ", userSemanarioData);
+
+        } else {
+            // (1) No Semanario found, create one.
+            console.log(`No se encontró Semanario para el usuario ${userId}. Creando uno nuevo...`);
+            
+            const nuevasElecciones: { [key: TiempoComidaId]: AlternativaTiempoComidaId | null } = {};
+            
+            // Filter for Tiempos de Comida that are part of the standard weekly schedule AND are active.
+            const tiemposComidaOrdinariosActivos = (localTiemposComida || []).filter(
+                tc => tc.aplicacionOrdinaria === true && tc.isActive === true
+            );
+
+            for (const tc of tiemposComidaOrdinariosActivos) {
+                // Find the default (principal) AND active alternative for each TiempoComida.
+                const principalAltActiva = (localAlternativas || []).find(
+                    alt => alt.tiempoComidaId === tc.id && alt.esPrincipal === true && alt.isActive === true
+                );
+                
+                if (principalAltActiva) {
+                    nuevasElecciones[tc.id] = principalAltActiva.id;
+                } else {
+                    // If any standard, active meal time doesn't have a default, active alternative, it's a configuration error.
+                    console.error(`Error de configuración: El Tiempo de Comida activo '${tc.nombre}' (ID: ${tc.id}) no tiene una Alternativa principal activa (esPrincipal: true, isActive: true). No se puede crear el Semanario por defecto.`);
+                    throw new Error(`Error de configuración: Faltan alternativas principales activas para crear el horario semanal.`);
+                }
+            }
+
+            const nuevoSemanario: Omit<Semanario, 'id'> = {
+                userId: userId,
+                residenciaId: residenciaId,
+                elecciones: nuevasElecciones,
+                ultimaActualizacion: Date.now(),
+            };
+
+            // Save the new Semanario to Firestore
+            const newDocRef = await addDoc(collection(db, 'users', userId, 'semanarios'), nuevoSemanario);
+            
+            userSemanarioData = {
+                id: newDocRef.id,
+                ...nuevoSemanario
+            };
+            console.log("Nuevo Semanario creado y guardado: ", userSemanarioData);
         }
+        
+        // Set the found or newly created Semanario to the context
         setUserSemanario(userSemanarioData);
-        // console.log("User Semanario fetched: ", userSemanarioData);
 
         // 2.2 Eleccion[] and Ausencia[] that fall into affected period
         const eleccionesQuery = query(
@@ -402,8 +455,8 @@ const InicializarDatos: React.FC = () => {
 
         setUserElecciones(eleccionesData);
         setUserAusencias(ausenciasData);
-        // console.log("User Elecciones fetched: ", eleccionesData.length);
-        // console.log("User Ausencias fetched and filtered: ", ausenciasData.length);
+        console.log("User Elecciones fetched: ", eleccionesData.length);
+        console.log("User Ausencias fetched and filtered: ", ausenciasData.length);
 
         // 2.3 All existing InscripcionActividad[] related to fetched Actividad[]
         // residenciaActividadesParaResidentes is already up-to-date in context from Step 1
@@ -433,7 +486,7 @@ const InicializarDatos: React.FC = () => {
           });
         }
         setUserInscripciones(inscripcionesData);
-        // console.log("User Inscripciones fetched: ", inscripcionesData.length);
+        console.log("User Inscripciones fetched: ", inscripcionesData.length);
 
         // 2.4 All Comentario[] having leido=false and archivado=false
         const comentariosQuery = query(
@@ -445,14 +498,14 @@ const InicializarDatos: React.FC = () => {
         const comentariosSnap = await getDocs(comentariosQuery);
         const comentariosData = comentariosSnap.docs.map(d => ({ id: d.id, ...d.data() } as Comentario));
         setUserComentarios(comentariosData);
-        // console.log("User Comentarios fetched: ", comentariosData.length);
+        console.log("User Comentarios fetched: ", comentariosData.length);
 
         // --- Step 3: All Firestore document fetching are finished ---
         setIsLoadingUserMealData(false);
-        // console.log("InicializarDatos: All user and residence data fetched. isLoadingUserMealData set to false.");
+        console.log("InicializarDatos: All user and residence data fetched. isLoadingUserMealData set to false.");
 
         // --- Step 4: Denormalize Data ---
-        // console.log("InicializarDatos: Starting data denormalization.");
+        console.log("InicializarDatos: Starting data denormalization.");
         setIsDenormalizingData(true);
 
         // 4.1 Initialize SemanarioDenormalizado object
@@ -542,7 +595,8 @@ const InicializarDatos: React.FC = () => {
               celda.tiempoComidaModId = relevantTcm.id;
               if (relevantTcm.nombre) celda.nombreTiempoComida = relevantTcm.nombre;
               if (relevantTcm.tipoAlteracion === 'eliminar') {
-                celda.tiempoComidaId = null;
+                console.log("Por ahora no eliminaré los tiempos de comida eliminados vía TiempoComidaMod");
+                //celda.tiempoComidaId = null;
               } else if (relevantTcm.tipoAlteracion === 'agregar') {
                 if (originalTiempoComida) { console.error("Error: No debería haber TiempoComida correspondiente a un TCMod de tipo 'agregar'", relevantTcm); }
               } else if (relevantTcm.tipoAlteracion === 'modificar') {
@@ -728,7 +782,7 @@ const InicializarDatos: React.FC = () => {
 
         // 4.4 After successful denormalization
         setSemanarioUI(newSemanarioUI); // Update context with the denormalized structure
-        // console.log("InicializarDatos: Data denormalization finished. SemanarioUI updated in context.", newSemanarioUI);
+        console.log("InicializarDatos: Data denormalization finished. SemanarioUI updated in context.", newSemanarioUI);
         setIsDenormalizingData(false);
 
       } catch (error) {
@@ -743,7 +797,7 @@ const InicializarDatos: React.FC = () => {
 
     // Cleanup function for useEffect if needed
     return () => {
-      // console.log("InicializarDatos: useEffect cleanup.");
+      console.log("InicializarDatos: useEffect cleanup.");
       // Any cleanup logic
     };
   // Watch for changes in essential data that should trigger a re-run
@@ -824,4 +878,3 @@ const InicializarDatos: React.FC = () => {
 };
 
 export default InicializarDatos;
-

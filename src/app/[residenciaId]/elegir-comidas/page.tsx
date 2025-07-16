@@ -15,6 +15,7 @@ import {
   SemanarioDesnormalizado,
 } from '@/../../shared/models/types';
 import SelectorUsuariosEC from './components/SelectorUsuariosEC2';
+import InicializarDatos from './components/inicializar-datos';
 
 interface MainContextProps {
   loggedUser: UserProfile | null;
@@ -169,9 +170,9 @@ const ElegirComidasPage = () => {
     }}>
       <div style={{ padding: '20px' }}>
         {/* Title now uses residenciaId from context state, which will be set by UserSelectorComponent */}
-        <h1>Meal Selection {residenciaId ? `(Residencia: ${residenciaId})` : '(Select Residencia)'}</h1>
-        
+        <h1>Selección de comidas {residenciaId ? `(Residencia: ${residenciaId})` : '(Select Residencia)'}</h1>
         <div style={componentContainerStyle}>
+          <h2>1. Seleccione un usuario</h2>
           <SelectorUsuariosEC />
         </div>
         <UserContext.Provider value={{
@@ -193,44 +194,29 @@ const ElegirComidasPage = () => {
             residenciaAlternativasActividades, setResidenciaAlternativasActividades,
           }}>
             <div style={componentContainerStyle}>
-              <h2>2. Data Denormalization Component (Semanario)</h2>
-              {/* Placeholder - Actual component will fetch data and populate contexts */}
-              <div style={placeholderContentStyle}>Placeholder for Weekly Schedule.</div>
+              <InicializarDatos />
             </div>
-
-
             <div style={componentContainerStyle}>
               <h2>2. Weekly Schedule Component (Semanario)</h2>
               {/* Placeholder - Actual component will use context to fetch and display userSemanario */}
               <div style={placeholderContentStyle}>Placeholder for Weekly Schedule.</div>
             </div>
-          </ResidenciaContext.Provider>
-          <div style={componentContainerStyle}>
-            <h2>3. Exceptions Component (Elecciones/Specific Choices)</h2>
-            {/* Placeholder - Actual component will use context to fetch and display userElecciones */}
-            <div style={placeholderContentStyle}>Placeholder for Exceptions/Specific Choices.</div>
-          </div>
+            <div style={componentContainerStyle}>
+              <h2>3. Exceptions Component (Elecciones/Specific Choices)</h2>
+              {/* Placeholder - Actual component will use context to fetch and display userElecciones */}
+              <div style={placeholderContentStyle}>Placeholder for Exceptions/Specific Choices.</div>
+            </div>
 
-          <div style={componentContainerStyle}>
-            <h2>4. Absences Component</h2>
-            {/* Placeholder - Actual component will use context to fetch and display userAusencias */}
-            <div style={placeholderContentStyle}>Placeholder for Absences.</div>
-          </div>
-          
-          <div style={componentContainerStyle}>
-            <h2>5. Comments Component</h2>
-            <div style={placeholderContentStyle}>Placeholder for Comments.</div>
-          </div>
-          <ResidenciaContext.Provider value={{
-            residenciaTiemposComida, setResidenciaTiemposComida,
-            residenciaAlternativas, setResidenciaAlternativas,
-            residenciaHorariosSolicitud, setResidenciaHorariosSolicitud,
-            residenciaAlteracionesHorario, setResidenciaAlteracionesHorario,
-            residenciaTiemposComidaMod, setResidenciaTiemposComidaMod,
-            residenciaAlternativasMod, setResidenciaAlternativasMod,
-            residenciaActividadesParaResidentes, setResidenciaActividadesParaResidentes,
-            residenciaAlternativasActividades, setResidenciaAlternativasActividades,
-          }}>
+            <div style={componentContainerStyle}>
+              <h2>4. Absences Component</h2>
+              {/* Placeholder - Actual component will use context to fetch and display userAusencias */}
+              <div style={placeholderContentStyle}>Placeholder for Absences.</div>
+            </div>
+            
+            <div style={componentContainerStyle}>
+              <h2>5. Comments Component</h2>
+              <div style={placeholderContentStyle}>Placeholder for Comments.</div>
+            </div>
             <div style={componentContainerStyle}>
               <h2>6. Activities Component</h2>
               {/* Placeholder - Actual component will use context to fetch and display userActividades */}
