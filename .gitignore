@@ -19,6 +19,7 @@ out/
 functions/lib/
 
 # Environment Variables - Never commit secrets!
+.env
 .env*
 !.env.example
 !.env.template

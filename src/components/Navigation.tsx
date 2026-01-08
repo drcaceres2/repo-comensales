@@ -57,7 +57,7 @@ import {
 //   SheetHeader as UiSheetHeader,
 // } from '@/components/ui/sheet';
 
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { useAuthState } from '@/hooks/useAuthState';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from "firebase/firestore";
 import { UserProfile, UserRole } from '@/../../shared/models/types';
@@ -432,7 +432,7 @@ const isItemVisible = (item: NavItem, profile: UserProfile | null): boolean => {
 };
 
 export function Navigation() {
-  const [authUser, authLoading] = useAuthState(auth);
+  const [authUser, authLoading] = useAuthState();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
   const { isMobile, setOpenMobile } = useSidebar(); 

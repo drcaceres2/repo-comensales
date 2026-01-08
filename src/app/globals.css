@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import '@fullcalendar/common/main.css';
+@import 'fullcalendar/main.css';
 @import '@fullcalendar/daygrid/main.css';
 
 @layer base {
@@ -142,5 +142,4 @@
 }
 .dark .fc-event {
   background-color: hsl(var(--primary)) !important;
-  color: hsl(var(--primary-foreground)) !important;
 }

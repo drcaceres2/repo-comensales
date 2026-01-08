@@ -11,7 +11,7 @@ import Link from 'next/link'; // Import Link for the footer
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { useAuthState } from '@/hooks/useAuthState'; // Use the custom hook
 
 import { Button } from "@/components/ui/button";
 import { LogOut, Loader2, AlertCircle, MessageSquare } from 'lucide-react'; // Added MessageSquare for feedback icon
@@ -27,7 +27,7 @@ const geistMono = Geist_Mono({
 });
 
 function LayoutHeader() {
-  const [user, loading, error] = useAuthState(auth);
+  const [user, loading, error] = useAuthState(); // Custom hook usage
   const router = useRouter();
 
   const handleLogout = async () => {
