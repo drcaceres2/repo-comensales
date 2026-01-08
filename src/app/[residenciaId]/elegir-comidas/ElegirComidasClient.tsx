@@ -1,12 +1,11 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useResidenciaOperativa } from '@/hooks/useResidenciaOperativa';
-import { useDocumentData, useCollectionData } from '@/hooks/useFirestore';
+import { useDocumentData } from '@/hooks/useFirestore';
 import { auth, db } from '@/lib/firebase';
-import { doc, collection, query, where, Firestore, DocumentReference } from 'firebase/firestore'; 
-import { Auth } from 'firebase/auth';
+import { doc, DocumentReference } from 'firebase/firestore'; 
 
 import { 
   UserProfile, PermisosComidaPorGrupo, 
@@ -17,87 +16,7 @@ import {
 } from '@/../../shared/models/types';
 import SelectorUsuariosEC from './components/SelectorUsuariosEC2';
 import InicializarDatos from './components/inicializar-datos';
-
-interface MainContextProps {
-  loggedUser: UserProfile | null;
-  setLoggedUser: React.Dispatch<React.SetStateAction<UserProfile | null>>;
-  selectedUser: UserProfile | null;
-  setSelectedUser: React.Dispatch<React.SetStateAction<UserProfile | null>>;
-  selectedUserMealPermissions: PermisosComidaPorGrupo | null;
-  setSelectedUserMealPermissions: React.Dispatch<React.SetStateAction<PermisosComidaPorGrupo | null>>;
-  residencia: Residencia | null;
-  setResidencia: React.Dispatch<React.SetStateAction<Residencia | null>>;
-  residenciaId: ResidenciaId | null;
-  setResidenciaId: React.Dispatch<React.SetStateAction<ResidenciaId | null>>;
-  isLoadingLoggedUser: boolean;
-  setIsLoadingLoggedUser: React.Dispatch<React.SetStateAction<boolean>>;
-  isLoadingSelectedUserData: boolean;
-  setIsLoadingSelectedUserData: React.Dispatch<React.SetStateAction<boolean>>;  
-  isLoadingUserMealData: boolean;
-  setIsLoadingUserMealData: React.Dispatch<React.SetStateAction<boolean>>;  
-  isDenormalizingData: boolean;
-  setIsDenormalizingData: React.Dispatch<React.SetStateAction<boolean>>;  
-  db: Firestore;
-  auth: Auth;
-}
-interface residenciaConextProps {
-  residenciaTiemposComida: TiempoComida[];
-  setResidenciaTiemposComida: React.Dispatch<React.SetStateAction<TiempoComida[]>>;
-  residenciaAlternativas: AlternativaTiempoComida[];
-  setResidenciaAlternativas: React.Dispatch<React.SetStateAction<AlternativaTiempoComida[]>>;
-  residenciaHorariosSolicitud: HorarioSolicitudComida[];
-  setResidenciaHorariosSolicitud: React.Dispatch<React.SetStateAction<HorarioSolicitudComida[]>>;
-  residenciaAlteracionesHorario: AlteracionHorario[];
-  setResidenciaAlteracionesHorario: React.Dispatch<React.SetStateAction<AlteracionHorario[]>>;
-  residenciaTiemposComidaMod: TiempoComidaMod[];
-  setResidenciaTiemposComidaMod: React.Dispatch<React.SetStateAction<TiempoComidaMod[]>>;
-  residenciaAlternativasMod: AlternativaTiempoComidaMod[];
-  setResidenciaAlternativasMod: React.Dispatch<React.SetStateAction<AlternativaTiempoComidaMod[]>>;
-  residenciaActividadesParaResidentes: Actividad[];
-  setResidenciaActividadesParaResidentes: React.Dispatch<React.SetStateAction<Actividad[]>>;
-  residenciaAlternativasActividades: TiempoComidaAlternativaUnicaActividad[];
-  setResidenciaAlternativasActividades: React.Dispatch<React.SetStateAction<TiempoComidaAlternativaUnicaActividad[]>>;
-}
-interface userContextProps {
-  userSemanario: Semanario | null;
-  setUserSemanario: React.Dispatch<React.SetStateAction<Semanario | null>>;
-  userElecciones: Eleccion[];
-  setUserElecciones: React.Dispatch<React.SetStateAction<Eleccion[]>>;
-  userAusencias: Ausencia[];
-  setUserAusencias: React.Dispatch<React.SetStateAction<Ausencia[]>>;
-  userInscripciones: InscripcionActividad[];
-  setUserInscripciones: React.Dispatch<React.SetStateAction<InscripcionActividad[]>>;
-  userComentarios: Comentario[];
-  setUserComentarios: React.Dispatch<React.SetStateAction<Comentario[]>>;
-  semanarioUI: SemanarioDesnormalizado | null;
-  setSemanarioUI: React.Dispatch<React.SetStateAction<SemanarioDesnormalizado | null>>;
-}
-
-const MainContext = createContext<MainContextProps | undefined>(undefined);
-const ResidenciaContext = createContext<residenciaConextProps | undefined>(undefined);
-const UserContext = createContext<userContextProps | undefined>(undefined);
-
-export const useLoginC = (): MainContextProps => {
-  const context = useContext(MainContext);
-  if (!context) {
-    throw new Error('useElegirComidas must be used within an ElegirComidasProvider');
-  }
-  return context;
-};
-export const useResidenciaC = (): residenciaConextProps => {
-  const context = useContext(ResidenciaContext);
-  if (!context) {
-    throw new Error('useElegirComidas must be used within an ElegirComidasProvider');
-  }
-  return context;
-};
-export const useUserC = (): userContextProps => {
-  const context = useContext(UserContext);
-  if (!context) {
-    throw new Error('useElegirComidas must be used within an ElegirComidasProvider');
-  }
-  return context;
-};
+import { MainContext, ResidenciaContext, UserContext } from './context/ElegirComidasContext';
 
 interface ElegirComidasClientProps {
   residenciaId: string;
