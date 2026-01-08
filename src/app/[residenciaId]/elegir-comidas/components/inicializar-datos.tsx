@@ -105,16 +105,26 @@ const InicializarDatos: React.FC = () => {
   // Note: These hooks return { data, loading, error }.
 
   const tiemposComidaQuery = useMemo(() => {
-    return residenciaId ? (query(collection(db, 'residencias', residenciaId, 'tiemposComida'), where('isActive', '==', true)) as Query<TiempoComida>) : null;
-  }, [residenciaId, db]);
+    // 1. La Guarda: Si no hay ID, devolvemos null inmediatamente.
+    if (!residenciaId) return null; 
+  
+    // 2. Ahora TypeScript sabe que aquí abajo residenciaId ES un string seguro.
+    return query(
+      collection(db, 'residencias', residenciaId, 'tiemposComida'), 
+      where('activa', '==', true) // (O los filtros que tengas)
+    );
+  }, [residenciaId]);
+  
   const { data: tiemposComidaData } = useCollectionData<TiempoComida>(tiemposComidaQuery);
 
   const alternativasQuery = useMemo(() => {
+    if (!residenciaId) return null; 
     return residenciaId ? (query(collection(db, 'residencias', residenciaId, 'alternativasTiempoComida'), where('isActive', '==', true)) as Query<AlternativaTiempoComida>) : null;
   }, [residenciaId, db]);
   const { data: alternativasData } = useCollectionData<AlternativaTiempoComida>(alternativasQuery);
 
   const horariosSolicitudQuery = useMemo(() => {
+    if (!residenciaId) return null; 
     return residenciaId ? (query(collection(db, 'residencias', residenciaId, 'horariosSolicitudComida'), where('isActive', '==', true)) as Query<HorarioSolicitudComida>) : null;
   }, [residenciaId, db]);
   const { data: horariosSolicitudData } = useCollectionData<HorarioSolicitudComida>(horariosSolicitudQuery);
