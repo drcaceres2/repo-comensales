@@ -1,12 +1,14 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-// Removed useParams from next/navigation
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { Auth } from 'firebase/auth';
-import { Firestore } from 'firebase/firestore'; // Removed doc, getDoc, collection, getDocs
+import { useAuth } from '@/hooks/useAuth'; // New custom hook
+import { useResidenciaOperativa } from '@/hooks/useResidenciaOperativa'; // New custom hook
 import { auth, db } from '@/lib/firebase';
-import withAuth from '@/components/withAuth';
+import { Auth } from 'firebase/auth';
+import { Firestore } from 'firebase/firestore'; 
+// withAuth removed in favor of conditional rendering or next middleware for protected routes, 
+// or keep it if it wraps the component export. Assuming keeping logic inside component for now.
+
 import { 
   UserProfile, PermisosComidaPorGrupo, 
   Residencia, ResidenciaId, TiempoComida, AlternativaTiempoComida, HorarioSolicitudComida,
@@ -18,7 +20,9 @@ import SelectorUsuariosEC from './components/SelectorUsuariosEC2';
 import InicializarDatos from './components/inicializar-datos';
 
 interface MainContextProps {
-  loggedUser: UserProfile | null;
+  loggedUser: UserProfile | null; // Note: In new hook, 'user' is the auth user, profile fetching might be separate or this expects the profile doc.
+                                  // For now, assuming loggedUser means the Auth User or fetched profile.
+                                  // If UserProfile is the Firestore doc, you might need to fetch it separately using useDocumentData.
   setLoggedUser: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   selectedUser: UserProfile | null;
   setSelectedUser: React.Dispatch<React.SetStateAction<UserProfile | null>>;
@@ -30,11 +34,11 @@ interface MainContextProps {
   setResidenciaId: React.Dispatch<React.SetStateAction<ResidenciaId | null>>;
   isLoadingLoggedUser: boolean;
   setIsLoadingLoggedUser: React.Dispatch<React.SetStateAction<boolean>>;
-  isLoadingSelectedUserData: boolean; // This will be used by individual components for their data
+  isLoadingSelectedUserData: boolean;
   setIsLoadingSelectedUserData: React.Dispatch<React.SetStateAction<boolean>>;  
-  isLoadingUserMealData: boolean; // This will be used by individual components for their data
+  isLoadingUserMealData: boolean;
   setIsLoadingUserMealData: React.Dispatch<React.SetStateAction<boolean>>;  
-  isDenormalizingData: boolean; // This will be used by individual components for their data
+  isDenormalizingData: boolean;
   setIsDenormalizingData: React.Dispatch<React.SetStateAction<boolean>>;  
   db: Firestore;
   auth: Auth;
@@ -98,23 +102,44 @@ export const useUserC = (): userContextProps => {
   return context;
 };
 
+// Next.js 15: props.params is a Promise
+interface PageProps {
+  params: Promise<{ residenciaId: string }>;
+}
 
-const ElegirComidasPage = () => {
-  // residenciaIdParam removed, will be set from UserSelectorComponent via context
-  const [authUser, authLoading, authError] = useAuthState(auth);
+const ElegirComidasPage = ({ params }: PageProps) => {
+  // 1. Resolve params (Next.js 15)
+  const [residenciaIdParam, setResidenciaIdParam] = useState<string | null>(null);
 
-  // Estados para actualización de contexto general
+  useEffect(() => {
+    params.then((resolvedParams) => {
+      setResidenciaIdParam(resolvedParams.residenciaId);
+    });
+  }, [params]);
+
+  // 2. Auth Hook
+  const { user: authUser, loading: authLoading, error: authError } = useAuth();
+
+  // 3. License/Operational Logic
+  const { 
+    puedeOperar, 
+    motivoBloqueo, 
+    isLoading: loadingOperativa 
+  } = useResidenciaOperativa(residenciaIdParam || '');
+
+  // Global Context States
   const [loggedUser, setLoggedUser] = useState<UserProfile | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [selectedUserMealPermissions, setSelectedUserMealPermissions] = useState<PermisosComidaPorGrupo | null>(null);
   const [residencia, setResidencia] = useState<Residencia | null>(null);
-  const [residenciaId, setResidenciaId] = useState<ResidenciaId | null>(null);
+  const [residenciaId, setResidenciaId] = useState<ResidenciaId | null>(null); // This might sync with residenciaIdParam
+  
   const [isLoadingLoggedUser, setIsLoadingLoggedUser] = useState<boolean>(true);
   const [isLoadingSelectedUserData, setIsLoadingSelectedUserData] = useState<boolean>(false);
   const [isLoadingUserMealData, setIsLoadingUserMealData] = useState<boolean>(false);
   const [isDenormalizingData, setIsDenormalizingData] = useState<boolean>(false);
 
-  // Estados para actualización de conexto Residencia
+  // Residencia Context States
   const [residenciaTiemposComida, setResidenciaTiemposComida] = useState<TiempoComida[]>([]);
   const [residenciaAlternativas, setResidenciaAlternativas] = useState<AlternativaTiempoComida[]>([]);
   const [residenciaHorariosSolicitud, setResidenciaHorariosSolicitud] = useState<HorarioSolicitudComida[]>([]);
@@ -124,7 +149,7 @@ const ElegirComidasPage = () => {
   const [residenciaActividadesParaResidentes, setResidenciaActividadesParaResidentes] = useState<Actividad[]>([]);
   const [residenciaAlternativasActividades, setResidenciaAlternativasActividades] = useState<TiempoComidaAlternativaUnicaActividad[]>([]);
 
-  // Estados para actualización de contexto User
+  // User Context States
   const [userSemanario, setUserSemanario] = useState<Semanario | null>(null);
   const [userElecciones, setUserElecciones] = useState<Eleccion[]>([]);
   const [userAusencias, setUserAusencias] = useState<Ausencia[]>([]);
@@ -132,16 +157,38 @@ const ElegirComidasPage = () => {
   const [userComentarios, setUserComentarios] = useState<Comentario[]>([]);
   const [semanarioUI, setSemanarioUI] = useState<SemanarioDesnormalizado | null>(null);
 
-  if (authLoading) {
-    return <div>Loading user authentication...</div>;
+  // Sync param ID to context ID if needed
+  useEffect(() => {
+    if (residenciaIdParam) {
+      setResidenciaId(residenciaIdParam as ResidenciaId);
+    }
+  }, [residenciaIdParam]);
+
+
+  // --- Render Logic ---
+
+  if (authLoading || (residenciaIdParam && loadingOperativa)) {
+    return <div>Cargando...</div>;
   }
+
   if (authError) {
-    return <div>Error loading authentication: {authError.message}</div>;
+    return <div>Error de autenticación: {authError.message}</div>;
   }
+
   if (!authUser) {
-    return <div>User not authenticated. Please log in.</div>;
+    return <div>Usuario no autenticado. Por favor inicie sesión.</div>;
   }
-  
+
+  // Blocking logic based on License/Status
+  if (residenciaIdParam && !puedeOperar) {
+    return (
+      <div style={{ padding: '20px', color: 'red' }}>
+        <h1>Acceso Denegado</h1>
+        <p>{motivoBloqueo || "No se puede acceder a esta residencia en este momento."}</p>
+      </div>
+    );
+  }
+
   const componentContainerStyle: React.CSSProperties = {
     border: '1px solid #ccc',
     padding: '10px',
@@ -169,8 +216,7 @@ const ElegirComidasPage = () => {
       db, auth
     }}>
       <div style={{ padding: '20px' }}>
-        {/* Title now uses residenciaId from context state, which will be set by UserSelectorComponent */}
-        <h1>Selección de comidas {residenciaId ? `(Residencia: ${residenciaId})` : '(Select Residencia)'}</h1>
+        <h1>Selección de comidas {residenciaId ? `(Residencia: ${residenciaId})` : '(Cargando Residencia...)'}</h1>
         <div style={componentContainerStyle}>
           <h2>1. Seleccione un usuario</h2>
           <SelectorUsuariosEC />
@@ -198,18 +244,15 @@ const ElegirComidasPage = () => {
             </div>
             <div style={componentContainerStyle}>
               <h2>2. Weekly Schedule Component (Semanario)</h2>
-              {/* Placeholder - Actual component will use context to fetch and display userSemanario */}
               <div style={placeholderContentStyle}>Placeholder for Weekly Schedule.</div>
             </div>
             <div style={componentContainerStyle}>
               <h2>3. Exceptions Component (Elecciones/Specific Choices)</h2>
-              {/* Placeholder - Actual component will use context to fetch and display userElecciones */}
               <div style={placeholderContentStyle}>Placeholder for Exceptions/Specific Choices.</div>
             </div>
 
             <div style={componentContainerStyle}>
               <h2>4. Absences Component</h2>
-              {/* Placeholder - Actual component will use context to fetch and display userAusencias */}
               <div style={placeholderContentStyle}>Placeholder for Absences.</div>
             </div>
             
@@ -219,7 +262,6 @@ const ElegirComidasPage = () => {
             </div>
             <div style={componentContainerStyle}>
               <h2>6. Activities Component</h2>
-              {/* Placeholder - Actual component will use context to fetch and display userActividades */}
               <div style={placeholderContentStyle}>Placeholder for Activities.</div>
             </div>
 
