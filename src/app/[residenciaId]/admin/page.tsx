@@ -1,5 +1,5 @@
 // src/app/admin/residencia/page.tsx
-'use client';
+"use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -63,6 +63,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { writeClientLog, checkAndDisplayTimezoneWarning } from "@/lib/utils";
+import { useActionState, useFormStatus } from 'react';
+import { comedorAction } from './comedorAction';
+import { horarioAction } from './horarioAction';
 
 // Helper for new Comedor
 const getNewComedorDefaults = (residenciaId: string): Omit<Comedor, 'id'> => ({
@@ -125,6 +128,38 @@ function ResidenciaHorariosComedoresPage() {
   // CentroCosto States for the current Residencia
   const [centrosCostoResidencia, setCentrosCostoResidencia] = useState<CentroCosto[]>([]);
   const [isLoadingCentrosCostoResidencia, setIsLoadingCentrosCostoResidencia] = useState<boolean>(false);
+
+  // Server Action state for comedor form
+  const actionState = useActionState(comedorAction as any);
+  const formStatus = useFormStatus();
+
+  // Server Action state for horario form
+  const actionStateHorario = useActionState(horarioAction as any);
+
+  useEffect(() => {
+    if (actionStateHorario.error) {
+      console.error('Error from horarioAction:', actionStateHorario.error);
+      toast({ title: 'Error', description: actionStateHorario.error.message || String(actionStateHorario.error), variant: 'destructive' });
+    }
+    if (actionStateHorario.result) {
+      toast({ title: 'Éxito', description: actionStateHorario.result.action === 'created' ? 'Horario creado' : 'Horario actualizado' });
+      setShowHorarioForm(false);
+      fetchHorarios();
+    }
+  }, [actionStateHorario.error, actionStateHorario.result]);
+
+  useEffect(() => {
+    if (actionState.error) {
+      console.error('Error from comedorAction:', actionState.error);
+      toast({ title: 'Error', description: actionState.error.message || String(actionState.error), variant: 'destructive' });
+    }
+    if (actionState.result) {
+      // On success, close form and refresh list
+      toast({ title: 'Éxito', description: actionState.result.action === 'created' ? 'Comedor creado' : 'Comedor actualizado' });
+      setShowComedorForm(false);
+      fetchComedores();
+    }
+  }, [actionState.error, actionState.result]);
 
   // ...
   const [timezoneWarningShown, setTimezoneWarningShown] = useState<boolean>(false); // To show warning only once
@@ -884,7 +919,7 @@ function ResidenciaHorariosComedoresPage() {
           {/* TODO: Comedor Form (conditional on showComedorForm) */}
           {showComedorForm && canEdit && (
             <Card className="mb-6 shadow-md" >
-              <form onSubmit={handleSubmitComedorForm}>
+              <form action={comedorAction}>
                 <CardHeader>
                   <CardTitle>{isEditingComedor ? 'Editar Comedor' : 'Nuevo Comedor'}</CardTitle>
                   <CardDescription>
@@ -900,7 +935,7 @@ function ResidenciaHorariosComedoresPage() {
                       value={currentComedor.nombre || ''}
                       onChange={handleInputChangeComedor}
                       required
-                      disabled={formLoadingComedor}
+                      disabled={formLoadingComedor || Boolean(actionState?.pending || formStatus.pending)}
                       maxLength={100}
                     />
                   </div>
@@ -911,7 +946,7 @@ function ResidenciaHorariosComedoresPage() {
                       name="descripcion"
                       value={currentComedor.descripcion || ''}
                       onChange={handleInputChangeComedor}
-                      disabled={formLoadingComedor}
+                      disabled={formLoadingComedor || Boolean(actionState?.pending || formStatus.pending)}
                       maxLength={500}
                     />
                   </div>
@@ -924,7 +959,7 @@ function ResidenciaHorariosComedoresPage() {
                       value={currentComedor.capacidad || 0}
                       onChange={handleInputChangeComedor}
                       onFocus={(event) => event.target.select()}
-                      disabled={formLoadingComedor}
+                      disabled={formLoadingComedor || Boolean(actionState?.pending || formStatus.pending)}
                       min="0"
                     />
                   </div>
@@ -933,9 +968,9 @@ function ResidenciaHorariosComedoresPage() {
                         {(residenciaDetails?.configuracionContabilidad?.nombreEtiquetaCentroCosto || 'Centro de Costo')} por Defecto (Opcional)
                     </Label>
                     <Select
-                        value={currentComedor.centroCostoPorDefectoId || ''}
-                        onValueChange={(value) => setCurrentComedor(prev => ({ ...prev, centroCostoPorDefectoId: value }))}
-                        disabled={formLoadingComedor || isLoadingCentrosCostoResidencia}
+                      value={currentComedor.centroCostoPorDefectoId || ''}
+                      onValueChange={(value) => setCurrentComedor(prev => ({ ...prev, centroCostoPorDefectoId: value }))}
+                      disabled={formLoadingComedor || isLoadingCentrosCostoResidencia || Boolean(actionState?.pending || formStatus.pending)}
                     >
                         <SelectTrigger id="comedorCentroCostoDefault">
                             <SelectValue placeholder={
@@ -962,19 +997,24 @@ function ResidenciaHorariosComedoresPage() {
                             )}
                         </SelectContent>
                     </Select>
+                      {/* Hidden input so native form submits the selected value */}
+                      <input type="hidden" name="centroCostoPorDefectoId" value={currentComedor.centroCostoPorDefectoId || ''} />
                     <p className="text-xs text-muted-foreground mt-1">
                         {(residenciaDetails?.configuracionContabilidad?.nombreEtiquetaCentroCosto || 'Centro de costo')} que se asignará por defecto a las elecciones hechas en este comedor.
                     </p>
                   </div>
                 </CardContent>
                 <CardFooter className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setShowComedorForm(false)} disabled={formLoadingComedor}>
+                    <Button type="button" variant="outline" onClick={() => setShowComedorForm(false)} disabled={formLoadingComedor || Boolean(actionState?.pending || formStatus.pending)}>
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={formLoadingComedor}>
-                    {formLoadingComedor && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isEditingComedor ? 'Guardar Cambios' : 'Crear Comedor'}
-                  </Button>
+                    <input type="hidden" name="isEditing" value={isEditingComedor ? 'true' : 'false'} />
+                    <input type="hidden" name="id" value={currentComedor.id || ''} />
+                    <input type="hidden" name="residenciaId" value={targetResidenciaId || ''} />
+                    <Button type="submit" disabled={formLoadingComedor || Boolean(actionState?.pending || formStatus.pending)}>
+                      {(formLoadingComedor || actionState?.pending || formStatus.pending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {isEditingComedor ? 'Guardar Cambios' : 'Crear Comedor'}
+                    </Button>
                 </CardFooter>
               </form>
             </Card>
@@ -1049,7 +1089,7 @@ function ResidenciaHorariosComedoresPage() {
           {/* TODO: Horario Form (conditional on showHorarioForm) */}
           {showHorarioForm && canEdit && (
             <Card className="mb-6 shadow-md">
-              <form onSubmit={handleSubmitHorarioForm}>
+              <form action={horarioAction}>
                 <CardHeader>
                   <CardTitle>{isEditingHorario ? 'Editar Horario de Solicitud' : 'Nuevo Horario de Solicitud'}</CardTitle>
                   <CardDescription>
@@ -1065,7 +1105,7 @@ function ResidenciaHorariosComedoresPage() {
                       value={currentHorario.nombre || ''}
                       onChange={handleInputChangeHorario}
                       required
-                      disabled={formLoadingHorario}
+                      disabled={formLoadingHorario || Boolean(actionStateHorario?.pending || formStatus.pending)}
                       maxLength={100}
                       placeholder="Ej: Límite Almuerzo entre semana"
                     />
@@ -1078,7 +1118,7 @@ function ResidenciaHorariosComedoresPage() {
                         name="dia"
                         value={currentHorario.dia || 'lunes'}
                         onValueChange={(value: DayOfWeekKey) => handleHorarioDiaChange(value)}
-                        disabled={formLoadingHorario}
+                        disabled={formLoadingHorario || Boolean(actionStateHorario?.pending || formStatus.pending)}
                       >
                         <SelectTrigger id="horarioDia">
                           <SelectValue placeholder="Selecciona un día" />
@@ -1099,7 +1139,7 @@ function ResidenciaHorariosComedoresPage() {
                         value={currentHorario.horaSolicitud || '12:00'}
                         onChange={handleInputChangeHorario}
                         required
-                        disabled={formLoadingHorario}
+                        disabled={formLoadingHorario || Boolean(actionStateHorario?.pending || formStatus.pending)}
                         pattern="[0-2][0-9]:[0-5][0-9]" // Basic pattern, full validation in handler
                       />
                     </div>
@@ -1126,9 +1166,9 @@ function ResidenciaHorariosComedoresPage() {
                             }
                             setCurrentHorario(prev => ({...prev, isPrimary: Boolean(checked)}));
                         }}
-                        // The main disabling factor is formLoadingHorario.
-                        // The onCheckedChange above handles the specific UX for an active primary.
-                        disabled={formLoadingHorario}
+                          // The main disabling factor is formLoadingHorario.
+                          // The onCheckedChange above handles the specific UX for an active primary.
+                          disabled={formLoadingHorario || Boolean(actionStateHorario?.pending || formStatus.pending)}
                       />
                       <Label htmlFor="horarioIsPrimary" className="font-normal">¿Es Horario Primario?</Label>
                     </div>
@@ -1149,12 +1189,16 @@ function ResidenciaHorariosComedoresPage() {
                   </CardDescription>
 
                 </CardContent>
-                <CardFooter className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setShowHorarioForm(false)} disabled={formLoadingHorario}>
+                  <CardFooter className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={() => setShowHorarioForm(false)} disabled={formLoadingHorario || Boolean(actionStateHorario?.pending || formStatus.pending)}>
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={formLoadingHorario}>
-                    {formLoadingHorario && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <input type="hidden" name="isEditing" value={isEditingHorario ? 'true' : 'false'} />
+                  <input type="hidden" name="id" value={currentHorario.id || ''} />
+                  <input type="hidden" name="residenciaId" value={targetResidenciaId || ''} />
+                  <input type="hidden" name="actorUserId" value={authUser?.uid || ''} />
+                  <Button type="submit" disabled={formLoadingHorario || Boolean(actionStateHorario?.pending || formStatus.pending)}>
+                    {(formLoadingHorario || actionStateHorario?.pending || formStatus.pending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {isEditingHorario ? 'Guardar Cambios' : 'Crear Horario'}
                   </Button>
                 </CardFooter>

@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useMainContext, useResidenciaContext, useUserContext } from '../context/ElegirComidasContext'; 
-import { useCollectionData } from '@/hooks/useFirestore';
+import { useCollectionSubscription } from '@/hooks/useFirebaseData';
 import {
   collection,
   doc,
@@ -115,19 +115,19 @@ const InicializarDatos: React.FC = () => {
     );
   }, [residenciaId]);
   
-  const { data: tiemposComidaData } = useCollectionData<TiempoComida>(tiemposComidaQuery);
+  const { value: tiemposComidaData } = useCollectionSubscription<TiempoComida>(tiemposComidaQuery);
 
   const alternativasQuery = useMemo(() => {
     if (!residenciaId) return null; 
     return residenciaId ? (query(collection(db, 'residencias', residenciaId, 'alternativasTiempoComida'), where('isActive', '==', true)) as Query<AlternativaTiempoComida>) : null;
   }, [residenciaId, db]);
-  const { data: alternativasData } = useCollectionData<AlternativaTiempoComida>(alternativasQuery);
+  const { value: alternativasData } = useCollectionSubscription<AlternativaTiempoComida>(alternativasQuery);
 
   const horariosSolicitudQuery = useMemo(() => {
     if (!residenciaId) return null; 
     return residenciaId ? (query(collection(db, 'residencias', residenciaId, 'horariosSolicitudComida'), where('isActive', '==', true)) as Query<HorarioSolicitudComida>) : null;
   }, [residenciaId, db]);
-  const { data: horariosSolicitudData } = useCollectionData<HorarioSolicitudComida>(horariosSolicitudQuery);
+  const { value: horariosSolicitudData } = useCollectionSubscription<HorarioSolicitudComida>(horariosSolicitudQuery);
 
   // --- Sync Hooks Data to Context ---
   useEffect(() => {

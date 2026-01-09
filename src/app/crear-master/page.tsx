@@ -96,6 +96,8 @@ export default function CreateMasterUserPage() {
                     <li>Proceed with developing your application with secure user management functions.</li>
                 </ol>
             </div>
+
+            {/* TODO: SECURITY RISK - REMOVE BEFORE PRODUCTION */}
         </div>
     );
 }

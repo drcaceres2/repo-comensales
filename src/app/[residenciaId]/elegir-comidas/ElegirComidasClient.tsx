@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useResidenciaOperativa } from '@/hooks/useResidenciaOperativa';
-import { useDocumentData } from '@/hooks/useFirestore';
+import { useDocumentSubscription } from '@/hooks/useFirebaseData';
 import { auth, db } from '@/lib/firebase';
 import { doc, DocumentReference } from 'firebase/firestore'; 
 
@@ -39,7 +39,7 @@ const ElegirComidasClient = ({ residenciaId: residenciaIdProp }: ElegirComidasCl
     return residenciaIdProp ? (doc(db, 'residencias', residenciaIdProp) as DocumentReference<Residencia>) : null;
   }, [residenciaIdProp]);
   
-  const { data: residenciaData, loading: residenciaLoading } = useDocumentData<Residencia>(residenciaRef);
+  const { value: residenciaData, loading: residenciaLoading } = useDocumentSubscription<Residencia>(residenciaRef);
 
   // Global Context States
   const [loggedUser, setLoggedUser] = useState<UserProfile | null>(null);
@@ -133,7 +133,7 @@ const ElegirComidasClient = ({ residenciaId: residenciaIdProp }: ElegirComidasCl
   };
 
   return (
-    <MainContext.Provider value={{
+    <MainContext value={{
       loggedUser, setLoggedUser,
       selectedUser, setSelectedUser,
       selectedUserMealPermissions, setSelectedUserMealPermissions,
@@ -151,7 +151,7 @@ const ElegirComidasClient = ({ residenciaId: residenciaIdProp }: ElegirComidasCl
           <h2>1. Seleccione un usuario</h2>
           <SelectorUsuariosEC />
         </div>
-        <UserContext.Provider value={{
+        <UserContext value={{
           userSemanario, setUserSemanario,
           userElecciones, setUserElecciones,
           userAusencias, setUserAusencias,
@@ -159,7 +159,7 @@ const ElegirComidasClient = ({ residenciaId: residenciaIdProp }: ElegirComidasCl
           userComentarios, setUserComentarios,
           semanarioUI, setSemanarioUI,
         }}>
-          <ResidenciaContext.Provider value={{
+          <ResidenciaContext value={{
             residenciaTiemposComida, setResidenciaTiemposComida,
             residenciaAlternativas, setResidenciaAlternativas,
             residenciaHorariosSolicitud, setResidenciaHorariosSolicitud,
@@ -199,10 +199,10 @@ const ElegirComidasClient = ({ residenciaId: residenciaIdProp }: ElegirComidasCl
               <h2>7. Meal Request Component</h2>
               <div style={placeholderContentStyle}>Placeholder for Meal Request.</div>
             </div>
-          </ResidenciaContext.Provider>
-        </UserContext.Provider>
+          </ResidenciaContext>
+        </UserContext>
       </div>
-    </MainContext.Provider>
+    </MainContext>
   );
 };
 

@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, use } from 'react';
 import { Auth } from 'firebase/auth';
 import { Firestore } from 'firebase/firestore';
 import { 
@@ -80,31 +80,31 @@ export interface UserContextProps {
 }
 
 // Contexts
-export const MainContext = createContext<MainContextProps | undefined>(undefined);
-export const ResidenciaContext = createContext<ResidenciaContextProps | undefined>(undefined);
-export const UserContext = createContext<UserContextProps | undefined>(undefined);
+export const MainContext = createContext<MainContextProps | null>(null);
+export const ResidenciaContext = createContext<ResidenciaContextProps | null>(null);
+export const UserContext = createContext<UserContextProps | null>(null);
 
 // Hooks
 export const useMainContext = (): MainContextProps => {
-  const context = useContext(MainContext);
+  const context = use(MainContext);
   if (!context) {
     throw new Error('useMainContext must be used within a MainContext.Provider');
   }
-  return context;
+  return context as MainContextProps;
 };
 
 export const useResidenciaContext = (): ResidenciaContextProps => {
-  const context = useContext(ResidenciaContext);
+  const context = use(ResidenciaContext);
   if (!context) {
     throw new Error('useResidenciaContext must be used within a ResidenciaContext.Provider');
   }
-  return context;
+  return context as ResidenciaContextProps;
 };
 
 export const useUserContext = (): UserContextProps => {
-  const context = useContext(UserContext);
+  const context = use(UserContext);
   if (!context) {
     throw new Error('useUserContext must be used within a UserContext.Provider');
   }
-  return context;
+  return context as UserContextProps;
 };

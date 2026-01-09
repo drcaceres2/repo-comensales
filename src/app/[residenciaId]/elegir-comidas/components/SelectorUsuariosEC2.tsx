@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth'; 
-import { useDocumentData, useCollectionData } from '@/hooks/useFirestore';
+import { useDocumentSubscription } from '@/hooks/useFirebaseData';
+import { useCollectionSubscription } from '@/hooks/useFirebaseData';
 import { collection, doc, getDoc, getDocs, query, where, DocumentReference } from 'firebase/firestore'; 
 import { UserProfile, PermisosComidaPorGrupo, Residencia, AsistenciasUsuariosDetalle } from '@/../../shared/models/types';
 import { useMainContext } from '../context/ElegirComidasContext';
@@ -116,7 +117,7 @@ const SelectorUsuariosEC = () => {
     return authUser ? (doc(db, 'users', authUser.uid) as DocumentReference<UserProfile>) : null;
   }, [authUser]);
 
-  const { data: userProfileData, loading: userProfileLoading, error: userProfileError } = useDocumentData<UserProfile>(userRef);
+  const { value: userProfileData, loading: userProfileLoading, error: userProfileError } = useDocumentSubscription<UserProfile>(userRef);
 
   // 2. Set Logged User in Context & Validation
   useEffect(() => {
@@ -169,7 +170,7 @@ const SelectorUsuariosEC = () => {
     return null;
   }, [userProfileData, context.residenciaId]);
 
-  const { data: directorUsers, loading: directorUsersLoading } = useCollectionData<UserProfile>(directorUsersQuery);
+  const { value: directorUsers, loading: directorUsersLoading } = useCollectionSubscription<UserProfile>(directorUsersQuery);
 
   // 4. Handle Assistant Users (Manual Fetch due to complexity)
   useEffect(() => {
