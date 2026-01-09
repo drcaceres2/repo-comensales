@@ -36,7 +36,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea'; // ADDED: Textarea import
 
 // --- Firebase & New Auth Hook Imports ---
-import { useAuthState } from 'react-firebase-hooks/auth'; // Import the new hook
+import { useAuth } from '@/hooks/useAuth'; // Import the new hook
 import withAuth from '@/components/withAuth';
 import { getFunctions, httpsCallable } from "firebase/functions";
 
@@ -98,7 +98,7 @@ function UserManagementPage(): JSX.Element | null {
     const router = useRouter();
     const { toast } = useToast();
 
-    const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+    const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
     const [adminUserProfile, setAdminUserProfile] = useState<UserProfile | null>(null);
     const [adminProfileLoading, setAdminProfileLoading] = useState<boolean>(true);
     const [adminProfileError, setAdminProfileError] = useState<string | null>(null);

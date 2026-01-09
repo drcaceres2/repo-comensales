@@ -21,7 +21,7 @@ import { Loader2 } from "lucide-react"; // Import loader icon
 // signInWithEmailAndPassword will still be used for the initial client-side auth
 import { signInWithEmailAndPassword, signOut as firebaseSignOut } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { useAuthState } from '@/hooks/useAuthState'; // Use the custom hook
+import { useAuth } from '@/hooks/useAuth'; // Use the custom hook
 import { auth, db } from '@/lib/firebase'; // Import initialized auth and db instances
 
 // --- Model Imports ---
@@ -55,7 +55,7 @@ const redirectToDashboard = (profile: UserProfile, router: ReturnType<typeof use
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [user, loading, error] = useAuthState(); // Custom hook usage
+  const { user, loading, error } = useAuth(); // Custom hook usage
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(false);
   const [initialAuthCheckDone, setInitialAuthCheckDone] = useState(false);
