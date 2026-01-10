@@ -20,7 +20,7 @@ import {
   ClientLogWrite, 
   UserId,
   ResidenciaId
-} from '@/../../shared/models/types';
+} from '../../../../shared/models/types';
 import {
   doc,
   getDoc,

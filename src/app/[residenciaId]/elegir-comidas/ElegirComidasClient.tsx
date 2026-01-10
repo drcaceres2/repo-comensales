@@ -13,7 +13,7 @@ import {
   AlteracionHorario, TiempoComidaMod, AlternativaTiempoComidaMod,
   Semanario, Eleccion, Ausencia, Actividad, InscripcionActividad, TiempoComidaAlternativaUnicaActividad, Comentario,
   SemanarioDesnormalizado,
-} from '@/../../shared/models/types';
+} from '../../../../shared/models/types';
 import SelectorUsuariosEC from './components/SelectorUsuariosEC2';
 import InicializarDatos from './components/inicializar-datos';
 import { MainContext, ResidenciaContext, UserContext } from './context/ElegirComidasContext';

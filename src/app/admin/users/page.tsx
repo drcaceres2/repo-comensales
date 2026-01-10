@@ -56,7 +56,7 @@ import {
     Dieta, 
     CentroCostoId, 
     CentroCosto
-} from '@/../../shared/models/types';
+} from '../../../../shared/models/types';
 // import { ZodUndefined } from 'zod';
 
 function UserManagementPage(): JSX.Element | null {

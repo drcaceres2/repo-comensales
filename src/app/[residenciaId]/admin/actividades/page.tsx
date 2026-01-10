@@ -47,7 +47,7 @@ import {
     LogActionType,
     LogEntry, 
     UserId 
-} from '@/../../shared/models/types';
+} from '../../../../../shared/models/types';
 
 // Helper to create Log Entries
 async function createLogEntry(

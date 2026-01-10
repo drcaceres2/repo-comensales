@@ -25,7 +25,7 @@ import { useAuth } from '@/hooks/useAuth'; // Use the custom hook
 import { auth, db } from '@/lib/firebase'; // Import initialized auth and db instances
 
 // --- Model Imports ---
-import { UserProfile, UserRole } from '@/../../shared/models/types'; // Keep UserProfile and UserRole
+import { UserProfile, UserRole } from '../../shared/models/types'; // Keep UserProfile and UserRole
 
 // --- LOGO URL ---
 const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/public%2Flogo_web_app_1024x1024.jpg?alt=media&token=3d7a3f7c-71a1-403a-b858-bd0ec567dd10";

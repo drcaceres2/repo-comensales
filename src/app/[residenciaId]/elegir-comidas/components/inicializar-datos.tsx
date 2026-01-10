@@ -58,7 +58,7 @@ import {
   Comentario,
   CeldaSemanarioDesnormalizado,
   SemanarioDesnormalizado
-} from '@/../../shared/models/types';
+} from '../../../../../shared/models/types';
 
 // --- Main Component ---
 const InicializarDatos: React.FC = () => {
@@ -180,6 +180,11 @@ const InicializarDatos: React.FC = () => {
         // 1.2 Calculate affected period
         const currentAffectedPeriodStartString = formatoIsoInicioSemanaString({fecha: today, zonaHoraria: residencia.zonaHoraria});
         const currentAffectedPeriodEndString = formatoIsoFinalSemanaString({fecha: today, zonaHoraria: residencia.zonaHoraria});
+        
+        if (!currentAffectedPeriodStartString || !currentAffectedPeriodEndString) {
+          console.error("Error calculating affected period strings");
+          return;
+        }
         
         currentAffectedPeriodStart = fechaNormalizadaADate(currentAffectedPeriodStartString); 
         currentAffectedPeriodEnd = fechaNormalizadaADate(currentAffectedPeriodEndString);   

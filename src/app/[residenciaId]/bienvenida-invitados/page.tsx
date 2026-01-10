@@ -32,7 +32,7 @@ import {
     UserProfile,
     UserRole,
     ResidenciaId
-} from '@/../../shared/models/types';
+} from '../../../../shared/models/types';
 import {
     Dialog,
     DialogContent,

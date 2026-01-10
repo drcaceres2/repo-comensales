@@ -20,7 +20,7 @@ import {
     HorarioSolicitudComida, HorarioSolicitudComidaId, 
     UserProfile, UserRole, 
     TipoAlternativa 
-} from '@/../../shared/models/types';
+} from '../../../../../shared/models/types';
 import { writeClientLog } from '@/lib/utils';
 import { addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';

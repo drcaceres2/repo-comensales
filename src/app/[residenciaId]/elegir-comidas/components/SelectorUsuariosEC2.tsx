@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDocumentSubscription } from '@/hooks/useFirebaseData';
 import { useCollectionSubscription } from '@/hooks/useFirebaseData';
 import { collection, doc, getDoc, getDocs, query, where, DocumentReference } from 'firebase/firestore'; 
-import { UserProfile, PermisosComidaPorGrupo, Residencia, AsistenciasUsuariosDetalle } from '@/../../shared/models/types';
+import { UserProfile, PermisosComidaPorGrupo, Residencia, AsistenciasUsuariosDetalle } from '../../../../../shared/models/types';
 import { useMainContext } from '../context/ElegirComidasContext';
 import { parse } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
@@ -179,7 +179,7 @@ const SelectorUsuariosEC = () => {
       if (userProfileData.roles.includes('asistente') && !userProfileData.roles.includes('director')) {
         setInternalLoading(true);
         try {
-          if (userProfileData.asistentePermisos?.gestionUsuarios && userProfileData.asistentePermisos.usuariosAsistidos?.length > 0) {
+          if (userProfileData.asistentePermisos?.gestionUsuarios && userProfileData.asistentePermisos?.usuariosAsistidos && userProfileData.asistentePermisos.usuariosAsistidos.length > 0) {
             const users = await obtenerAsistidosResidentesFiltrados(userProfileData, context.residencia, context.residenciaId);
              // Include self if resident
             if (userProfileData.roles.includes('residente')) {

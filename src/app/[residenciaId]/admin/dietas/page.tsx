@@ -25,7 +25,7 @@ import withAuth from '@/components/withAuth'
 import { useTranslations } from '@/lib/translations'; // Path to your translations hook
 
 // --- This app types ---
-import { Dieta, Residencia, ResidenciaId, LogEntry, LogActionType, UserProfile, UserRole } from '@/../../shared/models/types';
+import { Dieta, Residencia, ResidenciaId, LogEntry, LogActionType, UserProfile, UserRole } from '../../../../../shared/models/types';
 
 // --- Log Helper ---
 // (createLogEntry function remains the same as in your provided code)

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
-import { UserProfile, Residencia, Dieta } from '@/../../shared/models/types';
+import { UserProfile, Residencia, Dieta } from '../../../../shared/models/types';
 import {
   doc,
   collection,

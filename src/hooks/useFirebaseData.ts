@@ -7,12 +7,18 @@ interface Subscription<T> {
   value: T | null;
 }
 
-export function useCollectionSubscription<T>(query: Query): Subscription<T[]> {
+export function useCollectionSubscription<T>(query: Query | null): Subscription<T[]> {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [value, setValue] = useState<T[] | null>(null);
 
   useEffect(() => {
+    if (!query) {
+      setValue(null);
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onSnapshot(query, 
       (snapshot: QuerySnapshot<DocumentData>) => {
         const data: T[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as T));

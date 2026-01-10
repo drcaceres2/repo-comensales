@@ -26,7 +26,7 @@ import {
     LogActionType,
     EstadoInscripcionActividad,
     UserRole // Ensure UserRole is imported
-} from '@/../../shared/models/types';
+} from '../../../../shared/models/types';
 
 // Helper to create Log Entries
 async function createLogEntry(

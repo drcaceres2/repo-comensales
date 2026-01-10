@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDocumentSubscription } from '@/hooks/useFirebaseData';
 
 // Model Imports
-import { UserProfile, UserRole, ResidenciaId } from '@/../../shared/models/types';
+import { UserProfile, UserRole, ResidenciaId } from '../../../../shared/models/types';
 
 export default function SolicitarComensalesPage() {
   const router = useRouter();

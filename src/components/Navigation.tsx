@@ -60,7 +60,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from "firebase/firestore";
-import { UserProfile, UserRole } from '@/../../shared/models/types';
+import { UserProfile, UserRole } from '../../shared/models/types';
 
 interface NavItem {
   id: string;

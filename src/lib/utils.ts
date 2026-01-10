@@ -2,11 +2,11 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
-import { UserProfile, LogActionType, ClientLogWrite, UserId, campoFechaConZonaHoraria } from '@/../../shared/models/types';
+import { UserProfile, LogActionType, ClientLogWrite, UserId, campoFechaConZonaHoraria } from '../../shared/models/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { type Toast } from "@/hooks/use-toast";
-import timezonesDataJson from '@/../../shared/data/zonas_horarias_soportadas.json';
+import timezonesDataJson from '../../shared/data/zonas_horarias_soportadas.json';
 import { ParsedToken, IdTokenResult } from "firebase/auth";
 import { getDoc, doc } from 'firebase/firestore';
 

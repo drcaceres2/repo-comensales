@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, Timestamp, serverTimestamp, runTransaction } from 'firebase/firestore'; // Added runTransaction
-import { UserProfile, ResidenciaId, campoFechaConZonaHoraria } from '@/../../shared/models/types'; // Adjust path as needed
+import { UserProfile, ResidenciaId, campoFechaConZonaHoraria } from '../../../../shared/models/types'; // Adjust path as needed
 import { writeClientLog } from '@/lib/utils'; // Adjust path as needed
 import { Button } from '@/components/ui/button'; // Adjust path as needed
 import { Input } from '@/components/ui/input'; // Adjust path as needed
@@ -24,7 +24,7 @@ import {
     // Import prepareFechaStringForParsing if it's exported and you want to use it directly,
     // otherwise the comparison functions use it internally.
     resultadoComparacionFCZH
-} from '@/../../shared/utils/commonUtils'; // Adjust path if necessary
+} from '../../../../shared/utils/commonUtils'; // Adjust path if necessary
 import { format } from 'date-fns';
 import { 
     ContratoResidencia, ContratoResidenciaId, 
@@ -34,7 +34,7 @@ import {
     odoo_status_in_payment, 
     Moneda,
     monedaOptions
-} from '@/../../shared/models/contratos'; // Adjust path as needed
+} from '../../../../shared/models/contratos'; // Adjust path as needed
 
 const calculateEstadoDePago = (montoTotal: number, montoPagado: number): odoo_status_in_payment => {
     if (montoTotal === 0 && montoPagado === 0) return 'paid';

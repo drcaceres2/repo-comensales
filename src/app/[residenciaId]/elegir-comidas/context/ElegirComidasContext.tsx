@@ -20,7 +20,7 @@ import {
   TiempoComidaAlternativaUnicaActividad, 
   Comentario,
   SemanarioDesnormalizado,
-} from '@/../../shared/models/types';
+} from '../../../../../shared/models/types';
 
 export interface MainContextProps {
   loggedUser: UserProfile | null;

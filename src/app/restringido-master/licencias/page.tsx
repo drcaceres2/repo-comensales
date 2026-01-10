@@ -33,14 +33,14 @@ import {
   Licenciamiento,
   FacturaCero, // Assuming FacturaCero might be an ID string or a specific object type
   FacturaCeroId
-} from '@/../../shared/models/contratos'; // Adjust path as needed
+} from '../../../../shared/models/contratos'; // Adjust path as needed
 
 import {
   UserProfile,
   ResidenciaId,
   campoFechaConZonaHoraria,
   // Ensure other necessary types from types.ts are imported if needed
-} from '@/../../shared/models/types'; // Adjust path as needed
+} from '../../../../shared/models/types'; // Adjust path as needed
 
 // Utility and Component imports
 import { 
@@ -48,7 +48,7 @@ import {
     addDurationToFCZH, 
     toDateFCZH, 
     intervalToDurationFCZH 
-} from '@/../../shared/utils/commonUtils';
+} from '../../../../shared/utils/commonUtils';
 import { 
   writeClientLog, 
   formatFCZHToMonthYear, 

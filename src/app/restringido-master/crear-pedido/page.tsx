@@ -22,14 +22,14 @@ import {
   Cliente,
   ClienteId,
   FrecuenciaSuscripcion, // Ensure this type is defined in your shared models
-} from '@/../../shared/models/contratos'; // Adjust path as needed
+} from '../../../../shared/models/contratos'; // Adjust path as needed
 import {   
   Residencia,
   ResidenciaId,
   UserProfile, 
   UserId,
   campoFechaConZonaHoraria,
-} from '@/../../shared/models/types'; // Adjust path as needed
+} from '../../../../shared/models/types'; // Adjust path as needed
 import { writeClientLog } from '@/lib/utils'; // Adjust path as needed
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

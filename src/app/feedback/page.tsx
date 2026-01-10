@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase"; 
 import { useFirebaseAuth } from "@/hooks/useFirebaseAuth";
 import { doc, getDoc } from "firebase/firestore";
-import { Feedback, UserProfile } from "@/../../shared/models/types";
+import { Feedback, UserProfile } from "../../../shared/models/types";
 import { submitFeedback } from "./actions";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";

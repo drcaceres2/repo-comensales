@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from '@/lib/firebase'; 
 import { collection, addDoc, getDocs, query, where, doc, updateDoc, deleteDoc, DocumentData, getDoc, DocumentSnapshot } from 'firebase/firestore';
-import { Cliente, PersonaNaturalHonduras, PersonaNaturalExtranjera, PersonaJuridicaHonduras, PersonaJuridicaExtranjera } from '@/../../shared/models/contratos';
-import { UserProfile, UserId, ClientLogWrite } from '@/../../shared/models/types';
+import { Cliente, PersonaNaturalHonduras, PersonaNaturalExtranjera, PersonaJuridicaHonduras, PersonaJuridicaExtranjera } from '../../../../shared/models/contratos';
+import { UserProfile, UserId, ClientLogWrite } from '../../../../shared/models/types';
 import { writeClientLog } from '@/lib/utils'; 
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
