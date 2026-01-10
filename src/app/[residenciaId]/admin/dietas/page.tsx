@@ -19,7 +19,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 // --- Firebase Imports ---
 import { Timestamp, addDoc, collection, doc, getDoc, query, where, getDocs, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { useAuth } from '@/hooks/useAuth';
 import withAuth from '@/components/withAuth'
 
 import { useTranslations } from '@/lib/translations'; // Path to your translations hook
@@ -57,14 +57,14 @@ async function createLogEntry(
     }
 }
 
-function DietasResidenciaPage(): JSX.Element | null {
+function DietasResidenciaPage(): React.ReactElement | null {
     const params = useParams();
     const router = useRouter();
     const residenciaId = params.residenciaId as ResidenciaId;
     const { toast } = useToast();
 
     // --- Auth & Profile State ---
-    const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+    const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
     const [adminUserProfile, setAdminUserProfile] = useState<UserProfile | null>(null);
     const [adminProfileLoading, setAdminProfileLoading] = useState<boolean>(true);
     const [adminProfileError, setAdminProfileError] = useState<string | null>(null);

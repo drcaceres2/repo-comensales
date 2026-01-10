@@ -1,6 +1,8 @@
 'use server';
 
 import * as admin from 'firebase-admin';
+import { z } from 'zod';
+import { formAction } from './formAction';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -8,22 +10,20 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-export async function comedorAction(formData: FormData) {
-  const residenciaId = formData.get('residenciaId')?.toString();
-  const id = formData.get('id')?.toString();
-  const nombre = formData.get('nombre')?.toString()?.trim();
-  const descripcion = formData.get('descripcion')?.toString() || '';
-  const capacidadStr = formData.get('capacidad')?.toString() || '0';
-  const capacidad = parseInt(capacidadStr, 10) || 0;
-  const centroCostoPorDefectoId = formData.get('centroCostoPorDefectoId')?.toString() || null;
-  const isEditing = formData.get('isEditing') === 'true';
+const ComedorSchema = z.object({
+  residenciaId: z.string().min(1, 'Falta residenciaId'),
+  id: z.string().optional(),
+  nombre: z.string().min(1, 'El nombre del comedor es obligatorio').trim(),
+  descripcion: z.string().optional(),
+  capacidad: z.coerce.number().int().nonnegative().optional(),
+  centroCostoPorDefectoId: z.string().optional(),
+  isEditing: z.string().transform(v => v === 'true'),
+});
 
-  if (!residenciaId) {
-    throw new Error('Falta residenciaId');
-  }
-  if (!nombre) {
-    throw new Error('El nombre del comedor es obligatorio');
-  }
+export const comedorServerAction = formAction(ComedorSchema, async (data) => {
+  const { residenciaId, id, nombre, descripcion, capacidad, centroCostoPorDefectoId, isEditing } = data;
+  
+  const db = admin.firestore();
 
   try {
     if (isEditing && id) {
@@ -38,4 +38,4 @@ export async function comedorAction(formData: FormData) {
     console.error('Error in comedorAction:', err);
     throw err;
   }
-}
+});

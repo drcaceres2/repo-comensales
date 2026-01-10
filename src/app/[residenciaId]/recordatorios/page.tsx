@@ -20,8 +20,8 @@ import {
 import { formatTimestampForInput } from '@/lib/utils'
 
 // --- Auth Hook Import ---
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { Recordatorio, RecordatorioId, ResidenciaId, UserId, TipoRecurrente, AsistentePermisos, UserProfile, UserRole } from '@/../../shared/models/types'; // Adjusted imports
+import { useAuth } from '@/hooks/useAuth';
+import { Recordatorio, RecordatorioId, ResidenciaId, UserId, RecurrenciaRecordatorio, AsistentePermisos, UserProfile, UserRole } from '../../../../shared/models/types';
 
 // UI Components (assuming paths, add actual imports as needed)
 import { Button } from '@/components/ui/button';
@@ -48,12 +48,12 @@ interface RecordatorioFormData {
     fechaFin: Date | undefined;
     isSingleDay: boolean;
     isRecurrente: boolean;
-    tipoRecurrente?: TipoRecurrente;
+    tipoRecurrente?: RecurrenciaRecordatorio;
     color: string;
 }
 
 export default function RecordatoriosPage() {
-    const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+    const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
     const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(null); // Renamed state
     const [userProfileLoading, setUserProfileLoading] = useState(true);
     const [userProfileError, setUserProfileError] = useState<string | null>(null);
@@ -66,24 +66,6 @@ export default function RecordatoriosPage() {
     const router = useRouter();
     const params = useParams();
     const residenciaId = params.residenciaId as ResidenciaId;
-    // const { user, loading: authLoading, userProfile } = useAuth(); // Assuming useAuth provides userProfile
-
-    // --- Mocked Auth Data (Replace with actual useAuth) ---
-    const authLoading = false;
-    const user = { uid: 'mockUserId' as UserId };
-    const userProfile: UserProfile | null = {
-        id: 'mockUserId' as UserId,
-        // email: 'director@example.com',
-        // displayName: 'Director Mock',
-        // role: UserRole.DIRECTOR, // Or UserRole.ASISTENTE, UserRole.RESIDENTE
-        // residenciaId: residenciaId,
-        // // Example for asistente:
-        // permisosAsistente: {
-        //   recor_gest_propias: true,
-        //   recor_gest_todas: false,
-        // }
-    } as UserProfile;
-    // --- End Mocked Auth Data ---
 
 
     const [recordatorios, setRecordatorios] = useState<Recordatorio[]>([]);
@@ -174,11 +156,11 @@ export default function RecordatoriosPage() {
         } else if (currentUserProfile.roles?.includes('asistente')) {
             // Use corrected property name: asistentePermisos
             const asistentePerms = currentUserProfile.asistentePermisos;
-            if (asistentePerms?.gestionRecordatorios === 'Todos') {
+            if (asistentePerms?.gestionRecordatorios?.nivelAcceso === 'Todas') {
                 newCanManageAll = true;
                 newCanManageOwn = true;
                 newIsReadOnly = false;
-            } else if (asistentePerms?.gestionRecordatorios === 'Propios') {
+            } else if (asistentePerms?.gestionRecordatorios?.nivelAcceso === 'Propias') {
                 newCanManageOwn = true;
                 newCanManageAll = false; // Explicitly set to false
                 newIsReadOnly = false;
@@ -249,10 +231,10 @@ export default function RecordatoriosPage() {
 
     }, [residenciaId, authUser]); // Dependencies: fetch if residenciaId or user changes
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | { target: { name: string, value: any, type: string } }) => {
         const { name, value, type } = e.target;
         if (type === 'checkbox') {
-            const checked = (e.target as HTMLInputElement).checked;
+            const checked = value;
             setFormData(prev => {
                 const newState = { ...prev, [name]: checked };
                 // Interaction (1) & (3) logic
@@ -299,7 +281,7 @@ export default function RecordatoriosPage() {
     };
 
     const handleSelectChange = (value: string, fieldName: 'tipoRecurrente') => {
-        setFormData(prev => ({ ...prev, [fieldName]: value as TipoRecurrente }));
+        setFormData(prev => ({ ...prev, [fieldName]: value as RecurrenciaRecordatorio }));
     };
 
     const resetForm = () => {
@@ -331,7 +313,7 @@ export default function RecordatoriosPage() {
             fechaFin: new Date(recordatorio.fechaFin),
             isSingleDay: recordatorio.isSingleDay,
             isRecurrente: recordatorio.isRecurrente,
-            tipoRecurrente: recordatorio.tipoRecurrente,
+            tipoRecurrente: recordatorio.recurrenciaRecordatorio,
             color: recordatorio.color || DEFAULT_REMINDER_COLOR,
         });
         setIsFormOpen(true);
@@ -400,7 +382,7 @@ export default function RecordatoriosPage() {
             fechaFin: finalFechaFin.toISOString().slice(0,10), // finalFechaFin is already validated and is a Date
             isSingleDay: formData.isSingleDay,
             isRecurrente: formData.isRecurrente,
-            tipoRecurrente: formData.isRecurrente ? formData.tipoRecurrente : undefined, // Set only if recurrent
+            recurrenciaRecordatorio: formData.isRecurrente ? formData.tipoRecurrente : undefined, // Set only if recurrent
             color: formData.color || DEFAULT_REMINDER_COLOR,
         };
 
@@ -499,11 +481,11 @@ export default function RecordatoriosPage() {
     }, [recordatorios, showPastRecordatorios]);
 
 
-    if (authLoading) {
+    if (authFirebaseLoading) {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
 
-    if (!user) {
+    if (!authUser) {
         // router.push('/login'); // Or your login page
         return <p className="text-center mt-10">Por favor, inicia sesión para ver esta página.</p>;
     }
@@ -547,7 +529,7 @@ export default function RecordatoriosPage() {
                             <ul className="space-y-3">
                                 {displayedRecordatorios.map(rec => {
                                     const isPast = new Date(rec.fechaFin) < new Date() && !rec.isRecurrente; // Simple past check for UI
-                                    const canEditDeleteThis = canManageAll || (canManageOwn && rec.userId === user.uid);
+                                    const canEditDeleteThis = canManageAll || (canManageOwn && authUser && rec.userId === authUser.uid);
                                     return (
                                         <li key={rec.id} className={`p-3 rounded-md border flex justify-between items-center ${isPast ? 'bg-gray-100 opacity-70' : 'bg-white'}`} style={{ borderLeft: `4px solid ${rec.color}`}}>
                                             <div>
@@ -556,7 +538,7 @@ export default function RecordatoriosPage() {
                                                 <p className="text-xs text-gray-500">
                                                     {new Date(rec.fechaInicio).toLocaleDateString()}
                                                     {!rec.isSingleDay && ` - ${new Date(rec.fechaFin).toLocaleDateString()}`}
-                                                    {rec.isRecurrente && ` (${rec.tipoRecurrente})`}
+                                                    {rec.isRecurrente && ` (${rec.recurrenciaRecordatorio})`}
                                                 </p>
                                             </div>
                                             {(!isReadOnly && canEditDeleteThis && (!isPast || showPastRecordatorios)) && (
@@ -635,14 +617,14 @@ export default function RecordatoriosPage() {
 
                             {/* Checkboxes */}
                              <div className="col-span-4 flex items-center space-x-2">
-                                <Checkbox id="isRecurrente" name="isRecurrente" checked={formData.isRecurrente} onCheckedChange={(checked) => handleInputChange({ target: { name: 'isRecurrente', checked, type: 'checkbox' } } as any)} />
+                                <Checkbox id="isRecurrente" name="isRecurrente" checked={formData.isRecurrente} onCheckedChange={(checked) => handleInputChange({ target: { name: 'isRecurrente', value: checked, type: 'checkbox' } } as any)} />
                                 <label htmlFor="isRecurrente">Es Recurrente</label>
                             </div>
 
                            {/* Only show isSingleDay if NOT recurrent. If recurrent, it's implicitly a single day pattern that repeats. */}
                             {!formData.isRecurrente && (
                                 <div className="col-span-4 flex items-center space-x-2">
-                                    <Checkbox id="isSingleDay" name="isSingleDay" checked={formData.isSingleDay} onCheckedChange={(checked) => handleInputChange({ target: { name: 'isSingleDay', checked, type: 'checkbox' } } as any)} />
+                                    <Checkbox id="isSingleDay" name="isSingleDay" checked={formData.isSingleDay} onCheckedChange={(checked) => handleInputChange({ target: { name: 'isSingleDay', value: checked, type: 'checkbox' } } as any)} />
                                     <label htmlFor="isSingleDay">Es un solo día</label>
                                 </div>
                             )}

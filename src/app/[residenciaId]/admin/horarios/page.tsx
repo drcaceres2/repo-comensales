@@ -24,7 +24,7 @@ import {
 import { writeClientLog } from '@/lib/utils';
 import { addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { useAuth } from '@/hooks/useAuth';
 import withAuth from '@/components/withAuth';
 import { 
     AlertDialog, AlertDialogAction, AlertDialogCancel, 
@@ -264,7 +264,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const { toast } = useToast();
 
     // --- Auth & Profile State ---
-    const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+    const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
     const [adminUserProfile, setAdminUserProfile] = useState<UserProfile | null>(null);
     const [adminProfileLoading, setAdminProfileLoading] = useState<boolean>(true);
     const [adminProfileError, setAdminProfileError] = useState<string | null>(null);

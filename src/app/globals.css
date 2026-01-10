@@ -3,7 +3,6 @@
 @tailwind utilities;
 
 @import 'fullcalendar/main.css';
-@import '@fullcalendar/daygrid/main.css';
 
 @layer base {
   :root {

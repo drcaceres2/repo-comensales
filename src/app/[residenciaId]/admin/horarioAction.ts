@@ -1,6 +1,8 @@
 'use server';
 
 import * as admin from 'firebase-admin';
+import { z } from 'zod';
+import { formAction } from './formAction';
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -19,21 +21,22 @@ type Payload = {
   actorUserId?: string | null;
 };
 
-export async function horarioAction(formData: FormData) {
-  const residenciaId = formData.get('residenciaId')?.toString();
-  const id = formData.get('id')?.toString();
-  const nombre = formData.get('nombre')?.toString()?.trim();
-  const dia = formData.get('dia')?.toString();
-  const horaSolicitud = formData.get('horaSolicitud')?.toString();
-  const isPrimary = formData.get('isPrimary') === 'on' || formData.get('isPrimary') === 'true';
-  const isActive = formData.get('isActive') === 'on' || formData.get('isActive') === 'true';
-  const isEditing = formData.get('isEditing') === 'true';
-  const actorUserId = formData.get('actorUserId')?.toString() || null;
+const HorarioSchema = z.object({
+  residenciaId: z.string().min(1, 'Falta residenciaId'),
+  id: z.string().optional(),
+  nombre: z.string().min(1, 'El nombre es obligatorio').trim(),
+  dia: z.string().min(1, 'El día es obligatorio'),
+  horaSolicitud: z.string().min(1, 'La hora de solicitud es obligatoria'),
+  isPrimary: z.string().transform(v => v === 'on' || v === 'true'),
+  isActive: z.string().transform(v => v === 'on' || v === 'true'),
+  isEditing: z.string().transform(v => v === 'true'),
+  actorUserId: z.string().optional(),
+});
 
-  if (!residenciaId) throw new Error('Falta residenciaId');
-  if (!nombre) throw new Error('El nombre es obligatorio');
-  if (!dia) throw new Error('El día es obligatorio');
-  if (!horaSolicitud) throw new Error('La hora de solicitud es obligatoria');
+export const horarioServerAction = formAction(HorarioSchema, async (data) => {
+  const { residenciaId, id, nombre, dia, horaSolicitud, isPrimary, isActive, isEditing, actorUserId } = data;
+
+  const db = admin.firestore();
 
   try {
     // If isPrimary, demote existing primary for same day
@@ -106,4 +109,4 @@ export async function horarioAction(formData: FormData) {
     console.error('Error in horarioAction:', err);
     throw err;
   }
-}
+});

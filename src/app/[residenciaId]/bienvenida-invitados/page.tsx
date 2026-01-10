@@ -32,7 +32,7 @@ import {
     UserProfile,
     UserRole,
     ResidenciaId
-} from '@/models/firestore';
+} from '@/../../shared/models/types';
 import {
     Dialog,
     DialogContent,
@@ -54,7 +54,7 @@ import {
 } from "@/components/ui/tooltip";
 
 // --- Firebase Auth Hook Import ---
-import { useAuthState } from 'react-firebase-hooks/auth'; // New Auth Hook
+import { useAuth } from '@/hooks/useAuth';
 
 // Define allowed roles (though check is more specific now)
 // const ALLOWED_ROLES: UserRole[] = ['invitado']; // Keep for reference if needed
@@ -134,7 +134,7 @@ function MealSelectionModal({
                                             >
                                                 {relevantAlternativas.map((alt) => {
                                                      // Find the associated HorarioSolicitud
-                                                     const horario = horariosSolicitud.get(alt.horarioSolicitudComidaId);
+                                                     const horario = alt.horarioSolicitudComidaId ? horariosSolicitud.get(alt.horarioSolicitudComidaId) : undefined;
                                                      let tooltipContent = `Tipo: ${alt.tipo === 'comedor' ? 'Comedor' : 'Para LLevar'}.`;
                                                      if (alt.requiereAprobacion) {
                                                          tooltipContent += " Requiere aprobación.";
@@ -209,7 +209,7 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null { // Allow
     const residenciaId = params.residenciaId as ResidenciaId;
 
     // --- New Auth & Profile State ---
-    const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+        const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
     const [guestUserProfile, setGuestUserProfile] = useState<UserProfile | null>(null);
     const [guestProfileLoading, setGuestProfileLoading] = useState<boolean>(true);
     const [guestProfileError, setGuestProfileError] = useState<string | null>(null);
@@ -296,7 +296,15 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null { // Allow
 
                     const fetchedTiempos = tiemposSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TiempoComida));
                     const tiemposMap = new Map<DayOfWeekKey, TiempoComida[]>();
-                    fetchedTiempos.forEach(tc => { const key = tc.dia; const list = tiemposMap.get(key) || []; list.push(tc); list.sort((a, b) => (a.ordenGrupo ?? 0) - (b.ordenGrupo ?? 0)); tiemposMap.set(key, list); });
+                                        fetchedTiempos.forEach(tc => {
+                        if (tc.dia) {
+                            const key = tc.dia;
+                            const list = tiemposMap.get(key) || [];
+                            list.push(tc);
+                            list.sort((a, b) => (a.ordenGrupo ?? 0) - (b.ordenGrupo ?? 0));
+                            tiemposMap.set(key, list);
+                        }
+                    });
                     setTiemposComida(tiemposMap);
 
                     const fetchedAlternativas = alternativasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AlternativaTiempoComida));
@@ -446,9 +454,17 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null { // Allow
                         const estadoAprobacion: EstadoAprobacion = selectedAlternativa.requiereAprobacion ? 'pendiente' : 'no_requerido';
                         const eleccionData: Omit<Eleccion, 'id'> = {
                             usuarioId: authUser.uid, // Use authUser UID
-                            residenciaId: residenciaId, fecha: fecha, tiempoComidaId: tiempoId, alternativaTiempoComidaId: alternativaId,
-                            dietaId: guestDietaId || undefined, solicitado: true, fechaSolicitud: nowServer as Timestamp, estadoAprobacion: estadoAprobacion,
+                            residenciaId: residenciaId,
+                            fecha: dayISO,
+                            tiempoComidaId: tiempoId,
+                            alternativaTiempoComidaId: alternativaId,
+                            dietaId: guestDietaId || undefined,
+                            solicitadoAdministracion: true,
+                            congelado: false,
+                            estadoAprobacion: estadoAprobacion,
                             origen: 'invitado_wizard' as OrigenEleccion,
+                            fechaSolicitudAdministracion: new Date().toISOString(),
+                            tipoEleccion: 'regular',
                         };
                         // Use top-level elecciones collection
                         const eleccionDocRef = doc(collection(db, `elecciones`));

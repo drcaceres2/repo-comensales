@@ -9,8 +9,7 @@ import {
     writeBatch 
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import withAuth from '@/components/withAuth'
+import { useAuth } from '@/hooks/useAuth';
 
 // UI Components
 import { Button } from "@/components/ui/button";
@@ -33,8 +32,8 @@ import {
     Residencia,
     Actividad,
     ActividadId,
-    ActividadMealDefinition,
-    ActividadMealDefinitionId,
+    TiempoComidaAlternativaUnicaActividad as ActividadMealDefinition,
+    TiempoComidaAlternativaUnicaActividadId as ActividadMealDefinitionId,
     ActividadEstado,
     TipoAccesoActividad,
     CentroCosto,
@@ -64,7 +63,7 @@ async function createLogEntry(
     }
     try {
         const logEntryData: Omit<LogEntry, 'id'> = { 
-            timestamp: Timestamp.now(),
+            timestamp: new Date().getTime(),
             userId: userId,
             residenciaId: residenciaId,
             actionType: actionType,
@@ -80,9 +79,10 @@ async function createLogEntry(
 
 const getDefaultMealDefinition = (): ActividadMealDefinition => ({
     id: crypto.randomUUID(), 
-    nombreGrupoMeal: '',
-    nombreEspecificoMeal: '',
-    descripcionMeal: '', 
+    nombreTiempoComida_AlternativaUnica: '',
+    nombreGrupoTiempoComida: '',
+    ordenGrupoTiempoComida: 0,
+    fecha: new Date().toISOString(),
     horaEstimadaMeal: '', 
 });
 
@@ -90,10 +90,10 @@ const getDefaultActividad = (residenciaId: ResidenciaId, organizadorUserId: User
     residenciaId,
     nombre: '',
     descripcionGeneral: '',
-    fechaInicio: Timestamp.now(), // Default to now, user will change
-    fechaFin: Timestamp.now(),     // Default to now, user will change
-    ultimoTiempoComidaIdAntes: undefined,
-    primerTiempoComidaIdDespues: undefined,
+    fechaInicio: new Date().toISOString(),
+    fechaFin: new Date().toISOString(),
+    ultimoTiempoComidaAntes: undefined,
+    primerTiempoComidaDespues: undefined,
     planComidas: [getDefaultMealDefinition()], 
     requiereInscripcion: true,
     tipoAccesoActividad: 'abierta',
@@ -105,9 +105,9 @@ const getDefaultActividad = (residenciaId: ResidenciaId, organizadorUserId: User
 });
 
 // Helper to convert Firestore Timestamps to yyyy-MM-ddTHH:mm string for datetime-local input
-const formatTimestampForInput = (timestamp: Timestamp | Date | undefined): string => {
+const formatTimestampForInput = (timestamp: string | Date | undefined): string => {
     if (!timestamp) return '';
-    const date = (timestamp as Timestamp)?.toDate ? (timestamp as Timestamp).toDate() : new Date(timestamp as any);
+    const date = new Date(timestamp);
     // Format: YYYY-MM-DDTHH:mm
     const pad = (num: number) => num.toString().padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
@@ -120,7 +120,7 @@ function AdminActividadesPage() {
     const residenciaId = params.residenciaId as ResidenciaId;
     const { toast } = useToast();
 
-    const [authUser, authLoading, authError] = useAuthState(auth);
+    const { user: authUser, loading: authLoading, error: authError } = useAuth();
     const [adminUserProfile, setAdminUserProfile] = useState<UserProfile | null>(null);
     const [adminProfileLoading, setAdminProfileLoading] = useState(true);
     const [adminProfileError, setAdminProfileError] = useState<string | null>(null);
@@ -214,7 +214,7 @@ function AdminActividadesPage() {
             const [actividadesSnap, centroCostosSnap, tiemposComidaSnap] = await Promise.all([
                 getDocs(query(collection(db, "actividades"), where("residenciaId", "==", residenciaId), orderBy("fechaInicio", "desc"))),
                 getDocs(query(collection(db, "centroCostos"), where("residenciaId", "==", residenciaId), where("isActive", "==", true), orderBy("nombre"))),
-                getDocs(query(collection(db, "tiemposComida"), where("residenciaId", "==", residenciaId), orderBy("ordenGrupo") /*, orderBy("dia")*/ )), // Assuming dia is not needed for this specific dropdown list or handled by TiempoComida.nombre
+                getDocs(query(collection(db, "tiemposComida"), where("residenciaId", "==", residenciaId), orderBy("ordenGrupo"), orderBy("nombre"))), 
             ]);
             setActividades(actividadesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Actividad)));
             setCentroCostosList(centroCostosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CentroCosto)));
@@ -263,7 +263,7 @@ function AdminActividadesPage() {
     // Specific handler for date/time inputs if needed, but often direct value from event.target.value works for datetime-local
     // For example, if using a custom date picker component:
     // const handleDateChange = (field: 'fechaInicio' | 'fechaFin', date: Date | null) => {
-    //    setCurrentActividadFormData(prev => ({ ...prev, [field]: date ? Timestamp.fromDate(date) : undefined }));
+    //    setCurrentActividadFormData(prev => ({ ...prev, [field]: date ? date.toISOString() : undefined }));
     // };
 
 
@@ -300,22 +300,14 @@ function AdminActividadesPage() {
             return;
         }
         
-        // Convert date strings from datetime-local input to Timestamps before saving
-        let fechaInicioTimestamp: Timestamp;
-        let fechaFinTimestamp: Timestamp;
+        let fechaInicio: string;
+        let fechaFin: string;
 
         try {
-            // If fechaInicio/Fin are already Timestamps (e.g. from editing an existing one and not changing date), use them.
-            // Otherwise, parse from string (assuming datetime-local input format).
-            fechaInicioTimestamp = currentActividadFormData.fechaInicio instanceof Timestamp 
-                ? currentActividadFormData.fechaInicio 
-                : Timestamp.fromDate(new Date(currentActividadFormData.fechaInicio as any));
-            
-            fechaFinTimestamp = currentActividadFormData.fechaFin instanceof Timestamp
-                ? currentActividadFormData.fechaFin
-                : Timestamp.fromDate(new Date(currentActividadFormData.fechaFin as any));
+            fechaInicio = new Date(currentActividadFormData.fechaInicio).toISOString();
+            fechaFin = new Date(currentActividadFormData.fechaFin).toISOString();
 
-            if (fechaFinTimestamp.toMillis() < fechaInicioTimestamp.toMillis()) {
+            if (new Date(fechaFin).getTime() < new Date(fechaInicio).getTime()) {
                  toast({ title: "Error de Validación", description: "La fecha de fin no puede ser anterior a la fecha de inicio.", variant: "destructive" });
                  return;
             }
@@ -328,8 +320,8 @@ function AdminActividadesPage() {
         setIsSavingActividad(true);
         const dataToSave: Partial<Actividad> = {
             ...currentActividadFormData,
-            fechaInicio: fechaInicioTimestamp,
-            fechaFin: fechaFinTimestamp,
+            fechaInicio: fechaInicio,
+            fechaFin: fechaFin,
             residenciaId: residenciaId, // Ensure residenciaId is set
             organizadorUserId: currentActividadFormData.organizadorUserId || authUser!.uid, // Ensure organizer is set
             // Ensure planComidas IDs are strings (they are by default with crypto.randomUUID)
@@ -340,15 +332,15 @@ function AdminActividadesPage() {
             if (editingActividad) { // Update
                 const actividadRef = doc(db, "actividades", editingActividad.id);
                 await updateDoc(actividadRef, dataToSave);
-                setActividades(prev => prev.map(act => act.id === editingActividad.id ? { ...act, ...dataToSave } as Actividad : act).sort((a,b) => b.fechaInicio.toMillis() - a.fechaInicio.toMillis()));
+                setActividades(prev => prev.map(act => act.id === editingActividad.id ? { ...act, ...dataToSave } as Actividad : act).sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
                 toast({ title: "Actividad Actualizada", description: `"${dataToSave.nombre}" ha sido actualizada.` });
-                await createLogEntry('actividad_updated', residenciaId, authUser!.uid, `Actividad actualizada: ${dataToSave.nombre}`, actividadRef.path);
+                await createLogEntry('actividad', residenciaId, authUser!.uid, `Actividad actualizada: ${dataToSave.nombre}`, actividadRef.path);
             } else { // Create
-                const docRef = await addDoc(collection(db, "actividades"), { ...dataToSave, createdAt: Timestamp.now() });
-                const newActividad = { id: docRef.id, ...dataToSave, createdAt: (dataToSave.createdAt || Timestamp.now()) } as Actividad;
-                setActividades(prev => [newActividad, ...prev].sort((a,b) => b.fechaInicio.toMillis() - a.fechaInicio.toMillis()));
+                const docRef = await addDoc(collection(db, "actividades"), { ...dataToSave });
+                const newActividad = { id: docRef.id, ...dataToSave } as Actividad;
+                setActividades(prev => [newActividad, ...prev].sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
                 toast({ title: "Actividad Creada", description: `"${dataToSave.nombre}" ha sido creada.` });
-                await createLogEntry('actividad_created', residenciaId, authUser!.uid, `Actividad creada: ${dataToSave.nombre}`, docRef.path);
+                await createLogEntry('actividad', residenciaId, authUser!.uid, `Actividad creada: ${dataToSave.nombre}`, docRef.path);
             }
             handleCloseForm();
         } catch (error) {
@@ -368,7 +360,7 @@ function AdminActividadesPage() {
             await deleteDoc(actividadRef);
             setActividades(prev => prev.filter(act => act.id !== actividadId));
             toast({ title: "Actividad Eliminada", description: `"${actividadNombre}" ha sido eliminada.`, variant: "destructive" });
-            await createLogEntry('actividad_deleted', residenciaId, authUser!.uid, `Actividad eliminada: ${actividadNombre} (ID: ${actividadId})`, actividadRef.path);
+            await createLogEntry('actividad', residenciaId, authUser!.uid, `Actividad eliminada: ${actividadNombre} (ID: ${actividadId})`, actividadRef.path);
         } catch (error) {
             console.error("Error deleting actividad:", error);
             toast({ title: "Error al Eliminar", description: `No se pudo eliminar la actividad. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
@@ -413,7 +405,7 @@ function AdminActividadesPage() {
                                                 <CardTitle className="text-xl">{act.nombre}</CardTitle>
                                                 <CardDescription>
                                                     {act.fechaInicio && act.fechaFin ? 
-                                                        `${(act.fechaInicio as Timestamp)?.toDate ? (act.fechaInicio as Timestamp).toDate().toLocaleDateString() : new Date(act.fechaInicio as any).toLocaleDateString()} - ${(act.fechaFin as Timestamp)?.toDate ? (act.fechaFin as Timestamp).toDate().toLocaleDateString() : new Date(act.fechaFin as any).toLocaleDateString()}`
+                                                        `${new Date(act.fechaInicio).toLocaleDateString()} - ${new Date(act.fechaFin).toLocaleDateString()}`
                                                         : 'Fechas no definidas'}
                                                 </CardDescription>
                                             </div>
@@ -596,14 +588,14 @@ function AdminActividadesPage() {
                                         <div>
                                             <Label htmlFor="act-ultimoAntes">Última Comida Estándar ANTES de la Actividad</Label>
                                             <Select
-                                                value={currentActividadFormData.ultimoTiempoComidaIdAntes || ''}
-                                                onValueChange={(value: TiempoComidaId) => handleFormInputChange('ultimoTiempoComidaIdAntes', value || undefined)}
+                                                value={currentActividadFormData.ultimoTiempoComidaAntes || ''}
+                                                onValueChange={(value: TiempoComidaId) => handleFormInputChange('ultimoTiempoComidaAntes', value || undefined)}
                                             >
                                                 <SelectTrigger id="act-ultimoAntes"><SelectValue placeholder="Opcional: Seleccionar tiempo..." /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="">Ninguno / No aplica</SelectItem>
                                                     {tiemposComidaList.map(tc => (
-                                                        <SelectItem key={tc.id} value={tc.id}>{tc.nombreGrupo} - {tc.nombre} ({DayOfWeekMap[tc.dia]})</SelectItem>
+                                                        <SelectItem key={tc.id} value={tc.id}>{tc.nombreGrupo} - {tc.nombre} ({tc.dia ? DayOfWeekMap[tc.dia] : ''})</SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
@@ -612,14 +604,14 @@ function AdminActividadesPage() {
                                         <div>
                                             <Label htmlFor="act-primeroDespues">Primera Comida Estándar DESPUÉS de la Actividad</Label>
                                             <Select
-                                                value={currentActividadFormData.primerTiempoComidaIdDespues || ''}
-                                                onValueChange={(value: TiempoComidaId) => handleFormInputChange('primerTiempoComidaIdDespues', value || undefined)}
+                                                value={currentActividadFormData.primerTiempoComidaDespues || ''}
+                                                onValueChange={(value: TiempoComidaId) => handleFormInputChange('primerTiempoComidaDespues', value || undefined)}
                                             >
                                                 <SelectTrigger id="act-primeroDespues"><SelectValue placeholder="Opcional: Seleccionar tiempo..." /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="">Ninguno / No aplica</SelectItem>
                                                     {tiemposComidaList.map(tc => (
-                                                        <SelectItem key={tc.id} value={tc.id}>{tc.nombreGrupo} - {tc.nombre} ({DayOfWeekMap[tc.dia]})</SelectItem>
+                                                        <SelectItem key={tc.id} value={tc.id}>{tc.nombreGrupo} - {tc.nombre} ({tc.dia ? DayOfWeekMap[tc.dia] : ''})</SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
@@ -656,8 +648,8 @@ function AdminActividadesPage() {
                                                             <Label htmlFor={`meal-grupo-${index}`}>Grupo de Comida (Ej: Almuerzo Día 1)</Label>
                                                             <Input 
                                                                 id={`meal-grupo-${index}`} 
-                                                                value={meal.nombreGrupoMeal}
-                                                                onChange={(e) => handleMealPlanChange(index, 'nombreGrupoMeal', e.target.value)}
+                                                                value={meal.nombreGrupoTiempoComida}
+                                                                onChange={(e) => handleMealPlanChange(index, 'nombreGrupoTiempoComida', e.target.value)}
                                                                 placeholder="Ej: Almuerzo Día 1, Cena Especial"
                                                             />
                                                         </div>
@@ -665,8 +657,8 @@ function AdminActividadesPage() {
                                                             <Label htmlFor={`meal-nombre-${index}`}>Nombre Específico (Ej: Menú Excursión)</Label>
                                                             <Input 
                                                                 id={`meal-nombre-${index}`} 
-                                                                value={meal.nombreEspecificoMeal}
-                                                                onChange={(e) => handleMealPlanChange(index, 'nombreEspecificoMeal', e.target.value)}
+                                                                value={meal.nombreTiempoComida_AlternativaUnica}
+                                                                onChange={(e) => handleMealPlanChange(index, 'nombreTiempoComida_AlternativaUnica', e.target.value)}
                                                                 placeholder="Ej: Picnic en el campo"
                                                             />
                                                         </div>
@@ -674,8 +666,8 @@ function AdminActividadesPage() {
                                                             <Label htmlFor={`meal-descripcion-${index}`}>Descripción (Opcional)</Label>
                                                             <Textarea 
                                                                 id={`meal-descripcion-${index}`} 
-                                                                value={meal.descripcionMeal || ''}
-                                                                onChange={(e) => handleMealPlanChange(index, 'descripcionMeal', e.target.value)}
+                                                                value={meal.horaEstimadaMeal || ''}
+                                                                onChange={(e) => handleMealPlanChange(index, 'horaEstimadaMeal', e.target.value)}
                                                                 placeholder="Detalles del menú, ingredientes, etc."
                                                                 rows={2}
                                                             />
