@@ -3,6 +3,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Regla para la colección de usuarios
+    match /users/{userId} {
+      // Permitir leer si el usuario autenticado es el dueño del documento
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Opcional: Permitir escribir solo si eres admin o el mismo usuario (ajusta según tu lógica)
+      allow write: if request.auth != null && request.auth.uid == userId; 
+    }
+
     // This rule allows anyone with your Firestore database reference to view, edit,
     // and delete all data in your Firestore database. It is useful for getting
     // started, but it is configured to expire after 30 days because it

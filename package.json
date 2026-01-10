@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "emulators": "kill-port 3000 3001 8080 9099 5001 4000 9199 9150 && firebase emulators:start"
+    "emulators": "kill-port 3000 3001 8080 9099 5001 4000 9199 9150 && firebase emulators:start --only auth,firestore,functions,storage"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
