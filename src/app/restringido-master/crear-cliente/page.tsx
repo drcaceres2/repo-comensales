@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase'; 
 import { collection, addDoc, getDocs, query, where, doc, updateDoc, deleteDoc, DocumentData, getDoc, DocumentSnapshot } from 'firebase/firestore';
 import { Cliente, PersonaNaturalHonduras, PersonaNaturalExtranjera, PersonaJuridicaHonduras, PersonaJuridicaExtranjera } from '@/../../shared/models/contratos';
@@ -9,11 +8,12 @@ import { UserProfile, UserId, ClientLogWrite } from '@/../../shared/models/types
 import { writeClientLog } from '@/lib/utils'; 
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 type ClienteFormState = Partial<Cliente>;
 
 const CrearClientePage = () => {
-    const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+    const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const router = useRouter();
     const [formState, setFormState] = useState<ClienteFormState>({});

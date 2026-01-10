@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase'; // Adjust path as needed
+import { db } from '@/lib/firebase'; // Adjust path as needed
 import {
   collection,
   addDoc,
@@ -46,9 +45,10 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { format, differenceInDays, differenceInMonths, differenceInWeeks, addDays, addMonths, addWeeks, isValid } from 'date-fns';
 import { formatInTimeZone, toDate, fromZonedTime } from 'date-fns-tz';
+import { useAuth } from '@/hooks/useAuth';
 
 const CrearPedidoPage = () => {
-  const [authUser, authLoading, authError] = useAuthState(auth);
+  const { user: authUser, loading: authLoading, error: authError } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 

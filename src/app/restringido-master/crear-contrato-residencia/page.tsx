@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase'; // Assuming firebase is initialized in @/lib/firebase
+import { db } from '@/lib/firebase'; // Assuming firebase is initialized in @/lib/firebase
 import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ContratoResidencia, ContratoResidenciaId, Cliente, ClienteId, ClienteProbando, Pedido } from '@/../../shared/models/contratos'; // Adjust path as needed
 import { UserProfile, UserId, ResidenciaId, campoFechaConZonaHoraria } from '@/../../shared/models/types'; // Adjust path as needed
@@ -15,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox'; // Adjust path as needed
 import { useToast } from '@/hooks/use-toast'; // Adjust path as needed
 import { formatInTimeZone, toDate, fromZonedTime,  } from 'date-fns-tz'; // For date handling
 import { format, addMonths } from 'date-fns';
+import { useAuth } from '@/hooks/useAuth';
 
 // --- Helper function to get user claims ---
 async function getUserClaims(uid: string): Promise<any> {
@@ -62,7 +62,7 @@ async function CrearPedidoPrueba (
 
 // --- Main Page Component ---
 export default function CrearContratoResidenciaPage() {
-  const [authUser, authLoading, authError] = useAuthState(auth);
+  const { user: authUser, loading: authLoading, error: authError } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 

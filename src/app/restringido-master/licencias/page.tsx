@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
 import {
   collection,
@@ -83,7 +83,7 @@ interface SingleContractAuditFunctionResult {
 }
 
 const LicenciasPage = () => {
-  const [user, loadingAuth, errorAuth] = useAuthState(auth);
+  const { user, loading: loadingAuth, error: errorAuth } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
