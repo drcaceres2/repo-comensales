@@ -1,14 +1,8 @@
 'use server';
 
-import * as admin from 'firebase-admin';
+import { db } from '../../../lib/firebaseAdmin'; // Tu nueva instancia centralizada
 import { z } from 'zod';
 import { formAction } from './formAction';
-
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
-
-const db = admin.firestore();
 
 const ComedorSchema = z.object({
   residenciaId: z.string().min(1, 'Falta residenciaId'),
@@ -23,8 +17,6 @@ const ComedorSchema = z.object({
 export const comedorServerAction = formAction(ComedorSchema, async (data) => {
   const { residenciaId, id, nombre, descripcion, capacidad, centroCostoPorDefectoId, isEditing } = data;
   
-  const db = admin.firestore();
-
   try {
     if (isEditing && id) {
       const ref = db.collection('comedores').doc(id);

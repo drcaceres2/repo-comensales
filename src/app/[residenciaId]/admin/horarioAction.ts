@@ -1,14 +1,8 @@
 'use server';
 
-import * as admin from 'firebase-admin';
+import { db, admin } from '../../../lib/firebaseAdmin'; // Tu nueva instancia centralizada
 import { z } from 'zod';
 import { formAction } from './formAction';
-
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
-
-const db = admin.firestore();
 
 type Payload = {
   residenciaId: string;
@@ -35,8 +29,6 @@ const HorarioSchema = z.object({
 
 export const horarioServerAction = formAction(HorarioSchema, async (data) => {
   const { residenciaId, id, nombre, dia, horaSolicitud, isPrimary, isActive, isEditing, actorUserId } = data;
-
-  const db = admin.firestore();
 
   try {
     // If isPrimary, demote existing primary for same day
