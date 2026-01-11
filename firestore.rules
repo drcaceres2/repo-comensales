@@ -3,26 +3,50 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Regla para la colección de usuarios
-    match /users/{userId} {
-      // Permitir leer si el usuario autenticado es el dueño del documento
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // Opcional: Permitir escribir solo si eres admin o el mismo usuario (ajusta según tu lógica)
-      allow write: if request.auth != null && request.auth.uid == userId; 
+    // Función para verificar si un usuario tiene un rol específico (ej: 'master', 'admin')
+    function hasRole(role) {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny([role]);
     }
 
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2025, 6, 29);
+    // Reglas para la colección de usuarios
+    match /users/{userId} {
+      // Un usuario solo puede leer o escribir su propio perfil.
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Un 'master' puede leer cualquier perfil de usuario (útil para administración)
+      allow get: if request.auth != null && hasRole('master');
+    }
+
+    // Reglas para la colección de residencias
+    match /residencias/{residenciaId} {
+      // Quién puede leer:
+      // - Usuarios 'master'.
+      // - Usuarios 'admin' si es su residencia asignada.
+      allow get: if request.auth != null && (
+                   hasRole('master') ||
+                   (hasRole('admin') && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.residenciaId == residenciaId)
+                 );
+      // Los 'master' pueden listar (leer) todas las residencias
+      allow list: if request.auth != null && hasRole('master');
+
+      // Quién puede escribir (crear, actualizar, eliminar):
+      // - Usuarios 'master' pueden hacer cualquier operación de escritura.
+      allow create, delete: if request.auth != null && hasRole('master');
+      // - 'Admin' solo puede actualizar su residencia asignada.
+      allow update: if request.auth != null && (
+                    hasRole('master') ||
+                    (hasRole('admin') && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.residenciaId == residenciaId)
+                  );
+    }
+
+    // Reglas para otras colecciones (ejemplo: dietas)
+    // Es importante añadir reglas para cada colección que uses.
+    match /dietas/{dietaId} {
+        // Asumiendo que las dietas se leen y escriben en el contexto de una residencia
+        // y que los permisos los heredan de la residencia
+        allow read, write: if request.auth != null && (
+                            hasRole('master') || hasRole('admin')
+                           ); // Simplificado: master o admin pueden gestionar dietas. Ajustar si es necesario.
     }
   }
 }

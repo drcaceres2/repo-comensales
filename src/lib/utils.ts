@@ -90,16 +90,31 @@ export async function writeClientLog(
     return;
   }
   try {
-    const logData: ClientLogWrite = {
+    // Build the log data object safely, excluding undefined properties
+    const logData: Omit<ClientLogWrite, 'timestamp'> = {
       userId: actorUserId,
       actionType: actionType,
-      timestamp: serverTimestamp(),
-      residenciaId: logDetails.residenciaId,
-      targetUid: logDetails.targetUid || null,
-      relatedDocPath: logDetails.relatedDocPath,
       details: logDetails.details || `User ${actorUserId} performed ${actionType}.`,
     };
-    await addDoc(collection(db, "logs"), logData);
+
+    // Conditionally add optional fields only if they have a value
+    if (logDetails.residenciaId) {
+      logData.residenciaId = logDetails.residenciaId;
+    }
+    if (logDetails.targetUid) {
+      logData.targetUid = logDetails.targetUid;
+    }
+    if (logDetails.relatedDocPath) {
+      logData.relatedDocPath = logDetails.relatedDocPath;
+    }
+
+    // Add the server timestamp before writing
+    const finalLogData = {
+      ...logData,
+      timestamp: serverTimestamp(),
+    };
+
+    await addDoc(collection(db, "logs"), finalLogData);
   } catch (error) {
     console.error("Error writing client log:", error);
   }

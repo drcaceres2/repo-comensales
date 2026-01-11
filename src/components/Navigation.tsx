@@ -50,12 +50,10 @@ import {
   UserPlus,
 } from 'lucide-react';
 
-// Remove imports for SheetTitle, SheetDescription, UiSheetHeader from @/components/ui/sheet
-// import {
-//   SheetTitle,
-//   SheetDescription,
-//   SheetHeader as UiSheetHeader,
-// } from '@/components/ui/sheet';
+import {
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
 
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
@@ -527,7 +525,7 @@ export function Navigation() {
   if (authLoading || (!authUser && profileLoading)) {
     triggerContent = (
       <SidebarTrigger asChild>
-        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" disabled>
+        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" disabled title="Cargando menú">
           <Loader2 size={24} className="animate-spin" />
         </button>
       </SidebarTrigger>
@@ -535,7 +533,7 @@ export function Navigation() {
   } else if (authUser) {
     triggerContent = (
       <SidebarTrigger asChild>
-        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
+        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" title="Abrir menú">
           <Menu size={24} />
         </button>
       </SidebarTrigger>
@@ -546,7 +544,7 @@ export function Navigation() {
     if (unauthVisibleItems.length > 0) {
         triggerContent = (
             <SidebarTrigger asChild>
-                <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
+                <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" title="Abrir menú">
                     <Menu size={24} />
                 </button>
             </SidebarTrigger>
@@ -564,15 +562,23 @@ export function Navigation() {
         <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0">
           {/* Use custom SidebarHeader and plain divs for title/description */}
           <SidebarHeader className="p-4 border-b dark:border-gray-700 text-left">
+            {isMobile ? (
+              <>
+                <SheetTitle className="sr-only">{authUser ? 'Menú Principal' : 'Navegación'}</SheetTitle>
+                <SheetDescription className="sr-only">
+                  {userProfile?.email ? `Menú de navegación para ${userProfile.email}` : 'Menú de navegación para visitantes'}
+                </SheetDescription>
+              </>
+            ) : null}
             <div className="text-lg font-semibold">
               {authUser ? 'Menú Principal' : 'Navegación'}
             </div>
-            {userProfile?.email && (
+            {!isMobile && userProfile?.email && (
               <div className="sr-only">
                  {`Menú de navegación para ${userProfile.email}`}
               </div>
             )}
-            {!authUser && (
+            {!isMobile && !authUser && (
                 <div className="sr-only">
                     Menú de navegación para visitantes
                 </div>

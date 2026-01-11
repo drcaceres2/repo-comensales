@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, AlertCircle, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
 
 import { writeClientLog } from '@/lib/utils';
@@ -249,6 +250,13 @@ function CrearResidenciaAdminPage() {
     setCurrentResidencia(prev => ({ 
       ...prev, 
       [name]: processedValue 
+    }));
+  };
+
+  const handleSelectChange = (name: keyof Partial<Residencia>) => (value: string) => {
+    setCurrentResidencia(prev => ({
+      ...prev,
+      [name]: value
     }));
   };
 
@@ -733,33 +741,36 @@ function CrearResidenciaAdminPage() {
               </div>
               <div>
                 <Label htmlFor="tipoResidencia">Tipo de Residencia</Label>
-                <select
-                  id="tipoResidencia"
-                  name="tipoResidencia"
+                <Select
                   value={currentResidencia.tipoResidencia || 'estudiantes'}
-                  onChange={handleInputChange}
+                  onValueChange={handleSelectChange('tipoResidencia')}
                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="w-full p-2 border rounded mt-1 bg-background text-foreground"
                 >
-                  <option value="estudiantes">Estudiantes</option>
-                  <option value="profesionales">Profesionales</option>
-                  <option value="gente_mayor">Gente Mayor</option>
-                  {/* Add other options if TiposResidencia expands in the future */}
-                </select>
+                  <SelectTrigger id="tipoResidencia">
+                    <SelectValue placeholder="Tipo de Residencia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="estudiantes">Estudiantes</SelectItem>
+                    <SelectItem value="profesionales">Profesionales</SelectItem>
+                    <SelectItem value="gente_mayor">Gente Mayor</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="esquemaAdministracion">Esquema de Administración</Label>
-                <select
-                  id="esquemaAdministracion"
-                  name="esquemaAdministracion"
+                <Select
                   value={currentResidencia.esquemaAdministracion || 'estricto'}
-                  onChange={handleInputChange}
+                  onValueChange={handleSelectChange('esquemaAdministracion')}
                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="w-full p-2 border rounded mt-1 bg-background text-foreground"
                 >
-                  <option value="estricto">Estricto</option>
-                  <option value="flexible">Flexible</option>
-                </select>
+                  <SelectTrigger id="esquemaAdministracion">
+                    <SelectValue placeholder="Esquema de Administración" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="estricto">Estricto</SelectItem>
+                    <SelectItem value="flexible">Flexible</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               {/* Nombre Tradicional Desayuno */}
               <div>
@@ -927,17 +938,19 @@ function CrearResidenciaAdminPage() {
                             )}
                             <div>
                                 <Label htmlFor="campoPersonalizado1_tamanoTexto">Tamaño del Texto</Label>
-                                 <select
-                                    id="campoPersonalizado1_tamanoTexto"
-                                    name="campoPersonalizado1_tamanoTexto"
+                                 <Select
                                     value={currentResidencia.campoPersonalizado1_tamanoTexto || 'text'}
-                                    onChange={handleInputChange}
+                                    onValueChange={handleSelectChange('campoPersonalizado1_tamanoTexto')}
                                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                                    className="w-full p-2 border rounded"
                                 >
-                                    <option value="text">Una línea (Text)</option>
-                                    <option value="textArea">Múltiples líneas (Textarea)</option>
-                                </select>
+                                    <SelectTrigger id="campoPersonalizado1_tamanoTexto">
+                                        <SelectValue placeholder="Tamaño del Texto" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="text">Una línea (Text)</SelectItem>
+                                        <SelectItem value="textArea">Múltiples líneas (Textarea)</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="flex items-center space-x-2 pt-2">
                               <Checkbox
@@ -990,17 +1003,19 @@ function CrearResidenciaAdminPage() {
                             )}
                             <div>
                                 <Label htmlFor="campoPersonalizado2_tamanoTexto">Tamaño del Texto</Label>
-                                 <select
-                                    id="campoPersonalizado2_tamanoTexto"
-                                    name="campoPersonalizado2_tamanoTexto"
+                                 <Select
                                     value={currentResidencia.campoPersonalizado2_tamanoTexto || 'text'}
-                                    onChange={handleInputChange}
+                                    onValueChange={handleSelectChange('campoPersonalizado2_tamanoTexto')}
                                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                                    className="w-full p-2 border rounded"
                                 >
-                                    <option value="text">Una línea (Text)</option>
-                                    <option value="textArea">Múltiples líneas (Textarea)</option>
-                                </select>
+                                    <SelectTrigger id="campoPersonalizado2_tamanoTexto">
+                                        <SelectValue placeholder="Tamaño del Texto" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="text">Una línea (Text)</SelectItem>
+                                        <SelectItem value="textArea">Múltiples líneas (Textarea)</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="flex items-center space-x-2 pt-2">
                                 <Checkbox
@@ -1053,17 +1068,19 @@ function CrearResidenciaAdminPage() {
                             )}
                             <div>
                                 <Label htmlFor="campoPersonalizado3_tamanoTexto">Tamaño del Texto</Label>
-                                 <select
-                                    id="campoPersonalizado3_tamanoTexto"
-                                    name="campoPersonalizado3_tamanoTexto"
+                                 <Select
                                     value={currentResidencia.campoPersonalizado3_tamanoTexto || 'text'}
-                                    onChange={handleInputChange}
+                                    onValueChange={handleSelectChange('campoPersonalizado3_tamanoTexto')}
                                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                                    className="w-full p-2 border rounded"
                                 >
-                                    <option value="text">Una línea (Text)</option>
-                                    <option value="textArea">Múltiples líneas (Textarea)</option>
-                                </select>
+                                    <SelectTrigger id="campoPersonalizado3_tamanoTexto">
+                                        <SelectValue placeholder="Tamaño del Texto" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="text">Una línea (Text)</SelectItem>
+                                        <SelectItem value="textArea">Múltiples líneas (Textarea)</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </>
                     )}
@@ -1091,12 +1108,35 @@ function CrearResidenciaAdminPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoadingResidences && <div className="flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando...</div>}
-          {errorResidences && <p className="text-destructive">Error: {errorResidences}</p>}
-          {!isLoadingResidences && !errorResidences && residences.length === 0 && (
-            <p>No hay residencias para mostrar.</p>
-          )}
-          {!isLoadingResidences && !errorResidences && residences.length > 0 && (
+          {isLoadingResidences ? (
+            <div className="flex items-center justify-center p-6">
+              <Loader2 className="mr-2 h-6 w-6 animate-spin" /> 
+              <span className="text-muted-foreground">Cargando residencias...</span>
+            </div>
+          ) : errorResidences ? (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 text-center">
+                <AlertCircle className="mx-auto h-10 w-10 text-destructive" />
+                <h3 className="mt-2 text-lg font-semibold text-destructive">Error al Cargar Residencias</h3>
+                <p className="mt-1 text-sm text-destructive/80">
+                    No pudimos recuperar la lista de residencias. Por favor, revisa tu conexión o intenta más tarde.
+                </p>
+                <p className="mt-3 text-xs text-muted-foreground">
+                    <span className="font-semibold">Detalle técnico:</span> {errorResidences}
+                </p>
+            </div>
+          ) : residences.length === 0 ? (
+            <div className="text-center p-8 border-2 border-dashed rounded-lg">
+              <h3 className="text-xl font-semibold">No hay residencias creadas</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Parece que aún no se ha configurado ninguna residencia.
+              </p>
+              {isMasterUser && (
+                  <Button onClick={handleCreateNew} className="mt-4">
+                      <PlusCircle className="mr-2 h-4 w-4" /> Crear la primera residencia
+                  </Button>
+              )}
+            </div>
+          ) : (
             <div className="space-y-2">
               {residences.map(res => (
                 <Card key={res.id} className="flex flex-col md:flex-row justify-between items-start md:items-center p-3">
