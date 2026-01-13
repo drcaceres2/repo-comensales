@@ -414,7 +414,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             const [residenciaSnap, tiemposSnap, alternativasSnap, comedoresSnap, horariosSnap] = await Promise.all([
                 getDoc(doc(db, "residencias", residenciaId)),
                 getDocs(query(collection(db, "tiemposComida"), where("residenciaId", "==", residenciaId))),
-                getDocs(query(collection(db, "alternativas"), where("residenciaId", "==", residenciaId))),
+                getDocs(query(collection(db, "alternativasTiempoComida"), where("residenciaId", "==", residenciaId))),
                 getDocs(query(collection(db, "comedores"), where("residenciaId", "==", residenciaId))),
                 getDocs(query(collection(db, "horariosSolicitudComida"), where("residenciaId", "==", residenciaId), where("isActive", "==", true))) // Fetch only active horarios
             ]);
@@ -778,7 +778,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
 
 
         try {
-            const docRef = await addDoc(collection(db, "alternativas"), nuevaAlternativaData);
+            const docRef = await addDoc(collection(db, "alternativasTiempoComida"), nuevaAlternativaData);
             const newAlternativaWithId: AlternativaTiempoComida = { 
                 id: docRef.id, 
                 ...nuevaAlternativaData,
@@ -811,7 +811,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         if (tiempo.aplicacionOrdinaria && !alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Horario de Solicitud requerido.", variant: "destructive" }); return; }
 
         setIsSavingAlternativa(true);
-        const altRef = doc(db, "alternativas", editingAlternativaId);
+        const altRef = doc(db, "alternativasTiempoComida", editingAlternativaId);
         const originalAlt = alternativas.find(a => a.id === editingAlternativaId);
 
         const isAyuno = tipoSeleccionado === 'ayuno';
@@ -880,7 +880,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         }
     };     
     const handleDeleteAlternativa = async (id: string, nombre: string) => {
-        const altRef = doc(db, "alternativas", id);
+        const altRef = doc(db, "alternativasTiempoComida", id);
         try {
             console.log(`Attempting delete for Alternativa ID: ${id}`);
             await deleteDoc(altRef);
@@ -910,7 +910,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         const alternativa = alternativas.find(alt => alt.id === id);
         if (!alternativa) return;
 
-        const altRef = doc(db, "alternativas", id);
+        const altRef = doc(db, "alternativasTiempoComida", id);
         try {
             console.log(`${newStatus ? 'Activating' : 'Deactivating'} alternativa ID: ${id}`);
             await updateDoc(altRef, { isActive: newStatus });

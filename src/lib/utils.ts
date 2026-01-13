@@ -114,7 +114,7 @@ export async function writeClientLog(
       timestamp: serverTimestamp(),
     };
 
-    await addDoc(collection(db, "logs"), finalLogData);
+    await addDoc(collection(db, "logEntries"), finalLogData);
   } catch (error) {
     console.error("Error writing client log:", error);
   }

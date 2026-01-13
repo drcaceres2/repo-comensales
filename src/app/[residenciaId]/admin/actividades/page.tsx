@@ -213,7 +213,7 @@ function AdminActividadesPage() {
 
             const [actividadesSnap, centroCostosSnap, tiemposComidaSnap] = await Promise.all([
                 getDocs(query(collection(db, "actividades"), where("residenciaId", "==", residenciaId), orderBy("fechaInicio", "desc"))),
-                getDocs(query(collection(db, "centroCostos"), where("residenciaId", "==", residenciaId), where("isActive", "==", true), orderBy("nombre"))),
+                getDocs(query(collection(db, "centrosCosto"), where("residenciaId", "==", residenciaId), where("isActive", "==", true), orderBy("nombre"))),
                 getDocs(query(collection(db, "tiemposComida"), where("residenciaId", "==", residenciaId), orderBy("ordenGrupo"), orderBy("nombre"))), 
             ]);
             setActividades(actividadesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Actividad)));

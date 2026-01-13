@@ -36,15 +36,16 @@ const redirectToDashboard = (profile: UserProfile, router: ReturnType<typeof use
     const residenciaId = profile.residenciaId;
 
     // Your existing redirection logic...
-    if (roles.includes('admin' as UserRole) || roles.includes('master' as UserRole)) {
+    if (roles.includes('master' as UserRole)) {
       router.push('/restringido-master/crear-residencia'); // Example, adjust to your actual admin start page
     } else if (residenciaId) { // Simplified check, assuming non-admin roles need residenciaId
-        if (roles.includes('director' as UserRole)) router.push(`/${residenciaId}/solicitar-comensales`);
+        if (roles.includes('admin' as UserRole)) router.push(`/${residenciaId}/admin`);
+        else if (roles.includes('director' as UserRole)) router.push(`/${residenciaId}/solicitar-comensales`);
         else if (roles.includes('residente' as UserRole)) router.push(`/${residenciaId}/elegir-comidas`);
         else if (roles.includes('invitado' as UserRole)) router.push(`/${residenciaId}/bienvenida-invitados`);
         else if (roles.includes('asistente' as UserRole)) router.push(`/${residenciaId}/elecciones-invitados`);
         else if (roles.includes('contador' as UserRole)) router.push(`/${residenciaId}/contabilidad/reporte-costos`);
-        else router.push(`/${residenciaId}/page`); // Generic fallback for roles with residenciaId
+        else router.push(`/`); // Generic fallback for roles with residenciaId
     } else {
       console.warn("User logged in but has undefined role/residenciaId or unknown role combination:", profile);
       // Fallback if residenciaId is missing for roles that need it or no specific redirect found

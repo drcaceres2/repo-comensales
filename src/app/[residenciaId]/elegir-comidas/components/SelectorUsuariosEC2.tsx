@@ -11,7 +11,8 @@ import { useMainContext } from '../context/ElegirComidasContext';
 import { parse } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
-import { db } from '@/lib/firebase'; 
+import { db } from '@/lib/firebase';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; 
 
 // --- Helper Functions ---
 
@@ -310,12 +311,6 @@ const SelectorUsuariosEC = () => {
   }, [context.selectedUser, context.residenciaId, context.setSelectedUserMealPermissions, context.setIsLoadingSelectedUserData]); 
 
 
-  const handleUserChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedUid = event.target.value;
-    const user = availableUsers.find(user => user.id === selectedUid);
-    context.setSelectedUser(user || null);
-  };
-
   if (authLoading || userProfileLoading) {
     return <div>Cargando perfil...</div>;
   }
@@ -323,12 +318,16 @@ const SelectorUsuariosEC = () => {
   return (
     <div>
       {availableUsers.length > 1 ? (
-        <select value={context.selectedUser ? context.selectedUser.id : ''} onChange={handleUserChange}>
-          <option value="">Seleccione un usuario</option>
-          {availableUsers.map(user => (
-            <option key={user.id} value={user.id}>{user.nombreCorto || user.email}</option>
-          ))}
-        </select>
+        <Select value={context.selectedUser?.id || ""} onValueChange={(value) => { const user = availableUsers.find(u => u.id === value); context.setSelectedUser(user || null); }}>
+          <SelectTrigger>
+            <SelectValue placeholder="Seleccione un usuario" />
+          </SelectTrigger>
+          <SelectContent>
+            {availableUsers.map(user => (
+              <SelectItem key={user.id} value={user.id}>{user.nombreCorto || user.email}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       ) : availableUsers.length === 1 ? (
         <label>Usuario: {availableUsers[0].nombreCorto || availableUsers[0].email}</label>
       ) : (

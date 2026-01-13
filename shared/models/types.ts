@@ -3,7 +3,7 @@ import { FieldValue } from 'firebase/firestore';
 // --- Usuarios  ---
 export type UserId = string;
 export type UserRole = 'master' | 'admin' | 'director' | 'residente' | 'invitado' | 'asistente' | 'contador';
-export interface UserProfile {
+export interface UserProfile {  
     id: UserId;
     nombre: string;
     apellido: string;
@@ -13,7 +13,7 @@ export interface UserProfile {
     roles: UserRole[];
     isActive: boolean;
     residenciaId?: ResidenciaId | null;
-    dietaId?: DietaId;
+    dietaId?: DietaId | null;
     numeroDeRopa?: string;
     habitacion?: string;
     universidad?: string;
@@ -22,8 +22,8 @@ export interface UserProfile {
     telefonoMovil?: string;
     fechaDeNacimiento?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
     asistentePermisos?: AsistentePermisos | null;
-    centroCostoPorDefectoId?: CentroCostoId;
-    puedeTraerInvitados: 'no' | 'requiere_autorizacion' | 'si';
+    centroCostoPorDefectoId?: CentroCostoId | null;
+    puedeTraerInvitados: 'no' | 'requiere_autorizacion' | 'si' | null;
     notificacionPreferencias?: NotificacionPreferencias | null; 
     tieneAutenticacion: boolean;
 

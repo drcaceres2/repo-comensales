@@ -1,4 +1,4 @@
-import { admin, db } from "./lib/firebase";
+import { admin, db, FieldValue } from "./lib/firebase";
 import {
   onCall,
   HttpsError,
@@ -198,8 +198,8 @@ export const createUser = onCall(
       ...profileData,
       id: newUserId as any, // Cast to 'any'
       email: email,
-      fechaCreacion: admin.firestore.FieldValue.serverTimestamp() as any,
-      ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any,
+      fechaCreacion: FieldValue.serverTimestamp() as any,
+      ultimaActualizacion: FieldValue.serverTimestamp() as any,
       isActive: profileData.isActive === undefined,
       roles: targetUserRoles, // Ensure roles are stored in Firestore as well
       residenciaId: targetResidenciaId,
@@ -397,7 +397,7 @@ export const updateUser = onCall(
       "ultimaActualizacion"
     > & { ultimaActualizacion: admin.firestore.FieldValue } = {
       ...profileData, // profileData already Omit<...> and Partial<...>
-      ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any, // Switched to db.constructor path
+      ultimaActualizacion: FieldValue.serverTimestamp() as any, // Switched to db.constructor path
     };
 
     try {
@@ -653,12 +653,12 @@ const logAction = async (
     const logEntryData: LogEntryWrite = {
       actionType,
       userId: performedByUid, // 'userId' in LogEntry refers to the actor
-      timestamp: admin.firestore.FieldValue.serverTimestamp() as any, // Switched to db.constructor path
+      timestamp: FieldValue.serverTimestamp() as any, // Switched to db.constructor path
       targetUid,
       details,
       // residenciaId: details.residenciaId || null, // If you want to log this
     };
-    await db.collection("logs").add(logEntryData);
+    await db.collection("logEntries").add(logEntryData);
     functions.logger.info(
       `Action logged: ${actionType} by ${performedByUid}` +
         (targetUid ? ` on ${targetUid}` : ""),
@@ -707,6 +707,16 @@ async function getCallerSecurityInfo(
 // --- DELETE THIS BLOCK BEFORE PRODUCTION ---
 const HMAC_SECRET_KEY_DEV =
   "F#gQb-qXIW{;nWo_$H7rBbl5JnU,=tdefc(wqk@0g56s[gDhAI";
+
+const cleanupAuthUser = async (userId: string, reason: string) => {
+  try {
+    await admin.auth().deleteUser(userId);
+    functions.logger.info(`Cleaned up Auth user ${userId} due to: ${reason}`);
+  } catch (delErr) {
+    functions.logger.error(`Failed to cleanup Auth user ${userId}:`, delErr);
+  }
+};
+
 export const createHardcodedMasterUser = onCall(
   {
     region: "us-central1",
@@ -779,9 +789,11 @@ export const createHardcodedMasterUser = onCall(
       }
     }
 
-    let newUserRecord: admin.auth.UserRecord;
+    let newUserId: string | null = null;
+    let claimsSet = false;
+
     try {
-      newUserRecord = await admin.auth().createUser({
+      const newUserRecord = await admin.auth().createUser({
         email: hardcodedEmail,
         emailVerified: true,
         password: hardcodedPassword,
@@ -789,84 +801,53 @@ export const createHardcodedMasterUser = onCall(
           `${hardcodedProfileData.nombre} ${hardcodedProfileData.apellido}`.trim(),
         disabled: false,
       });
+      newUserId = newUserRecord.uid;
       functions.logger.info(
         "Successfully created hardcoded master user in Firebase Auth:",
-        newUserRecord.uid
+        newUserId
       );
-    } catch (error: any) {
-      functions.logger.error(
-        "Error creating hardcoded master user in Firebase Auth:",
-        error
-      );
-      throw new HttpsError(
-        "internal",
-        `Hardcoded master user Auth creation failed: ${error.message}`
-      );
-    }
 
-    const newUserId = newUserRecord.uid;
-
-    try {
+      // Set Custom Claims
       const claimsToSet = { roles: ["master"], isActive: true };
       await admin.auth().setCustomUserClaims(newUserId, claimsToSet);
+      claimsSet = true;
       functions.logger.info(
         "Custom claims ('master') set for hardcoded user:",
         newUserId
       );
-    } catch (error: any) {
-      functions.logger.error(
-        "Error setting custom claims for hardcoded master user:",
-        newUserId,
-        error
-      );
-      await admin
-        .auth()
-        .deleteUser(newUserId)
-        .catch((delErr) =>
-          functions.logger.error(
-            "Failed to cleanup hardcoded auth user after claims error",
-            delErr
-          )
-        );
-      throw new HttpsError(
-        "internal",
-        `Setting hardcoded master custom claims failed: ${error.message}`
-      );
-    }
 
-    // Construct the full UserProfile document, ensuring all required fields are present
-    const userProfileDoc: UserProfile = {
-      id: newUserId, // UID from Auth
-      nombre: "Daniel",
-      apellido: "Cáceres",
-      nombreCorto: "DCV",
-      email: hardcodedEmail,
-      fotoPerfil: "https://comensales.app/default-profile.png", //TEMPORAL PARA PROBAR CAMPOS NULOS
-      fechaCreacion: admin.firestore.FieldValue.serverTimestamp() as any,
-      ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any,
-      isActive: true,
-      roles: ["master"],
-      puedeTraerInvitados: "si", // Added to satisfy UserProfile type
-      fechaDeNacimiento: "25/09/1984", // Provide a default if not in hardcodedProfileData
-      residenciaId: null, // Provide a default if not in hardcodedProfileData
-      centroCostoPorDefectoId: undefined,
-      telefonoMovil: "+50498022607",
-      dietaId: undefined,
-      numeroDeRopa: "DC",
-      habitacion: "19",
-      universidad: "UNAH",
-      carrera: "Ingeniería Eléctrica",
-      dni: "0801-1985-10802",
-      asistentePermisos: null,
-      notificacionPreferencias: null,
-      tieneAutenticacion: true,
-      valorCampoPersonalizado1: "Prueba de campo personalizado",
-      valorCampoPersonalizado2: "",
-      valorCampoPersonalizado3: "",
-      lastLogin: admin.firestore.FieldValue.serverTimestamp() as any // lastLogin is optional and typically updated upon login, so can be omitted here
-    };
+      // Construct the full UserProfile document, ensuring all required fields are present
+      const userProfileDoc: UserProfile = {
+        id: newUserId, // UID from Auth
+        nombre: "Daniel",
+        apellido: "Caceres",
+        nombreCorto: "DCV",
+        email: hardcodedEmail,
+        fotoPerfil: "https://comensales.app/default-profile.png", //TEMPORAL PARA PROBAR CAMPOS NULOS
+        fechaCreacion: Date.now(),
+        ultimaActualizacion: Date.now(),
+        isActive: true,
+        roles: ["master"],
+        puedeTraerInvitados: "si", // Added to satisfy UserProfile type
+        fechaDeNacimiento: "1984-06-25", // Provide a default if not in hardcodedProfileData
+        residenciaId: null, // Provide a default if not in hardcodedProfileData
+        centroCostoPorDefectoId: null,
+        telefonoMovil: "+50498022607",
+        dietaId: null,
+        numeroDeRopa: "DC",
+        habitacion: "19",
+        universidad: "UNAH",
+        carrera: "Ingenieria Electrica",
+        dni: "0801-1985-10802",
+        asistentePermisos: null,
+        notificacionPreferencias: null,
+        tieneAutenticacion: true,
+        valorCampoPersonalizado1: "Prueba de campo personalizado",
+        valorCampoPersonalizado2: "",
+        valorCampoPersonalizado3: "",
+        lastLogin: Date.now() // lastLogin is optional and typically updated upon login, so can be omitted here
+      };
 
-    try {
       await db.collection("users").doc(newUserId).set(userProfileDoc);
       functions.logger.info(
         "Successfully created hardcoded master UserProfile in Firestore:",
@@ -880,22 +861,16 @@ export const createHardcodedMasterUser = onCall(
       };
     } catch (error: any) {
       functions.logger.error(
-        "Error writing hardcoded master UserProfile to Firestore:",
-        newUserId,
+        "Error during hardcoded master user creation:",
         error
       );
-      await admin
-        .auth()
-        .deleteUser(newUserId)
-        .catch((delErr) =>
-          functions.logger.error(
-            "Failed to cleanup hardcoded auth user after Firestore error",
-            delErr
-          )
-        );
+      // Attempt rollback if user was created in Auth
+      if (newUserId) {
+        await cleanupAuthUser(newUserId, "creation failure");
+      }
       throw new HttpsError(
         "internal",
-        `Hardcoded master user Firestore write failed: ${error.message}`
+        `Hardcoded master user creation failed: ${error.message}`
       );
     }
   }
