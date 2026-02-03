@@ -179,20 +179,53 @@ function UserManagementPage(): JSX.Element | null {
         return usersToDisplay.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre));
     }, [users, selectedResidenciaFilter, adminUserProfile]);
 
-    const fetchResidences = useCallback(async () => {
-        console.log("Fetching residences from Firestore...");
+    const fetchResidences = useCallback(async (profile: UserProfile | null) => {
+        if (!profile) {
+            console.log("No profile provided, skipping fetchResidences.");
+            return;
+        }
+
+        console.log("Fetching residences from Firestore based on user role...");
+        const isMaster = profile.roles.includes('master');
+        const adminResidenciaId = profile.residenciaId;
+
         try {
-            const residencesCol = collection(db, "residencias");
-            const querySnapshot = await getDocs(residencesCol);
             const residencesData: Record<ResidenciaId, { nombre: string }> = {};
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                if (data.nombre) {
-                    residencesData[doc.id] = { nombre: data.nombre };
+
+            if (isMaster) {
+                // Master user: fetch all residences
+                console.log("User is Master, fetching all residences.");
+                const residencesCol = collection(db, "residencias");
+                const querySnapshot = await getDocs(residencesCol);
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (data.nombre) {
+                        residencesData[doc.id] = { nombre: data.nombre };
+                    } else {
+                        console.warn(`Residence document ${doc.id} is missing the 'nombre' field.`);
+                    }
+                });
+            } else if (adminResidenciaId) {
+                // Admin user: fetch only their assigned residence
+                console.log(`User is Admin, fetching residence: ${adminResidenciaId}`);
+                const residenciaDocRef = doc(db, "residencias", adminResidenciaId);
+                const docSnap = await getDoc(residenciaDocRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.nombre) {
+                        residencesData[docSnap.id] = { nombre: data.nombre };
+                    } else {
+                        console.warn(`Residence document ${docSnap.id} is missing the 'nombre' field.`);
+                    }
                 } else {
-                    console.warn(`Residence document ${doc.id} is missing the 'nombre' field.`);
+                     console.error(`Admin's assigned residence document ${adminResidenciaId} not found.`);
+                     throw new Error("La residencia asignada no fue encontrada.");
                 }
-            });
+            } else {
+                // Admin without a residenceId, or other roles. Fetch nothing.
+                console.log("User is not Master and has no residenciaId. No residences to fetch.");
+            }
+
             console.log("Fetched residences:", residencesData);
             setResidences(residencesData);
         } catch (error) {
@@ -324,12 +357,37 @@ function UserManagementPage(): JSX.Element | null {
         }
     }, [toast, editingUserId, formData.email]); // Added editingUserId and formData.email
 
-    const fetchUsersToManage = useCallback(async () => {
-        console.log("Fetching users to manage from Firestore...");
+    const fetchUsersToManage = useCallback(async (profile: UserProfile | null) => {
+        if (!profile) {
+            console.log("No profile provided, skipping fetchUsersToManage.");
+            setIsLoadingUsers(false);
+            return;
+        }
+        console.log("Fetching users to manage from Firestore based on user role...");
         setIsLoadingUsers(true);
+
+        const isMaster = profile.roles.includes('master');
+        const adminResidenciaId = profile.residenciaId;
+
         try {
             const usersCol = collection(db, "users");
-            const querySnapshot = await getDocs(usersCol);
+            let q;
+
+            if (isMaster) {
+                console.log("User is Master, fetching all users.");
+                q = query(usersCol);
+            } else if (adminResidenciaId) {
+                console.log(`User is Admin, fetching users for residencia: ${adminResidenciaId}`);
+                q = query(usersCol, where("residenciaId", "==", adminResidenciaId));
+            } else {
+                 console.log("User is not Master and has no residenciaId. No users to fetch.");
+                 setUsers([]);
+                 setIsLoadingUsers(false);
+                 setHasAttemptedFetchUsers(true);
+                 return;
+            }
+
+            const querySnapshot = await getDocs(q);
             const usersData: UserProfile[] = [];
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
@@ -474,9 +532,9 @@ function UserManagementPage(): JSX.Element | null {
                  setCurrentResidenciaDetails(null); // Clear if no specific residencia tied to admin
                  setCentrosCostoList([]);
             }
-            if (!hasAttemptedFetchResidences) fetchResidences();
+            if (!hasAttemptedFetchResidences) fetchResidences(adminUserProfile);
             if (!hasAttemptedFetchDietas) fetchDietas();
-            if (!hasAttemptedFetchUsers) fetchUsersToManage();
+            if (!hasAttemptedFetchUsers) fetchUsersToManage(adminUserProfile);
         } else {
             console.warn("Admin user does not have admin/master role. Access denied.");
             setIsAuthorized(false);

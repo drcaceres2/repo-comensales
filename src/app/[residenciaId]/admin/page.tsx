@@ -1080,7 +1080,7 @@ function ResidenciaHorariosComedoresPage() {
             )}
           </div>
            <CardDescription>
-             {canEdit ? "Define cuándo los usuarios pueden solicitar comidas." : "Visualiza los horarios de solicitud de comida."}
+             {canEdit ? "Define cuándo los directores pueden solicitar comidas." : "Visualiza los horarios de solicitud de comida."}
           </CardDescription>
         </CardHeader>
         <CardContent>
