@@ -1,8 +1,8 @@
-import { useCollectionSubscription } from '@/hooks/useFirebaseData';
 import {
   collection,
   doc,
   addDoc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -56,6 +56,7 @@ import {
   UserProfile,
   PermisosComidaPorGrupo
 } from '../../../../../shared/models/types';
+import { useMemo, useState, useEffect } from 'react';
 
 
 interface ComidasData {
@@ -191,12 +192,209 @@ export function useComidasData(
                     // Create new Semanario logic here...
                 }
 
+                // Fetch Ausencias intersecting with the period
+                const ausenciasQuery = query(
+                    collection(db, 'users', userId, 'ausencias'),
+                    where('residenciaId', '==', residenciaId),
+                    where('fechaFin', '>=', format(finalAffectedPeriod.start, 'yyyy-MM-dd')),
+                    where('fechaInicio', '<=', format(finalAffectedPeriod.end, 'yyyy-MM-dd'))
+                );
+                const ausenciasSnap = await getDocs(ausenciasQuery);
+                const ausenciasData = ausenciasSnap.docs.map(d => ({ id: d.id, ...d.data() } as Ausencia));
+
+                // Fetch Inscripciones
+                const inscripcionesQuery = query(
+                    collection(db, 'users', userId, 'inscripcionesActividad'),
+                    where('residenciaId', '==', residenciaId)
+                );
+                const inscripcionesSnap = await getDocs(inscripcionesQuery);
+                const inscripcionesData = inscripcionesSnap.docs.map(d => ({ id: d.id, ...d.data() } as InscripcionActividad));
+
+
 
                 // --- Step 3: Denormalization (UI Prep) ---
-                const newSemanarioUI: SemanarioDesnormalizado = { /* ... */ };
-                // The entire denormalization logic that builds the `SemanarioDesnormalizado` object.
-                // This is the big loop over days and meal groups.
-                // ... (logic omitted for brevity, it is the same as in `inicializar-datos`)
+                const newSemanarioUI: SemanarioDesnormalizado = {
+                    userId: userId,
+                    residenciaId: residenciaId,
+                    semana: formatoIsoInicioSemanaString({ fecha: finalAffectedPeriod.start, zonaHoraria: residencia.zonaHoraria }) || "",
+                    ordenGruposComida: [],
+                    tabla: {},
+                };
+
+                // Create a complete map of all alternatives by their ID for easy lookup
+                const alternativasMap = new Map<AlternativaTiempoComidaId, AlternativaTiempoComida>(localAlternativas.map((alt: AlternativaTiempoComida) => [alt.id, alt]));
+
+                // 3.1 Get unique meal groups and their order
+                const mealGroups = new Map<string, number>();
+                localTiemposComida.forEach((tc: TiempoComida) => {
+                    if (!mealGroups.has(tc.nombreGrupo)) {
+                        mealGroups.set(tc.nombreGrupo, tc.ordenGrupo);
+                    }
+                });
+                // Also consider groups from modifications
+                tiemposComidaModData.forEach(tcm => {
+                    if (tcm.nombreGrupo && tcm.ordenGrupo !== null && tcm.ordenGrupo !== undefined && !mealGroups.has(tcm.nombreGrupo)) {
+                        mealGroups.set(tcm.nombreGrupo, tcm.ordenGrupo);
+                    }
+                });
+
+                newSemanarioUI.ordenGruposComida = Array.from(mealGroups.entries())
+                    .map(([nombreGrupo, ordenGrupo]) => ({ nombreGrupo, ordenGrupo }))
+                    .sort((a, b) => a.ordenGrupo - b.ordenGrupo);
+
+                // Initialize the table structure
+                newSemanarioUI.ordenGruposComida.forEach(group => {
+                    newSemanarioUI.tabla[group.nombreGrupo] = {};
+                });
+
+
+                // 3.2 Iterate through each day of the affected period
+                const daysInPeriod = eachDayOfInterval(finalAffectedPeriod);
+
+                for (const day of daysInPeriod) {
+                    const dayKey = formatToDayOfWeekKey(day);
+                    if (!dayKey) continue;
+
+                    const isoDateString = format(day, 'yyyy-MM-dd');
+
+                    // Find if there's an alteration for this day
+                    const alteracionDelDia = alteracionesHorarioData.find(ah =>
+                       estaDentroFechas(isoDateString, ah.fechaInicio, ah.fechaFin, residencia.zonaHoraria)
+                    );
+
+                    let tiemposComidaDelDia: any[] = [];
+                    const modsDelDia = alteracionDelDia
+                        ? tiemposComidaModData.filter(tcm => tcm.alteracionId === alteracionDelDia.id)
+                        : [];
+
+                    if (alteracionDelDia) {
+                        // Apply modifications
+                        let baseTiempos = localTiemposComida.filter((tc: TiempoComida) => tc.dia === dayKey);
+
+                        // 1. Remove/Modify existing
+                        modsDelDia.forEach(mod => {
+                            if (mod.tipoAlteracion === 'eliminar') {
+                                baseTiempos = baseTiempos.filter((bt: TiempoComida) => bt.id !== mod.tiempoAfectado);
+                            } else if (mod.tipoAlteracion === 'modificar') {
+                                baseTiempos = baseTiempos.map((bt: any) => {
+                                    if (bt.id === mod.tiempoAfectado) {
+                                        return { ...bt, ...mod, id: bt.id, tiempoComidaModId: mod.id }; // Keep original ID, add mod info
+                                    }
+                                    return bt;
+                                });
+                            }
+                        });
+                        
+                        // 2. Add new ones
+                        const nuevosTiempos = modsDelDia
+                            .filter(mod => mod.tipoAlteracion === 'agregar')
+                            .map(mod => ({ ...mod, id: mod.id, esMod: true, tiempoComidaModId: mod.id })); // Use mod ID as the key
+
+                        tiemposComidaDelDia = [...baseTiempos, ...nuevosTiempos];
+
+                    } else {
+                        // Regular day
+                        tiemposComidaDelDia = localTiemposComida.filter((tc: TiempoComida) => tc.dia === dayKey);
+                    }
+
+
+                    // 3.3 Populate the UI object for each meal of the day
+                    tiemposComidaDelDia.forEach((tc: any) => {
+                        if (!tc.nombreGrupo) return;
+
+                        const celda: CeldaSemanarioDesnormalizado = {
+                            tiempoComidaId: tc.esMod ? null : tc.id,
+                            alternativasDisponiblesId: [],
+                            hayAlternativasAlteradas: !!alteracionDelDia,
+                            tiempoComidaModId: tc.tiempoComidaModId || null,
+                            alternativasModId: [], // Will populate below
+                            nombreTiempoComida: tc.nombre,
+                            hayAlternativasRestringidas: false,
+                            alternativasRestringidasId: [],
+                            hayActividadInscrita: false,
+                            actividadesInscritasId: [],
+                            alternativasActividadInscritaId: [],
+                            hayActividadParaInscribirse: false,
+                            actividadesDisponiblesId: [],
+                            hayAusencia: false,
+                            ausenciaAplicableId: null,
+                            eleccionSemanarioId: userSemanarioData?.elecciones?.[tc.id] || null,
+                        };
+                        
+                        // Find available alternatives
+                        let altsParaEsteTiempo = localAlternativas.filter((alt: AlternativaTiempoComida) => alt.tiempoComidaId === (tc.esMod ? tc.tiempoAfectado : tc.id));
+                        
+                        // Apply alternative modifications if any
+                        if (alteracionDelDia && tc.tiempoComidaModId) {
+                            const altMods = alternativasModData.filter(am => am.tiempoComidaModId === tc.tiempoComidaModId);
+                            celda.alternativasModId = altMods.map(am => am.id);
+
+                             altMods.forEach(mod => {
+                                if (mod.tipoAlteracion === 'eliminar') {
+                                    altsParaEsteTiempo = altsParaEsteTiempo.filter((alt: AlternativaTiempoComida) => alt.id !== mod.alternativaAfectada);
+                                } else if (mod.tipoAlteracion === 'modificar' && mod.alternativaAfectada) {
+                                     altsParaEsteTiempo = altsParaEsteTiempo.map((alt: AlternativaTiempoComida) => {
+                                        if (alt.id === mod.alternativaAfectada) {
+                                            // A real implementation would merge fields, this is a simplification
+                                            return { ...alt, nombre: mod.nombre || alt.nombre };
+                                        }
+                                        return alt;
+                                    });
+                                } // 'agregar' is complex and would require creating a new temporary alternative
+                            });
+                        }
+                        celda.alternativasDisponiblesId = altsParaEsteTiempo.map((alt: any) => alt.id);
+
+
+                        // Check restrictions
+                        if (permissions?.restriccionAlternativas && permissions.alternativasRestringidas) {
+                            const restrictedSet = new Set(permissions.alternativasRestringidas.map(ar => ar.alternativaRestringida));
+                            const restrictedInCell = celda.alternativasDisponiblesId.filter(id => restrictedSet.has(id));
+                            if (restrictedInCell.length > 0) {
+                                celda.hayAlternativasRestringidas = true;
+                                celda.alternativasRestringidasId = restrictedInCell;
+                            }
+                        }
+                        
+                        // Check for absences, inscribed activities, and available activities
+                        const ausenciaActiva = ausenciasData.find(a => estaDentroFechas(isoDateString, a.fechaInicio, a.fechaFin, residencia.zonaHoraria));
+                        if (ausenciaActiva) {
+                            // More precise check needed here regarding first/last meal, but for now this is a good approximation
+                            celda.hayAusencia = true;
+                            celda.ausenciaAplicableId = ausenciaActiva.id;
+                        }
+
+                        const inscripcionesActivas = inscripcionesData.filter(i => {
+                            const actividad = actividadesData.find(a => a.id === i.actividadId);
+                            return actividad && estaDentroFechas(isoDateString, actividad.fechaInicio, actividad.fechaFin, residencia.zonaHoraria);
+                        });
+
+                        if (inscripcionesActivas.length > 0) {
+                             celda.hayActividadInscrita = true;
+                             celda.actividadesInscritasId = inscripcionesActivas.map(i => i.id);
+                             // This part is complex: linking activity meal plan to the current `tc`
+                             // For now, we just flag that an activity is happening.
+                        }
+
+                        const actividadesDisponibles = actividadesData.filter(a => {
+                           const isEnrolled = inscripcionesData.some(i => i.actividadId === a.id);
+                           const isOpen = a.estado === 'abierta_inscripcion';
+                           return !isEnrolled && isOpen && estaDentroFechas(isoDateString, a.fechaInicio, a.fechaFin, residencia.zonaHoraria);
+                        });
+
+                        if (actividadesDisponibles.length > 0) {
+                            celda.hayActividadParaInscribirse = true;
+                            celda.actividadesDisponiblesId = actividadesDisponibles.map(a => a.id);
+                        }
+
+
+                        if (!newSemanarioUI.tabla[tc.nombreGrupo]) {
+                            newSemanarioUI.tabla[tc.nombreGrupo] = {};
+                        }
+                         newSemanarioUI.tabla[tc.nombreGrupo][dayKey] = celda;
+                    });
+                }
+
 
                 setSemanarioUI(newSemanarioUI);
 

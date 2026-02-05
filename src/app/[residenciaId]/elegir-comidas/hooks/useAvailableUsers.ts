@@ -1,10 +1,10 @@
-import { useCollectionSubscription, useDocumentSubscription } from '@/hooks/useFirebaseData';
 import { collection, getDocs, query, where, doc, DocumentReference } from 'firebase/firestore';
 import { UserProfile, Residencia, AsistenciasUsuariosDetalle } from '../../../../../shared/models/types';
 import { db } from '@/lib/firebase';
 import { parse }from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { useState, useEffect, useMemo } from 'react';
 
 // --- Helper Functions (from original SelectorUsuariosEC2) ---
 
