@@ -14,865 +14,491 @@ import {
   UserId,
 } from "../../shared/models/types";
 
-// const SYSTEM_USER_ID: UserId = "SYSTEM_LICENSE_AUDIT" as UserId; // Cast if UserId is a branded type
-// const SYSTEM_USER_EMAIL = "system@license-audit.internal";
-
 // ------ User CRUD ------
 interface CreateUserDataPayload {
-  email: string;
-  password?: string; // Optional for cases like inviting an existing auth user to a profile
-  profileData: Omit<
-    UserProfile,
-    "id" | "fechaCreacion" | "ultimaActualizacion" | "lastLogin" | "email"
-  > & { email?: string };
-  // performedByUid is not needed here, will use context.auth.uid
+    email: string;
+    password?: string; // Optional for cases like inviting an existing auth user to a profile
+    profileData: Omit<UserProfile, "id" | "fechaCreacion" | "ultimaActualizacion" | "lastLogin" | "email"> & { email?: string };
+    // performedByUid is not needed here, will use context.auth.uid
 }
 interface UpdateUserDataPayload {
-  userIdToUpdate: string;
-  profileData: Partial<
-    Omit<
-      UserProfile,
-      "id" | "email" | "fechaCreacion" | "ultimaActualizacion" | "lastLogin"
-    >
-  >;
-  // performedByUid is not needed here
+    userIdToUpdate: string;
+    profileData: Partial<Omit<UserProfile, "id" | "email" | "fechaCreacion" | "ultimaActualizacion" | "lastLogin">>;
+    // performedByUid is not needed here
 }
 interface DeleteUserDataPayload {
-  userIdToDelete: string;
-  // performedByUid is not needed here
+    userIdToDelete: string;
+    // performedByUid is not needed here
 }
 export const createUser = onCall(
-  {
-    region: "us-central1",
-    cors: ["http://localhost:3001", "http://127.0.0.1:3001"],
-    timeoutSeconds: 300,
-  },
-  async (request: CallableRequest<CreateUserDataPayload>) => {
-    const callerInfo = await getCallerSecurityInfo(request.auth);
-    const data = request.data;
-    functions.logger.info(`createUser called by: ${callerInfo.uid}`, { data });
+    { 
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"], // Explicitly allow client origin
+        timeoutSeconds: 300,
+    },
+    async (request: CallableRequest<CreateUserDataPayload>) => {
+        const callerInfo = await getCallerSecurityInfo(request.auth);
+        const data = request.data;
 
-    if (!data.email || !data.password || !data.profileData) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Email, password, and profileData are required."
-      );
-    }
-    if (data.password.length < 6) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Password must be at least 6 characters long."
-      );
-    }
+        functions.logger.info(`createUser called by: ${callerInfo.uid}`, { data });
 
-    const { email, password, profileData } = data;
-    const targetUserRoles = profileData.roles || ["user"]; // Default role if not provided
-    const targetResidenciaId = profileData.residenciaId || null;
-
-    // --- Security Checks for Creation ---
-    if (targetUserRoles.includes("master") && !callerInfo.isMaster) {
-      throw new HttpsError(
-        "permission-denied",
-        "Only a 'master' user can create another 'master' user."
-      );
-    }
-    if (!callerInfo.isMaster && !callerInfo.isAdmin) {
-      throw new HttpsError(
-        "permission-denied",
-        "Only 'master' or 'admin' users can create new users."
-      );
-    }
-    if (callerInfo.isAdmin && !callerInfo.isMaster) {
-      if (!callerInfo.profile?.residenciaId) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Admin user does not have an assigned Residencia."
-        );
-      }
-      if (targetResidenciaId !== callerInfo.profile.residenciaId) {
-        throw new HttpsError(
-          "permission-denied",
-          "Admin users can only create users in their own Residencia."
-        );
-      }
-    }
-    // Ensure admin is not creating a master user
-    if (
-      callerInfo.isAdmin &&
-      !callerInfo.isMaster &&
-      targetUserRoles.includes("master")
-    ) {
-      throw new HttpsError(
-        "permission-denied",
-        "Admin users cannot create 'master' users."
-      );
-    }
-
-    let newUserRecord: admin.auth.UserRecord;
-    try {
-      newUserRecord = await admin.auth().createUser({
-        email: email,
-        emailVerified: false,
-        password: password,
-        displayName: `${profileData.nombre || ""} ${
-          profileData.apellido || ""
-        }`.trim(),
-        disabled: !(profileData.isActive === undefined
-          ? true
-          : profileData.isActive), // Auth 'disabled' is inverse of 'isActive'
-      });
-      functions.logger.info(
-        "Successfully created new user in Firebase Auth:",
-        newUserRecord.uid
-      );
-    } catch (error: any) {
-      functions.logger.error(
-        "Error creating new user in Firebase Auth:",
-        error
-      );
-      if (error.code === "auth/email-already-exists") {
-        throw new HttpsError("already-exists", "This email is already in use.");
-      }
-      throw new HttpsError(
-        "internal",
-        `Auth creation failed: ${error.message}`
-      );
-    }
-
-    const newUserId = newUserRecord.uid;
-
-    // Set Custom Claims for the new user
-    try {
-      const claimsToSet: Record<string, any> = {
-        roles: targetUserRoles,
-        isActive:
-          profileData.isActive === undefined ? true : profileData.isActive,
-      };
-      if (targetResidenciaId) {
-        claimsToSet.residenciaId = targetResidenciaId;
-      }
-      await admin.auth().setCustomUserClaims(newUserId, claimsToSet);
-      functions.logger.info(
-        "Custom claims set for new user:",
-        newUserId,
-        claimsToSet
-      );
-    } catch (error: any) {
-      functions.logger.error(
-        "Error setting custom claims for new user:",
-        newUserId,
-        error
-      );
-      // Attempt to clean up Auth user if claims part fails
-      await admin
-        .auth()
-        .deleteUser(newUserId)
-        .catch((delErr) =>
-          functions.logger.error(
-            "Failed to cleanup auth user after claims error",
-            delErr
-          )
-        );
-      throw new HttpsError(
-        "internal",
-        `Setting custom claims failed: ${error.message}`
-      );
-    }
-
-    // --- DIAGNOSTIC LOGGING START ---
-    functions.logger.info(
-      "Preparing UserProfile document. Checking Firestore objects..."
-    );
-    functions.logger.info(`admin.firestore type: ${typeof admin.firestore}`);
-    functions.logger.info(
-      `admin.firestore.FieldValue type: ${typeof admin.firestore.FieldValue}`
-    );
-    functions.logger.info(
-      `db.constructor.FieldValue type: ${typeof (db.constructor as any)
-        .FieldValue}`
-    );
-    // --- DIAGNOSTIC LOGGING END ---
-
-    // Prepare UserProfile document for Firestore
-    const userProfileDoc: UserProfile = {
-      ...profileData,
-      id: newUserId as any, // Cast to 'any'
-      email: email,
-      fechaCreacion: FieldValue.serverTimestamp() as any,
-      ultimaActualizacion: FieldValue.serverTimestamp() as any,
-      isActive: profileData.isActive === undefined,
-      roles: targetUserRoles, // Ensure roles are stored in Firestore as well
-      residenciaId: targetResidenciaId,
-    };
-
-    try {
-      await db.collection("users").doc(newUserId).set(userProfileDoc);
-      functions.logger.info(
-        "Successfully created UserProfile in Firestore for UID:",
-        newUserId
-      );
-
-      await logAction("userProfile", callerInfo.uid, newUserId, {
-        email,
-        roles: targetUserRoles,
-        residenciaId: targetResidenciaId,
-      });
-      return {
-        success: true,
-        userId: newUserId,
-        message: "User created successfully.",
-      };
-    } catch (error: any) {
-      functions.logger.error(
-        "Error writing UserProfile to Firestore:",
-        newUserId,
-        error
-      );
-      // Attempt to clean up Auth user and claims if Firestore part fails
-      await admin
-        .auth()
-        .deleteUser(newUserId)
-        .catch((delErr) =>
-          functions.logger.error(
-            "Failed to cleanup auth user after Firestore error",
-            delErr
-          )
-        );
-      throw new HttpsError(
-        "internal",
-        `Firestore write failed: ${error.message}`
-      );
-    }
-  }
-);
-export const updateUser = onCall(
-  {
-    region: "us-central1",
-    cors: ["http://localhost:3001", "http://127.0.0.1:3001"],
-  },
-  async (request: CallableRequest<UpdateUserDataPayload>) => {
-    const callerInfo = await getCallerSecurityInfo(request.auth);
-    const data = request.data;
-    const { userIdToUpdate, profileData } = data;
-
-    functions.logger.info(
-      `updateUser called by: ${callerInfo.uid} for user: ${userIdToUpdate}`,
-      { profileData }
-    );
-
-    if (!userIdToUpdate || !profileData) {
-      throw new HttpsError(
-        "invalid-argument",
-        "userIdToUpdate and profileData are required."
-      );
-    }
-    if (Object.keys(profileData).length === 0) {
-      return { success: true, message: "No changes provided." };
-    }
-
-    // Fetch target user's current profile for security checks
-    const targetUserDoc = await db
-      .collection("users")
-      .doc(userIdToUpdate)
-      .get();
-    if (!targetUserDoc.exists) {
-      throw new HttpsError(
-        "not-found",
-        `User ${userIdToUpdate} not found in Firestore.`
-      );
-    }
-    const targetUserProfile = targetUserDoc.data() as UserProfile;
-    const targetUserAuth = await admin.auth().getUser(userIdToUpdate); // Also get auth for claims
-
-    // --- Security Checks for Update ---
-    const canUpdate =
-      callerInfo.isMaster || // Master can update anyone
-      (callerInfo.isAdmin &&
-        callerInfo.profile?.residenciaId === targetUserProfile.residenciaId) || // Admin can update users in their own Residencia
-      callerInfo.uid === userIdToUpdate; // User can update themselves
-
-    if (!canUpdate) {
-      throw new HttpsError(
-        "permission-denied",
-        "You do not have permission to update this user."
-      );
-    }
-    // Prevent non-master from making another user master or changing master's roles
-    if (
-      !callerInfo.isMaster &&
-      profileData.roles?.includes("master") &&
-      targetUserProfile.roles?.includes("master")
-    ) {
-      // Allow master to change their own roles if they are the target, otherwise deny.
-      if (userIdToUpdate !== callerInfo.uid || !callerInfo.isMaster) {
-        throw new HttpsError(
-          "permission-denied",
-          "Only a master user can modify a master user's roles."
-        );
-      }
-    }
-    if (
-      !callerInfo.isMaster &&
-      profileData.roles?.includes("master") &&
-      !targetUserProfile.roles?.includes("master")
-    ) {
-      throw new HttpsError(
-        "permission-denied",
-        "You cannot make another user a master."
-      );
-    }
-    // Prevent admin from changing residenciaId of users if they are not master
-    if (
-      callerInfo.isAdmin &&
-      !callerInfo.isMaster &&
-      profileData.residenciaId &&
-      profileData.residenciaId !== callerInfo.profile?.residenciaId
-    ) {
-      throw new HttpsError(
-        "permission-denied",
-        "Admins can only assign users to their own Residencia."
-      );
-    }
-
-    // Prepare Auth updates
-    const authUpdates: admin.auth.UpdateRequest = {};
-    if (profileData.nombre || profileData.apellido) {
-      //const currentNombre = targetUserProfile.nombre || "";
-      //const currentApellido = targetUserProfile.apellido || "";
-      authUpdates.displayName = `${
-        profileData.nombre || targetUserProfile.nombre || ""
-      } ${profileData.apellido || targetUserProfile.apellido || ""}`.trim();
-    }
-    if (profileData.isActive !== undefined) {
-      authUpdates.disabled = !profileData.isActive;
-    }
-
-    // Prepare Custom Claims updates
-    const claimsToSet: Record<string, any> = { ...targetUserAuth.customClaims }; // Start with existing claims
-    let claimsChanged = false;
-    if (profileData.roles) {
-      claimsToSet.roles = profileData.roles;
-      claimsChanged = true;
-    }
-    if (profileData.residenciaId !== undefined) {
-      // Allow setting null or empty string
-      claimsToSet.residenciaId = profileData.residenciaId;
-      claimsChanged = true;
-    }
-    if (profileData.isActive !== undefined) {
-      // Keep isActive in claims for consistency
-      claimsToSet.isActive = profileData.isActive;
-      claimsChanged = true;
-    }
-
-    try {
-      if (Object.keys(authUpdates).length > 0) {
-        await admin.auth().updateUser(userIdToUpdate, authUpdates);
-        functions.logger.info(
-          "Auth user updated:",
-          userIdToUpdate,
-          authUpdates
-        );
-      }
-      if (claimsChanged) {
-        await admin.auth().setCustomUserClaims(userIdToUpdate, claimsToSet);
-        functions.logger.info(
-          "Custom claims updated:",
-          userIdToUpdate,
-          claimsToSet
-        );
-      }
-    } catch (error: any) {
-      functions.logger.error(
-        "Error updating Auth user or claims:",
-        userIdToUpdate,
-        error
-      );
-      throw new HttpsError("internal", `Auth update failed: ${error.message}`);
-    }
-
-    // Prepare Firestore updates
-    const firestoreUpdateData: Omit<
-      Partial<UserProfile>,
-      "ultimaActualizacion"
-    > & { ultimaActualizacion: admin.firestore.FieldValue } = {
-      ...profileData, // profileData already Omit<...> and Partial<...>
-      ultimaActualizacion: FieldValue.serverTimestamp() as any, // Switched to db.constructor path
-    };
-
-    try {
-      await db
-        .collection("users")
-        .doc(userIdToUpdate)
-        .update(firestoreUpdateData);
-      functions.logger.info(
-        "UserProfile updated in Firestore:",
-        userIdToUpdate
-      );
-
-      await logAction("userProfile", callerInfo.uid, userIdToUpdate, {
-        updatedFields: Object.keys(profileData),
-      });
-      return { success: true, message: "User updated successfully." };
-    } catch (error: any) {
-      functions.logger.error(
-        "Error updating UserProfile in Firestore:",
-        userIdToUpdate,
-        error
-      );
-      throw new HttpsError(
-        "internal",
-        `Firestore update failed: ${error.message}`
-      );
-    }
-  }
-);
-export const deleteUser = onCall(
-  {
-    region: "us-central1",
-    cors: ["http://localhost:3001", "http://127.0.0.1:3001"],
-  },
-  async (request: CallableRequest<DeleteUserDataPayload>) => {
-    const callerInfo = await getCallerSecurityInfo(request.auth);
-    const data = request.data;
-    const { userIdToDelete } = data;
-
-    functions.logger.info(
-      `deleteUser called by: ${callerInfo.uid} for user: ${userIdToDelete}`
-    );
-
-    if (!userIdToDelete) {
-      throw new HttpsError("invalid-argument", "userIdToDelete is required.");
-    }
-
-    if (callerInfo.uid === userIdToDelete) {
-      throw new HttpsError(
-        "permission-denied",
-        "Users cannot delete themselves through this function."
-      );
-    }
-
-    // Fetch target user's profile for security checks
-    const targetUserDoc = await db
-      .collection("users")
-      .doc(userIdToDelete)
-      .get();
-    if (!targetUserDoc.exists) {
-      // If Firestore doc doesn't exist, maybe Auth user still does. Proceed to try Auth deletion.
-      functions.logger.warn(
-        `User ${userIdToDelete} not found in Firestore, attempting Auth deletion only.`
-      );
-    }
-    const targetUserProfile = targetUserDoc.data() as UserProfile | undefined;
-
-    // --- Security Checks for Deletion ---
-    const canDelete =
-      callerInfo.isMaster || // Master can delete anyone (except themselves)
-      (callerInfo.isAdmin &&
-        callerInfo.profile?.residenciaId === targetUserProfile?.residenciaId); // Admin can delete users in their own Residencia (except themselves)
-
-    if (!canDelete) {
-      throw new HttpsError(
-        "permission-denied",
-        "You do not have permission to delete this user."
-      );
-    }
-    // Prevent admin from deleting master
-    if (
-      callerInfo.isAdmin &&
-      !callerInfo.isMaster &&
-      targetUserProfile?.roles?.includes("master")
-    ) {
-      throw new HttpsError(
-        "permission-denied",
-        "Admins cannot delete 'master' users."
-      );
-    }
-
-    try {
-      await admin.auth().deleteUser(userIdToDelete);
-      functions.logger.info(
-        "Successfully deleted user from Firebase Auth:",
-        userIdToDelete
-      );
-    } catch (error: any) {
-      functions.logger.error(
-        "Error deleting user from Firebase Auth:",
-        userIdToDelete,
-        error
-      );
-      if (error.code !== "auth/user-not-found") {
-        // If user not found in auth, it's not a fatal error for the flow
-        throw new HttpsError(
-          "internal",
-          `Auth deletion failed: ${error.message}`
-        );
-      }
-      functions.logger.warn(
-        "User not found in Auth during deletion, proceeding to Firestore cleanup if possible."
-      );
-    }
-
-    try {
-      if (targetUserDoc.exists) {
-        // Only delete if doc existed
-        await db.collection("users").doc(userIdToDelete).delete();
-        functions.logger.info(
-          "Successfully deleted UserProfile from Firestore:",
-          userIdToDelete
-        );
-      }
-
-      await logAction("userProfile", callerInfo.uid, userIdToDelete);
-      return { success: true, message: "User deleted successfully." };
-    } catch (error: any) {
-      functions.logger.error(
-        "Error deleting UserProfile from Firestore:",
-        userIdToDelete,
-        error
-      );
-      // If Auth deletion was successful but Firestore failed, this is a partial success/failure state.
-      throw new HttpsError(
-        "internal",
-        `Firestore deletion failed: ${error.message}`
-      );
-    }
-  }
-);
-
-// ------ User Authentication & Authorization ------
-import cors from "cors";
-const corsHandler = cors({
-  origin: ["http://localhost:3001", "https://comensales.app"], // ADD YOUR PRODUCTION URL
-  credentials: true, // Allow cookies to be sent
-});
-export const sessionLogin = functions.https.onRequest(
-  async (request, response) => {
-    corsHandler(request, response, async () => {
-      if (request.method !== "POST") {
-        response.status(405).send("Method Not Allowed");
-        return;
-      }
-
-      const { idToken } = request.body;
-
-      if (!idToken) {
-        response.status(400).send("ID token is required.");
-        return;
-      }
-
-      // Set session expiration.
-      // For PWA and app-like experience, you might want a longer duration.
-      // Max is 14 days.
-      const expiresIn = 60 * 60 * 24 * 14 * 1000; // 14 days in milliseconds
-
-      try {
-        // Verify the ID token first to ensure it's valid.
-        // This step is implicitly handled by createSessionCookie if the token is from a trusted source (same Firebase project),
-        // but explicit verification can be good for clarity and security if desired.
-        const decodedIdToken = await admin.auth().verifyIdToken(idToken);
-
-        // Only create a session cookie if the token is valid and not revoked.
-        const isRevoked = !(await admin.auth().verifyIdToken(idToken, true)); // Pass true to check if revoked
-        if (isRevoked) {
-          response.status(401).send("ID token has been revoked.");
-          return;
+        if (!data.email || !data.password || !data.profileData) {
+            throw new HttpsError("invalid-argument", "Email, password, and profileData are required.");
+        }
+        if (data.password.length < 6) {
+            throw new HttpsError("invalid-argument", "Password must be at least 6 characters long.");
         }
 
-        // Create the session cookie.
-        const sessionCookie = await admin
-          .auth()
-          .createSessionCookie(idToken, { expiresIn });
+        const { email, password, profileData } = data;
+        const targetUserRoles = profileData.roles || ["user"]; // Default role if not provided
+        const targetResidenciaId = profileData.residenciaId || null;
 
-        // Set cookie policy for session cookie.
-        // For production, use `secure: true`. For local dev with HTTP, `secure: false`.
-        // SameSite=Strict is recommended for session cookies.
-        const options = {
-          maxAge: expiresIn,
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production", // True in production
-          sameSite: "strict" as const, // Use "Strict" or "Lax"
-          // path: "/", // Optional: defaults to /
+        // --- Security Checks for Creation ---
+        if (targetUserRoles.includes("master") && !callerInfo.isMaster) {
+            throw new HttpsError("permission-denied", "Only a 'master' user can create another 'master' user.");
+        }
+        if (!callerInfo.isMaster && !callerInfo.isAdmin) {
+            throw new HttpsError("permission-denied", "Only 'master' or 'admin' users can create new users.");
+        }
+        if (callerInfo.isAdmin && !callerInfo.isMaster) {
+            if (!callerInfo.profile?.residenciaId) {
+                 throw new HttpsError("failed-precondition", "Admin user does not have an assigned Residencia.");
+            }
+            if (targetResidenciaId !== callerInfo.profile.residenciaId) {
+                throw new HttpsError("permission-denied", "Admin users can only create users in their own Residencia.");
+            }
+        }
+        // Ensure admin is not creating a master user
+        if (callerInfo.isAdmin && !callerInfo.isMaster && targetUserRoles.includes("master")) {
+            throw new HttpsError("permission-denied", "Admin users cannot create 'master' users.");
+        }
+
+
+        let newUserRecord: admin.auth.UserRecord;
+        try {
+            newUserRecord = await admin.auth().createUser({
+                email: email,
+                emailVerified: false,
+                password: password,
+                displayName: `${profileData.nombre || ""} ${profileData.apellido || ""}`.trim(),
+                disabled: !(profileData.isActive === undefined ? true : profileData.isActive), // Auth 'disabled' is inverse of 'isActive'
+            });
+            functions.logger.info("Successfully created new user in Firebase Auth:", newUserRecord.uid);
+        } catch (error: any) {
+            functions.logger.error("Error creating new user in Firebase Auth:", error);
+            if (error.code === "auth/email-already-exists") {
+                throw new HttpsError("already-exists", "This email is already in use.");
+            }
+            throw new HttpsError("internal", `Auth creation failed: ${error.message}`);
+        }
+
+        const newUserId = newUserRecord.uid;
+
+        // Set Custom Claims for the new user
+        try {
+            const claimsToSet: Record<string, any> = {
+                roles: targetUserRoles,
+                isActive: profileData.isActive === undefined ? true : profileData.isActive,
+            };
+            if (targetResidenciaId) {
+                claimsToSet.residenciaId = targetResidenciaId;
+            }
+            await admin.auth().setCustomUserClaims(newUserId, claimsToSet);
+            functions.logger.info("Custom claims set for new user:", newUserId, claimsToSet);
+        } catch (error: any) {
+            functions.logger.error("Error setting custom claims for new user:", newUserId, error);
+            // Attempt to clean up Auth user if claims part fails
+            await admin.auth().deleteUser(newUserId).catch(delErr => functions.logger.error("Failed to cleanup auth user after claims error", delErr));
+            throw new HttpsError("internal", `Setting custom claims failed: ${error.message}`);
+        }
+
+        // --- DIAGNOSTIC LOGGING START ---
+        functions.logger.info("Preparing UserProfile document. Checking Firestore objects...");
+        functions.logger.info(`admin.firestore type: ${typeof admin.firestore}`);
+        functions.logger.info(`admin.firestore.FieldValue type: ${typeof admin.firestore.FieldValue}`);
+        functions.logger.info(`db.constructor.FieldValue type: ${typeof (db.constructor as any).FieldValue}`);
+        // --- DIAGNOSTIC LOGGING END ---
+
+        // Prepare UserProfile document for Firestore
+        const userProfileDoc: UserProfile = {
+            ...profileData,
+            id: newUserId as any, // Cast to 'any'
+            email: email,
+            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any, 
+            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any, 
+            isActive: profileData.isActive === undefined ? true : profileData.isActive,
+            roles: targetUserRoles, // Ensure roles are stored in Firestore as well
+            residenciaId: targetResidenciaId, 
         };
 
-        response.cookie("__session", sessionCookie, options); // "__session" is a common name
+        try {
+            await db.collection("users").doc(newUserId).set(userProfileDoc);
+            functions.logger.info("Successfully created UserProfile in Firestore for UID:", newUserId);
 
-        // Respond with success and any user data you want to send back (optional)
-        response.status(200).json({
-          status: "success",
-          uid: decodedIdToken.uid,
-          roles: decodedIdToken.roles,
-          residenciaId: decodedIdToken.residenciaId,
-        });
-      } catch (error) {
-        console.error("Error creating session cookie:", error);
-        response.status(401).send("Unauthorized: Could not create session.");
-      }
-    });
-  }
-);
-export const sessionLogout = functions.https.onRequest((request, response) => {
-  corsHandler(request, response, async () => {
-    if (request.method !== "POST") {
-      response.status(405).send("Method Not Allowed");
-      return;
+            await logAction("userProfile", callerInfo.uid, newUserId, { email, roles: targetUserRoles, residenciaId: targetResidenciaId });
+            return { success: true, userId: newUserId, message: "User created successfully." };
+
+        } catch (error: any) {
+            functions.logger.error("Error writing UserProfile to Firestore:", newUserId, error);
+            // Attempt to clean up Auth user and claims if Firestore part fails
+            await admin.auth().deleteUser(newUserId).catch(delErr => functions.logger.error("Failed to cleanup auth user after Firestore error", delErr));
+            throw new HttpsError("internal", `Firestore write failed: ${error.message}`);
+        }
     }
+);
+export const updateUser = onCall(
+    { 
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"] // Explicitly allow client origin
+    },
+    async (request: CallableRequest<UpdateUserDataPayload>) => {
+        const callerInfo = await getCallerSecurityInfo(request.auth);
+        const data = request.data;
+        const { userIdToUpdate, profileData } = data;
 
-    // Clear the __session cookie
-    response.clearCookie("__session", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict" as const,
-      // path: "/", // Ensure path matches the one used for setting
-    });
-    response
-      .status(200)
-      .json({ status: "success", message: "Logged out successfully." });
-  });
-});
+        functions.logger.info(`updateUser called by: ${callerInfo.uid} for user: ${userIdToUpdate}`, { profileData });
+
+        if (!userIdToUpdate || !profileData) {
+            throw new HttpsError("invalid-argument", "userIdToUpdate and profileData are required.");
+        }
+        if (Object.keys(profileData).length === 0) {
+            return { success: true, message: "No changes provided." };
+        }
+
+        // Fetch target user's current profile for security checks
+        const targetUserDoc = await db.collection("users").doc(userIdToUpdate).get();
+        if (!targetUserDoc.exists) {
+            throw new HttpsError("not-found", `User ${userIdToUpdate} not found in Firestore.`);
+        }
+        const targetUserProfile = targetUserDoc.data() as UserProfile;
+        const targetUserAuth = await admin.auth().getUser(userIdToUpdate); // Also get auth for claims
+
+        // --- Security Checks for Update ---
+        const canUpdate = callerInfo.isMaster || // Master can update anyone
+            (callerInfo.isAdmin && callerInfo.profile?.residenciaId === targetUserProfile.residenciaId) || // Admin can update users in their own Residencia
+            (callerInfo.uid === userIdToUpdate); // User can update themselves
+
+        if (!canUpdate) {
+            throw new HttpsError("permission-denied", "You do not have permission to update this user.");
+        }
+        // Prevent non-master from making another user master or changing master's roles
+        if (!callerInfo.isMaster && profileData.roles?.includes("master") && targetUserProfile.roles?.includes("master")) {
+             // Allow master to change their own roles if they are the target, otherwise deny.
+             if (userIdToUpdate !== callerInfo.uid || !callerInfo.isMaster) {
+                throw new HttpsError("permission-denied", "Only a master user can modify a master user's roles.");
+             }
+        }
+        if (!callerInfo.isMaster && profileData.roles?.includes("master") && !targetUserProfile.roles?.includes("master")) {
+            throw new HttpsError("permission-denied", "You cannot make another user a master.");
+        }
+        // Prevent admin from changing residenciaId of users if they are not master
+        if (callerInfo.isAdmin && !callerInfo.isMaster && profileData.residenciaId && profileData.residenciaId !== callerInfo.profile?.residenciaId) {
+            throw new HttpsError("permission-denied", "Admins can only assign users to their own Residencia.");
+        }
+
+
+        // Prepare Auth updates
+        const authUpdates: admin.auth.UpdateRequest = {};
+        if (profileData.nombre || profileData.apellido) {
+            //const currentNombre = targetUserProfile.nombre || "";
+            //const currentApellido = targetUserProfile.apellido || "";
+            authUpdates.displayName = `${profileData.nombre || targetUserProfile.nombre || ""} ${profileData.apellido || targetUserProfile.apellido || ""}`.trim();
+        }
+        if (profileData.isActive !== undefined) {
+            authUpdates.disabled = !profileData.isActive;
+        }
+
+        // Prepare Custom Claims updates
+        const claimsToSet: Record<string, any> = { ...targetUserAuth.customClaims }; // Start with existing claims
+        let claimsChanged = false;
+        if (profileData.roles) {
+            claimsToSet.roles = profileData.roles;
+            claimsChanged = true;
+        }
+        if (profileData.residenciaId !== undefined) { // Allow setting null or empty string
+            claimsToSet.residenciaId = profileData.residenciaId;
+            claimsChanged = true;
+        }
+        if (profileData.isActive !== undefined) { // Keep isActive in claims for consistency
+            claimsToSet.isActive = profileData.isActive;
+            claimsChanged = true;
+        }
+
+
+        try {
+            if (Object.keys(authUpdates).length > 0) {
+                await admin.auth().updateUser(userIdToUpdate, authUpdates);
+                functions.logger.info("Auth user updated:", userIdToUpdate, authUpdates);
+            }
+            if (claimsChanged) {
+                await admin.auth().setCustomUserClaims(userIdToUpdate, claimsToSet);
+                functions.logger.info("Custom claims updated:", userIdToUpdate, claimsToSet);
+            }
+        } catch (error: any) {
+            functions.logger.error("Error updating Auth user or claims:", userIdToUpdate, error);
+            throw new HttpsError("internal", `Auth update failed: ${error.message}`);
+        }
+
+        // Prepare Firestore updates
+        const firestoreUpdateData: Omit<Partial<UserProfile>, 'ultimaActualizacion'> & { ultimaActualizacion: admin.firestore.FieldValue } = {
+            ...profileData, // profileData already Omit<...> and Partial<...>
+            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any, // Switched to db.constructor path
+        };
+
+        try {
+            await db.collection("users").doc(userIdToUpdate).update(firestoreUpdateData);
+            functions.logger.info("UserProfile updated in Firestore:", userIdToUpdate);
+
+            await logAction("userProfile", callerInfo.uid, userIdToUpdate, { updatedFields: Object.keys(profileData) });
+            return { success: true, message: "User updated successfully." };
+        } catch (error: any) {
+            functions.logger.error("Error updating UserProfile in Firestore:", userIdToUpdate, error);
+            throw new HttpsError("internal", `Firestore update failed: ${error.message}`);
+        }
+    }
+);
+export const deleteUser = onCall(
+    { 
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"] // Explicitly allow client origin
+    },
+    async (request: CallableRequest<DeleteUserDataPayload>) => {
+        const callerInfo = await getCallerSecurityInfo(request.auth);
+        const data = request.data;
+        const { userIdToDelete } = data;
+
+        functions.logger.info(`deleteUser called by: ${callerInfo.uid} for user: ${userIdToDelete}`);
+
+        if (!userIdToDelete) {
+            throw new HttpsError("invalid-argument", "userIdToDelete is required.");
+        }
+
+        if (callerInfo.uid === userIdToDelete) {
+            throw new HttpsError("permission-denied", "Users cannot delete themselves through this function.");
+        }
+
+        // Fetch target user's profile for security checks
+        const targetUserDoc = await db.collection("users").doc(userIdToDelete).get();
+        if (!targetUserDoc.exists) {
+            // If Firestore doc doesn't exist, maybe Auth user still does. Proceed to try Auth deletion.
+            functions.logger.warn(`User ${userIdToDelete} not found in Firestore, attempting Auth deletion only.`);
+        }
+        const targetUserProfile = targetUserDoc.data() as UserProfile | undefined;
+
+        // --- Security Checks for Deletion ---
+        const canDelete = callerInfo.isMaster || // Master can delete anyone (except themselves)
+            (callerInfo.isAdmin && callerInfo.profile?.residenciaId === targetUserProfile?.residenciaId); // Admin can delete users in their own Residencia (except themselves)
+
+        if (!canDelete) {
+            throw new HttpsError("permission-denied", "You do not have permission to delete this user.");
+        }
+        // Prevent admin from deleting master
+        if (callerInfo.isAdmin && !callerInfo.isMaster && targetUserProfile?.roles?.includes("master")) {
+            throw new HttpsError("permission-denied", "Admins cannot delete 'master' users.");
+        }
+
+
+        try {
+            await admin.auth().deleteUser(userIdToDelete);
+            functions.logger.info("Successfully deleted user from Firebase Auth:", userIdToDelete);
+        } catch (error: any) {
+            functions.logger.error("Error deleting user from Firebase Auth:", userIdToDelete, error);
+            if (error.code !== "auth/user-not-found") { // If user not found in auth, it's not a fatal error for the flow
+                throw new HttpsError("internal", `Auth deletion failed: ${error.message}`);
+            }
+            functions.logger.warn("User not found in Auth during deletion, proceeding to Firestore cleanup if possible.");
+        }
+
+        try {
+            if (targetUserDoc.exists) { // Only delete if doc existed
+                await db.collection("users").doc(userIdToDelete).delete();
+                functions.logger.info("Successfully deleted UserProfile from Firestore:", userIdToDelete);
+            }
+
+            await logAction("userProfile", callerInfo.uid, userIdToDelete);
+            return { success: true, message: "User deleted successfully." };
+        } catch (error: any) {
+            functions.logger.error("Error deleting UserProfile from Firestore:", userIdToDelete, error);
+            // If Auth deletion was successful but Firestore failed, this is a partial success/failure state.
+            throw new HttpsError("internal", `Firestore deletion failed: ${error.message}`);
+        }
+    }
+);
+
 
 // ------ Logging ------
 interface LogEntryWrite extends Omit<LogEntry, "id" | "timestamp"> {
-  timestamp: admin.firestore.FieldValue; // Keep this as admin.firestore.FieldValue
-  // 'userId' from LogEntry will store the UID of the admin/user performing the action
+    timestamp: admin.firestore.FieldValue; // Keep this as admin.firestore.FieldValue
+    // 'userId' from LogEntry will store the UID of the admin/user performing the action
 }
 interface CallerSecurityInfo {
-  uid: string;
-  profile?: UserProfile;
-  claims?: Record<string, any>; // Changed from admin.auth.DecodedIdToken
-  isMaster: boolean;
-  isAdmin: boolean;
+    uid: string;
+    profile?: UserProfile;
+    claims?: Record<string, any>; // Changed from admin.auth.DecodedIdToken
+    isMaster: boolean;
+    isAdmin: boolean;
 }
 const logAction = async (
-  actionType: LogActionType, // Use the string literals from your enum-like type
-  performedByUid: string,
-  targetUid: string | null = null,
-  details: Record<string, any> = {}
+    actionType: LogActionType, // Use the string literals from your enum-like type
+    performedByUid: string,
+    targetUid: string | null = null,
+    details: Record<string, any> = {},
 ): Promise<void> => {
-  try {
-    const logEntryData: LogEntryWrite = {
-      actionType,
-      userId: performedByUid, // 'userId' in LogEntry refers to the actor
-      timestamp: FieldValue.serverTimestamp() as any, // Switched to db.constructor path
-      targetUid,
-      details,
-      // residenciaId: details.residenciaId || null, // If you want to log this
-    };
-    await db.collection("logEntries").add(logEntryData);
-    functions.logger.info(
-      `Action logged: ${actionType} by ${performedByUid}` +
-        (targetUid ? ` on ${targetUid}` : ""),
-      details
-    );
-  } catch (error) {
-    functions.logger.error("Error logging action:", error);
-  }
+    try {
+        const logEntryData: LogEntryWrite = {
+            actionType,
+            userId: performedByUid, // 'userId' in LogEntry refers to the actor
+            timestamp: (db.constructor as any).FieldValue.serverTimestamp() as any, // Switched to db.constructor path
+            targetUid,
+            details,
+            // residenciaId: details.residenciaId || null, // If you want to log this
+        };
+        await db.collection("logs").add(logEntryData);
+        functions.logger.info(`Action logged: ${actionType} by ${performedByUid}` + (targetUid ? ` on ${targetUid}` : ""), details);
+    } catch (error) {
+        functions.logger.error("Error logging action:", error);
+    }
 };
-async function getCallerSecurityInfo(
-  authContext?: CallableRequest["auth"]
-): Promise<CallerSecurityInfo> {
-  if (!authContext || !authContext.uid) {
-    throw new HttpsError("unauthenticated", "Authentication required.");
-  }
-  const uid = authContext.uid;
-  try {
-    const [userRecord, profileDoc] = await Promise.all([
-      admin.auth().getUser(uid),
-      db.collection("users").doc(uid).get(),
-    ]);
+async function getCallerSecurityInfo(authContext?: CallableRequest['auth']): Promise<CallerSecurityInfo> {
+    if (!authContext || !authContext.uid) {
+        throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+    const uid = authContext.uid;
+    try {
+        const [userRecord, profileDoc] = await Promise.all([
+            admin.auth().getUser(uid),
+            db.collection("users").doc(uid).get()
+        ]);
 
-    const claims = userRecord.customClaims || {};
-    const profile = profileDoc.exists
-      ? (profileDoc.data() as UserProfile)
-      : undefined;
+        const claims = userRecord.customClaims || {};
+        const profile = profileDoc.exists ? profileDoc.data() as UserProfile : undefined;
 
-    return {
-      uid,
-      profile,
-      claims,
-      isMaster: claims.roles?.includes("master") || false,
-      isAdmin: claims.roles?.includes("admin") || false,
-    };
-  } catch (error) {
-    functions.logger.error(
-      "Error fetching caller security info for UID:",
-      uid,
-      error
-    );
-    throw new HttpsError("internal", "Could not verify caller permissions.");
-  }
+        return {
+            uid,
+            profile,
+            claims,
+            isMaster: claims.roles?.includes("master") || false,
+            isAdmin: claims.roles?.includes("admin") || false,
+        };
+    } catch (error) {
+        functions.logger.error("Error fetching caller security info for UID:", uid, error);
+        throw new HttpsError("internal", "Could not verify caller permissions.");
+    }
 }
+
+
 
 // --- VERY INSECURE - FOR LOCAL DEVELOPMENT ONLY ---
 // --- DELETE THIS BLOCK BEFORE PRODUCTION ---
-const HMAC_SECRET_KEY_DEV =
-  "F#gQb-qXIW{;nWo_$H7rBbl5JnU,=tdefc(wqk@0g56s[gDhAI";
-
-const cleanupAuthUser = async (userId: string, reason: string) => {
-  try {
-    await admin.auth().deleteUser(userId);
-    functions.logger.info(`Cleaned up Auth user ${userId} due to: ${reason}`);
-  } catch (delErr) {
-    functions.logger.error(`Failed to cleanup Auth user ${userId}:`, delErr);
-  }
-};
-
+const HMAC_SECRET_KEY_DEV = "F#gQb-qXIW{;nWo_$H7rBbl5JnU,=tdefc(wqk@0g56s[gDhAI";
 export const createHardcodedMasterUser = onCall(
-  {
-    region: "us-central1",
-    cors: ["http://localhost:3001", "http://127.0.0.1:3001"],
-  },
-  async (request: CallableRequest<any>) => {
-    functions.logger.warn(
-      "********************************************************************"
-    );
-    functions.logger.warn("WARNING: Executing createHardcodedMasterUser.");
-    functions.logger.warn(
-      "This function is highly insecure and for local development ONLY."
-    );
-    functions.logger.warn("IT MUST BE DELETED BEFORE DEPLOYING TO PRODUCTION.");
-    functions.logger.warn(
-      "********************************************************************"
-    );
+    {
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"] // Explicitly allow client origin
+    },
+    async (request: CallableRequest<any>) => { // No input data needed
+        functions.logger.warn("********************************************************************");
+        functions.logger.warn("WARNING: Executing createHardcodedMasterUser.");
+        functions.logger.warn("This function is highly insecure and for local development ONLY.");
+        functions.logger.warn("IT MUST BE DELETED BEFORE DEPLOYING TO PRODUCTION.");
+        functions.logger.warn("********************************************************************");
 
-    const hardcodedEmail = "drcaceres@gmail.com";
-    const hardcodedPassword = "123456"; // CHANGE THIS IF YOU CARE EVEN A LITTLE
-    const hardcodedProfileData = {
-      nombre: "Master",
-      apellido: "User (Hardcoded)",
-    };
-
-    // Optional: Check if this hardcoded user already exists to prevent multiple creations
-    try {
-      await admin.auth().getUserByEmail(hardcodedEmail);
-      functions.logger.info(
-        `User ${hardcodedEmail} already exists. Skipping creation.`
-      );
-      const userDoc = await db
-        .collection("users")
-        .where("email", "==", hardcodedEmail)
-        .limit(1)
-        .get();
-      if (!userDoc.empty) {
-        functions.logger.info(
-          `Firestore document for ${hardcodedEmail} also exists.`
-        );
-        return {
-          success: true,
-          userId: userDoc.docs[0].id,
-          message: "Hardcoded master user already exists.",
+        const hardcodedEmail = "drcaceres@gmail.com";
+        const hardcodedPassword = "123456"; // CHANGE THIS IF YOU CARE EVEN A LITTLE
+        const hardcodedProfileData = {
+            nombre: "Master",
+            apellido: "User (Hardcoded)",
         };
-      }
-      functions.logger.warn(
-        `Auth user ${hardcodedEmail} exists, but Firestore profile might be missing or different.`
-      );
-      throw new HttpsError(
-        "already-exists",
-        `User ${hardcodedEmail} already exists in Auth. Clean up manually or change hardcoded details.`
-      );
-    } catch (error: any) {
-      if (error.code === "auth/user-not-found") {
-        functions.logger.info(
-          `User ${hardcodedEmail} not found, proceeding with creation.`
-        );
-      } else if (error.code === "already-exists") {
-        throw error;
-      } else {
-        functions.logger.error(
-          "Error checking for existing hardcoded user:",
-          error
-        );
-        throw new HttpsError(
-          "internal",
-          "Error checking for existing user: " + error.message
-        );
-      }
+
+        // Optional: Check if this hardcoded user already exists to prevent multiple creations
+        try {
+            await admin.auth().getUserByEmail(hardcodedEmail);
+            functions.logger.info(`User ${hardcodedEmail} already exists. Skipping creation.`);
+            const userDoc = await db.collection("users").where("email", "==", hardcodedEmail).limit(1).get();
+            if (!userDoc.empty) {
+                functions.logger.info(`Firestore document for ${hardcodedEmail} also exists.`);
+                 return { success: true, userId: userDoc.docs[0].id, message: "Hardcoded master user already exists." };
+            }
+            functions.logger.warn(`Auth user ${hardcodedEmail} exists, but Firestore profile might be missing or different.`);
+             throw new HttpsError("already-exists", `User ${hardcodedEmail} already exists in Auth. Clean up manually or change hardcoded details.`);
+        } catch (error: any) {
+            if (error.code === "auth/user-not-found") {
+                functions.logger.info(`User ${hardcodedEmail} not found, proceeding with creation.`);
+            } else if (error.code === "already-exists") {
+                 throw error;
+            } else {
+                functions.logger.error("Error checking for existing hardcoded user:", error);
+                throw new HttpsError("internal", "Error checking for existing user: " + error.message);
+            }
+        }
+
+        let newUserRecord: admin.auth.UserRecord;
+        try {
+            newUserRecord = await admin.auth().createUser({
+                email: hardcodedEmail,
+                emailVerified: true,
+                password: hardcodedPassword,
+                displayName: `${hardcodedProfileData.nombre} ${hardcodedProfileData.apellido}`.trim(),
+                disabled: false,
+            });
+            functions.logger.info("Successfully created hardcoded master user in Firebase Auth:", newUserRecord.uid);
+        } catch (error: any) {
+            functions.logger.error("Error creating hardcoded master user in Firebase Auth:", error);
+            throw new HttpsError("internal", `Hardcoded master user Auth creation failed: ${error.message}`);
+        }
+
+        const newUserId = newUserRecord.uid;
+
+        try {
+            const claimsToSet = { roles: ["master"], isActive: true };
+            await admin.auth().setCustomUserClaims(newUserId, claimsToSet);
+            functions.logger.info("Custom claims ('master') set for hardcoded user:", newUserId);
+        } catch (error: any) {
+            functions.logger.error("Error setting custom claims for hardcoded master user:", newUserId, error);
+            await admin.auth().deleteUser(newUserId).catch(delErr => functions.logger.error("Failed to cleanup hardcoded auth user after claims error", delErr));
+            throw new HttpsError("internal", `Setting hardcoded master custom claims failed: ${error.message}`);
+        }
+
+        // Construct the full UserProfile document, ensuring all required fields are present
+        const userProfileDoc: UserProfile = {
+            id: newUserId, // UID from Auth
+            ...hardcodedProfileData,
+            nombreCorto: "DCV",
+            email: hardcodedEmail,
+            fotoPerfil: "",
+            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
+            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
+            isActive: true,
+            roles: ["master"],
+            puedeTraerInvitados: "si", // Added to satisfy UserProfile type
+            fechaDeNacimiento: "", // Provide a default if not in hardcodedProfileData
+            residenciaId: null, 
+            centroCostoPorDefectoId: "",
+            telefonoMovil: "",
+            dietaId: "",
+            numeroDeRopa: "",
+            habitacion: "",
+            universidad: "",
+            carrera: "",
+            dni: "",
+            asistentePermisos: null, 
+            notificacionPreferencias: null, 
+            tieneAutenticacion: true,
+            valorCampoPersonalizado1: "",
+            valorCampoPersonalizado2: "",
+            valorCampoPersonalizado3: "",
+            // lastLogin is optional and typically updated upon login, so can be omitted here
+        };
+
+        try {
+            await db.collection("users").doc(newUserId).set(userProfileDoc);
+            functions.logger.info("Successfully created hardcoded master UserProfile in Firestore:", newUserId);
+            return { success: true, userId: newUserId, message: "Hardcoded master user created successfully. REMEMBER TO DELETE THIS FUNCTION!" };
+        } catch (error: any) {
+            functions.logger.error("Error writing hardcoded master UserProfile to Firestore:", newUserId, error);
+            await admin.auth().deleteUser(newUserId).catch(delErr => functions.logger.error("Failed to cleanup hardcoded auth user after Firestore error", delErr));
+            throw new HttpsError("internal", `Hardcoded master user Firestore write failed: ${error.message}`);
+        }
     }
-
-    let newUserId: string | null = null;
-    let claimsSet = false;
-
-    try {
-      const newUserRecord = await admin.auth().createUser({
-        email: hardcodedEmail,
-        emailVerified: true,
-        password: hardcodedPassword,
-        displayName:
-          `${hardcodedProfileData.nombre} ${hardcodedProfileData.apellido}`.trim(),
-        disabled: false,
-      });
-      newUserId = newUserRecord.uid;
-      functions.logger.info(
-        "Successfully created hardcoded master user in Firebase Auth:",
-        newUserId
-      );
-
-      // Set Custom Claims
-      const claimsToSet = { roles: ["master"], isActive: true };
-      await admin.auth().setCustomUserClaims(newUserId, claimsToSet);
-      claimsSet = true;
-      functions.logger.info(
-        "Custom claims ('master') set for hardcoded user:",
-        newUserId
-      );
-
-      // Construct the full UserProfile document, ensuring all required fields are present
-      const userProfileDoc: UserProfile = {
-        id: newUserId, // UID from Auth
-        nombre: "Daniel",
-        apellido: "Caceres",
-        nombreCorto: "DCV",
-        email: hardcodedEmail,
-        fotoPerfil: "https://comensales.app/default-profile.png", //TEMPORAL PARA PROBAR CAMPOS NULOS
-        fechaCreacion: Date.now(),
-        ultimaActualizacion: Date.now(),
-        isActive: true,
-        roles: ["master"],
-        puedeTraerInvitados: "si", // Added to satisfy UserProfile type
-        fechaDeNacimiento: "1984-06-25", // Provide a default if not in hardcodedProfileData
-        residenciaId: null, // Provide a default if not in hardcodedProfileData
-        centroCostoPorDefectoId: null,
-        telefonoMovil: "+50498022607",
-        dietaId: null,
-        numeroDeRopa: "DC",
-        habitacion: "19",
-        universidad: "UNAH",
-        carrera: "Ingenieria Electrica",
-        dni: "0801-1985-10802",
-        asistentePermisos: null,
-        notificacionPreferencias: null,
-        tieneAutenticacion: true,
-        valorCampoPersonalizado1: "Prueba de campo personalizado",
-        valorCampoPersonalizado2: "",
-        valorCampoPersonalizado3: "",
-        lastLogin: Date.now() // lastLogin is optional and typically updated upon login, so can be omitted here
-      };
-
-      await db.collection("users").doc(newUserId).set(userProfileDoc);
-      functions.logger.info(
-        "Successfully created hardcoded master UserProfile in Firestore:",
-        newUserId
-      );
-      return {
-        success: true,
-        userId: newUserId,
-        message:
-          "Hardcoded master user created successfully. REMEMBER TO DELETE THIS FUNCTION!",
-      };
-    } catch (error: any) {
-      functions.logger.error(
-        "Error during hardcoded master user creation:",
-        error
-      );
-      // Attempt rollback if user was created in Auth
-      if (newUserId) {
-        await cleanupAuthUser(newUserId, "creation failure");
-      }
-      throw new HttpsError(
-        "internal",
-        `Hardcoded master user creation failed: ${error.message}`
-      );
-    }
-  }
 );
 // --- END OF INSECURE BLOCK ---

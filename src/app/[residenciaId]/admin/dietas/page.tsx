@@ -18,9 +18,8 @@ import { Loader2, AlertCircle } from 'lucide-react';
 
 // --- Firebase Imports ---
 import { Timestamp, addDoc, collection, doc, getDoc, query, where, getDocs, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
-import withAuth from '@/components/withAuth'
 
 import { useTranslations } from '@/lib/translations'; // Path to your translations hook
 

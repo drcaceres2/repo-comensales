@@ -3,12 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
-    Timestamp, collection, 
-    doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, 
+    collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, 
     query, where, orderBy, 
     writeBatch 
 } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 
 // UI Components
@@ -112,7 +111,6 @@ const formatTimestampForInput = (timestamp: string | Date | undefined): string =
     const pad = (num: number) => num.toString().padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
-
 
 function AdminActividadesPage() {
     const params = useParams();

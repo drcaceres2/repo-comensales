@@ -1,5 +1,5 @@
 import { createContext, use } from 'react';
-import { Auth } from 'firebase/auth';
+import { Auth } from 'firebase/auth'; // Pendiente usar hook personalizado
 import { Firestore } from 'firebase/firestore';
 import { 
   UserProfile, 

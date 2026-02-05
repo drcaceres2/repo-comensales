@@ -16,7 +16,7 @@ import { format, addDays, eachDayOfInterval, isSameDay, parseISO, differenceInDa
 import { es } from 'date-fns/locale';
 // Added doc, getDoc
 import { getDocs, collection, query, where, writeBatch, doc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 // Added UserProfile, UserRole
 import {
     TiempoComida,

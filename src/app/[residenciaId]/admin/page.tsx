@@ -1,4 +1,3 @@
-// src/app/admin/residencia/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -90,7 +89,7 @@ function ResidenciaHorariosComedoresPage() {
   const router = useRouter();
   // const searchParams = useSearchParams(); // For master to potentially get residenciaId from query
   const { toast } = useToast();
-    const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
+  const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
@@ -122,7 +121,6 @@ function ResidenciaHorariosComedoresPage() {
   // ADDED: State for AlternativasTiempoComida for validation purposes
   const [alternativasParaValidacion, setAlternativasParaValidacion] = useState<AlternativaTiempoComida[]>([]);
   const [isLoadingAlternativas, setIsLoadingAlternativas] = useState<boolean>(false);
-
 
   // CentroCosto States for the current Residencia
   const [centrosCostoResidencia, setCentrosCostoResidencia] = useState<CentroCosto[]>([]);
@@ -161,7 +159,6 @@ function ResidenciaHorariosComedoresPage() {
 
   // ...
   const [timezoneWarningShown, setTimezoneWarningShown] = useState<boolean>(false); // To show warning only once
-
 
     // ... (isLoadingCentrosCostoResidencia state) ...
 
@@ -279,11 +276,10 @@ function ResidenciaHorariosComedoresPage() {
             if (profile.residenciaId) {
                 setTargetResidenciaId(profile.residenciaId);
             } else {
-                // toast({ title: "Seleccionar Residencia", description: "Como master, necesitas especificar una residencia.", variant: "default"});
+                toast({ title: "Seleccionar Residencia", description: "Como master, necesitas especificar una residencia.", variant: "default"});
                 // setIsAuthorizedForPage(false); // Or rather, show a selector or message
             }
           }
-
         } else {
           setUserProfile(null); setProfileError("Perfil de usuario no encontrado.");
           toast({ title: "Error de Perfil", description: "No se encontró tu perfil de usuario.", variant: "destructive" });

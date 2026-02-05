@@ -23,9 +23,8 @@ import {
 } from '../../../../../shared/models/types';
 import { writeClientLog } from '@/lib/utils';
 import { addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
-import withAuth from '@/components/withAuth';
 import { 
     AlertDialog, AlertDialogAction, AlertDialogCancel, 
     AlertDialogContent, AlertDialogDescription, 

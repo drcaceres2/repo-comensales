@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { onIdTokenChanged, User, IdTokenResult, ParsedToken } from 'firebase/auth';
+import { useEffect, useState, useCallback } from 'react';
+import { onIdTokenChanged, User, IdTokenResult, ParsedToken, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
 interface AuthState {
@@ -7,6 +7,7 @@ interface AuthState {
   claims: ParsedToken | null;
   loading: boolean;
   error: Error | undefined;
+  logout: () => Promise<void>;
 }
 
 export function useAuth(): AuthState {
@@ -20,18 +21,39 @@ export function useAuth(): AuthState {
       auth,
       async (currentUser) => {
         try {
-          setUser(currentUser);
+          setLoading(true);
           if (currentUser) {
+            // Usuario ha iniciado sesión o el token ha cambiado/refrescado
+            const idToken = await currentUser.getIdToken();
             const idTokenResult: IdTokenResult = await currentUser.getIdTokenResult();
+            
+            setUser(currentUser);
             setClaims(idTokenResult.claims);
+
+            // Sincronizar con el backend para crear/validar la cookie de sesión
+            await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${idToken}`,
+              },
+            });
+
           } else {
+            // Usuario ha cerrado sesión
+            setUser(null);
             setClaims(null);
+
+            // Sincronizar con el backend para destruir la cookie de sesión
+            await fetch('/api/auth/logout', {
+              method: 'POST',
+            });
           }
           setError(undefined);
         } catch (err: any) {
           console.error("Error processing auth state change:", err);
           setError(err);
           setClaims(null);
+          setUser(null);
         } finally {
           setLoading(false);
         }
@@ -51,5 +73,21 @@ export function useAuth(): AuthState {
     };
   }, []);
 
-  return { user, claims, loading, error };
+  const logout = useCallback(async () => {
+    setLoading(true);
+    try {
+      // 1. Llama a signOut del SDK de cliente de Firebase.
+      await signOut(auth);
+      // 2. onIdTokenChanged se disparará automáticamente al detectar el cambio.
+      // 3. El listener de onIdTokenChanged ejecutará la lógica de limpieza
+      //    y llamará a nuestra API de /api/auth/logout.
+    } catch (err: any) {
+      console.error("Error signing out:", err);
+      setError(err);
+      setLoading(false);
+    }
+  }, []);
+
+
+  return { user, claims, loading, error, logout };
 }

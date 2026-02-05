@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth'; 
-import { useDocumentSubscription } from '@/hooks/useFirebaseData';
-import { useCollectionSubscription } from '@/hooks/useFirebaseData';
 import { collection, doc, getDoc, getDocs, query, where, DocumentReference } from 'firebase/firestore'; 
 import { UserProfile, PermisosComidaPorGrupo, Residencia, AsistenciasUsuariosDetalle } from '../../../../../shared/models/types';
 import { useMainContext } from '../context/ElegirComidasContext';

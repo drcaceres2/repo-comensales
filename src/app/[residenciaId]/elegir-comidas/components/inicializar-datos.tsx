@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useMainContext, useResidenciaContext, useUserContext } from '../context/ElegirComidasContext'; 
-import { useCollectionSubscription } from '@/hooks/useFirebaseData';
 import {
   collection,
   doc,

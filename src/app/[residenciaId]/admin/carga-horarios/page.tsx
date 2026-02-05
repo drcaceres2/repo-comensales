@@ -1,14 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useParams } from 'next/navigation';
-import { doc, writeBatch, collection, getFirestore } from 'firebase/firestore';
+import { useState, useMemo, useEffect } from 'react';
+import { doc, writeBatch, collection, getFirestore, getDocs } from 'firebase/firestore';
 
-import { useResidenciaOperativa } from '@/hooks/useResidenciaOperativa';
-import { useFirebaseData } from '@/hooks/useFirebaseData';
-import { Comedor } from '@/../shared/models/types';
-import { HorarioSolicitudComida } from '@/../shared/models/types';
-import { TiempoComida, AlternativaTiempoComida } from '@/../shared/models/types';
+import { useAuth } from '@/hooks/useAuth';
+import { Comedor, HorarioSolicitudComida, TiempoComida, AlternativaTiempoComida } from '@/../shared/models/types';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,8 +51,8 @@ interface EnrichedTiempoComida extends Omit<RawTiempoComida, 'alternativas'> {
 }
 
 const CargaHorariosPage = () => {
-  const { residenciaId } = useParams() as { residenciaId: string };
-  const { residencia } = useResidenciaOperativa();
+  const { claims, loading: authLoading } = useAuth();
+  const residenciaId = claims?.residenciaId as string | undefined;
   const { toast } = useToast();
 
   const [file, setFile] = useState<File | null>(null);
@@ -64,9 +60,48 @@ const CargaHorariosPage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [enrichedData, setEnrichedData] = useState<EnrichedTiempoComida[]>([]);
 
-  // FASE 2: Cargar catálogos para enriquecimiento
-  const { data: comedores, loading: loadingComedores } = useFirebaseData<Comedor>(`residencias/${residenciaId}/comedores`);
-  const { data: horarios, loading: loadingHorarios } = useFirebaseData<HorarioSolicitudComida>(`residencias/${residenciaId}/horariosSolicitudComida`);
+  const [comedores, setComedores] = useState<Comedor[]>([]);
+  const [horarios, setHorarios] = useState<HorarioSolicitudComida[]>([]);
+  const [loadingComedores, setLoadingComedores] = useState(true);
+  const [loadingHorarios, setLoadingHorarios] = useState(true);
+
+  useEffect(() => {
+    const fetchCatalogs = async () => {
+      if (!residenciaId) {
+        setLoadingComedores(false);
+        setLoadingHorarios(false);
+        return;
+      }
+      try {
+        setLoadingComedores(true);
+        setLoadingHorarios(true);
+        const db = getFirestore(app);
+        
+        const comedoresRef = collection(db, `residencias/${residenciaId}/comedores`);
+        const comedoresSnapshot = await getDocs(comedoresRef);
+        const comedoresData = comedoresSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Comedor[];
+        setComedores(comedoresData);
+
+        const horariosRef = collection(db, `residencias/${residenciaId}/horariosSolicitudComida`);
+        const horariosSnapshot = await getDocs(horariosRef);
+        const horariosData = horariosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as HorarioSolicitudComida[];
+        setHorarios(horariosData);
+
+      } catch (error) {
+        console.error("Error fetching catalogs:", error);
+        toast({
+          variant: "destructive",
+          title: "Error al cargar catálogos",
+          description: "No se pudieron cargar los datos necesarios para la validación.",
+        });
+      } finally {
+        setLoadingComedores(false);
+        setLoadingHorarios(false);
+      }
+    };
+
+    fetchCatalogs();
+  }, [residenciaId, toast]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -183,7 +218,7 @@ const CargaHorariosPage = () => {
   
   // FASE 4: Ejecución Transaccional
   const handleImport = async () => {
-    if (hasErrors || enrichedData.length === 0) return;
+    if (hasErrors || enrichedData.length === 0 || !residenciaId) return;
 
     setIsUploading(true);
     const db = getFirestore(app);
@@ -231,7 +266,7 @@ const CargaHorariosPage = () => {
                 horarioSolicitudComidaId: altData.horarioSolicitudComidaId || null,
                 tiempoComidaId: tiempoComidaRef.id,
                 residenciaId: residenciaId,
-                comedorId: altData.comedorId,
+                comedorId: altData.comedorId || undefined,
                 esPrincipal: altData.esPrincipal,
                 isActive: true
             };
@@ -262,6 +297,10 @@ const CargaHorariosPage = () => {
 
   const hasErrors = useMemo(() => enrichedData.some(tc => tc.error || tc.alternativas.some(alt => alt.error)), [enrichedData]);
 
+  if (authLoading) {
+    return <div>Cargando...</div>;
+  }
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Carga Masiva de Horarios</h1>
@@ -275,8 +314,8 @@ const CargaHorariosPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex gap-4">
-          <Input type="file" accept=".json" onChange={handleFileChange} className="max-w-sm" />
-          <Button onClick={processFile} disabled={!file || isProcessing || loadingComedores || loadingHorarios}>
+          <Input type="file" accept=".json" onChange={handleFileChange} className="max-w-sm" disabled={!residenciaId} />
+          <Button onClick={processFile} disabled={!file || isProcessing || loadingComedores || loadingHorarios || !residenciaId}>
             {isProcessing ? 'Procesando...' : (loadingComedores || loadingHorarios ? 'Cargando catálogos...' : 'Procesar Archivo')}
           </Button>
         </CardContent>
