@@ -7,7 +7,7 @@ import { Cliente, PersonaNaturalHonduras, PersonaNaturalExtranjera, PersonaJurid
 import { UserProfile, UserId, ClientLogWrite } from '../../../../shared/models/types';
 import { writeClientLog } from '@/lib/utils'; 
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 
 type ClienteFormState = Partial<Cliente>;

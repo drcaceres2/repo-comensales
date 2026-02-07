@@ -11,6 +11,7 @@ import {
   UserProfile,
   LogEntry,
   LogActionType,
+  LogPayload,
   UserId,
 } from "../../shared/models/types";
 
@@ -29,6 +30,39 @@ interface UpdateUserDataPayload {
 interface DeleteUserDataPayload {
     userIdToDelete: string;
     // performedByUid is not needed here
+}
+interface CallerSecurityInfo {
+    uid: string;
+    profile?: UserProfile;
+    claims?: Record<string, any>; // Changed from admin.auth.DecodedIdToken
+    isMaster: boolean;
+    isAdmin: boolean;
+}
+async function getCallerSecurityInfo(authContext?: CallableRequest['auth']): Promise<CallerSecurityInfo> {
+    if (!authContext || !authContext.uid) {
+        throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+    const uid = authContext.uid;
+    try {
+        const [userRecord, profileDoc] = await Promise.all([
+            admin.auth().getUser(uid),
+            db.collection("users").doc(uid).get()
+        ]);
+
+        const claims = userRecord.customClaims || {};
+        const profile = profileDoc.exists ? profileDoc.data() as UserProfile : undefined;
+
+        return {
+            uid,
+            profile,
+            claims,
+            isMaster: claims.roles?.includes("master") || false,
+            isAdmin: claims.roles?.includes("admin") || false,
+        };
+    } catch (error) {
+        functions.logger.error("Error fetching caller security info for UID:", uid, error);
+        throw new HttpsError("internal", "Could not verify caller permissions.");
+    }
 }
 export const createUser = onCall(
     { 
@@ -135,7 +169,15 @@ export const createUser = onCall(
             await db.collection("users").doc(newUserId).set(userProfileDoc);
             functions.logger.info("Successfully created UserProfile in Firestore for UID:", newUserId);
 
-            await logAction("userProfile", callerInfo.uid, newUserId, { email, roles: targetUserRoles, residenciaId: targetResidenciaId });
+            await logAction(
+                { uid: callerInfo.uid, token: callerInfo.claims },
+                {
+                    action: 'USUARIO_CREADO', // Asegúrate de actualizar tu Enum
+                    targetId: newUserId,
+                    targetCollection: 'users',
+                    details: { message: "Usuario creado desde Cloud Functions" }
+                }
+            );
             return { success: true, userId: newUserId, message: "User created successfully." };
 
         } catch (error: any) {
@@ -249,7 +291,15 @@ export const updateUser = onCall(
             await db.collection("users").doc(userIdToUpdate).update(firestoreUpdateData);
             functions.logger.info("UserProfile updated in Firestore:", userIdToUpdate);
 
-            await logAction("userProfile", callerInfo.uid, userIdToUpdate, { updatedFields: Object.keys(profileData) });
+            await logAction(
+                { uid: callerInfo.uid, token: callerInfo.claims },
+                {
+                    action: 'USUARIO_ACTUALIZADO', // Asegúrate de actualizar tu Enum
+                    targetId: userIdToUpdate,
+                    targetCollection: 'users',
+                    details: { message: "Usuario actualizado desde Cloud Functions" }
+                }
+            );
             return { success: true, message: "User updated successfully." };
         } catch (error: any) {
             functions.logger.error("Error updating UserProfile in Firestore:", userIdToUpdate, error);
@@ -315,7 +365,15 @@ export const deleteUser = onCall(
                 functions.logger.info("Successfully deleted UserProfile from Firestore:", userIdToDelete);
             }
 
-            await logAction("userProfile", callerInfo.uid, userIdToDelete);
+            await logAction(
+                { uid: callerInfo.uid, token: callerInfo.claims },
+                {
+                    action: 'USUARIO_ELIMINADO', // Asegúrate de actualizar tu Enum
+                    targetId: userIdToDelete,
+                    targetCollection: 'users',
+                    details: { message: "Usuario eliminado desde Cloud Functions" }
+                }
+            );
             return { success: true, message: "User deleted successfully." };
         } catch (error: any) {
             functions.logger.error("Error deleting UserProfile from Firestore:", userIdToDelete, error);
@@ -331,62 +389,40 @@ interface LogEntryWrite extends Omit<LogEntry, "id" | "timestamp"> {
     timestamp: admin.firestore.FieldValue; // Keep this as admin.firestore.FieldValue
     // 'userId' from LogEntry will store the UID of the admin/user performing the action
 }
-interface CallerSecurityInfo {
-    uid: string;
-    profile?: UserProfile;
-    claims?: Record<string, any>; // Changed from admin.auth.DecodedIdToken
-    isMaster: boolean;
-    isAdmin: boolean;
-}
-const logAction = async (
-    actionType: LogActionType, // Use the string literals from your enum-like type
-    performedByUid: string,
-    targetUid: string | null = null,
-    details: Record<string, any> = {},
+export const logAction = async (
+  authContext: { uid: string; token?: { email?: string; [key:string]: any } } | undefined | null,
+  payload: LogPayload
 ): Promise<void> => {
-    try {
-        const logEntryData: LogEntryWrite = {
-            actionType,
-            userId: performedByUid, // 'userId' in LogEntry refers to the actor
-            timestamp: (db.constructor as any).FieldValue.serverTimestamp() as any, // Switched to db.constructor path
-            targetUid,
-            details,
-            // residenciaId: details.residenciaId || null, // If you want to log this
-        };
-        await db.collection("logs").add(logEntryData);
-        functions.logger.info(`Action logged: ${actionType} by ${performedByUid}` + (targetUid ? ` on ${targetUid}` : ""), details);
-    } catch (error) {
-        functions.logger.error("Error logging action:", error);
-    }
+  
+  // 1. Identidad: Si no hay auth, asumimos SYSTEM (ej. un cron job)
+  const actorId = authContext?.uid || 'SYSTEM';
+  const actorEmail = authContext?.token?.email || 'system@internal';
+
+  // 2. Construcción del objeto (Sin interfaces complicadas de escritura)
+  const entry = {
+    userId: actorId,
+    userEmail: actorEmail,
+    action: payload.action,
+    
+    // Mapeo inteligente de tus campos nuevos
+    targetId: payload.targetId || null,
+    targetCollection: payload.targetCollection || null,
+    residenciaId: payload.residenciaId || null, // Importante para tus filtros de seguridad
+    
+    details: payload.details || {},
+    
+    // LA CLAVE: Usar el Timestamp del servidor de Admin SDK
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    source: 'cloud-function'
+  };
+
+  try {
+    await db.collection("logs").add(entry);
+  } catch (error) {
+    console.error(`[AUDIT ERROR] Falló log para ${payload.action}`, error);
+    // No lanzamos error para no abortar la operación principal
+  }
 };
-async function getCallerSecurityInfo(authContext?: CallableRequest['auth']): Promise<CallerSecurityInfo> {
-    if (!authContext || !authContext.uid) {
-        throw new HttpsError("unauthenticated", "Authentication required.");
-    }
-    const uid = authContext.uid;
-    try {
-        const [userRecord, profileDoc] = await Promise.all([
-            admin.auth().getUser(uid),
-            db.collection("users").doc(uid).get()
-        ]);
-
-        const claims = userRecord.customClaims || {};
-        const profile = profileDoc.exists ? profileDoc.data() as UserProfile : undefined;
-
-        return {
-            uid,
-            profile,
-            claims,
-            isMaster: claims.roles?.includes("master") || false,
-            isAdmin: claims.roles?.includes("admin") || false,
-        };
-    } catch (error) {
-        functions.logger.error("Error fetching caller security info for UID:", uid, error);
-        throw new HttpsError("internal", "Could not verify caller permissions.");
-    }
-}
-
-
 
 // --- VERY INSECURE - FOR LOCAL DEVELOPMENT ONLY ---
 // --- DELETE THIS BLOCK BEFORE PRODUCTION ---
@@ -493,6 +529,15 @@ export const createHardcodedMasterUser = onCall(
         try {
             await db.collection("users").doc(newUserId).set(userProfileDoc);
             functions.logger.info("Successfully created hardcoded master UserProfile in Firestore:", newUserId);
+            await logAction(
+                { uid: userProfileDoc.id, token: {email: userProfileDoc.email} },
+                {
+                    action: 'USUARIO_CREADO', // Asegúrate de actualizar tu Enum
+                    targetId: userProfileDoc.id,
+                    targetCollection: 'users',
+                    details: { message: "Usuario creado desde Cloud Functions (hardcoded master)" }
+                }
+            );
             return { success: true, userId: newUserId, message: "Hardcoded master user created successfully. REMEMBER TO DELETE THIS FUNCTION!" };
         } catch (error: any) {
             functions.logger.error("Error writing hardcoded master UserProfile to Firestore:", newUserId, error);

@@ -1,11 +1,11 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { Timestamp, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from './firebase';
-import { UserProfile, LogActionType, ClientLogWrite, UserId, campoFechaConZonaHoraria } from '../../shared/models/types';
+import { Timestamp, collection, addDoc, serverTimestamp, WriteBatch } from 'firebase/firestore';
+import { db, auth } from './firebase';
+import { UserProfile, LogActionType, UserId, campoFechaConZonaHoraria } from '../../shared/models/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { type Toast } from "@/hooks/use-toast";
+import { type Toast } from "@/hooks/useToast";
 import timezonesDataJson from '../../shared/data/zonas_horarias_soportadas.json';
 import { ParsedToken, IdTokenResult } from "firebase/auth";
 import { getDoc, doc } from 'firebase/firestore';
@@ -80,45 +80,99 @@ export const formatTimestampForInput = (timestampValue: number | string | Date |
     }
 };
 
-export async function writeClientLog(
-  actorUserId: UserId,
-  actionType: LogActionType,
-  logDetails: Partial<Omit<ClientLogWrite, 'userId' | 'actionType' | 'timestamp'>> = {}
-): Promise<void> {
-  if (!actorUserId) {
-    console.warn("writeClientLog: actorUserId is missing.");
+// Interfaz local para los argumentos (Opcional, pero ayuda al intellisense)
+interface ClientLogOptions {
+  targetId?: string | null;
+  targetCollection?: string; // Ej: 'menus', 'dietas'
+  residenciaId?: string;     // Vital para filtrar logs por residencia después
+  details?: Record<string, any>;
+}
+
+/**
+ * Escribe un log de auditoría desde el Cliente (Frontend).
+ * Es "Fire and Forget": No bloquea la UI si falla.
+ */
+export const logClientAction = async (
+  action: LogActionType,
+  options: ClientLogOptions = {}
+): Promise<void> => {
+  const user = auth.currentUser;
+
+  // 1. Fail-safe: Si no hay usuario logueado, no intentamos escribir
+  // (Las reglas de Firestore lo bloquearían de todas formas)
+  if (!user) {
+    console.warn('[Audit] Intento de log sin usuario autenticado:', action);
     return;
   }
+
   try {
-    // Build the log data object safely, excluding undefined properties
-    const logData: Omit<ClientLogWrite, 'timestamp'> = {
-      userId: actorUserId,
-      actionType: actionType,
-      details: logDetails.details || `User ${actorUserId} performed ${actionType}.`,
+    const logData = {
+      // Identidad (Autrellenada para garantizar seguridad)
+      userId: user.uid,
+      userEmail: user.email, 
+
+      // Acción y Contexto
+      action: action,
+      targetId: options.targetId || null,
+      targetCollection: options.targetCollection || null,
+      residenciaId: options.residenciaId || null,
+      details: options.details || {},
+
+      // Metadata Técnica
+      // OJO: Usamos el serverTimestamp del CLIENT SDK (importado de 'firebase/firestore')
+      // NO el de 'firebase-admin' que usamos en functions. Son objetos diferentes.
+      timestamp: serverTimestamp(), 
+      source: 'web-client'
     };
 
-    // Conditionally add optional fields only if they have a value
-    if (logDetails.residenciaId) {
-      logData.residenciaId = logDetails.residenciaId;
-    }
-    if (logDetails.targetUid) {
-      logData.targetUid = logDetails.targetUid;
-    }
-    if (logDetails.relatedDocPath) {
-      logData.relatedDocPath = logDetails.relatedDocPath;
-    }
+    // 2. Escritura directa
+    await addDoc(collection(db, 'logs'), logData);
 
-    // Add the server timestamp before writing
-    const finalLogData = {
-      ...logData,
-      timestamp: serverTimestamp(),
-    };
-
-    await addDoc(collection(db, "logEntries"), finalLogData);
   } catch (error) {
-    console.error("Error writing client log:", error);
+    // 3. Silent Fail: Si falla el log (ej. internet lento), no rompemos la app al usuario.
+    // Solo dejamos constancia en la consola del navegador para depuración.
+    console.error('[Audit] Error escribiendo log:', error);
   }
-}
+};
+
+/**
+ * Agrega un log a un batch existente. NO ejecuta el commit.
+ * Garantiza atomicidad: Si el dato se guarda, el log se guarda.
+ */
+export const addLogToBatch = (
+  batch: WriteBatch,
+  action: LogActionType,
+  options: {
+    targetId?: string;
+    targetCollection?: string;
+    residenciaId?: string;
+    details?: Record<string, any>;
+  }
+) => {
+  const user = auth.currentUser;
+  if (!user) return; // O lanzar error si es estricto
+
+  // 1. Creamos una referencia vacía para el nuevo log
+  const logRef = doc(collection(db, 'logs'));
+
+  // 2. Preparamos la data (Idéntica a tu logClientAction)
+  const logData = {
+    userId: user.uid,
+    userEmail: user.email,
+    action: action,
+    targetId: options.targetId || null,
+    targetCollection: options.targetCollection || null,
+    residenciaId: options.residenciaId || null,
+    details: options.details || {},
+    timestamp: serverTimestamp(), // Funciona perfecto dentro de batches
+    source: 'web-client-batch'
+  };
+
+  // 3. Insertamos en el batch (Set)
+  batch.set(logRef, logData);
+};
+
+
 
 export const formatFCZHToMonthYear = (fczh: campoFechaConZonaHoraria | null | undefined): string => {
   if (!fczh || !fczh.fecha) {

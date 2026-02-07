@@ -1,22 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/useToast";
+import { useAuth } from "@/hooks/useAuth";
+import { doc, getDoc } from "firebase/firestore";
+import { UserProfile } from "../../../shared/models/types";
+import { submitFeedback } from "./actions";
+
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { auth } from "@/lib/firebase"; 
-import { useFirebaseAuth } from "@/hooks/useFirebaseAuth";
-import { doc, getDoc } from "firebase/firestore";
-import { Feedback, UserProfile } from "../../../shared/models/types";
-import { submitFeedback } from "./actions";
-import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
+
 
 export default function FeedbackPage() {
   const [feedbackText, setFeedbackText] = useState("");
-  const { user, loading, error } = useFirebaseAuth();
+  const { user, loading, error } = useAuth();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const router = useRouter();
   const { toast } = useToast();

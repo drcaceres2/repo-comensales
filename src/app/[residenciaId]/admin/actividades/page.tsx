@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/useToast";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogTrigger,
     AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Trash2, Edit, AlertCircle, CalendarIcon, XIcon } from 'lucide-react';
 
-// Types from firestore.ts
+// Types from types.ts
 import {
     Residencia,
     Actividad,
@@ -47,34 +47,7 @@ import {
     LogEntry, 
     UserId 
 } from '../../../../../shared/models/types';
-
-// Helper to create Log Entries
-async function createLogEntry(
-    actionType: LogActionType,
-    residenciaId: ResidenciaId,
-    userId: string | null, 
-    details?: string,
-    relatedDocPath?: string
-) {
-    if (!userId) {
-        console.warn("Cannot create log entry: User ID is null.");
-        return;
-    }
-    try {
-        const logEntryData: Omit<LogEntry, 'id'> = { 
-            timestamp: new Date().getTime(),
-            userId: userId,
-            residenciaId: residenciaId,
-            actionType: actionType,
-            relatedDocPath: relatedDocPath,
-            details: details,
-        };
-        console.log("Log Entry (mock):", logEntryData);
-        // await addDoc(collection(db, "logEntries"), logEntryData);
-    } catch (error) {
-        console.error("Error creating log entry:", error);
-    }
-}
+import { logClientAction } from '@/lib/utils';
 
 const getDefaultMealDefinition = (): ActividadMealDefinition => ({
     id: crypto.randomUUID(), 
@@ -332,13 +305,27 @@ function AdminActividadesPage() {
                 await updateDoc(actividadRef, dataToSave);
                 setActividades(prev => prev.map(act => act.id === editingActividad.id ? { ...act, ...dataToSave } as Actividad : act).sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
                 toast({ title: "Actividad Actualizada", description: `"${dataToSave.nombre}" ha sido actualizada.` });
-                await createLogEntry('actividad', residenciaId, authUser!.uid, `Actividad actualizada: ${dataToSave.nombre}`, actividadRef.path);
+                await logClientAction(
+                    'ACTIVIDAD_ACTUALIZADA', 
+                    {   targetId: editingActividad.id, 
+                        targetCollection: 'actividades',
+                        residenciaId: residenciaId,
+                        details: {message: `Actividad actualizada: ${dataToSave.nombre} actividadRef.path: ${actividadRef.path}`}
+                    }
+                );
             } else { // Create
                 const docRef = await addDoc(collection(db, "actividades"), { ...dataToSave });
                 const newActividad = { id: docRef.id, ...dataToSave } as Actividad;
                 setActividades(prev => [newActividad, ...prev].sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
                 toast({ title: "Actividad Creada", description: `"${dataToSave.nombre}" ha sido creada.` });
-                await createLogEntry('actividad', residenciaId, authUser!.uid, `Actividad creada: ${dataToSave.nombre}`, docRef.path);
+                await logClientAction(
+                    'ACTIVIDAD_CREADA', 
+                    {   targetId: docRef.id, 
+                        targetCollection: 'actividades',
+                        residenciaId: residenciaId,
+                        details: {message: `Actividad creada: ${dataToSave.nombre} actividadRef.path: ${docRef.path}`}
+                    }
+                );
             }
             handleCloseForm();
         } catch (error) {
@@ -358,7 +345,14 @@ function AdminActividadesPage() {
             await deleteDoc(actividadRef);
             setActividades(prev => prev.filter(act => act.id !== actividadId));
             toast({ title: "Actividad Eliminada", description: `"${actividadNombre}" ha sido eliminada.`, variant: "destructive" });
-            await createLogEntry('actividad', residenciaId, authUser!.uid, `Actividad eliminada: ${actividadNombre} (ID: ${actividadId})`, actividadRef.path);
+            await logClientAction(
+                'ACTIVIDAD_ELIMINADA', 
+                {   targetId: actividadId, 
+                    targetCollection: 'actividades',
+                    residenciaId: residenciaId,
+                    details: {message: `Actividad eliminada: ${actividadNombre} actividadRef.path: ${actividadRef.path}`}
+                }
+            );
         } catch (error) {
             console.error("Error deleting actividad:", error);
             toast({ title: "Error al Eliminar", description: `No se pudo eliminar la actividad. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });

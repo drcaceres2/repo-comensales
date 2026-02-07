@@ -3,11 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation'; // Added useRouter
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
 import { 
     Residencia, 
     TiempoComida, 
@@ -15,16 +10,21 @@ import {
     Comedor, ComedorId, 
     DayOfWeekKey, DayOfWeekMap, 
     TipoAccesoAlternativa, 
-    LogEntry, LogActionType, ClientLogWrite,
+    LogEntry, LogActionType,
     ResidenciaId, 
     HorarioSolicitudComida, HorarioSolicitudComidaId, 
     UserProfile, UserRole, 
     TipoAlternativa 
 } from '../../../../../shared/models/types';
-import { writeClientLog } from '@/lib/utils';
 import { addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from "@/hooks/useToast";
+
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { 
     AlertDialog, AlertDialogAction, AlertDialogCancel, 
     AlertDialogContent, AlertDialogDescription, 

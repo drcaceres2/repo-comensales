@@ -1,26 +1,11 @@
 import { collection, getDocs, query, where, doc, DocumentReference } from 'firebase/firestore';
+import { useDocumentSubscription, useCollectionSubscription } from '@/hooks/useDataSubscription';
 import { UserProfile, Residencia, AsistenciasUsuariosDetalle } from '../../../../../shared/models/types';
 import { db } from '@/lib/firebase';
-import { parse }from 'date-fns';
-import { fromZonedTime } from 'date-fns-tz';
-import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { useState, useEffect, useMemo } from 'react';
+import { estaDentroFechas } from '@/lib/fechasResidencia';
 
 // --- Helper Functions (from original SelectorUsuariosEC2) ---
-
-function fechaEstaEnIntervalo(
-  fecha: Date,
-  intervaloInicio: string,
-  intervaloFin: string,
-  zonaHorariaResidencia: string
-): boolean {
-  const fechaUTC = new Date(fecha.getTime());
-  const intervaloInicioD = parse(intervaloInicio, 'yyyy-MM-dd', new Date());
-  const intervaloFinD = parse(intervaloFin, 'yyyy-MM-dd', new Date());
-  const intervaloInicioUTC = fromZonedTime(startOfDay(intervaloInicioD), zonaHorariaResidencia);
-  const intervaloFinUTC = fromZonedTime(endOfDay(intervaloFinD), zonaHorariaResidencia);
-  return isWithinInterval(fechaUTC, { start: intervaloInicioUTC, end: intervaloFinUTC });
-}
 
 async function obtenerAsistidosResidentesFiltrados(
   userProfileData: UserProfile,
@@ -63,7 +48,7 @@ async function obtenerAsistidosResidentesFiltrados(
     .filter((a) => {
       if (!a.restriccionTiempo) return true;
       if (a.fechaInicio && a.fechaFin && userResidencia) {
-        return fechaEstaEnIntervalo(now, a.fechaInicio, a.fechaFin, userResidencia.zonaHoraria);
+        return estaDentroFechas(now, a.fechaInicio, a.fechaFin, userResidencia.zonaHoraria);
       }
       return false;
     })
@@ -95,7 +80,7 @@ export function useAvailableUsers(
   const userProfileRef = useMemo(() => 
     loggedUserAuth ? doc(db, 'users', loggedUserAuth.uid) as DocumentReference<UserProfile> : null
   , [loggedUserAuth]);
-  const { value: loggedUserProfile, loading: userProfileLoading, error: userProfileError } = useDocumentSubscription<UserProfile>(userProfileRef);
+  const { data: loggedUserProfile, loading: userProfileLoading, error: userProfileError } = useDocumentSubscription<UserProfile>(userProfileRef);
 
   // 2. Fetch Director's Users
   const directorUsersQuery = useMemo(() => {
@@ -108,7 +93,7 @@ export function useAvailableUsers(
     }
     return null;
   }, [loggedUserProfile, residenciaId]);
-  const { value: directorUsers, loading: directorUsersLoading, error: directorUsersError } = useCollectionSubscription<UserProfile>(directorUsersQuery);
+  const { data: directorUsers, loading: directorUsersLoading, error: directorUsersError } = useCollectionSubscription<UserProfile>(directorUsersQuery);
 
   // 3. Fetch Assistant's Users (Manual due to complexity)
   useEffect(() => {
@@ -119,7 +104,10 @@ export function useAvailableUsers(
       if (userProfileData.roles.includes('asistente') && !userProfileData.roles.includes('director')) {
         setLoading(true);
         try {
-          if (userProfileData.asistentePermisos?.gestionUsuarios && userProfileData.asistentePermisos?.usuariosAsistidos?.length > 0) {
+          const canManage = userProfileData.asistentePermisos?.gestionUsuarios;
+          const assistedUsersList = userProfileData.asistentePermisos?.usuariosAsistidos;
+
+          if (canManage && assistedUsersList && assistedUsersList.length > 0) {
             const users = await obtenerAsistidosResidentesFiltrados(userProfileData, residencia, residenciaId);
             if (userProfileData.roles.includes('residente')) {
               const selfIsIncluded = users.some(u => u.id === userProfileData.id);
@@ -176,6 +164,6 @@ export function useAvailableUsers(
     availableUsers,
     loggedUserProfile: loggedUserProfile || null,
     loading: loading || userProfileLoading,
-    error: userProfileError || directorUsersError,
+    error: (userProfileError || directorUsersError) ?? undefined,
   };
 }

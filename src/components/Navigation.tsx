@@ -3,14 +3,10 @@
 import Link from 'next/link';
 import React, { useState, useEffect, ReactNode } from 'react';
 import {
-  Sidebar,
-  SidebarTrigger,
-  SidebarContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarFooter,
-  useSidebar,
-  SidebarHeader, // Ensure SidebarHeader is imported from ./ui/sidebar
+  Sidebar, SidebarTrigger, SidebarContent,
+  SidebarMenu, SidebarMenuItem,
+  SidebarFooter, SidebarHeader,
+  useSidebar,  // Ensure SidebarHeader is imported from ./ui/sidebar
 } from './ui/sidebar';
 
 import {
@@ -21,33 +17,16 @@ import {
 } from './ui/accordion'; 
 
 import {
-  Menu,
-  Users,
-  Building,
-  Settings,
-  ListChecks,
-  CalendarDays,
-  UsersRound,
-  Bell,
-  FileText,
-  Home,
-  PlusCircle,
-  MessageSquare,
-  Loader2,
-  ShieldCheck,
-  UserCog,
-  LucideIcon,
-  Info,
-  Clock,
-  ConciergeBell,
-  Briefcase, 
-  UserSquare, 
-  Drama, 
-  Handshake, 
-  ClipboardEdit, 
-  BookCopy, 
-  UserCircle2,
-  UserPlus,
+  Menu, Users,
+  Building, Settings,
+  ListChecks, CalendarDays,
+  UsersRound, Bell, FileText,
+  Home, PlusCircle, MessageSquare,
+  Loader2, ShieldCheck, UserCog,
+  LucideIcon, Info, Clock,
+  ConciergeBell, Briefcase, UserSquare, 
+  Drama, Handshake, ClipboardEdit, 
+  BookCopy, UserCircle2, UserPlus,
 } from 'lucide-react';
 
 import {
@@ -346,6 +325,15 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           icon: Clock,
           href: rLink,
           pathTemplate: '/admin/horarios',
+          roles: ['admin'],
+          requiresResidenciaIdForHref: true,
+        },
+        {
+          id: 'adminHorariosComidaArchivo',
+          label: 'Horarios carga masiva',
+          icon: FileText,
+          href: rLink,
+          pathTemplate: '/admin/cargaHorarios',
           roles: ['admin'],
           requiresResidenciaIdForHref: true,
         },

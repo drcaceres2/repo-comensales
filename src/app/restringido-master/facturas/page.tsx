@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'; // Adjust path as needed
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; 
 import { Badge } from "@/components/ui/badge"; 
 import TimezoneSelector from "@/components/ui/TimezoneSelector"; 
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import { PlusCircle, Edit3, Trash2, Save, Ban, AlertTriangle } from 'lucide-react'; 
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'; 

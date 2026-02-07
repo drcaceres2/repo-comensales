@@ -64,7 +64,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from '@/hooks/use-toast'; // Or your preferred toast mechanism
+import { useToast } from '@/hooks/useToast'; // Or your preferred toast mechanism
 import { PlusCircle, Trash2 } from 'lucide-react'; // Example icons
 
 // Types for Firebase Function validation

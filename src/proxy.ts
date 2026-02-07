@@ -18,12 +18,17 @@ const publicRoutes = [
   '/privacidad',
   '/acceso-no-autorizado',
   '/licencia-vencida',
+  '/mi-perfil',
+  // --------------------------------------------------------------------
+  //  ADVERTENCIA: CÓDIGO PELIGROSO EN PRODUCCIÓN - SOLO PARA DESARROLLO
+  // --------------------------------------------------------------------
+  '/crear-master' // PARA DESARROLLO: Esta ruta es solo para crear el primer usuario master. Debe ser eliminada o protegida en producción.
 ];
 
 // Rutas que requieren un rol de 'master'
 const masterRoutesPrefix = ['/restringido-master', '/admin'];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Aplicar Filtro Técnico

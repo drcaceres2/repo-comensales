@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
 import {
@@ -16,7 +16,6 @@ import {
   DayOfWeekMap,
   CentroCosto,
   LogActionType,
-  ClientLogWrite, 
   UserId,
   ResidenciaId
 } from '../../../../shared/models/types';
@@ -60,7 +59,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { writeClientLog, checkAndDisplayTimezoneWarning } from "@/lib/utils";
+import { checkAndDisplayTimezoneWarning } from "@/lib/utils";
 import { useActionState } from 'react';
 import { comedorServerAction } from './comedorAction';
 import { horarioServerAction } from './horarioAction';

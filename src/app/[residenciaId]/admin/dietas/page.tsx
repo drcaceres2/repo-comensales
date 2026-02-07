@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/useToast";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, AlertCircle } from 'lucide-react';
@@ -24,37 +24,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTranslations } from '@/lib/translations'; // Path to your translations hook
 
 // --- This app types ---
-import { Dieta, Residencia, ResidenciaId, LogEntry, LogActionType, UserProfile, UserRole } from '../../../../../shared/models/types';
-
-// --- Log Helper ---
-// (createLogEntry function remains the same as in your provided code)
-async function createLogEntry(
-    actionType: LogActionType,
-    residenciaId: ResidenciaId,
-    userId: string | null,
-    details?: string,
-    relatedDocPath?: string
-) {
-    if (!userId) {
-        console.warn("Cannot create log entry: User ID is missing.");
-        return;
-    }
-    try {
-        const logEntryData: Omit<LogEntry, 'id'> = {
-            timestamp: Timestamp.now().toMillis(),
-            userId: userId,
-            residenciaId: residenciaId,
-            actionType: actionType,
-            relatedDocPath: relatedDocPath,
-            details: details,
-        };
-        // console.log("Attempting to create log entry:", logEntryData); // Keep for debugging if needed
-        await addDoc(collection(db, "logEntries"), logEntryData);
-        // console.log("Log entry created."); // Keep for debugging if needed
-    } catch (error) {
-        console.error("Error creating log entry:", error);
-    }
-}
+import { Dieta, Residencia, ResidenciaId, LogActionType, UserProfile, UserRole } from '../../../../../shared/models/types';
+import { logClientAction } from '@/lib/utils';
 
 function DietasResidenciaPage(): React.ReactElement | null {
     const params = useParams();
@@ -266,7 +237,14 @@ function DietasResidenciaPage(): React.ReactElement | null {
             const docRef = await addDoc(collection(db, "dietas"), newDietaData);
             const newDietaWithId: Dieta = { ...newDietaData, id: docRef.id };
             setDietas(prev => [...prev, newDietaWithId].sort((a,b)=>a.nombre.localeCompare(b.nombre)));
-            await createLogEntry('dieta', residenciaId, authUser?.uid || null, `Created dieta: ${newDietaWithId.nombre}`, docRef.path);
+            await logClientAction(
+                'DIETA_CREADA', 
+                {   targetId: newDietaWithId.id, 
+                    targetCollection: 'dietas',
+                    residenciaId: residenciaId,
+                    details: {message: `Created dieta: ${newDietaWithId.nombre} dietaRef.path: ${docRef.path}`}
+                }
+            );
             toast({ title: t('dietasPage.toastExitoTitle'), description: t('dietasPage.toastDietaAnadidaDescription').replace("{{dietaNombre}}", newDietaWithId.nombre) });
             handleCancelDietaForm();
         } catch (error) {
@@ -305,7 +283,14 @@ function DietasResidenciaPage(): React.ReactElement | null {
             await updateDoc(dietaRef, updatedDietaData);
             const updatedDietaInState: Dieta = { ...originalDieta, ...updatedDietaData }; // originalDieta has residenciaId and id
             setDietas(prev => prev.map(d => d.id === editingDietaId ? updatedDietaInState : d).sort((a,b)=>a.nombre.localeCompare(b.nombre)));
-            await createLogEntry('dieta', residenciaId, authUser?.uid || null, `Updated dieta: ${updatedDietaInState.nombre}`, dietaRef.path);
+            await logClientAction(
+                'DIETA_ACTUALIZADA', 
+                {   targetId: updatedDietaInState.id, 
+                    targetCollection: 'dietas',
+                    residenciaId: residenciaId,
+                    details: {message: `Updated dieta: ${updatedDietaInState.nombre} dietaRef.path: ${dietaRef.path}`}
+                }
+            );
             toast({ title: t('dietasPage.toastExitoTitle'), description: t('dietasPage.toastDietaActualizadaDescription').replace("{{dietaNombre}}", updatedDietaInState.nombre) });
             handleCancelDietaForm();
         } catch (error) {
@@ -324,7 +309,14 @@ function DietasResidenciaPage(): React.ReactElement | null {
             const dietaRef = doc(db, "dietas", dietaToToggle.id);
             await updateDoc(dietaRef, { isActive: newStatus });
             setDietas(prev => prev.map(d => d.id === dietaToToggle.id ? { ...d, isActive: newStatus } : d).sort((a,b)=>a.nombre.localeCompare(b.nombre)));
-            await createLogEntry('dieta', residenciaId, authUser?.uid || null, `${newStatus ? 'Activated' : 'Deactivated'} dieta: ${dietaToToggle.nombre}`, dietaRef.path);
+            await logClientAction(
+                'DIETA_ACTUALIZADA', 
+                {   targetId: dietaToToggle.id, 
+                    targetCollection: 'dietas',
+                    residenciaId: residenciaId,
+                    details: {message: `${newStatus ? 'Activated' : 'Deactivated'} dieta: ${dietaToToggle.nombre} dietaRef.path: ${dietaRef.path}`}
+                }
+            );
             const statusText = newStatus ? t('dietasPage.toastDietaActivadaTitle') : t('dietasPage.toastDietaDesactivadaTitle');
             toast({ 
                 title: statusText, 
@@ -361,10 +353,14 @@ function DietasResidenciaPage(): React.ReactElement | null {
                     isDefault: d.id === dietaToSetDefault.id
                 })).sort((a,b)=>a.nombre.localeCompare(b.nombre))
             );
-            await createLogEntry('dieta', residenciaId, authUser?.uid || null, `Set dieta default: ${dietaToSetDefault.nombre}`, doc(db, "dietas", dietaToSetDefault.id).path);
-            if (oldDefaultId) {
-                 await createLogEntry('dieta', residenciaId, authUser?.uid || null, `Unset old dieta default (ID: ${oldDefaultId})`, doc(db, "dietas", oldDefaultId).path);
-            }
+            await logClientAction(
+                'DIETA_ACTUALIZADA', 
+                {   targetId: dietaToSetDefault.id, 
+                    targetCollection: 'dietas',
+                    residenciaId: residenciaId,
+                    details: {title: t('dietasPage.toastExitoTitle'), description: t('dietasPage.toastDietaMarcadaDefaultDescription').replace("{{dietaNombre}}", dietaToSetDefault.nombre)}
+                }
+            );
             toast({ title: t('dietasPage.toastExitoTitle'), description: t('dietasPage.toastDietaMarcadaDefaultDescription').replace("{{dietaNombre}}", dietaToSetDefault.nombre) });
         } catch (error) {
             console.error("Error setting default dieta: ", error);
@@ -384,7 +380,14 @@ function DietasResidenciaPage(): React.ReactElement | null {
             const dietaRef = doc(db, "dietas", dietaToDelete.id);
             await deleteDoc(dietaRef);
             setDietas(prevDietas => prevDietas.filter(d => d.id !== dietaToDelete.id));
-            await createLogEntry('dieta', residenciaId, authUser?.uid || null, `Deleted dieta: ${dietaToDelete.nombre} (ID: ${dietaToDelete.id})`, dietaRef.path);
+            await logClientAction(
+                'DIETA_ELIMINADA', 
+                {   targetId: dietaToDelete.id, 
+                    targetCollection: 'dietas',
+                    residenciaId: residenciaId,
+                    details: { message: `Deleted dieta: ${dietaToDelete.nombre} (ID: ${dietaToDelete.id}) (Path: ${dietaRef.path})` }
+                }
+            );
             toast({ title: t('dietasPage.toastExitoTitle'), description: t('dietasPage.toastDietaEliminadaDescription').replace("{{dietaNombre}}", dietaToDelete.nombre) });
         } catch (error) {
             console.error("Error deleting dieta: ", error);

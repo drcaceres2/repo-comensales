@@ -558,30 +558,75 @@ export interface comensalesContabilizados {
 }
 
 // --- Registro de actividad ---
-export interface ClientLogWrite extends Omit<LogEntry, "id" | "timestamp"> {
-    timestamp: FieldValue; // Type for client-side serverTimestamp()
-}
 export type LogEntryId = string;
 export interface LogEntry {
-    id: LogEntryId;
-    timestamp: string | number; // Server will convert to ServerTimestamp, client will handle string/number shall use UTC timezone
-    userId: UserId;
-    targetUid?: UserId | null;
-    residenciaId?: ResidenciaId; 
-    actionType: LogActionType;
-    relatedDocPath?: string; 
-    details?: string | object; 
+    id: string;
+    userId: string;          // Quién lo hizo
+    userEmail?: string;      // (Opcional) Ayuda visual rápida
+    action: LogActionType;   // Qué hizo
+    // GENERALIZACIÓN: En vez de targetUid, usamos targetId y colección
+    targetId?: string | null;         // ID del objeto afectado (User, Menu, Factura)
+    targetCollection?: string | null; // 'users', 'menus', etc.
+    residenciaId?: string;   // Contexto
+    details?: Record<string, any>; // Flexible para guardar el "antes y después"
+    timestamp: any; // En lectura será un Firestore.Timestamp. 
+                    // No lo fuerces a string aquí o te pelearás con el SDK.
+    source: 'web-client' | 'cloud-function' | 'system';
 }
 export type LogActionType =
-    'cliente' | 'contrato' | 'pedido' | 'factura' | 'licencia' |
-    'userProfile' | 'residencia' | 'dieta' |
-    'horario_solicitud' | 'tiempo_comida' | 'alternativa' |
-    'semanario' | 'eleccion' | 'ausencia' |
-    'autorizacion' | 'comentario' |
-    'modo_eleccion' |
-    'actividad' |        
-    'inscripcion_invitacion' | 
-    'feedback';
+    // Clientes
+    | 'CLIENTE_CREADO' | 'CLIENTE_ACTUALIZADO' | 'CLIENTE_ELIMINADO'
+    // Contratos
+    | 'CONTRATO_CREADO' | 'CONTRATO_ACTUALIZADO' | 'CONTRATO_ELIMINADO'
+    // Pedidos
+    | 'PEDIDO_CREADO' | 'PEDIDO_ACTUALIZADO' | 'PEDIDO_ELIMINADO'
+    // Facturas
+    | 'FACTURA_CREADA' | 'FACTURA_ACTUALIZADA' | 'FACTURA_ELIMINADA'
+    // Licencias
+    | 'LICENCIA_CREADA' | 'LICENCIA_ACTUALIZADA' | 'LICENCIA_ELIMINADA'
+    // Usuarios (userProfile)
+    | 'USUARIO_CREADO' | 'USUARIO_ACTUALIZADO' | 'USUARIO_ELIMINADO' | 'USUARIO_INICIO_SESION'
+    // Residencias
+    | 'RESIDENCIA_CREADA' | 'RESIDENCIA_ACTUALIZADA' | 'RESIDENCIA_ELIMINADA'
+    // Dietas
+    | 'DIETA_CREADA' | 'DIETA_ACTUALIZADA' | 'DIETA_ELIMINADA'
+    // Comedores
+    | 'COMEDOR_CREADO' | 'COMEDOR_ACTUALIZADO' | 'COMEDOR_ELIMINADO'
+    // Horario de solicitud de comida
+    | 'HORARIO_SOLICITUD_COMIDA_CREADO' | 'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO' | 'HORARIO_SOLICITUD_COMIDA_ELIMINADO'
+    // Tiempos de comida
+    | 'TIEMPO_COMIDA_CREADO' | 'TIEMPO_COMIDA_ACTUALIZADO' | 'TIEMPO_COMIDA_ELIMINADO'
+    // Alternativas de tiempo de comida
+    | 'ALTERNATIVA_TIEMPO_COMIDA_CREADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ACTUALIZADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ELIMINADA'
+    // Semanarios
+    | 'SEMANARIO_CREADO' | 'SEMANARIO_ACTUALIZADO' | 'SEMANARIO_ELIMINADO'
+    // Elecciones
+    | 'ELECCION_CREADA' | 'ELECCION_ACTUALIZADA' | 'ELECCION_ELIMINADA'
+    // Ausencias
+    | 'AUSENCIA_CREADA' | 'AUSENCIA_ACTUALIZADA' | 'AUSENCIA_ELIMINADA'
+    // Autorizaciones
+    | 'AUTORIZACION_CREADA' | 'AUTORIZACION_ACTUALIZADA' | 'AUTORIZACION_ELIMINADA'
+    // Comentarios
+    | 'COMENTARIO_CREADO' | 'COMENTARIO_ACTUALIZADO' | 'COMENTARIO_ELIMINADO'
+    // Modo de elección
+    | 'MODO_ELECCION_CREADO' | 'MODO_ELECCION_ACTUALIZADO' | 'MODO_ELECCION_ELIMINADO'
+    // Actividades
+    | 'ACTIVIDAD_CREADA' | 'ACTIVIDAD_ACTUALIZADA' | 'ACTIVIDAD_ELIMINADA'
+    // Inscripciones a actividades
+    | 'INSCRIPCION_USUARIO_ACTIVIDAD' | 'SALIDA_USUARIO_ACTIVIDAD' | 'INVITACION_USUARIO_ACTIVIDAD'
+    // Recordatorios
+    | 'RECORDATORIO_CREADO' | 'RECORDATORIO_ACTUALIZADO' | 'RECORDATORIO_ELIMINADO'
+    // Feedback
+    | 'FEEDBACK_ENVIADO';
+export interface LogPayload {
+    action: LogActionType;
+    targetId?: string;
+    targetCollection?: string; // Opcional, pero recomendado
+    residenciaId?: string;
+    details?: Record<string, any>;
+}
+
+// --- Feedback ---
 export type FeedbackId = string; 
 export interface Feedback {
     id?: FeedbackId; 

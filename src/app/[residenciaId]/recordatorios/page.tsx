@@ -17,7 +17,7 @@ import {
     Timestamp,
     serverTimestamp
 } from 'firebase/firestore';
-import { formatTimestampForInput } from '@/lib/utils'
+import { logClientAction } from '@/lib/utils'
 
 // --- Auth Hook Import ---
 import { useAuth } from '@/hooks/useAuth';
@@ -33,7 +33,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
-import { toast } from '@/hooks/use-toast'; // Or your preferred toast mechanism
+import { toast } from '@/hooks/useToast'; // Or your preferred toast mechanism
 import { Loader2, PlusCircle, Edit, Trash2, CalendarIcon, Palette } from 'lucide-react';
 // import FullCalendar from '@fullcalendar/react'; // We will add this later
 // import dayGridPlugin from '@fullcalendar/daygrid'; // and other plugins
@@ -391,12 +391,28 @@ export default function RecordatoriosPage() {
                 // Update existing recordatorio
                 const recordatorioRef = doc(db, 'recordatorios', editingRecordatorio.id);
                 await updateDoc(recordatorioRef, recordatorioPayload);
+                await logClientAction(
+                    'RECORDATORIO_ACTUALIZADO', 
+                    {   targetId: recordatorioRef.id, 
+                        targetCollection: 'recordatorios',
+                        residenciaId: residenciaId,
+                        details: {message: `El recordatorio "${recordatorioPayload.titulo}" fue actualizado.` }
+                    }
+                );
                 toast({ title: "Recordatorio Actualizado", description: "El recordatorio ha sido actualizado correctamente." });
             } else {
                 // Create new recordatorio
                 // We'll let Firestore generate the ID by using addDoc or by creating a doc ref first
                 const newRecordatorioRef = doc(collection(db, 'recordatorios'));
                 await setDoc(newRecordatorioRef, { ...recordatorioPayload, id: newRecordatorioRef.id }); // Add the generated ID to the payload
+                await logClientAction(
+                    'RECORDATORIO_CREADO', 
+                    {   targetId: newRecordatorioRef.id, 
+                        targetCollection: 'recordatorios',
+                        residenciaId: residenciaId,
+                        details: {message: `El recordatorio "${recordatorioPayload.titulo}" fue creado.` }
+                    }
+                );
                 toast({ title: "Recordatorio Creado", description: "El nuevo recordatorio ha sido creado." });
             }
             setIsFormOpen(false);
@@ -447,6 +463,14 @@ export default function RecordatoriosPage() {
         setIsSubmitting(true); // Can reuse isSubmitting or have a specific deleting state
         try {
             await deleteDoc(doc(db, "recordatorios", recordatorioId));
+            await logClientAction(
+                'RECORDATORIO_ELIMINADO', 
+                {   targetId: recordatorioId,
+                    targetCollection: 'recordatorios',
+                    residenciaId: residenciaId,
+                    details: {message: `El recordatorio "${recordatorioToDelete.titulo}" fue eliminado.` }
+                }
+            );
             toast({ title: "Recordatorio Eliminado", description: "El recordatorio ha sido eliminado correctamente." });
             // No need to manually update state if onSnapshot is working correctly for deletions
         } catch (error) {

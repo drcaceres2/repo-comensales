@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 // UI Components
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/useToast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Loader2, AlertCircle, Home, CalendarDays, Info, CheckCircle, XCircle, UserPlus, LogOut, MailCheck, MailWarning, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
@@ -27,25 +27,7 @@ import {
     EstadoInscripcionActividad,
     UserRole // Ensure UserRole is imported
 } from '../../../../shared/models/types';
-
-// Helper to create Log Entries
-async function createLogEntry(
-    actionType: LogActionType,
-    residenciaId: ResidenciaId,
-    userId: string | null,
-    details?: string,
-    relatedDocPath?: string
-) {
-    if (!userId) return;
-    try {
-        console.log("Log Entry (Resident Activities):", { actionType, residenciaId, userId, details, relatedDocPath });
-        // Placeholder for actual log creation
-        // const logEntryData = { timestamp: serverTimestamp(), userId, residenciaId, actionType, relatedDocPath, details };
-        // await addDoc(collection(db, "logEntries"), logEntryData);
-    } catch (error) {
-        console.error("Error creating log entry:", error);
-    }
-}
+import { logClientAction } from '@/lib/utils';
 
 const formatActivityDateRange = (fechaInicio: string | Timestamp | undefined, fechaFin: string | Timestamp | undefined): string => {
     if (!fechaInicio || !fechaFin) return 'Fechas no definidas';
@@ -254,7 +236,14 @@ export default function ResidenteActividadesPage() {
             setUserInscriptionsMap(prev => new Map(prev).set(selectedActivity.id, newInscription));
             
             toast({ title: "¡Inscripción Exitosa!", description: `Te has apuntado a "${selectedActivity.nombre}".`});
-            await createLogEntry('actividad', residenciaId, currentUser.uid, `Inscrito (directo) a actividad: ${selectedActivity.nombre}`, docRef.path);
+            await logClientAction(
+                'INSCRIPCION_USUARIO_ACTIVIDAD', 
+                {   targetId: selectedActivity.id, 
+                    targetCollection: 'actividades',
+                    residenciaId: residenciaId,
+                    details: {message: `Inscrito a actividad: ${selectedActivity.nombre}`}
+                }
+            );
             setShowDetailModal(false);
         } catch (error) {
             console.error("Error signing up:", error);
@@ -306,7 +295,14 @@ export default function ResidenteActividadesPage() {
             setUserInscriptionsMap(prev => new Map(prev).set(selectedActivity.id, updatedInscription));
 
             toast({ title: accept ? "Invitación Aceptada" : "Invitación Rechazada", description: `Has ${accept ? 'aceptado' : 'rechazado'} la invitación para "${selectedActivity.nombre}".` });
-            await createLogEntry(accept ? 'inscripcion_invitacion' : 'inscripcion_invitacion', residenciaId, currentUser.uid, `Invitación ${accept ? 'aceptada' : 'rechazada'} para: ${selectedActivity.nombre}`, inscriptionRef.path);
+            await logClientAction(
+                'INVITACION_USUARIO_ACTIVIDAD', 
+                {   targetId: selectedActivity.id, 
+                    targetCollection: 'actividades',
+                    residenciaId: residenciaId,
+                    details: {message: `El usuario ${accept ? 'aceptó' : 'rechazó'} la invitación para "${selectedActivity.nombre}".`}
+                }
+            );
             setShowDetailModal(false);
         } catch (error) {
             console.error("Error responding to invitation:", error);
@@ -333,7 +329,14 @@ export default function ResidenteActividadesPage() {
             setUserInscriptionsMap(prev => new Map(prev).set(actividadId, updatedInscription));
 
             toast({ title: "Inscripción Cancelada", description: `Has cancelado tu participación en "${selectedActivity.nombre}".` });
-            await createLogEntry('actividad', residenciaId, currentUser.uid, `Inscripción cancelada para: ${selectedActivity.nombre}`, inscriptionRef.path);
+            await logClientAction(
+                'SALIDA_USUARIO_ACTIVIDAD', 
+                {   targetId: selectedActivity.id, 
+                    targetCollection: 'actividades',
+                    residenciaId: residenciaId,
+                    details: {message: `El usuario canceló su participación en "${selectedActivity.nombre}".` }
+                }
+            );
             setShowDetailModal(false); 
         } catch (error) {
             console.error("Error cancelling inscription:", error);
