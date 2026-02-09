@@ -6,6 +6,16 @@ import {
 } from "firebase-functions/v2/https";
 import * as functions from "firebase-functions/v2";
 
+// Zod schemas import
+import {
+  createUserProfileSchema,
+  updateUserProfileSchema,
+} from "../../shared/schemas/usuarios";
+import {
+  createResidenciaSchema,
+  updateResidenciaSchema,
+} from "../../shared/schemas/residencia";
+
 // Shared types import
 import {
   UserProfile,
@@ -13,28 +23,30 @@ import {
   LogActionType,
   LogPayload,
   UserId,
+  Residencia,
+  Dieta,
 } from "../../shared/models/types";
 
 // ------ User CRUD ------
 interface CreateUserDataPayload {
     email: string;
-    password?: string; // Optional for cases like inviting an existing auth user to a profile
-    profileData: Omit<UserProfile, "id" | "fechaCreacion" | "ultimaActualizacion" | "lastLogin" | "email"> & { email?: string };
-    // performedByUid is not needed here, will use context.auth.uid
+    password?: string;
+    profileData: Omit<UserProfile, "id" | "fechaCreacion" | "ultimaActualizacion" | "lastLogin" | "email">;
+    performedByUid?: string;
 }
 interface UpdateUserDataPayload {
     userIdToUpdate: string;
     profileData: Partial<Omit<UserProfile, "id" | "email" | "fechaCreacion" | "ultimaActualizacion" | "lastLogin">>;
-    // performedByUid is not needed here
+    performedByUid?: string;
 }
 interface DeleteUserDataPayload {
     userIdToDelete: string;
-    // performedByUid is not needed here
+    performedByUid?: string;
 }
 interface CallerSecurityInfo {
     uid: string;
     profile?: UserProfile;
-    claims?: Record<string, any>; // Changed from admin.auth.DecodedIdToken
+    claims?: Record<string, any>;
     isMaster: boolean;
     isAdmin: boolean;
 }
@@ -67,7 +79,7 @@ async function getCallerSecurityInfo(authContext?: CallableRequest['auth']): Pro
 export const createUser = onCall(
     { 
         region: "us-central1",
-        cors: ["http://localhost:3001", "http://127.0.0.1:3001"], // Explicitly allow client origin
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"],
         timeoutSeconds: 300,
     },
     async (request: CallableRequest<CreateUserDataPayload>) => {
@@ -76,15 +88,45 @@ export const createUser = onCall(
 
         functions.logger.info(`createUser called by: ${callerInfo.uid}`, { data });
 
+        // --- Validar estructura básica ---
         if (!data.email || !data.password || !data.profileData) {
             throw new HttpsError("invalid-argument", "Email, password, and profileData are required.");
         }
-        if (data.password.length < 6) {
-            throw new HttpsError("invalid-argument", "Password must be at least 6 characters long.");
+
+        // --- Validar con Zod ---
+        const validationResult = createUserProfileSchema.safeParse({
+            ...data.profileData,
+            email: data.email,
+        });
+
+        if (!validationResult.success) {
+            const zodErrors = validationResult.error.flatten();
+            let errorMessage = "Validation failed: ";
+            
+            if (zodErrors.fieldErrors) {
+                const fieldErrors = Object.entries(zodErrors.fieldErrors)
+                    .map(([field, messages]) => `${field}: ${messages?.[0] || 'Invalid'}`)
+                    .join("; ");
+                errorMessage += fieldErrors;
+            }
+            if (zodErrors.formErrors && zodErrors.formErrors.length > 0) {
+                errorMessage += (zodErrors.fieldErrors ? "; " : "") + zodErrors.formErrors.join("; ");
+            }
+            
+            functions.logger.warn(`Validation failed for createUser:`, errorMessage);
+            throw new HttpsError("invalid-argument", errorMessage);
         }
 
-        const { email, password, profileData } = data;
-        const targetUserRoles = profileData.roles || ["user"]; // Default role if not provided
+        // Datos validados
+        const validatedData = validationResult.data;
+        const { email, password } = data;
+        const profileData = {
+            ...validatedData,
+            // Remover email del profileData si está incluido (será manejado por Firebase Auth)
+        };
+        delete (profileData as any).email;
+
+        const targetUserRoles = profileData.roles || ["usuario"];
         const targetResidenciaId = profileData.residenciaId || null;
 
         // --- Security Checks for Creation ---
@@ -102,11 +144,9 @@ export const createUser = onCall(
                 throw new HttpsError("permission-denied", "Admin users can only create users in their own Residencia.");
             }
         }
-        // Ensure admin is not creating a master user
         if (callerInfo.isAdmin && !callerInfo.isMaster && targetUserRoles.includes("master")) {
             throw new HttpsError("permission-denied", "Admin users cannot create 'master' users.");
         }
-
 
         let newUserRecord: admin.auth.UserRecord;
         try {
@@ -115,7 +155,7 @@ export const createUser = onCall(
                 emailVerified: false,
                 password: password,
                 displayName: `${profileData.nombre || ""} ${profileData.apellido || ""}`.trim(),
-                disabled: !(profileData.isActive === undefined ? true : profileData.isActive), // Auth 'disabled' is inverse of 'isActive'
+                disabled: !(profileData.isActive ?? true),
             });
             functions.logger.info("Successfully created new user in Firebase Auth:", newUserRecord.uid);
         } catch (error: any) {
@@ -128,11 +168,10 @@ export const createUser = onCall(
 
         const newUserId = newUserRecord.uid;
 
-        // Set Custom Claims for the new user
         try {
             const claimsToSet: Record<string, any> = {
                 roles: targetUserRoles,
-                isActive: profileData.isActive === undefined ? true : profileData.isActive,
+                isActive: profileData.isActive ?? true,
             };
             if (targetResidenciaId) {
                 claimsToSet.residenciaId = targetResidenciaId;
@@ -141,28 +180,21 @@ export const createUser = onCall(
             functions.logger.info("Custom claims set for new user:", newUserId, claimsToSet);
         } catch (error: any) {
             functions.logger.error("Error setting custom claims for new user:", newUserId, error);
-            // Attempt to clean up Auth user if claims part fails
             await admin.auth().deleteUser(newUserId).catch(delErr => functions.logger.error("Failed to cleanup auth user after claims error", delErr));
             throw new HttpsError("internal", `Setting custom claims failed: ${error.message}`);
         }
 
-        // --- DIAGNOSTIC LOGGING START ---
-        functions.logger.info("Preparing UserProfile document. Checking Firestore objects...");
-        functions.logger.info(`admin.firestore type: ${typeof admin.firestore}`);
-        functions.logger.info(`admin.firestore.FieldValue type: ${typeof admin.firestore.FieldValue}`);
-        functions.logger.info(`db.constructor.FieldValue type: ${typeof (db.constructor as any).FieldValue}`);
-        // --- DIAGNOSTIC LOGGING END ---
-
-        // Prepare UserProfile document for Firestore
         const userProfileDoc: UserProfile = {
             ...profileData,
-            id: newUserId as any, // Cast to 'any'
+            id: newUserId as any,
             email: email,
-            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any, 
-            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any, 
-            isActive: profileData.isActive === undefined ? true : profileData.isActive,
-            roles: targetUserRoles, // Ensure roles are stored in Firestore as well
-            residenciaId: targetResidenciaId, 
+            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
+            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
+            isActive: profileData.isActive ?? true,
+            roles: targetUserRoles,
+            residenciaId: targetResidenciaId,
+            puedeTraerInvitados: profileData.puedeTraerInvitados || 'no',
+            notificacionPreferencias: null,
         };
 
         try {
@@ -172,7 +204,7 @@ export const createUser = onCall(
             await logAction(
                 { uid: callerInfo.uid, token: callerInfo.claims },
                 {
-                    action: 'USUARIO_CREADO', // Asegúrate de actualizar tu Enum
+                    action: 'USUARIO_CREADO',
                     targetId: newUserId,
                     targetCollection: 'users',
                     details: { message: "Usuario creado desde Cloud Functions" }
@@ -182,7 +214,6 @@ export const createUser = onCall(
 
         } catch (error: any) {
             functions.logger.error("Error writing UserProfile to Firestore:", newUserId, error);
-            // Attempt to clean up Auth user and claims if Firestore part fails
             await admin.auth().deleteUser(newUserId).catch(delErr => functions.logger.error("Failed to cleanup auth user after Firestore error", delErr));
             throw new HttpsError("internal", `Firestore write failed: ${error.message}`);
         }
@@ -191,7 +222,7 @@ export const createUser = onCall(
 export const updateUser = onCall(
     { 
         region: "us-central1",
-        cors: ["http://localhost:3001", "http://127.0.0.1:3001"] // Explicitly allow client origin
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"]
     },
     async (request: CallableRequest<UpdateUserDataPayload>) => {
         const callerInfo = await getCallerSecurityInfo(request.auth);
@@ -213,59 +244,80 @@ export const updateUser = onCall(
             throw new HttpsError("not-found", `User ${userIdToUpdate} not found in Firestore.`);
         }
         const targetUserProfile = targetUserDoc.data() as UserProfile;
-        const targetUserAuth = await admin.auth().getUser(userIdToUpdate); // Also get auth for claims
+        const targetUserAuth = await admin.auth().getUser(userIdToUpdate);
+
+        // --- Validar con Zod (schema para actualización) ---
+        const validationResult = updateUserProfileSchema.safeParse(profileData);
+
+        if (!validationResult.success) {
+            const zodErrors = validationResult.error.flatten();
+            let errorMessage = "Validation failed: ";
+            
+            if (zodErrors.fieldErrors) {
+                const fieldErrors = Object.entries(zodErrors.fieldErrors)
+                    .map(([field, messages]) => `${field}: ${messages?.[0] || 'Invalid'}`)
+                    .join("; ");
+                errorMessage += fieldErrors;
+            }
+            if (zodErrors.formErrors && zodErrors.formErrors.length > 0) {
+                errorMessage += (zodErrors.fieldErrors ? "; " : "") + zodErrors.formErrors.join("; ");
+            }
+            
+            functions.logger.warn(`Validation failed for updateUser:`, errorMessage);
+            throw new HttpsError("invalid-argument", errorMessage);
+        }
+
+        // Datos validados
+        const validatedData = validationResult.data;
 
         // --- Security Checks for Update ---
-        const canUpdate = callerInfo.isMaster || // Master can update anyone
-            (callerInfo.isAdmin && callerInfo.profile?.residenciaId === targetUserProfile.residenciaId) || // Admin can update users in their own Residencia
-            (callerInfo.uid === userIdToUpdate); // User can update themselves
+        const canUpdate = callerInfo.isMaster ||
+            (callerInfo.isAdmin && callerInfo.profile?.residenciaId === targetUserProfile.residenciaId) ||
+            (callerInfo.uid === userIdToUpdate);
 
         if (!canUpdate) {
             throw new HttpsError("permission-denied", "You do not have permission to update this user.");
         }
+
         // Prevent non-master from making another user master or changing master's roles
-        if (!callerInfo.isMaster && profileData.roles?.includes("master") && targetUserProfile.roles?.includes("master")) {
-             // Allow master to change their own roles if they are the target, otherwise deny.
+        if (!callerInfo.isMaster && validatedData.roles?.includes("master") && targetUserProfile.roles?.includes("master")) {
              if (userIdToUpdate !== callerInfo.uid || !callerInfo.isMaster) {
                 throw new HttpsError("permission-denied", "Only a master user can modify a master user's roles.");
              }
         }
-        if (!callerInfo.isMaster && profileData.roles?.includes("master") && !targetUserProfile.roles?.includes("master")) {
+        if (!callerInfo.isMaster && validatedData.roles?.includes("master") && !targetUserProfile.roles?.includes("master")) {
             throw new HttpsError("permission-denied", "You cannot make another user a master.");
         }
-        // Prevent admin from changing residenciaId of users if they are not master
-        if (callerInfo.isAdmin && !callerInfo.isMaster && profileData.residenciaId && profileData.residenciaId !== callerInfo.profile?.residenciaId) {
+
+        // Prevent admin from changing residenciaId
+        if (callerInfo.isAdmin && !callerInfo.isMaster && validatedData.residenciaId && validatedData.residenciaId !== callerInfo.profile?.residenciaId) {
             throw new HttpsError("permission-denied", "Admins can only assign users to their own Residencia.");
         }
 
-
         // Prepare Auth updates
         const authUpdates: admin.auth.UpdateRequest = {};
-        if (profileData.nombre || profileData.apellido) {
-            //const currentNombre = targetUserProfile.nombre || "";
-            //const currentApellido = targetUserProfile.apellido || "";
-            authUpdates.displayName = `${profileData.nombre || targetUserProfile.nombre || ""} ${profileData.apellido || targetUserProfile.apellido || ""}`.trim();
+        if (validatedData.nombre || validatedData.apellido) {
+            authUpdates.displayName = `${validatedData.nombre || targetUserProfile.nombre || ""} ${validatedData.apellido || targetUserProfile.apellido || ""}`.trim();
         }
-        if (profileData.isActive !== undefined) {
-            authUpdates.disabled = !profileData.isActive;
+        if (validatedData.isActive !== undefined) {
+            authUpdates.disabled = !validatedData.isActive;
         }
 
         // Prepare Custom Claims updates
-        const claimsToSet: Record<string, any> = { ...targetUserAuth.customClaims }; // Start with existing claims
+        const claimsToSet: Record<string, any> = { ...targetUserAuth.customClaims };
         let claimsChanged = false;
-        if (profileData.roles) {
-            claimsToSet.roles = profileData.roles;
+        if (validatedData.roles) {
+            claimsToSet.roles = validatedData.roles;
             claimsChanged = true;
         }
-        if (profileData.residenciaId !== undefined) { // Allow setting null or empty string
-            claimsToSet.residenciaId = profileData.residenciaId;
+        if (validatedData.residenciaId !== undefined) {
+            claimsToSet.residenciaId = validatedData.residenciaId;
             claimsChanged = true;
         }
-        if (profileData.isActive !== undefined) { // Keep isActive in claims for consistency
-            claimsToSet.isActive = profileData.isActive;
+        if (validatedData.isActive !== undefined) {
+            claimsToSet.isActive = validatedData.isActive;
             claimsChanged = true;
         }
-
 
         try {
             if (Object.keys(authUpdates).length > 0) {
@@ -282,9 +334,9 @@ export const updateUser = onCall(
         }
 
         // Prepare Firestore updates
-        const firestoreUpdateData: Omit<Partial<UserProfile>, 'ultimaActualizacion'> & { ultimaActualizacion: admin.firestore.FieldValue } = {
-            ...profileData, // profileData already Omit<...> and Partial<...>
-            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any, // Switched to db.constructor path
+        const firestoreUpdateData = {
+            ...validatedData,
+            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
         };
 
         try {
@@ -294,7 +346,7 @@ export const updateUser = onCall(
             await logAction(
                 { uid: callerInfo.uid, token: callerInfo.claims },
                 {
-                    action: 'USUARIO_ACTUALIZADO', // Asegúrate de actualizar tu Enum
+                    action: 'USUARIO_ACTUALIZADO',
                     targetId: userIdToUpdate,
                     targetCollection: 'users',
                     details: { message: "Usuario actualizado desde Cloud Functions" }
@@ -383,6 +435,259 @@ export const deleteUser = onCall(
     }
 );
 
+// ------ Residencia CRUD ------
+interface CreateResidenciaDataPayload {
+    residenciaId: string; // Custom ID for the residencia
+    profileData: Omit<Residencia, "id">;
+    performedByUid?: string;
+}
+interface UpdateResidenciaDataPayload {
+    residenciaIdToUpdate: string;
+    profileData: Partial<Omit<Residencia, "id">>;
+    performedByUid?: string;
+}
+interface DeleteResidenciaDataPayload {
+    residenciaIdToDelete: string;
+    performedByUid?: string;
+}
+export const createResidencia = onCall(
+    { 
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"],
+        timeoutSeconds: 300,
+    },
+    async (request: CallableRequest<CreateResidenciaDataPayload>) => {
+        const callerInfo = await getCallerSecurityInfo(request.auth);
+        const data = request.data;
+
+        functions.logger.info(`createResidencia called by: ${callerInfo.uid}`, { residenciaId: data.residenciaId });
+
+        // --- Validar permisos: solo master puede crear residencias ---
+        if (!callerInfo.isMaster) {
+            throw new HttpsError("permission-denied", "Only 'master' users can create residencias.");
+        }
+
+        // --- Validar estructura básica ---
+        if (!data.residenciaId || !data.profileData) {
+            throw new HttpsError("invalid-argument", "residenciaId and profileData are required.");
+        }
+
+        // --- Validar con Zod ---
+        const validationResult = createResidenciaSchema.safeParse(data.profileData);
+
+        if (!validationResult.success) {
+            const zodErrors = validationResult.error.flatten();
+            let errorMessage = "Validation failed: ";
+            
+            if (zodErrors.fieldErrors) {
+                const fieldErrors = Object.entries(zodErrors.fieldErrors)
+                    .map(([field, messages]) => `${field}: ${messages?.[0] || 'Invalid'}`)
+                    .join("; ");
+                errorMessage += fieldErrors;
+            }
+            if (zodErrors.formErrors && zodErrors.formErrors.length > 0) {
+                errorMessage += (zodErrors.fieldErrors ? "; " : "") + zodErrors.formErrors.join("; ");
+            }
+            
+            functions.logger.warn(`Validation failed for createResidencia:`, errorMessage);
+            throw new HttpsError("invalid-argument", errorMessage);
+        }
+
+        // --- Check if residencia already exists ---
+        const existingDoc = await db.collection("residencias").doc(data.residenciaId).get();
+        if (existingDoc.exists) {
+            throw new HttpsError("already-exists", `A residencia with ID '${data.residenciaId}' already exists.`);
+        }
+
+        try {
+            // Validados por Zod
+            const validatedData = validationResult.data;
+            
+            const residenciaDoc: Residencia = {
+                id: data.residenciaId,
+                ...validatedData,
+                configuracionContabilidad: validatedData.configuracionContabilidad || null,
+            };
+
+            await db.collection("residencias").doc(data.residenciaId).set(residenciaDoc);
+            functions.logger.info("Successfully created Residencia in Firestore:", data.residenciaId);
+
+            // Create default Dieta
+            try {
+                const defaultDieta: Dieta = {
+                    id: "", // Será asignado por Firestore
+                    nombre: "Normal",
+                    descripcion: "Ningún régimen especial",
+                    isDefault: true,
+                    isActive: true,
+                    residenciaId: data.residenciaId,
+                };
+                // Remove the id field before adding since it's auto-generated
+                const { id: _, ...dietaData } = defaultDieta;
+                await db.collection("dietas").add(dietaData as Omit<Dieta, 'id'>);
+                functions.logger.info("Successfully created default Dieta for Residencia:", data.residenciaId);
+            } catch (dietaError) {
+                functions.logger.error("Error creating default Dieta for Residencia:", data.residenciaId, dietaError);
+                // Don't throw - residencia was created successfully, dieta failure is secondary
+            }
+
+            await logAction(
+                { uid: callerInfo.uid, token: callerInfo.claims },
+                {
+                    action: 'RESIDENCIA_CREADA',
+                    targetId: data.residenciaId,
+                    targetCollection: 'residencias',
+                    residenciaId: data.residenciaId,
+                    details: { message: `Residencia '${validatedData.nombre}' creada desde Cloud Functions` }
+                }
+            );
+
+            return { success: true, residenciaId: data.residenciaId, message: "Residencia created successfully." };
+        } catch (error: any) {
+            functions.logger.error("Error creating Residencia in Firestore:", data.residenciaId, error);
+            throw new HttpsError("internal", `Firestore write failed: ${error.message}`);
+        }
+    }
+);
+export const updateResidencia = onCall(
+    { 
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"]
+    },
+    async (request: CallableRequest<UpdateResidenciaDataPayload>) => {
+        const callerInfo = await getCallerSecurityInfo(request.auth);
+        const data = request.data;
+        const { residenciaIdToUpdate, profileData } = data;
+
+        functions.logger.info(`updateResidencia called by: ${callerInfo.uid} for residencia: ${residenciaIdToUpdate}`, { profileData });
+
+        // --- Validar estructura básica ---
+        if (!residenciaIdToUpdate || !profileData) {
+            throw new HttpsError("invalid-argument", "residenciaIdToUpdate and profileData are required.");
+        }
+
+        if (Object.keys(profileData).length === 0) {
+            return { success: true, message: "No changes provided." };
+        }
+
+        // --- Fetch target residencia for security checks ---
+        const targetResidenciaDoc = await db.collection("residencias").doc(residenciaIdToUpdate).get();
+        if (!targetResidenciaDoc.exists) {
+            throw new HttpsError("not-found", `Residencia ${residenciaIdToUpdate} not found.`);
+        }
+
+        // --- Validar permisos ---
+        const canUpdate = callerInfo.isMaster || 
+            (callerInfo.isAdmin && callerInfo.profile?.residenciaId === residenciaIdToUpdate);
+
+        if (!canUpdate) {
+            throw new HttpsError("permission-denied", "You do not have permission to update this residencia.");
+        }
+
+        // --- Validar con Zod ---
+        const validationResult = updateResidenciaSchema.safeParse(profileData);
+
+        if (!validationResult.success) {
+            const zodErrors = validationResult.error.flatten();
+            let errorMessage = "Validation failed: ";
+            
+            if (zodErrors.fieldErrors) {
+                const fieldErrors = Object.entries(zodErrors.fieldErrors)
+                    .map(([field, messages]) => `${field}: ${messages?.[0] || 'Invalid'}`)
+                    .join("; ");
+                errorMessage += fieldErrors;
+            }
+            if (zodErrors.formErrors && zodErrors.formErrors.length > 0) {
+                errorMessage += (zodErrors.fieldErrors ? "; " : "") + zodErrors.formErrors.join("; ");
+            }
+            
+            functions.logger.warn(`Validation failed for updateResidencia:`, errorMessage);
+            throw new HttpsError("invalid-argument", errorMessage);
+        }
+
+        try {
+            // Datos validados
+            const validatedData = validationResult.data;
+
+            const firestoreUpdateData = {
+                ...validatedData,
+                ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any,
+            };
+
+            await db.collection("residencias").doc(residenciaIdToUpdate).update(firestoreUpdateData);
+            functions.logger.info("Successfully updated Residencia in Firestore:", residenciaIdToUpdate);
+
+            await logAction(
+                { uid: callerInfo.uid, token: callerInfo.claims },
+                {
+                    action: 'RESIDENCIA_ACTUALIZADA',
+                    targetId: residenciaIdToUpdate,
+                    targetCollection: 'residencias',
+                    residenciaId: residenciaIdToUpdate,
+                    details: { message: "Residencia actualizada desde Cloud Functions" }
+                }
+            );
+
+            return { success: true, message: "Residencia updated successfully." };
+        } catch (error: any) {
+            functions.logger.error("Error updating Residencia in Firestore:", residenciaIdToUpdate, error);
+            throw new HttpsError("internal", `Firestore update failed: ${error.message}`);
+        }
+    }
+);
+export const deleteResidencia = onCall(
+    { 
+        region: "us-central1",
+        cors: ["http://localhost:3001", "http://127.0.0.1:3001"]
+    },
+    async (request: CallableRequest<DeleteResidenciaDataPayload>) => {
+        const callerInfo = await getCallerSecurityInfo(request.auth);
+        const data = request.data;
+        const { residenciaIdToDelete } = data;
+
+        functions.logger.info(`deleteResidencia called by: ${callerInfo.uid} for residencia: ${residenciaIdToDelete}`);
+
+        // --- Validar estructura básica ---
+        if (!residenciaIdToDelete) {
+            throw new HttpsError("invalid-argument", "residenciaIdToDelete is required.");
+        }
+
+        // --- Fetch target residencia for security checks ---
+        const targetResidenciaDoc = await db.collection("residencias").doc(residenciaIdToDelete).get();
+        if (!targetResidenciaDoc.exists) {
+            throw new HttpsError("not-found", `Residencia ${residenciaIdToDelete} not found.`);
+        }
+
+        // --- Validar permisos: solo master puede borrar residencias ---
+        if (!callerInfo.isMaster) {
+            throw new HttpsError("permission-denied", "Only 'master' users can delete residencias.");
+        }
+
+        try {
+            // Delete the residencia document
+            await db.collection("residencias").doc(residenciaIdToDelete).delete();
+            functions.logger.info("Successfully deleted Residencia from Firestore:", residenciaIdToDelete);
+
+            // TODO: Consider cascading deletes or warnings about orphaned data (dietas, comedores, usuarios, etc.)
+            
+            await logAction(
+                { uid: callerInfo.uid, token: callerInfo.claims },
+                {
+                    action: 'RESIDENCIA_ELIMINADA',
+                    targetId: residenciaIdToDelete,
+                    targetCollection: 'residencias',
+                    residenciaId: residenciaIdToDelete,
+                    details: { message: "Residencia eliminada desde Cloud Functions" }
+                }
+            );
+
+            return { success: true, message: "Residencia deleted successfully." };
+        } catch (error: any) {
+            functions.logger.error("Error deleting Residencia from Firestore:", residenciaIdToDelete, error);
+            throw new HttpsError("internal", `Firestore deletion failed: ${error.message}`);
+        }
+    }
+);
 
 // ------ Logging ------
 interface LogEntryWrite extends Omit<LogEntry, "id" | "timestamp"> {

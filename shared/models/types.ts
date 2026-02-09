@@ -1,5 +1,3 @@
-import { FieldValue } from 'firebase/firestore';
-
 // --- Usuarios  ---
 export type UserId = string;
 export type UserRole = 'master' | 'admin' | 'director' | 'residente' | 'invitado' | 'asistente' | 'contador';
@@ -123,17 +121,6 @@ export interface alternativaRestringidaDetalle {
     requiereAprobacion: boolean;
     alternativaRestringida: AlternativaTiempoComidaId;
 }
-export interface Faltas {
-    id: string;
-    fecha: number; // Timestamp stored as number (millis) from epoch
-    residencia: ResidenciaId;
-    usuario: UserId;
-    titulo: string;
-    descripcion?: string;
-    notificada: boolean;
-    confirmada: boolean;
-    origen: string;
-}
 
 // --- Residencias y propiedades esenciales ---
 export type ResidenciaId = string;
@@ -214,7 +201,7 @@ export interface Dieta {
     residenciaId: ResidenciaId;
     nombre: string;
     descripcion?: string;
-    isDefault?: boolean; 
+    isDefault: boolean; 
     isActive: boolean;
 }
 
@@ -298,46 +285,58 @@ export interface AlternativaTiempoComidaMod {
     comedorId?: ComedorId | null;
 }
 
-// --- Elecciones de los residentes e invitados
-export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requerido' | 'contingencia' | 'contingencia_no_considerada' | 'anulada_por_cambio';
-export type OrigenEleccion = 
-    | 'semanario' 
-    | 'excepcion' // excepción que no necesitaba autorización
-    | 'excepcion_autorizada' // excepción que sí necesitaba autorización y fue concedida
-    | 'contingencia' // excepcion que no fue autorizada y quedó la contingencia
-    | 'director' 
-    | 'invitado_wizard'
-    | 'actividad'; 
-export interface Semanario {
-    id?: string; 
-    userId: UserId;
-    residenciaId: ResidenciaId;
-    elecciones: {
-        [tiempoComidaId: TiempoComidaId]: AlternativaTiempoComidaId | null;
-    };
-    ultimaActualizacion: number; // Timestamp stored as number (millis)
-}
-export interface Eleccion {
+// --------------------------------------------------------
+// 1. MODELO DE INTENCIÓN (Mutable por el usuario/reglas)
+// --------------------------------------------------------
+
+/**
+ * Excepcion: Reemplaza a 'Eleccion'.
+ * Representa la voluntad del usuario de desviarse de su Semanario.
+ * Si no existe este documento, aplica el Semanario.
+ */
+export interface Excepcion {
     id?: string;
     usuarioId: UserId;
     residenciaId: ResidenciaId;
-    fecha: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-    tiempoComidaId?: TiempoComidaId;
+    fecha: string; // YYYY-MM-DD
+    
+    // Qué tiempo de comida se altera
+    tiempoComidaId: TiempoComidaId; 
+    
+    // Tipo de desviación
+    tipo: 'cambio_alternativa' | 'cancelacion_comida' | 'cambio_dieta';
+    
+    // Payload (solo si es cambio_alternativa)
     alternativaTiempoComidaId?: AlternativaTiempoComidaId;
-    dietaId?: DietaId;
-    solicitadoAdministracion: boolean;
-    congelado: boolean; // El proceso de solicitud a la administración comenzó y ya no se pueden hacer cambios aunque no se haya hecho la solicitud
-    asistencia?: boolean | null; // null si no se sabe, true si comió, false si no llegó a comer
-    fechaSolicitudAdministracion: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-    estadoAprobacion: EstadoAprobacion;
-    origen: OrigenEleccion;
-    centroCostoId?: CentroCostoId;
-    comentario?: string;
-    processedForBilling?: boolean;
-    actividadId?: ActividadId;
-    TiempoComidaAlternativaUnicaActividadId?: TiempoComidaAlternativaUnicaActividadId;
-    tipoEleccion: 'regular' | 'actividad';
-    origenCentroCosto?: 'usuario-por-defecto' | 'comedor-por-defecto' | 'manual' | 'modificado';
+    
+    // Contexto
+    motivo?: string;
+    autorizadoPor?: UserId; // Si requería aprobación
+}
+
+/**
+ * Actividad: Evento que sobrescribe la rutina de comida.
+ * Prioridad Máxima en la cascada de decisión.
+ */
+export interface Actividad {
+    id: string;
+    residenciaId: ResidenciaId;
+    nombre: string;
+    fecha: string; // YYYY-MM-DD
+    
+    // Configuración de comida para el evento
+    tiempoComidaId: TiempoComidaId;
+    alternativaId: AlternativaTiempoComidaId; // Ej. "Barbacoa"
+    centroCostoId?: CentroCostoId; // Si la actividad tiene su propio presupuesto
+    
+    // Gestión de Asistentes (Mutex con Ausencias)
+    tipoAsistencia: 'abierta' | 'invitacion';
+    invitadosIds?: UserId[]; // Whitelist si es por invitación
+    inscritosIds: UserId[]; // La lista real de quién va
+    
+    // Ciclo de Vida
+    fechaLimiteInscripcion: number; // Timestamp
+    estadoSolicitud: 'abierta' | 'cerrada' | 'solicitada_cocina';
 }
 export type AusenciaId = string;
 export interface Ausencia {
@@ -352,20 +351,14 @@ export interface Ausencia {
     fechaCreacion: number; // Timestamp stored as number (millis) from epoch
     motivo?: string; 
 }
-export type ComentarioId = string;
-export interface Comentario {
-    id: ComentarioId;
-    usuarioId: UserId; 
-    destinatarioId?: UserId; 
+export interface Semanario {
+    id?: string; 
+    userId: UserId;
     residenciaId: ResidenciaId;
-    texto: string;
-    fechaEnvio: number; // Timestamp stored as number (millis) from epoch
-    leido: boolean;
-    archivado: boolean;
-    relacionadoA?: { 
-        coleccion: 'eleccion' | 'ausencia' | 'usuario'; 
-        documentoId: string;
+    elecciones: {
+        [tiempoComidaId: TiempoComidaId]: AlternativaTiempoComidaId | null;
     };
+    ultimaActualizacion: number; // Timestamp stored as number (millis)
 }
 export interface CeldaSemanarioDesnormalizado {
     // Información del TiempoComida base
@@ -404,6 +397,108 @@ export interface SemanarioDesnormalizado {
         };
       };
 }
+
+// --------------------------------------------------------
+// 2. MODELO DE HECHO (Inmutable / Snapshot)
+// --------------------------------------------------------
+
+/**
+ * Comensal: (Antes TicketComida).
+ * Es la unidad atómica para Cocina y Contabilidad.
+ * Se genera automáticamente al cerrar/solicitar el día.
+ */
+export interface Comensal {
+    id: string;
+    
+    // Coordenadas
+    residenciaId: ResidenciaId;
+    usuarioId: UserId;
+    fecha: string; // YYYY-MM-DD
+    
+    // Detalle del consumo (Snapshot de nombres para evitar cambios históricos)
+    tiempoComidaId: TiempoComidaId;
+    nombreTiempoComida: string; 
+    
+    alternativaId: AlternativaTiempoComidaId;
+    nombreAlternativa: string;
+    
+    // Contabilidad (CRÍTICO: Se calcula al crear el snapshot)
+    centroCostoId: CentroCostoId; 
+    
+    // Trazabilidad del origen (Priority Cascade Result)
+    origen: 'SEMANARIO' | 'EXCEPCION' | 'ACTIVIDAD' | 'INVITADO_EXTERNO';
+    referenciaOrigenId?: string; // ID de la Excepcion o Actividad
+    
+    // Estado
+    solicitadoAdministracion: boolean; // true = enviado a cocina
+    comentarioCocina?: string; // Feedback específico de este plato (ej. "carne muy hecha")
+}
+export interface Eleccion {
+    id?: string;
+    usuarioId: UserId;
+    residenciaId: ResidenciaId;
+    fecha: string; // Date stored as a string using ISO 8601 format "YYYY-MM-DD"
+    tiempoComidaId: TiempoComidaId; // Mandatory for meal planning context
+    selected: boolean; // ADDED: Represents the manual choice (true for eat, false for not eat) to override semanario.
+    alternativaTiempoComidaId?: AlternativaTiempoComidaId;
+    dietaId?: DietaId;
+    solicitadoAdministracion: boolean;
+    congelado: boolean; // El proceso de solicitud a la administración comenzó y ya no se pueden hacer cambios aunque no se haya hecho la solicitud
+    asistencia?: boolean | null; // null si no se sabe, true si comió, false si no llegó a comer
+    fechaSolicitudAdministracion: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
+    estadoAprobacion: EstadoAprobacion;
+    origen: OrigenEleccion;
+    centroCostoId?: CentroCostoId;
+    comentario?: string;
+    processedForBilling?: boolean;
+    actividadId?: ActividadId;
+    TiempoComidaAlternativaUnicaActividadId?: TiempoComidaAlternativaUnicaActividadId;
+    tipoEleccion: 'regular' | 'actividad';
+    origenCentroCosto?: 'usuario-por-defecto' | 'comedor-por-defecto' | 'manual' | 'modificado';
+}
+export interface Faltas {
+    id: string;
+    fecha: number; // Timestamp stored as number (millis) from epoch
+    residencia: ResidenciaId;
+    usuario: UserId;
+    titulo: string;
+    descripcion?: string;
+    notificada: boolean;
+    confirmada: boolean;
+    origen: string;
+}
+
+// --- Elecciones de los residentes e invitados
+export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requerido' | 'contingencia' | 'contingencia_no_considerada' | 'anulada_por_cambio';
+export type OrigenEleccion = 
+    | 'semanario' 
+    | 'excepcion' // excepción que no necesitaba autorización
+    | 'excepcion_autorizada' // excepción que sí necesitaba autorización y fue concedida
+    | 'contingencia' // excepcion que no fue autorizada y quedó la contingencia
+    | 'director' 
+    | 'invitado_wizard'
+    | 'actividad';
+
+// --------------------------------------------------------
+// 3. MÓDULOS DE SOPORTE
+// --------------------------------------------------------
+
+// --- Comentarios ---
+export type ComentarioId = string;
+export interface Comentario {
+    id: ComentarioId;
+    residenciaId: ResidenciaId;
+    autorId: UserId; // Residente que se queja/avisa
+    fechaCreacion: number;
+    
+    texto: string;
+    categoria: 'comida' | 'limpieza' | 'mantenimiento' | 'varios';
+    
+    // Estado de gestión del Director
+    estado: 'nuevo' | 'leido' | 'diferido' | 'archivado';
+    fechaDiferidoHasta?: number; // "Recuérdame esto el lunes"
+}
+
 
 // --- Solicitud a la administración ---
 export interface comensalesSolicitadosAdministracion {

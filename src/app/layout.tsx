@@ -9,8 +9,6 @@ import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import React from 'react';
 import Link from 'next/link'; // Import Link for the footer
 import { useRouter } from 'next/navigation';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 
 import { Button } from "@/components/ui/button";
@@ -32,7 +30,9 @@ function LayoutHeader() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
       console.log('User signed out successfully');
       router.push('/');
     } catch (errorMsg) {

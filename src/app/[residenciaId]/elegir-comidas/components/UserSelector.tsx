@@ -6,14 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 interface UserSelectorProps {
   availableUsers: UserProfile[];
-  selectedUser: UserProfile | null;
+  selectedUserId: string | null;
   onUserChange: (userId: string) => void;
   loading: boolean;
 }
 
 const UserSelector: React.FC<UserSelectorProps> = ({
   availableUsers,
-  selectedUser,
+  selectedUserId,
   onUserChange,
   loading,
 }) => {
@@ -26,6 +26,8 @@ const UserSelector: React.FC<UserSelectorProps> = ({
     return <div>No hay usuarios disponibles para seleccionar.</div>;
   }
 
+  // If there's only one user, we don't need a dropdown.
+  // The parent component is responsible for auto-selecting them.
   if (availableUsers.length === 1) {
     return (
       <div className="p-2">
@@ -36,7 +38,7 @@ const UserSelector: React.FC<UserSelectorProps> = ({
 
   return (
     <div className="p-2">
-        <Select value={selectedUser?.id || ""} onValueChange={onUserChange}>
+        <Select value={selectedUserId || ""} onValueChange={onUserChange}>
             <SelectTrigger className="w-[280px]">
                 <SelectValue placeholder="Seleccione un usuario" />
             </SelectTrigger>

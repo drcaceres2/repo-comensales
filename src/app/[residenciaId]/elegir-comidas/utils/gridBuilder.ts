@@ -1,191 +1,175 @@
+/**
+ * @file gridBuilder.ts
+ * @description Pure function to build the state matrix for the meal selection grid.
+ * This file implements the layered composition logic described in the Architecture Definition Document.
+ */
 import {
-  UserProfile,
   Residencia,
   Semanario,
-  SemanarioDesnormalizado,
   TiempoComida,
-  AlternativaTiempoComida,
-  HorarioSolicitudComida,
   Ausencia,
   InscripcionActividad,
-  PermisosComidaPorGrupo,
   Actividad,
-  TiempoComidaMod,
-  AlternativaTiempoComidaMod,
-  CeldaSemanarioDesnormalizado,
+  Eleccion, // Assuming this type exists in types.ts
 } from '../../../../../shared/models/types';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isSameDay } from 'date-fns';
 import { formatToDayOfWeekKey, estaDentroFechas } from '@/lib/fechasResidencia';
 
-interface BuildGridParams {
-  residencia: Residencia;
-  affectedPeriodDays: string[];
-  config: {
-    tiemposComida: TiempoComida[];
-    alternativas: AlternativaTiempoComida[];
-    horariosSolicitud: HorarioSolicitudComida[];
-  };
-  userData: {
-    userProfile: UserProfile;
-    userSemanarioData: Semanario | null;
-    ausencias: Ausencia[];
-    inscripciones: InscripcionActividad[];
-    permissions: PermisosComidaPorGrupo | null;
-  };
-  globalData: {
-    actividades: Actividad[];
-    tiemposComidaMod: TiempoComidaMod[];
-    alternativasMod: AlternativaTiempoComidaMod[];
+// --- TYPE DEFINITIONS ---
+
+/**
+ * Represents the state and metadata of a single cell in the meal grid.
+ */
+export interface CellData {
+  /** The effective state of the cell (e.g., selected, blocked). */
+  status: 'selected' | 'unselected' | 'blocked' | 'non-existent';
+  /** The layer of logic that determined the final status. */
+  source: 'weekly' | 'manual' | 'activity' | 'absence' | 'structure';
+  /** A descriptive reason, especially for 'blocked' status (e.g., 'Ausencia', 'Actividad: Salida cultural'). */
+  reason?: string;
+  /** The unique identifier of the corresponding TiempoComida configuration. */
+  tiempoComidaId: string | null;
+  /** True if a user's manual choice is overridden by a higher-priority layer (e.g., an absence). */
+  isConflicting: boolean;
+}
+
+/**
+ * The complete data structure for the grid, mapping days and meal groups to cell states.
+ * @example
+ * {
+ *   "2026-02-09": { "Desayuno": { status: 'selected', source: 'weekly', ... }, "Almuerzo": { ... } },
+ *   "2026-02-10": { ... }
+ * }
+ */
+export interface GridMatrix {
+  [day: string]: { // Format: "YYYY-MM-DD"
+    [mealGroup: string]: CellData;
   };
 }
 
-export function buildSemanarioGrid({
-  residencia,
-  affectedPeriodDays,
-  config,
-  userData,
-  globalData,
-}: BuildGridParams): SemanarioDesnormalizado {
-  const { tiemposComida, alternativas } = config;
-  const { userProfile, userSemanarioData, ausencias, inscripciones, permissions } = userData;
-  const { actividades, tiemposComidaMod, alternativasMod } = globalData;
+/**
+ * Input parameters for the grid builder function.
+ */
+interface BuildGridParams {
+  weekDays: Date[];
+  residencia: Residencia;
+  tiemposComida: TiempoComida[];
+  semanario: Semanario | null;
+  ausencias: Ausencia[];
+  actividades: Actividad[];
+  inscripciones: InscripcionActividad[];
+  elecciones: Eleccion[];
+}
 
-  const today = new Date(); // Or pass from hook if specific time is needed
-  const newSemanarioUI: SemanarioDesnormalizado = {
-    userId: userProfile.id,
-    residenciaId: residencia.id,
-    semana: format(today, 'yyyy-ww'),
-    ordenGruposComida: [],
-    tabla: {},
-  };
+// --- CORE FUNCTION ---
 
-  const mealGroupsMap = new Map<string, { nombreGrupo: string; ordenGrupo: number }>();
-  (tiemposComida || []).forEach(tc => {
-    mealGroupsMap.set(tc.nombreGrupo, { nombreGrupo: tc.nombreGrupo, ordenGrupo: tc.ordenGrupo });
-  });
-  (tiemposComidaMod || []).forEach(tcm => {
-    if (tcm.nombreGrupo && tcm.ordenGrupo) {
-      mealGroupsMap.set(tcm.nombreGrupo, { nombreGrupo: tcm.nombreGrupo, ordenGrupo: tcm.ordenGrupo });
-    }
-  });
+/**
+ * Constructs the meal planning grid based on a strict set of layered rules.
+ * This is a pure function where the output is solely dependent on its inputs.
+ *
+ * @param params - An object containing all necessary data collections for the given week and user.
+ * @returns A GridMatrix object representing the final state of the UI.
+ */
+export function buildMealGrid(params: BuildGridParams): GridMatrix {
+  const {
+    weekDays,
+    residencia,
+    tiemposComida,
+    semanario,
+    ausencias,
+    actividades,
+    inscripciones,
+    elecciones,
+  } = params;
 
-  newSemanarioUI.ordenGruposComida = Array.from(mealGroupsMap.values()).sort((a, b) => {
-    if (a.ordenGrupo < b.ordenGrupo) return -1;
-    if (a.ordenGrupo > b.ordenGrupo) return 1;
-    return a.nombreGrupo.localeCompare(b.nombreGrupo);
-  });
+  const grid: GridMatrix = {};
+  const mealGroups = [...new Set(tiemposComida.map(tc => tc.nombreGrupo))];
 
-  for (const grupoInfo of newSemanarioUI.ordenGruposComida) {
-    newSemanarioUI.tabla[grupoInfo.nombreGrupo] = {};
-  }
+  for (const day of weekDays) {
+    const dayStr = format(day, 'yyyy-MM-dd');
+    const dayOfWeekKey = formatToDayOfWeekKey(day);
+    grid[dayStr] = {};
 
-  for (const diaStr of affectedPeriodDays) {
-    const dayOfWeekKey = formatToDayOfWeekKey(parseISO(diaStr));
+    for (const group of mealGroups) {
+      // --- Layer 0: Structure ---
+      // Determine if a meal is even offered at this time.
+      const tiempoComidaConfig = tiemposComida.find(
+        tc => tc.dia === dayOfWeekKey && tc.nombreGrupo === group
+      );
 
-    for (const grupoInfo of newSemanarioUI.ordenGruposComida) {
-      const nombreGrupo = grupoInfo.nombreGrupo;
-      let celda: CeldaSemanarioDesnormalizado = {
-        tiempoComidaId: null,
-        alternativasDisponiblesId: [],
-        hayAlternativasAlteradas: false,
-        tiempoComidaModId: null,
-        alternativasModId: [],
-        nombreTiempoComida: "",
-        hayAlternativasRestringidas: false,
-        alternativasRestringidasId: [],
-        hayActividadInscrita: false,
-        actividadesInscritasId: [],
-        alternativasActividadInscritaId: [],
-        hayActividadParaInscribirse: false,
-        actividadesDisponiblesId: [],
-        hayAusencia: false,
-        ausenciaAplicableId: null,
-        eleccionSemanarioId: null,
+      if (!tiempoComidaConfig) {
+        grid[dayStr][group] = {
+          status: 'non-existent',
+          source: 'structure',
+          tiempoComidaId: null,
+          isConflicting: false,
+        };
+        continue;
+      }
+
+      let cell: CellData = {
+        status: 'unselected',
+        source: 'structure',
+        tiempoComidaId: tiempoComidaConfig.id,
+        isConflicting: false,
       };
 
-      const originalTiempoComida = (tiemposComida || []).find(
-        tc => tc.dia === dayOfWeekKey && tc.nombreGrupo === nombreGrupo
+      // --- Layer 1: Preference (Semanario) ---
+      // Apply the user's base weekly preference.
+      const semanarioHasEleccion = semanario?.elecciones[tiempoComidaConfig.id];
+      if (semanarioHasEleccion) {
+        cell.status = 'selected';
+        cell.source = 'weekly';
+      }
+
+      // --- Layer 2: Exclusion (Ausencias) ---
+      // Absences block the cell, overriding weekly preferences.
+      const ausenciaDelDia = ausencias.find(a =>
+        estaDentroFechas(dayStr, a.fechaInicio, a.fechaFin, residencia.zonaHoraria)
       );
-      celda.tiempoComidaId = originalTiempoComida ? originalTiempoComida.id : null;
-      celda.nombreTiempoComida = originalTiempoComida ? originalTiempoComida.nombre : "";
-
-      const relevantTcm = (tiemposComidaMod || []).find(
-        tcm => tcm.dia === dayOfWeekKey && tcm.nombreGrupo === nombreGrupo
-      );
-      let relevantAtcms: AlternativaTiempoComidaMod[] = [];
-      if (relevantTcm) {
-        celda.hayAlternativasAlteradas = true;
-        celda.tiempoComidaModId = relevantTcm.id;
-        if (relevantTcm.nombre) celda.nombreTiempoComida = relevantTcm.nombre;
-        relevantAtcms = (alternativasMod || []).filter(
-          altm => altm.tiempoComidaModId === relevantTcm.id
-        );
-        if (relevantAtcms.length > 0)
-          celda.alternativasModId = relevantAtcms.map(altm => altm.id);
-      } else {
-        if (!originalTiempoComida) celda.nombreTiempoComida = "No configurada";
+      if (ausenciaDelDia) {
+        cell.status = 'blocked';
+        cell.source = 'absence';
+        cell.reason = ausenciaDelDia.motivo || 'Ausencia';
       }
 
-      let currentAlternativas: AlternativaTiempoComida[] = [];
-      if (originalTiempoComida) {
-        currentAlternativas = (alternativas || [])
-          .filter(alt => alt.tiempoComidaId === originalTiempoComida.id)
-          .map(alt => ({ ...alt }));
-      };
-      if (relevantAtcms.length > 0) {
-        relevantAtcms.forEach(altm => {
-          if (altm.tipoAlteracion === 'eliminar') {
-            currentAlternativas = currentAlternativas.filter(alt => alt.id !== altm.alternativaAfectada);
-          }
-        });
-      }
-      celda.alternativasDisponiblesId = currentAlternativas.map(alt => alt.id);
-
-      if (permissions && permissions.restriccionAlternativas === true && permissions.alternativasRestringidas) {
-        const restrictedForUser = new Set(
-          (permissions.alternativasRestringidas || [])
-            .map(detail => detail.alternativaRestringida)
-        );
-        celda.alternativasRestringidasId = celda.alternativasDisponiblesId.filter(
-          availId => restrictedForUser.has(availId)
-        );
-        celda.hayAlternativasRestringidas = celda.alternativasRestringidasId.length > 0;
-      }
-
-      const ausenciaActiva = ausencias.find(a => estaDentroFechas(diaStr, a.fechaInicio, a.fechaFin, residencia.zonaHoraria));
-      if (ausenciaActiva) {
-        celda.hayAusencia = true;
-        celda.ausenciaAplicableId = ausenciaActiva.id ?? null;
-      }
-
-      const inscripcionesActivas = inscripciones.filter(i => {
+      // --- Layer 3: Imposition (Actividades) ---
+      // Mandatory activities block the cell, overriding absences and weekly preferences.
+      const inscripcionDelDia = inscripciones.find(i => {
         const actividad = actividades.find(a => a.id === i.actividadId);
-        return actividad && estaDentroFechas(diaStr, actividad.fechaInicio, actividad.fechaFin, residencia.zonaHoraria);
+        // This logic assumes an activity on a given day blocks all meals.
+        // A more granular check against meal times might be needed if activities are shorter.
+        return actividad && isSameDay(parseISO(actividad.fechaInicio), day);
       });
 
-      if (inscripcionesActivas.length > 0) {
-        celda.hayActividadInscrita = true;
-        celda.actividadesInscritasId = inscripcionesActivas.map(i => i.id);
+      if (inscripcionDelDia) {
+        const actividad = actividades.find(a => a.id === inscripcionDelDia.actividadId);
+        cell.status = 'blocked';
+        cell.source = 'activity';
+        cell.reason = `Actividad: ${actividad?.nombre || 'ver detalles'}`;
       }
+      
+      // --- Layer 4: Volition (Elecciones) ---
+      // A user's specific choice for a day.
+      const eleccionDelDia = elecciones.find(
+        e => e.fecha === dayStr && e.tiempoComidaId === tiempoComidaConfig.id
+      );
 
-      const actividadesDisponibles = actividades.filter(a => {
-        const isEnrolled = inscripciones.some(i => i.actividadId === a.id);
-        const isOpen = a.estado === 'abierta_inscripcion';
-        return !isEnrolled && isOpen && estaDentroFechas(diaStr, a.fechaInicio, a.fechaFin, residencia.zonaHoraria);
-      });
+      if (eleccionDelDia) {
+        const isBlocked = cell.status === 'blocked';
+        // If the cell is blocked, the manual choice is a conflict.
+        cell.isConflicting = isBlocked;
 
-      if (actividadesDisponibles.length > 0) {
-        celda.hayActividadParaInscribirse = true;
-        celda.actividadesDisponiblesId = actividadesDisponibles.map(a => a.id);
+        if (!isBlocked) {
+          // If not blocked, the manual choice wins over the weekly preference.
+          cell.status = eleccionDelDia.selected ? 'selected' : 'unselected';
+          cell.source = 'manual';
+        }
       }
-
-      if (originalTiempoComida && userSemanarioData && userSemanarioData.elecciones[originalTiempoComida.id]) {
-        celda.eleccionSemanarioId = userSemanarioData.elecciones[originalTiempoComida.id];
-      }
-
-      newSemanarioUI.tabla[nombreGrupo][diaStr] = celda;
+      
+      grid[dayStr][group] = cell;
     }
   }
 
-  return newSemanarioUI;
+  return grid;
 }

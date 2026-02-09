@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useCollectionSubscription } from '@/hooks/useDataSubscription'; // Tu nuevo hook
-import { Residencia, TiempoComida, AlternativaTiempoComida, HorarioSolicitudComida } from '../../../../../shared/models/types'; // Ajusta la ruta a tus types
+import { useZodCollectionSubscription } from '@/hooks/useZodCollectionSubscription';
+import { TiempoComidaSchema } from '../../../../../shared/schemas/tiempoComida';
+import { AlternativaTiempoComidaSchema } from '../../../../../shared/schemas/alternativasTiempoComida';
+import { HorarioSolicitudComidaSchema } from '../../../../../shared/schemas/horariosSolicitudComida';
 
 export function useResidenciaConfig(residenciaId: string) {
-  // 1. Definir referencias (Memorizadas para evitar re-renders infinitos)
   const tiemposQuery = useMemo(() => 
     query(
       collection(db, 'residencias', residenciaId, 'tiemposComida'), 
@@ -28,10 +29,9 @@ export function useResidenciaConfig(residenciaId: string) {
     ), 
   [residenciaId]);
 
-  // 2. Usar tus nuevos hooks de suscripción
-  const { data: tiemposComida, loading: l1, error: e1 } = useCollectionSubscription<TiempoComida>(tiemposQuery);
-  const { data: alternativas, loading: l2, error: e2 } = useCollectionSubscription<AlternativaTiempoComida>(alternativasQuery);
-  const { data: horariosSolicitud, loading: l3, error: e3 } = useCollectionSubscription<HorarioSolicitudComida>(horariosQuery);
+  const { data: tiemposComida, loading: l1, error: e1 } = useZodCollectionSubscription(TiempoComidaSchema, tiemposQuery);
+  const { data: alternativas, loading: l2, error: e2 } = useZodCollectionSubscription(AlternativaTiempoComidaSchema, alternativasQuery);
+  const { data: horariosSolicitud, loading: l3, error: e3 } = useZodCollectionSubscription(HorarioSolicitudComidaSchema, horariosQuery);
 
   return {
     config: {

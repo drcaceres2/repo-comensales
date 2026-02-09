@@ -9,6 +9,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
+import { z } from 'zod';
+import { ActividadSchema } from '../../../../../shared/schemas/actividades';
 
 // UI Components
 import { Button } from "@/components/ui/button";
@@ -49,8 +51,7 @@ import {
 } from '../../../../../shared/models/types';
 import { logClientAction } from '@/lib/utils';
 
-const getDefaultMealDefinition = (): ActividadMealDefinition => ({
-    id: crypto.randomUUID(), 
+const getDefaultMealDefinition = (): Partial<ActividadMealDefinition> => ({
     nombreTiempoComida_AlternativaUnica: '',
     nombreGrupoTiempoComida: '',
     ordenGrupoTiempoComida: 0,
@@ -62,11 +63,11 @@ const getDefaultActividad = (residenciaId: ResidenciaId, organizadorUserId: User
     residenciaId,
     nombre: '',
     descripcionGeneral: '',
-    fechaInicio: new Date().toISOString(),
-    fechaFin: new Date().toISOString(),
+    fechaInicio: new Date().toISOString().slice(0, 16),
+    fechaFin: new Date().toISOString().slice(0, 16),
     ultimoTiempoComidaAntes: undefined,
     primerTiempoComidaDespues: undefined,
-    planComidas: [getDefaultMealDefinition()], 
+    planComidas: [getDefaultMealDefinition() as ActividadMealDefinition], 
     requiereInscripcion: true,
     tipoAccesoActividad: 'abierta',
     maxParticipantes: undefined,
@@ -75,15 +76,6 @@ const getDefaultActividad = (residenciaId: ResidenciaId, organizadorUserId: User
     estado: 'borrador',
     organizadorUserId
 });
-
-// Helper to convert Firestore Timestamps to yyyy-MM-ddTHH:mm string for datetime-local input
-const formatTimestampForInput = (timestamp: string | Date | undefined): string => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    // Format: YYYY-MM-DDTHH:mm
-    const pad = (num: number) => num.toString().padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
 
 function AdminActividadesPage() {
     const params = useParams();
@@ -213,10 +205,10 @@ function AdminActividadesPage() {
 
     const handleOpenEditForm = (actividad: Actividad) => {
         setEditingActividad(actividad);
-        // Ensure Timestamps are correctly handled for form display if they are complex objects
         setCurrentActividadFormData({
             ...actividad,
-            // fechaInicio and fechaFin will be formatted for input type="datetime-local" in the form component itself
+            fechaInicio: new Date(actividad.fechaInicio).toISOString().slice(0, 16),
+            fechaFin: new Date(actividad.fechaFin).toISOString().slice(0, 16),
         });
         setShowActivityForm(true);
     };
@@ -249,7 +241,7 @@ function AdminActividadesPage() {
     const handleAddMealToPlan = () => {
         setCurrentActividadFormData(prev => ({
             ...prev,
-            planComidas: [...(prev.planComidas || []), getDefaultMealDefinition()]
+            planComidas: [...(prev.planComidas || []), getDefaultMealDefinition() as ActividadMealDefinition]
         }));
     };
 
@@ -262,48 +254,36 @@ function AdminActividadesPage() {
 
     // --- CRUD Operations ---
     const handleSubmitActividad = async () => {
-        if (!currentActividadFormData.nombre?.trim()) {
-            toast({ title: "Error de Validación", description: "El nombre de la actividad es obligatorio.", variant: "destructive" });
+        const dataToValidate = {
+            ...currentActividadFormData,
+            residenciaId: residenciaId,
+            organizadorUserId: currentActividadFormData.organizadorUserId || authUser!.uid,
+        };
+
+        const validationResult = ActividadSchema.partial().safeParse(dataToValidate);
+
+        if (!validationResult.success) {
+            const firstError = validationResult.error.errors[0];
+            toast({
+                title: "Error de Validación",
+                description: `${firstError.path.join('.')} - ${firstError.message}`,
+                variant: "destructive",
+            });
             return;
         }
-        if (!currentActividadFormData.fechaInicio || !currentActividadFormData.fechaFin) {
-            toast({ title: "Error de Validación", description: "Las fechas de inicio y fin son obligatorias.", variant: "destructive" });
-            return;
-        }
-        
-        let fechaInicio: string;
-        let fechaFin: string;
-
-        try {
-            fechaInicio = new Date(currentActividadFormData.fechaInicio).toISOString();
-            fechaFin = new Date(currentActividadFormData.fechaFin).toISOString();
-
-            if (new Date(fechaFin).getTime() < new Date(fechaInicio).getTime()) {
-                 toast({ title: "Error de Validación", description: "La fecha de fin no puede ser anterior a la fecha de inicio.", variant: "destructive" });
-                 return;
-            }
-        } catch (e) {
-            toast({ title: "Error de Fecha", description: "Formato de fecha inválido. Use el selector.", variant: "destructive" });
-            return;
-        }
-
 
         setIsSavingActividad(true);
-        const dataToSave: Partial<Actividad> = {
-            ...currentActividadFormData,
-            fechaInicio: fechaInicio,
-            fechaFin: fechaFin,
-            residenciaId: residenciaId, // Ensure residenciaId is set
-            organizadorUserId: currentActividadFormData.organizadorUserId || authUser!.uid, // Ensure organizer is set
-            // Ensure planComidas IDs are strings (they are by default with crypto.randomUUID)
-            planComidas: currentActividadFormData.planComidas?.map(meal => ({...meal, id: meal.id || crypto.randomUUID()}))
+        const dataToSave = {
+            ...validationResult.data,
+            fechaInicio: new Date(validationResult.data.fechaInicio!).toISOString(),
+            fechaFin: new Date(validationResult.data.fechaFin!).toISOString(),
         };
 
         try {
             if (editingActividad) { // Update
                 const actividadRef = doc(db, "actividades", editingActividad.id);
                 await updateDoc(actividadRef, dataToSave);
-                setActividades(prev => prev.map(act => act.id === editingActividad.id ? { ...act, ...dataToSave } as Actividad : act).sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
+                setActividades(prev => prev.map(act => act.id === editingActividad.id ? { ...act, ...dataToSave } : act).sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
                 toast({ title: "Actividad Actualizada", description: `"${dataToSave.nombre}" ha sido actualizada.` });
                 await logClientAction(
                     'ACTIVIDAD_ACTUALIZADA', 
@@ -315,7 +295,7 @@ function AdminActividadesPage() {
                 );
             } else { // Create
                 const docRef = await addDoc(collection(db, "actividades"), { ...dataToSave });
-                const newActividad = { id: docRef.id, ...dataToSave } as Actividad;
+                const newActividad = { id: docRef.id, ...dataToSave };
                 setActividades(prev => [newActividad, ...prev].sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
                 toast({ title: "Actividad Creada", description: `"${dataToSave.nombre}" ha sido creada.` });
                 await logClientAction(
@@ -489,7 +469,7 @@ function AdminActividadesPage() {
                                             <Input 
                                                 id="act-fechaInicio" 
                                                 type="datetime-local"
-                                                value={formatTimestampForInput(currentActividadFormData.fechaInicio)}
+                                                value={currentActividadFormData.fechaInicio}
                                                 onChange={(e) => handleFormInputChange('fechaInicio', e.target.value)}
                                             />
                                         </div>
@@ -498,7 +478,7 @@ function AdminActividadesPage() {
                                             <Input 
                                                 id="act-fechaFin" 
                                                 type="datetime-local"
-                                                value={formatTimestampForInput(currentActividadFormData.fechaFin)}
+                                                value={currentActividadFormData.fechaFin}
                                                 onChange={(e) => handleFormInputChange('fechaFin', e.target.value)}
                                             />
                                         </div>

@@ -61,8 +61,8 @@ import {
 } from "@/components/ui/select";
 import { checkAndDisplayTimezoneWarning } from "@/lib/utils";
 import { useActionState } from 'react';
-import { comedorServerAction } from './comedorAction';
-import { horarioServerAction } from './horarioAction';
+import { comedorServerAction, type ComedorActionState } from './comedorAction';
+import { horarioServerAction, type HorarioActionState } from './horarioAction';
 
 // Helper for new Comedor
 const getNewComedorDefaults = (residenciaId: string): Omit<Comedor, 'id'> => ({
@@ -126,27 +126,29 @@ function ResidenciaHorariosComedoresPage() {
   const [isLoadingCentrosCostoResidencia, setIsLoadingCentrosCostoResidencia] = useState<boolean>(false);
 
   // Server Action state for comedor form
-  const [comedorState, comedorFormAction, isComedorFormPending] = useActionState(comedorServerAction, { result: null, error: null, isPending: false });
+  const [comedorState, comedorFormAction, isComedorFormPending] = useActionState(comedorServerAction, { result: null, error: null } as ComedorActionState);
 
   // Server Action state for horario form
-  const [horarioState, horarioFormAction, isHorarioFormPending] = useActionState(horarioServerAction, { result: null, error: null, isPending: false });
+  const [horarioState, horarioFormAction, isHorarioFormPending] = useActionState(horarioServerAction, { result: null, error: null } as HorarioActionState);
 
   useEffect(() => {
     if (horarioState.error) {
       console.error('Error from horarioAction:', horarioState.error);
-      toast({ title: 'Error', description: (horarioState.error as Error).message || String(horarioState.error), variant: 'destructive' });
+      const errorMsg = typeof horarioState.error === 'string' ? horarioState.error : (horarioState.error as any).message || String(horarioState.error);
+      toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
     }
     if (horarioState.result) {
       toast({ title: 'Éxito', description: horarioState.result.action === 'created' ? 'Horario creado' : 'Horario actualizado' });
       setShowHorarioForm(false);
       fetchHorarios();
     }
-  }, [horarioState]);
+  }, [horarioState, toast]);
 
   useEffect(() => {
     if (comedorState.error) {
       console.error('Error from comedorAction:', comedorState.error);
-      toast({ title: 'Error', description: (comedorState.error as Error).message || String(comedorState.error), variant: 'destructive' });
+      const errorMsg = typeof comedorState.error === 'string' ? comedorState.error : (comedorState.error as any).message || String(comedorState.error);
+      toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
     }
     if (comedorState.result) {
       // On success, close form and refresh list
@@ -154,7 +156,7 @@ function ResidenciaHorariosComedoresPage() {
       setShowComedorForm(false);
       fetchComedores();
     }
-  }, [comedorState]);
+  }, [comedorState, toast]);
 
   // ...
   const [timezoneWarningShown, setTimezoneWarningShown] = useState<boolean>(false); // To show warning only once
@@ -549,6 +551,19 @@ function ResidenciaHorariosComedoresPage() {
 
       // Proceed with deletion if not used
       await deleteDoc(doc(db, 'comedores', comedorId));
+      
+      // Log the deletion
+      await writeClientLog(
+        authUser!.uid,
+        'COMEDOR_ELIMINADO',
+        {
+          residenciaId: targetResidenciaId,
+          targetId: comedorId,
+          targetCollection: 'comedores',
+          details: { message: `Comedor '${comedorName}' eliminado permanentemente` }
+        }
+      );
+      
       toast({ title: "Comedor Eliminado", description: `Comedor '${comedorName}' eliminado.` });
       fetchComedores(); 
       if (currentComedor.id === comedorId) {
@@ -639,16 +654,17 @@ function ResidenciaHorariosComedoresPage() {
         isPrimary: currentHorario.isPrimary === undefined ? false : currentHorario.isPrimary,
       };
 
-      let actionType: LogActionType = 'horario_solicitud';
+      let actionType: 'HORARIO_SOLICITUD_COMIDA_CREADO' | 'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO' = 'HORARIO_SOLICITUD_COMIDA_CREADO';
       let docIdForLog = currentHorario.id;
 
       if (isEditingHorario && currentHorario.id) {
         const horarioRef = doc(db, 'horariosSolicitudComida', currentHorario.id);
         const { id, ...dataToUpdate } = dataPayload;
         batch.update(horarioRef, dataToUpdate);
+        actionType = 'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO';
         // newPrimaryHorarioId is already currentHorario.id
       } else {
-        actionType = 'horario_solicitud';
+        actionType = 'HORARIO_SOLICITUD_COMIDA_CREADO';
         // For new horario, Firestore will generate ID. We add it to batch and get ref.
         // To get the ID for logging and for newPrimaryHorarioId if it's primary,
         // we must commit the batch partially or create this one doc outside the batch first if it's primary
@@ -667,7 +683,7 @@ function ResidenciaHorariosComedoresPage() {
         ? horarios.map(h => h.id === currentHorario.id ? { ...h, ...dataPayload } : h)
         : [...horarios, { ...dataPayload, id: newPrimaryHorarioId! }]; // Simulate adding new
 
-      if (currentHorario.isPrimary || actionType === 'horario_solicitud' || previousPrimaryHorarioIdToUpdate) {
+      if (currentHorario.isPrimary || actionType === 'HORARIO_SOLICITUD_COMIDA_CREADO' || previousPrimaryHorarioIdToUpdate) {
           // Re-evaluate primaries after this potential change
           let finalHorariosToCheck = tempHorariosAfterSave;
           if(previousPrimaryHorarioIdToUpdate){ // if an old primary was demoted
@@ -709,8 +725,8 @@ function ResidenciaHorariosComedoresPage() {
       await batch.commit();
 
       toast({
-        title: actionType === 'horario_solicitud' ? "Horario Creado" : "Horario Actualizado",
-        description: `Horario '${currentHorario.nombre}' ${actionType === 'horario_solicitud' ? 'creado' : 'actualizado'} con éxito.`,
+        title: actionType === 'HORARIO_SOLICITUD_COMIDA_CREADO' ? "Horario Creado" : "Horario Actualizado",
+        description: `Horario '${currentHorario.nombre}' ${actionType === 'HORARIO_SOLICITUD_COMIDA_CREADO' ? 'creado' : 'actualizado'} con éxito.`,
       });
 
       // Logging
@@ -719,18 +735,21 @@ function ResidenciaHorariosComedoresPage() {
         actionType,
         {
           residenciaId: targetResidenciaId,
-          details: `Horario '${currentHorario.nombre}' (ID: ${docIdForLog}) ${actionType === 'horario_solicitud' ? 'creado' : 'actualizado'} por ${authUser.email}. Día: ${DayOfWeekMap[currentHorario.dia]}, Hora: ${currentHorario.horaSolicitud}, Primario: ${currentHorario.isPrimary ? 'Sí':'No'}.` +
-                   (previousPrimaryHorarioIdToUpdate ? ` Horario anterior primario (ID: ${previousPrimaryHorarioIdToUpdate}) fue desmarcado.` : '')
+          targetId: docIdForLog,
+          targetCollection: 'horariosSolicitudComida',
+          details: { message: `Horario '${currentHorario.nombre}' ${actionType === 'HORARIO_SOLICITUD_COMIDA_CREADO' ? 'creado' : 'actualizado'}. Día: ${DayOfWeekMap[currentHorario.dia]}, Hora: ${currentHorario.horaSolicitud}` }
         }
       );
       if (previousPrimaryHorarioIdToUpdate) { // Log demotion of old primary if it happened
           const oldPrimaryDetails = horarios.find(h=>h.id === previousPrimaryHorarioIdToUpdate);
           await writeClientLog(
             authUser.uid,
-            'horario_solicitud', // Still an update
+            'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO',
             {
               residenciaId: targetResidenciaId,
-              details: `Horario '${oldPrimaryDetails?.nombre || 'N/A'}' (ID: ${previousPrimaryHorarioIdToUpdate}) desmarcado como primario automáticamente debido a nuevo primario para ${DayOfWeekMap[currentHorario.dia]}. Acción por ${authUser.email}.`
+              targetId: previousPrimaryHorarioIdToUpdate,
+              targetCollection: 'horariosSolicitudComida',
+              details: { message: `Horario '${oldPrimaryDetails?.nombre || 'N/A'}' desmarcado como primario automáticamente` }
             }
           );
       }
@@ -780,10 +799,12 @@ function ResidenciaHorariosComedoresPage() {
         });
         await writeClientLog(
             authUser!.uid, // Assumes authUser is not null here due to canEdit check
-            'horario_solicitud', // Or a more specific 'horario_solicitud_deactivated' if you add it
+            'HORARIO_SOLICITUD_COMIDA_ELIMINADO',
             {
                 residenciaId: targetResidenciaId,
-                details: `Horario '${horarioName}' (ID: ${horarioId}) desactivado (soft delete) por ${authUser!.email}. Alternativas inactivas asociadas: ${asociadasAlternativas.length}.`
+                targetId: horarioId,
+                targetCollection: 'horariosSolicitudComida',
+                details: { message: `Horario '${horarioName}' desactivado (soft delete)` }
             }
         );
       } else {
@@ -792,10 +813,12 @@ function ResidenciaHorariosComedoresPage() {
         toast({ title: "Horario Eliminado", description: `Horario '${horarioName}' eliminado permanentemente.` });
         await writeClientLog(
             authUser!.uid,
-            'horario_solicitud',
+            'HORARIO_SOLICITUD_COMIDA_ELIMINADO',
             {
                 residenciaId: targetResidenciaId,
-                details: `Horario '${horarioName}' (ID: ${horarioId}) eliminado permanentemente por ${authUser!.email}. No tenía alternativas asociadas.`
+                targetId: horarioId,
+                targetCollection: 'horariosSolicitudComida',
+                details: { message: `Horario '${horarioName}' eliminado permanentemente` }
             }
         );
       }
@@ -1004,6 +1027,7 @@ function ResidenciaHorariosComedoresPage() {
                     <input type="hidden" name="isEditing" value={isEditingComedor ? 'true' : 'false'} />
                     <input type="hidden" name="id" value={currentComedor.id || ''} />
                     <input type="hidden" name="residenciaId" value={targetResidenciaId || ''} />
+                    <input type="hidden" name="actorUserId" value={authUser?.uid || ''} />
                     <Button type="submit" disabled={formLoadingComedor || isComedorFormPending}>
                       {isComedorFormPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       {isEditingComedor ? 'Guardar Cambios' : 'Crear Comedor'}
