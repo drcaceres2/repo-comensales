@@ -3,11 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation'; // Added useRouter
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
 import { 
     Residencia, 
     TiempoComida, 
@@ -15,17 +10,21 @@ import {
     Comedor, ComedorId, 
     DayOfWeekKey, DayOfWeekMap, 
     TipoAccesoAlternativa, 
-    LogEntry, LogActionType, ClientLogWrite,
+    LogEntry, LogActionType,
     ResidenciaId, 
     HorarioSolicitudComida, HorarioSolicitudComidaId, 
     UserProfile, UserRole, 
     TipoAlternativa 
-} from '@/../../shared/models/types';
-import { writeClientLog } from '@/lib/utils';
+} from '../../../../../shared/models/types';
 import { addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import withAuth from '@/components/withAuth';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from "@/hooks/useToast";
+
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { 
     AlertDialog, AlertDialogAction, AlertDialogCancel, 
     AlertDialogContent, AlertDialogDescription, 
@@ -264,7 +263,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const { toast } = useToast();
 
     // --- Auth & Profile State ---
-    const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+    const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
     const [adminUserProfile, setAdminUserProfile] = useState<UserProfile | null>(null);
     const [adminProfileLoading, setAdminProfileLoading] = useState<boolean>(true);
     const [adminProfileError, setAdminProfileError] = useState<string | null>(null);
@@ -414,7 +413,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             const [residenciaSnap, tiemposSnap, alternativasSnap, comedoresSnap, horariosSnap] = await Promise.all([
                 getDoc(doc(db, "residencias", residenciaId)),
                 getDocs(query(collection(db, "tiemposComida"), where("residenciaId", "==", residenciaId))),
-                getDocs(query(collection(db, "alternativas"), where("residenciaId", "==", residenciaId))),
+                getDocs(query(collection(db, "alternativasTiempoComida"), where("residenciaId", "==", residenciaId))),
                 getDocs(query(collection(db, "comedores"), where("residenciaId", "==", residenciaId))),
                 getDocs(query(collection(db, "horariosSolicitudComida"), where("residenciaId", "==", residenciaId), where("isActive", "==", true))) // Fetch only active horarios
             ]);
@@ -740,9 +739,10 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         if (tipoSeleccionado !== 'ayuno' && (!alternativeFormData.ventanaFin || !/^\d\d:\d\d$/.test(alternativeFormData.ventanaFin))) { toast({ title: "Error", description: "Ventana Fin es requerida (HH:MM).", variant: "destructive" }); return; }
         if (tipoSeleccionado === 'comedor' && !alternativeFormData.comedorId) { toast({ title: "Error", description: "Comedor Específico es requerido para tipo 'Comedor'.", variant: "destructive" }); return; }
         if (tiempo.aplicacionOrdinaria && !alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Hoario de Solicitud es requerido para tiempos de comida ordinarios.", variant: "destructive" }); return; }
-        // tipoAcceso defaults if not set for non-ayuno, so validation might not be needed unless specific logic required
         
         setIsSavingAlternativa(true);
+
+        const esPrincipalNuevo = alternativeFormData.esPrincipal ?? false;
 
         // Prepare data - Enforce ayuno rules
         const isAyuno = tipoSeleccionado === 'ayuno';
@@ -754,41 +754,62 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             nombre: alternativeFormData.nombre!.trim(),
             tipo: tipoSeleccionado!,
             tipoAcceso: isAyuno ? 'abierto' : (alternativeFormData.tipoAcceso || 'abierto'),
-            requiereAprobacion: isAyuno ? false : (alternativeFormData.tipoAcceso === 'autorizado'),
+            requiereAprobacion: isAyuno ? false : (alternativeFormData.requiereAprobacion ?? false),
             ventanaInicio: isAyuno ? '00:00' : alternativeFormData.ventanaInicio!,
             ventanaFin: isAyuno ? '00:00' : alternativeFormData.ventanaFin!,
             horarioSolicitudComidaId: tiempo.aplicacionOrdinaria ? alternativeFormData.horarioSolicitudComidaId! : ( alternativeFormData.horarioSolicitudComidaId ?? null ),
             isActive: true, // Default to active
             iniciaDiaAnterior: isAyuno ? false : (alternativeFormData.iniciaDiaAnterior ?? false),
             terminaDiaSiguiente: isAyuno ? false : (alternativeFormData.terminaDiaSiguiente ?? false),
-            esPrincipal: alternativeFormData.esPrincipal ?? false, // Assuming you added this field
+            esPrincipal: esPrincipalNuevo,
         };
 
         // Conditionally add comedorId only if tipo is 'comedor'
         if (tipoSeleccionado === 'comedor' && alternativeFormData.comedorId) {
             nuevaAlternativaData.comedorId = alternativeFormData.comedorId;
-        } else if (isAyuno) {
-             // Optionally set to null for ayuno if you prefer null over undefined for some reason,
-             // but omitting is cleaner if the field is truly not applicable.
-             // If you want to explicitly set null for ayuno, use:
-             // nuevaAlternativaData.comedorId = null;
-             // Otherwise, just let it be omitted if not added in the 'comedor' check above.
         }
-         // For 'paraLlevar' and other non-'comedor' types, comedorId will be omitted.
 
 
         try {
-            const docRef = await addDoc(collection(db, "alternativas"), nuevaAlternativaData);
-            const newAlternativaWithId: AlternativaTiempoComida = { 
-                id: docRef.id, 
+            const batch = writeBatch(db);
+
+            // If the new one is principal, find and demote the old principal alternatives.
+            if (esPrincipalNuevo) {
+                const otrasAlternativasPrincipales = alternativas.filter(alt => alt.tiempoComidaId === addingAlternativaTo && alt.esPrincipal);
+                otrasAlternativasPrincipales.forEach(altVieja => {
+                    const altRef = doc(db, "alternativasTiempoComida", altVieja.id);
+                    batch.update(altRef, { esPrincipal: false });
+                });
+            }
+
+            // Create the new alternativa document
+            const newDocRef = doc(collection(db, "alternativasTiempoComida"));
+            batch.set(newDocRef, nuevaAlternativaData);
+
+            await batch.commit();
+
+            await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `Created alternativa: ${nuevaAlternativaData.nombre}`, newDocRef.path);
+
+            // --- Update Local State Atomically ---
+            let updatedAlternativas = [...alternativas];
+            // 1. Demote old principals in local state
+            if (esPrincipalNuevo) {
+                updatedAlternativas = updatedAlternativas.map(alt =>
+                    (alt.tiempoComidaId === addingAlternativaTo && alt.esPrincipal)
+                        ? { ...alt, esPrincipal: false }
+                        : alt
+                );
+            }
+            // 2. Add the new alternativa with its generated ID
+            const newAlternativaWithId: AlternativaTiempoComida = {
+                id: newDocRef.id,
                 ...nuevaAlternativaData,
-                // Ensure comedorId is included even if it was omitted in the data sent to Firestore,
-                // but set to undefined locally if it wasn't applicable.
                 comedorId: (tipoSeleccionado === 'comedor' && alternativeFormData.comedorId) ? alternativeFormData.comedorId : undefined
             };
-            await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `Created alternativa: ${nuevaAlternativaData.nombre}`, docRef.path);
+            updatedAlternativas.push(newAlternativaWithId);
 
-            setAlternativas(prev => [...prev, newAlternativaWithId].sort((a,b) => a.nombre.localeCompare(b.nombre)));
+            setAlternativas(updatedAlternativas.sort((a, b) => a.nombre.localeCompare(b.nombre)));
+            
             handleCancelAlternativaForm();
             toast({ title: "Éxito", description: `Alternativa \"${nuevaAlternativaData.nombre}\" añadida.` });
         } catch (error) {
@@ -811,7 +832,8 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         if (tiempo.aplicacionOrdinaria && !alternativeFormData.horarioSolicitudComidaId) { toast({ title: "Error", description: "Horario de Solicitud requerido.", variant: "destructive" }); return; }
 
         setIsSavingAlternativa(true);
-        const altRef = doc(db, "alternativas", editingAlternativaId);
+        const esPrincipalNuevo = alternativeFormData.esPrincipal ?? false;
+        const altRef = doc(db, "alternativasTiempoComida", editingAlternativaId);
         const originalAlt = alternativas.find(a => a.id === editingAlternativaId);
 
         const isAyuno = tipoSeleccionado === 'ayuno';
@@ -828,7 +850,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             isActive: alternativeFormData.isActive === undefined ? originalAlt?.isActive ?? true : alternativeFormData.isActive,
             iniciaDiaAnterior: isAyuno ? false : (alternativeFormData.iniciaDiaAnterior ?? false),
             terminaDiaSiguiente: isAyuno ? false : (alternativeFormData.terminaDiaSiguiente ?? false),
-            esPrincipal: alternativeFormData.esPrincipal,
+            esPrincipal: esPrincipalNuevo,
         };
 
         if (isAyuno) {
@@ -839,36 +861,56 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             updatedAlternativaDataForFirestore.comedorId = deleteField();
         }
         
-        // Clean up undefined fields that are not meant to be deleted (e.g. optional fields not being set)
-        // This loop should run on a copy that doesn't have deleteField() if you want to be very precise,
-        // but Firestore handles `undefined` values by not updating those fields.
-        // deleteField() is explicit.
-        // For this scenario, directly using updatedAlternativaDataForFirestore is fine.
-
         try {
-            await updateDoc(altRef, updatedAlternativaDataForFirestore);
+            const batch = writeBatch(db);
+
+            // If the edited one is now principal, find and demote any others.
+            if (esPrincipalNuevo) {
+                const otrasAlternativasPrincipales = alternativas.filter(alt =>
+                    alt.tiempoComidaId === tiempo.id &&
+                    alt.id !== editingAlternativaId && // Exclude self
+                    alt.esPrincipal
+                );
+                otrasAlternativasPrincipales.forEach(altVieja => {
+                    const viejaAltRef = doc(db, "alternativasTiempoComida", altVieja.id);
+                    batch.update(viejaAltRef, { esPrincipal: false });
+                });
+            }
+
+            // Update the currently edited alternativa
+            batch.update(altRef, updatedAlternativaDataForFirestore);
+            
+            await batch.commit();
+
             await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `Updated alternativa: ${updatedAlternativaDataForFirestore.nombre}`, altRef.path);
 
-            // Prepare data for local state update (ensure comedorId is string | undefined)
-            const updatedAlternativaDataForState: Partial<AlternativaTiempoComida> = {
-                ...updatedAlternativaDataForFirestore, // Spread the Firestore data first
-            };
+            // --- Update Local State Atomically ---
+            let updatedAlternativas = [...alternativas];
+            // 1. Demote others in local state
+            if (esPrincipalNuevo) {
+                updatedAlternativas = updatedAlternativas.map(alt =>
+                    (alt.tiempoComidaId === tiempo.id && alt.id !== editingAlternativaId && alt.esPrincipal)
+                        ? { ...alt, esPrincipal: false }
+                        : alt
+                );
+            }
             
-            // If comedorId was set to deleteField(), ensure it's undefined in the local state
+            // 2. Prepare data for the edited one
+            const updatedAlternativaDataForState: Partial<AlternativaTiempoComida> = {
+                ...updatedAlternativaDataForFirestore,
+            };
             if (updatedAlternativaDataForFirestore.comedorId && typeof updatedAlternativaDataForFirestore.comedorId !== 'string') {
-                 // We check if it's not a string because deleteField() is an object.
-                 // This means deleteField() was used.
                 updatedAlternativaDataForState.comedorId = undefined;
             }
 
-
-            setAlternativas(prev =>
-                prev.map(alt =>
-                    alt.id === editingAlternativaId
-                        ? { ...alt, ...updatedAlternativaDataForState } // Use the state-compatible data
-                        : alt
-                ).sort((a, b) => a.nombre.localeCompare(b.nombre))
+            // 3. Update the edited one in the local array
+            updatedAlternativas = updatedAlternativas.map(alt =>
+                alt.id === editingAlternativaId
+                    ? { ...alt, ...updatedAlternativaDataForState }
+                    : alt
             );
+
+            setAlternativas(updatedAlternativas.sort((a, b) => a.nombre.localeCompare(b.nombre)));
 
             handleCancelAlternativaForm();
             toast({ title: "Éxito", description: `Alternativa "${updatedAlternativaDataForFirestore.nombre}" actualizada.` });
@@ -880,7 +922,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         }
     };     
     const handleDeleteAlternativa = async (id: string, nombre: string) => {
-        const altRef = doc(db, "alternativas", id);
+        const altRef = doc(db, "alternativasTiempoComida", id);
         try {
             console.log(`Attempting delete for Alternativa ID: ${id}`);
             await deleteDoc(altRef);
@@ -910,7 +952,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         const alternativa = alternativas.find(alt => alt.id === id);
         if (!alternativa) return;
 
-        const altRef = doc(db, "alternativas", id);
+        const altRef = doc(db, "alternativasTiempoComida", id);
         try {
             console.log(`${newStatus ? 'Activating' : 'Deactivating'} alternativa ID: ${id}`);
             await updateDoc(altRef, { isActive: newStatus });

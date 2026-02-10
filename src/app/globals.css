@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import '@fullcalendar/common/main.css';
-@import '@fullcalendar/daygrid/main.css';
-
 @layer base {
   :root {
     /* --- Updated based on blueprint.md --- */
@@ -142,5 +139,4 @@
 }
 .dark .fc-event {
   background-color: hsl(var(--primary)) !important;
-  color: hsl(var(--primary-foreground)) !important;
 }

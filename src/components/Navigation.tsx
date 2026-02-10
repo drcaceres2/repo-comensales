@@ -3,14 +3,10 @@
 import Link from 'next/link';
 import React, { useState, useEffect, ReactNode } from 'react';
 import {
-  Sidebar,
-  SidebarTrigger,
-  SidebarContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarFooter,
-  useSidebar,
-  SidebarHeader, // Ensure SidebarHeader is imported from ./ui/sidebar
+  Sidebar, SidebarTrigger, SidebarContent,
+  SidebarMenu, SidebarMenuItem,
+  SidebarFooter, SidebarHeader,
+  useSidebar,  // Ensure SidebarHeader is imported from ./ui/sidebar
 } from './ui/sidebar';
 
 import {
@@ -21,46 +17,27 @@ import {
 } from './ui/accordion'; 
 
 import {
-  Menu,
-  Users,
-  Building,
-  Settings,
-  ListChecks,
-  CalendarDays,
-  UsersRound,
-  Bell,
-  FileText,
-  Home,
-  PlusCircle,
-  MessageSquare,
-  Loader2,
-  ShieldCheck,
-  UserCog,
-  LucideIcon,
-  Info,
-  Clock,
-  ConciergeBell,
-  Briefcase, 
-  UserSquare, 
-  Drama, 
-  Handshake, 
-  ClipboardEdit, 
-  BookCopy, 
-  UserCircle2,
-  UserPlus,
+  Menu, Users,
+  Building, Settings,
+  ListChecks, CalendarDays,
+  UsersRound, Bell, FileText,
+  Home, PlusCircle, MessageSquare,
+  Loader2, ShieldCheck, UserCog,
+  LucideIcon, Info, Clock,
+  ConciergeBell, Briefcase, UserSquare, 
+  Drama, Handshake, ClipboardEdit, 
+  BookCopy, UserCircle2, UserPlus,
 } from 'lucide-react';
 
-// Remove imports for SheetTitle, SheetDescription, UiSheetHeader from @/components/ui/sheet
-// import {
-//   SheetTitle,
-//   SheetDescription,
-//   SheetHeader as UiSheetHeader,
-// } from '@/components/ui/sheet';
+import {
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
 
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from "firebase/firestore";
-import { UserProfile, UserRole } from '@/../../shared/models/types';
+import { UserProfile, UserRole } from '../../shared/models/types';
 
 interface NavItem {
   id: string;
@@ -351,6 +328,15 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           roles: ['admin'],
           requiresResidenciaIdForHref: true,
         },
+        {
+          id: 'adminHorariosComidaArchivo',
+          label: 'Horarios carga masiva',
+          icon: FileText,
+          href: rLink,
+          pathTemplate: '/admin/cargaHorarios',
+          roles: ['admin'],
+          requiresResidenciaIdForHref: true,
+        },
       ],
     },
 
@@ -432,7 +418,7 @@ const isItemVisible = (item: NavItem, profile: UserProfile | null): boolean => {
 };
 
 export function Navigation() {
-  const [authUser, authLoading] = useAuthState(auth);
+  const { user: authUser, loading: authLoading } = useAuth();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
   const { isMobile, setOpenMobile } = useSidebar(); 
@@ -527,7 +513,7 @@ export function Navigation() {
   if (authLoading || (!authUser && profileLoading)) {
     triggerContent = (
       <SidebarTrigger asChild>
-        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" disabled>
+        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" disabled title="Cargando menú">
           <Loader2 size={24} className="animate-spin" />
         </button>
       </SidebarTrigger>
@@ -535,7 +521,7 @@ export function Navigation() {
   } else if (authUser) {
     triggerContent = (
       <SidebarTrigger asChild>
-        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
+        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" title="Abrir menú">
           <Menu size={24} />
         </button>
       </SidebarTrigger>
@@ -546,7 +532,7 @@ export function Navigation() {
     if (unauthVisibleItems.length > 0) {
         triggerContent = (
             <SidebarTrigger asChild>
-                <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md">
+                <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" title="Abrir menú">
                     <Menu size={24} />
                 </button>
             </SidebarTrigger>
@@ -564,15 +550,23 @@ export function Navigation() {
         <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0">
           {/* Use custom SidebarHeader and plain divs for title/description */}
           <SidebarHeader className="p-4 border-b dark:border-gray-700 text-left">
+            {isMobile ? (
+              <>
+                <SheetTitle className="sr-only">{authUser ? 'Menú Principal' : 'Navegación'}</SheetTitle>
+                <SheetDescription className="sr-only">
+                  {userProfile?.email ? `Menú de navegación para ${userProfile.email}` : 'Menú de navegación para visitantes'}
+                </SheetDescription>
+              </>
+            ) : null}
             <div className="text-lg font-semibold">
               {authUser ? 'Menú Principal' : 'Navegación'}
             </div>
-            {userProfile?.email && (
+            {!isMobile && userProfile?.email && (
               <div className="sr-only">
                  {`Menú de navegación para ${userProfile.email}`}
               </div>
             )}
-            {!authUser && (
+            {!isMobile && !authUser && (
                 <div className="sr-only">
                     Menú de navegación para visitantes
                 </div>

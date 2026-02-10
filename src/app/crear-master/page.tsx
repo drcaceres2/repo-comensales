@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Button } from '@/components/ui/button'; // Assuming you have a Button component
-import { useToast } from '@/hooks/use-toast'; // Assuming you have a toast hook
+import { useToast } from '@/hooks/useToast'; // Assuming you have a toast hook
 
 export default function CreateMasterUserPage() {
     const [isLoading, setIsLoading] = useState(false);
@@ -96,6 +96,8 @@ export default function CreateMasterUserPage() {
                     <li>Proceed with developing your application with secure user management functions.</li>
                 </ol>
             </div>
+
+            {/* TODO: SECURITY RISK - REMOVE BEFORE PRODUCTION */}
         </div>
     );
 }

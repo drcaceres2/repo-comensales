@@ -1,6 +1,6 @@
 import { format, getDay, addDays, endOfDay, startOfDay, startOfWeek, endOfWeek, isWithinInterval, isBefore, isAfter, parseISO } from 'date-fns';
 import { fromZonedTime, toZonedTime, formatInTimeZone } from 'date-fns-tz';
-import { DayOfWeekKey } from '@/../../shared/models/types';
+import { DayOfWeekKey } from '../../shared/models/types';
 import { es } from 'date-fns/locale'; // Spanish locale for ISO 8601 week (Monday first)
 
 // --- Helper Functions for Date/Day Operations ---

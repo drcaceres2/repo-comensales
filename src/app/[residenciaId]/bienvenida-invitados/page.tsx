@@ -2,22 +2,16 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
+
 // Added Loader2, AlertCircle, Info
-import { Calendar as CalendarIcon, Loader2, AlertCircle, Info } from "lucide-react";
 import { format, addDays, eachDayOfInterval, isSameDay, parseISO, differenceInDays, getDay, Day } from 'date-fns';
 import { es } from 'date-fns/locale';
-// Added doc, getDoc
+
+// Firebase
 import { getDocs, collection, query, where, writeBatch, doc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
-// Added UserProfile, UserRole
+import { db } from '@/lib/firebase';
+
+// Importaciones propias
 import {
     TiempoComida,
     AlternativaTiempoComida,
@@ -31,15 +25,26 @@ import {
     DayOfWeekMap,
     UserProfile,
     UserRole,
-    ResidenciaId
-} from '@/models/firestore';
+    ResidenciaId,
+    LogActionType
+} from '../../../../shared/models/types';
+import { logClientAction, addLogToBatch } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from "@/hooks/useToast";
+
+// Importaciones para UI/UX
+import { Calendar as CalendarIcon, Loader2, AlertCircle, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter,
+    Dialog, DialogContent,
+    DialogHeader, DialogTitle,
+    DialogDescription, DialogFooter,
     DialogClose
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
@@ -47,14 +52,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+    Tooltip, TooltipContent,
+    TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-// --- Firebase Auth Hook Import ---
-import { useAuthState } from 'react-firebase-hooks/auth'; // New Auth Hook
 
 // Define allowed roles (though check is more specific now)
 // const ALLOWED_ROLES: UserRole[] = ['invitado']; // Keep for reference if needed
@@ -134,7 +134,7 @@ function MealSelectionModal({
                                             >
                                                 {relevantAlternativas.map((alt) => {
                                                      // Find the associated HorarioSolicitud
-                                                     const horario = horariosSolicitud.get(alt.horarioSolicitudComidaId);
+                                                     const horario = alt.horarioSolicitudComidaId ? horariosSolicitud.get(alt.horarioSolicitudComidaId) : undefined;
                                                      let tooltipContent = `Tipo: ${alt.tipo === 'comedor' ? 'Comedor' : 'Para LLevar'}.`;
                                                      if (alt.requiereAprobacion) {
                                                          tooltipContent += " Requiere aprobación.";
@@ -209,7 +209,7 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null { // Allow
     const residenciaId = params.residenciaId as ResidenciaId;
 
     // --- New Auth & Profile State ---
-    const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+        const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
     const [guestUserProfile, setGuestUserProfile] = useState<UserProfile | null>(null);
     const [guestProfileLoading, setGuestProfileLoading] = useState<boolean>(true);
     const [guestProfileError, setGuestProfileError] = useState<string | null>(null);
@@ -296,7 +296,15 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null { // Allow
 
                     const fetchedTiempos = tiemposSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TiempoComida));
                     const tiemposMap = new Map<DayOfWeekKey, TiempoComida[]>();
-                    fetchedTiempos.forEach(tc => { const key = tc.dia; const list = tiemposMap.get(key) || []; list.push(tc); list.sort((a, b) => (a.ordenGrupo ?? 0) - (b.ordenGrupo ?? 0)); tiemposMap.set(key, list); });
+                                        fetchedTiempos.forEach(tc => {
+                        if (tc.dia) {
+                            const key = tc.dia;
+                            const list = tiemposMap.get(key) || [];
+                            list.push(tc);
+                            list.sort((a, b) => (a.ordenGrupo ?? 0) - (b.ordenGrupo ?? 0));
+                            tiemposMap.set(key, list);
+                        }
+                    });
                     setTiemposComida(tiemposMap);
 
                     const fetchedAlternativas = alternativasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AlternativaTiempoComida));
@@ -446,13 +454,38 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null { // Allow
                         const estadoAprobacion: EstadoAprobacion = selectedAlternativa.requiereAprobacion ? 'pendiente' : 'no_requerido';
                         const eleccionData: Omit<Eleccion, 'id'> = {
                             usuarioId: authUser.uid, // Use authUser UID
-                            residenciaId: residenciaId, fecha: fecha, tiempoComidaId: tiempoId, alternativaTiempoComidaId: alternativaId,
-                            dietaId: guestDietaId || undefined, solicitado: true, fechaSolicitud: nowServer as Timestamp, estadoAprobacion: estadoAprobacion,
+                            residenciaId: residenciaId,
+                            fecha: dayISO,
+                            tiempoComidaId: tiempoId,
+                            alternativaTiempoComidaId: alternativaId,
+                            dietaId: guestDietaId || undefined,
+                            solicitadoAdministracion: true,
+                            congelado: false,
+                            estadoAprobacion: estadoAprobacion,
                             origen: 'invitado_wizard' as OrigenEleccion,
+                            fechaSolicitudAdministracion: new Date().toISOString(),
+                            tipoEleccion: 'regular',
                         };
                         // Use top-level elecciones collection
                         const eleccionDocRef = doc(collection(db, `elecciones`));
                         batch.set(eleccionDocRef, eleccionData);
+                        
+                        // Log this action in the logs collection
+                        const esAsistente = authUser.uid !== eleccionData.usuarioId;
+                        addLogToBatch(batch, 'ELECCION_CREADA', {
+                            residenciaId: residenciaId,
+                            targetId: eleccionDocRef.id, // Enlazamos con el ID exacto de la elección
+                            targetCollection: 'elecciones',
+                            details: {
+                                fecha: dayISO,
+                                tiempo: tiempoId,
+                                alternativa: selectedAlternativa.nombre,
+                                // Auditoría Forense:
+                                operadoPor: authUser.email, // El Asistente
+                                aNombreDe: eleccionData.usuarioId, // El VIP
+                                esAsistido: esAsistente
+                            }
+                        });
                     }
                 }
             }

@@ -2,19 +2,16 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
-import { UserProfile, Residencia, Dieta } from '@/../../shared/models/types';
+import { UserProfile, Residencia, Dieta } from '../../../../shared/models/types';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
   doc,
   collection,
   getDoc,
   getDocs,
-  addDoc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
   query,
   where,
   orderBy
@@ -38,9 +35,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, AlertCircle, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
-
-import { writeClientLog } from '@/lib/utils';
 
 // Helper to create a new Residencia object with defaults
 const getNewResidenciaDefaults = (): Partial<Residencia> => ({ // Changed return type
@@ -90,7 +86,11 @@ const getNewResidenciaDefaults = (): Partial<Residencia> => ({ // Changed return
 function CrearResidenciaAdminPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+  const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
+  const functionsInstance = getFunctions(auth.app);
+  const createResidenciaCallable = httpsCallable(functionsInstance, 'createResidencia');
+  const updateResidenciaCallable = httpsCallable(functionsInstance, 'updateResidencia');
+  const deleteResidenciaCallable = httpsCallable(functionsInstance, 'deleteResidencia');
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
@@ -252,6 +252,13 @@ function CrearResidenciaAdminPage() {
     }));
   };
 
+  const handleSelectChange = (name: keyof Partial<Residencia>) => (value: string) => {
+    setCurrentResidencia(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
   const handleCreateNew = () => {
     if (!isMasterUser) {
       toast({ title: "Acción no permitida", description: "Solo usuarios 'master' pueden crear residencias.", variant: "destructive" });
@@ -282,71 +289,36 @@ function CrearResidenciaAdminPage() {
 
   const handleSubmitForm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setAntelacionError(null); // Clear previous antelacion error
+    setAntelacionError(null);
 
     if (!userProfile || (!isMasterUser && !isEditing)) {
       toast({ title: "Acción no permitida", description: "No tienes permisos para esta acción.", variant: "destructive" });
       return;
     }
 
-    // Validate Nombre
+    // Basic client-side validations
     if (typeof currentResidencia.nombre !== 'string' || !currentResidencia.nombre.trim()) {
         toast({ title: "Campo requerido", description: "El nombre de la residencia es obligatorio.", variant: "default"});
         return;
     }
 
-    // Validate Zona Horaria
     if (!currentResidencia.zonaHoraria || !currentResidencia.zonaHoraria.includes('/')) {
         toast({ title: "Campo requerido", description: "La zona horaria es obligatoria y debe tener un formato válido (Ej: Region/Ciudad).", variant: "default"});
         return;
     }
 
-    // Validate Antelacion Actividades Default
-    const antelacionValueInput = currentResidencia.antelacionActividadesDefault;
-    let antelacionNum: number;
-
-    if (antelacionValueInput === undefined || antelacionValueInput === null || String(antelacionValueInput).trim() === '') {
-      const errorMsg = "Antelación de actividades es requerida y debe ser un número.";
-      setAntelacionError(errorMsg);
-      toast({ title: "Error de Validación", description: errorMsg, variant: "destructive" });
-      return;
-    } else {
-      antelacionNum = Number(antelacionValueInput);
-      if (isNaN(antelacionNum)) {
-        const errorMsg = "Antelación de actividades debe ser un número válido.";
-        setAntelacionError(errorMsg);
-        toast({ title: "Error de Validación", description: errorMsg, variant: "destructive" });
-        return;
-      }
-    }
-
-    if (antelacionNum < 0) {
-      const errorMsg = "Antelación de actividades no puede ser un número negativo.";
-      setAntelacionError(errorMsg);
-      toast({ title: "Error de Validación", description: errorMsg, variant: "destructive" });
-      return;
-    }
-
     setFormLoading(true);
     try {
-      // Prepare the data to save, reflecting all schema changes
-      const residenciaDataForSubmit: Partial<Residencia> = {
-        ...currentResidencia,
-        // Ensure new/renamed fields are correctly sourced from currentResidencia (which should be up-to-date)
-        // or explicitly set:
+      // Prepare the data to save
+      const residenciaData: Omit<Residencia, 'id'> = {
         nombre: currentResidencia.nombre || '',
         direccion: currentResidencia.direccion || '',
         logoUrl: currentResidencia.logoUrl || '',
-        
-        configuracionContabilidad: null, // Set to null as per requirements
-
-        antelacionActividadesDefault: antelacionNum,
-        
-        tipoResidencia: currentResidencia.tipoResidencia || 'estudiantes', // Renamed field
+        configuracionContabilidad: null,
+        antelacionActividadesDefault: currentResidencia.antelacionActividadesDefault || 7,
+        tipoResidencia: currentResidencia.tipoResidencia || 'estudiantes',
         esquemaAdministracion: currentResidencia.esquemaAdministracion || 'estricto',
-        
-        zonaHoraria: currentResidencia.zonaHoraria || getNewResidenciaDefaults().zonaHoraria,
-
+        zonaHoraria: (currentResidencia.zonaHoraria as string) || (getNewResidenciaDefaults().zonaHoraria as string),
         nombreTradicionalDesayuno: currentResidencia.nombreTradicionalDesayuno || "Desayuno",
         nombreTradicionalAlmuerzo: currentResidencia.nombreTradicionalAlmuerzo || "Almuerzo",
         nombreTradicionalCena: currentResidencia.nombreTradicionalCena || "Cena",
@@ -357,7 +329,6 @@ function CrearResidenciaAdminPage() {
         nombreTradicionalViernes: currentResidencia.nombreTradicionalViernes || "Viernes",
         nombreTradicionalSabado: currentResidencia.nombreTradicionalSabado || "Sábado",
         nombreTradicionalDomingo: currentResidencia.nombreTradicionalDomingo || "Domingo",
-
         campoPersonalizado1_etiqueta: currentResidencia.campoPersonalizado1_etiqueta || '',
         campoPersonalizado1_isActive: !!currentResidencia.campoPersonalizado1_isActive,
         campoPersonalizado1_necesitaValidacion: !!currentResidencia.campoPersonalizado1_necesitaValidacion,
@@ -365,7 +336,6 @@ function CrearResidenciaAdminPage() {
         campoPersonalizado1_tamanoTexto: currentResidencia.campoPersonalizado1_tamanoTexto || 'text',
         campoPersonalizado1_puedeModDirector: !!currentResidencia.campoPersonalizado1_puedeModDirector,
         campoPersonalizado1_puedeModInteresado: !!currentResidencia.campoPersonalizado1_puedeModInteresado,
-
         campoPersonalizado2_etiqueta: currentResidencia.campoPersonalizado2_etiqueta || '',
         campoPersonalizado2_isActive: !!currentResidencia.campoPersonalizado2_isActive,
         campoPersonalizado2_necesitaValidacion: !!currentResidencia.campoPersonalizado2_necesitaValidacion,
@@ -373,7 +343,6 @@ function CrearResidenciaAdminPage() {
         campoPersonalizado2_tamanoTexto: currentResidencia.campoPersonalizado2_tamanoTexto || 'text',
         campoPersonalizado2_puedeModDirector: !!currentResidencia.campoPersonalizado2_puedeModDirector,
         campoPersonalizado2_puedeModInteresado: !!currentResidencia.campoPersonalizado2_puedeModInteresado,
-
         campoPersonalizado3_etiqueta: currentResidencia.campoPersonalizado3_etiqueta || '',
         campoPersonalizado3_isActive: !!currentResidencia.campoPersonalizado3_isActive,
         campoPersonalizado3_necesitaValidacion: !!currentResidencia.campoPersonalizado3_necesitaValidacion,
@@ -381,112 +350,38 @@ function CrearResidenciaAdminPage() {
         campoPersonalizado3_tamanoTexto: currentResidencia.campoPersonalizado3_tamanoTexto || 'text',
         campoPersonalizado3_puedeModDirector: !!currentResidencia.campoPersonalizado3_puedeModDirector,
         campoPersonalizado3_puedeModInteresado: !!currentResidencia.campoPersonalizado3_puedeModInteresado,
-        
         textProfile: currentResidencia.textProfile || 'espanol-honduras',
-
-        // REMOVED FIELDS (should not be in currentResidencia if getNewResidenciaDefaults was updated, but good to be explicit)
-        // nombreEtiquetaCentroCosto: undefined, 
-        // modoDeCosteo: undefined,
-        // tipoResidentes: undefined, // old field name
+        estadoContrato: 'activo',
       };
 
-      // Explicitly remove fields that should not be saved, if they somehow ended up on currentResidencia
-      delete (residenciaDataForSubmit as any).nombreEtiquetaCentroCosto;
-      delete (residenciaDataForSubmit as any).modoDeCosteo;
-      delete (residenciaDataForSubmit as any).tipoResidentes;
-
-
       if (isEditing && currentResidencia.id) {
-        // UPDATE
+        // UPDATE: Use Cloud Function
         const existingResidenciaId = currentResidencia.id;
         if (!isMasterUser && !(isAdminUser && userProfile?.residenciaId === existingResidenciaId)) {
           toast({ title: "Acción no permitida", description: "No tienes permisos para editar esta residencia.", variant: "destructive" });
           setFormLoading(false);
           return;
         }
-        const residenciaRef = doc(db, 'residencias', currentResidencia.id);
-        const { id, ...dataToUpdate } = residenciaDataForSubmit; // Ensure 'id' is not part of the data payload
-        await updateDoc(residenciaRef, dataToUpdate);
-        toast({ title: "Residencia Actualizada", description: `Residencia '${dataToUpdate.nombre}' actualizada con éxito.` });
-        if (userProfile?.id && currentResidencia.id) { 
-          await writeClientLog(
-            userProfile.id, // actorUserId (ensure this is type UserId or string)
-            'residencia', // actionType
-            { // logDetails
-              residenciaId: currentResidencia.id, // (ensure this is type ResidenciaId or string)
-              details: `Residencia '${dataToUpdate.nombre || ''}' (ID: ${currentResidencia.id}) actualizada por ${userProfile.email}.` 
-              // residenciaNombre is now part of the details string.
-              // relatedDocPath: `residencias/${currentResidencia.id}` // Optional
-            }
-          );
-        }
+        const result = await updateResidenciaCallable({ 
+          residenciaIdToUpdate: existingResidenciaId,
+          profileData: residenciaData
+        }) as any;
+        toast({ title: "Residencia Actualizada", description: `Residencia actualizada con éxito.` });
       } else if (!isEditing && isMasterUser) {
-        // CREATE
-        const customId = currentResidencia.id?.trim(); // Get the custom ID from the form state
-
+        // CREATE: Use Cloud Function
+        const customId = currentResidencia.id?.trim();
         if (!customId) {
           toast({ title: "Error de Validación", description: "El ID de la Residencia (Slug) es obligatorio.", variant: "destructive" });
           setFormLoading(false);
-          setResidenciaIdError("El ID de la Residencia (Slug) es obligatorio."); // Set specific error for ID field
+          setResidenciaIdError("El ID de la Residencia (Slug) es obligatorio.");
           return;
         }
-        setResidenciaIdError(null); // Clear any previous ID error
-
-        // Optional: Check if ID already exists
-        const existingDocRef = doc(db, 'residencias', customId);
-        const existingDocSnap = await getDoc(existingDocRef);
-        if (existingDocSnap.exists()) {
-          toast({ title: "Error de Duplicidad", description: `Ya existe una residencia con el ID '${customId}'. El ID debe ser único.`, variant: "destructive" });
-          setResidenciaIdError(`El ID '${customId}' ya está en uso. Por favor, elige otro.`);
-          setFormLoading(false);
-          return;
-        }
-        
-        // 'id' is now customId, so we don't destructure it from residenciaDataForSubmit.
-        // residenciaDataForSubmit already contains all fields *except* id if getNewResidenciaDefaults and handleInputChange are correct.
-        // However, the Residencia interface includes 'id', but Firestore's setDoc/addDoc data should not include it.
-        const { id: idFromData, ...newResidenciaData } = residenciaDataForSubmit; // Explicitly remove 'id' if it's there
-
-        const residenciaRef = doc(db, 'residencias', customId); // Create a reference with the custom ID
-        await setDoc(residenciaRef, newResidenciaData); // Use setDoc with the custom ID
-
-        // Creating a Default Dieta
-        try {
-          const defaultDieta: Omit<Dieta, 'id'> = {
-            nombre: "Normal",
-            descripcion: "Ningún régimen especial",
-            isDefault: true,
-            isActive: true,
-            residenciaId: customId, // Use the customId here
-          };
-          await addDoc(collection(db, 'dietas'), defaultDieta); // Still use addDoc for dietas if its ID is auto-generated
-          toast({
-            title: "Éxito Parcial",
-            description: `Residencia '${newResidenciaData.nombre}' (ID: ${customId}) y Dieta 'Normal' por defecto creadas.`,
-          });
-        } catch (dietaError) {
-          console.error("Error creating default dieta:", dietaError);
-          toast({
-            title: "Advertencia: Dieta por Defecto Falló",
-            description: `Residencia '${newResidenciaData.nombre}' (ID: ${customId}) creada, pero falló la creación de la dieta por defecto. Error: ${dietaError instanceof Error ? dietaError.message : String(dietaError)}`,
-            variant: "destructive",
-            duration: 10000,
-          });
-        }
-        // The main success toast is now covered by the "Éxito Parcial" or the warning. 
-        // If you want a separate one just for the residencia:
-        // toast({ title: "Residencia Creada", description: `Residencia '${newResidenciaData.nombre}' creada con ID: ${customId}.` });
-
-        if (userProfile?.id) {
-          await writeClientLog(
-            userProfile.id,
-            'residencia',
-            {
-              residenciaId: customId, // Use the customId here
-              details: `Residencia '${newResidenciaData.nombre || ''}' (ID: ${customId}) creada por ${userProfile.email}.`
-            }
-          );
-        }
+        setResidenciaIdError(null);
+        const result = await createResidenciaCallable({ 
+          residenciaId: customId,
+          profileData: residenciaData
+        }) as any;
+        toast({ title: "Residencia Creada", description: `Residencia '${residenciaData.nombre}' (ID: ${customId}) creada con éxito.` });
       } else {
         toast({ title: "Acción no válida", description: "No se pudo determinar la acción a realizar.", variant: "destructive" });
         setFormLoading(false);
@@ -509,32 +404,15 @@ function CrearResidenciaAdminPage() {
       toast({ title: "Acción no permitida", description: "Solo usuarios 'master' pueden eliminar residencias.", variant: "destructive" });
       return;
     }
-    /* SECURITY NOTE: Server-side validation is CRUCIAL.
-       Deletion should only be possible by 'master' users and should ideally
-       trigger a process that handles associated data (e.g., users, comedores)
-       gracefully, or warns the master user about orphaned data.
-    */
-    setFormLoading(true); // Use formLoading to indicate any CUD operation
+    setFormLoading(true);
     try {
-      // Consider what happens to users, comedores, horarios, etc., linked to this residenciaId.
-      // For now, direct deletion. A more robust solution might involve a Firebase Function
-      // to clean up related data or mark the residencia as inactive.
-      await deleteDoc(doc(db, 'residencias', residenciaId));
-      fetchResidences(); 
-      if (userProfile?.id) { 
-        await writeClientLog(
-          userProfile.id, // actorUserId
-          'residencia', // actionType
-          { // logDetails
-            residenciaId: residenciaId,
-            details: `Residencia '${residenciaNombre}' (ID: ${residenciaId}) eliminada por ${userProfile.email}.`
-            // relatedDocPath: `residencias/${residenciaId}` // Optional
-          }
-        );
-      }
-      fetchResidences(); // Refresh the list
-    } catch (error) {
-      const errorMessage = `Error al eliminar la residencia. ${error instanceof Error ? error.message : 'Error desconocido'}`;
+      const result = await deleteResidenciaCallable({ 
+        residenciaIdToDelete: residenciaId
+      }) as any;
+      toast({ title: "Residencia Eliminada", description: `Residencia '${residenciaNombre}' eliminada con éxito.` });
+      fetchResidences();
+    } catch (error: any) {
+      const errorMessage = error.message || 'Error desconocido';
       toast({ title: "Error de Eliminación", description: errorMessage, variant: "destructive" });
     } finally {
       setFormLoading(false);
@@ -733,33 +611,36 @@ function CrearResidenciaAdminPage() {
               </div>
               <div>
                 <Label htmlFor="tipoResidencia">Tipo de Residencia</Label>
-                <select
-                  id="tipoResidencia"
-                  name="tipoResidencia"
+                <Select
                   value={currentResidencia.tipoResidencia || 'estudiantes'}
-                  onChange={handleInputChange}
+                  onValueChange={handleSelectChange('tipoResidencia')}
                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="w-full p-2 border rounded mt-1 bg-background text-foreground"
                 >
-                  <option value="estudiantes">Estudiantes</option>
-                  <option value="profesionales">Profesionales</option>
-                  <option value="gente_mayor">Gente Mayor</option>
-                  {/* Add other options if TiposResidencia expands in the future */}
-                </select>
+                  <SelectTrigger id="tipoResidencia">
+                    <SelectValue placeholder="Tipo de Residencia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="estudiantes">Estudiantes</SelectItem>
+                    <SelectItem value="profesionales">Profesionales</SelectItem>
+                    <SelectItem value="gente_mayor">Gente Mayor</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="esquemaAdministracion">Esquema de Administración</Label>
-                <select
-                  id="esquemaAdministracion"
-                  name="esquemaAdministracion"
+                <Select
                   value={currentResidencia.esquemaAdministracion || 'estricto'}
-                  onChange={handleInputChange}
+                  onValueChange={handleSelectChange('esquemaAdministracion')}
                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="w-full p-2 border rounded mt-1 bg-background text-foreground"
                 >
-                  <option value="estricto">Estricto</option>
-                  <option value="flexible">Flexible</option>
-                </select>
+                  <SelectTrigger id="esquemaAdministracion">
+                    <SelectValue placeholder="Esquema de Administración" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="estricto">Estricto</SelectItem>
+                    <SelectItem value="flexible">Flexible</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               {/* Nombre Tradicional Desayuno */}
               <div>
@@ -927,17 +808,19 @@ function CrearResidenciaAdminPage() {
                             )}
                             <div>
                                 <Label htmlFor="campoPersonalizado1_tamanoTexto">Tamaño del Texto</Label>
-                                 <select
-                                    id="campoPersonalizado1_tamanoTexto"
-                                    name="campoPersonalizado1_tamanoTexto"
+                                 <Select
                                     value={currentResidencia.campoPersonalizado1_tamanoTexto || 'text'}
-                                    onChange={handleInputChange}
+                                    onValueChange={handleSelectChange('campoPersonalizado1_tamanoTexto')}
                                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                                    className="w-full p-2 border rounded"
                                 >
-                                    <option value="text">Una línea (Text)</option>
-                                    <option value="textArea">Múltiples líneas (Textarea)</option>
-                                </select>
+                                    <SelectTrigger id="campoPersonalizado1_tamanoTexto">
+                                        <SelectValue placeholder="Tamaño del Texto" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="text">Una línea (Text)</SelectItem>
+                                        <SelectItem value="textArea">Múltiples líneas (Textarea)</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="flex items-center space-x-2 pt-2">
                               <Checkbox
@@ -990,17 +873,19 @@ function CrearResidenciaAdminPage() {
                             )}
                             <div>
                                 <Label htmlFor="campoPersonalizado2_tamanoTexto">Tamaño del Texto</Label>
-                                 <select
-                                    id="campoPersonalizado2_tamanoTexto"
-                                    name="campoPersonalizado2_tamanoTexto"
+                                 <Select
                                     value={currentResidencia.campoPersonalizado2_tamanoTexto || 'text'}
-                                    onChange={handleInputChange}
+                                    onValueChange={handleSelectChange('campoPersonalizado2_tamanoTexto')}
                                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                                    className="w-full p-2 border rounded"
                                 >
-                                    <option value="text">Una línea (Text)</option>
-                                    <option value="textArea">Múltiples líneas (Textarea)</option>
-                                </select>
+                                    <SelectTrigger id="campoPersonalizado2_tamanoTexto">
+                                        <SelectValue placeholder="Tamaño del Texto" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="text">Una línea (Text)</SelectItem>
+                                        <SelectItem value="textArea">Múltiples líneas (Textarea)</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="flex items-center space-x-2 pt-2">
                                 <Checkbox
@@ -1053,17 +938,19 @@ function CrearResidenciaAdminPage() {
                             )}
                             <div>
                                 <Label htmlFor="campoPersonalizado3_tamanoTexto">Tamaño del Texto</Label>
-                                 <select
-                                    id="campoPersonalizado3_tamanoTexto"
-                                    name="campoPersonalizado3_tamanoTexto"
+                                 <Select
                                     value={currentResidencia.campoPersonalizado3_tamanoTexto || 'text'}
-                                    onChange={handleInputChange}
+                                    onValueChange={handleSelectChange('campoPersonalizado3_tamanoTexto')}
                                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                                    className="w-full p-2 border rounded"
                                 >
-                                    <option value="text">Una línea (Text)</option>
-                                    <option value="textArea">Múltiples líneas (Textarea)</option>
-                                </select>
+                                    <SelectTrigger id="campoPersonalizado3_tamanoTexto">
+                                        <SelectValue placeholder="Tamaño del Texto" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="text">Una línea (Text)</SelectItem>
+                                        <SelectItem value="textArea">Múltiples líneas (Textarea)</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </>
                     )}
@@ -1091,12 +978,35 @@ function CrearResidenciaAdminPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoadingResidences && <div className="flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando...</div>}
-          {errorResidences && <p className="text-destructive">Error: {errorResidences}</p>}
-          {!isLoadingResidences && !errorResidences && residences.length === 0 && (
-            <p>No hay residencias para mostrar.</p>
-          )}
-          {!isLoadingResidences && !errorResidences && residences.length > 0 && (
+          {isLoadingResidences ? (
+            <div className="flex items-center justify-center p-6">
+              <Loader2 className="mr-2 h-6 w-6 animate-spin" /> 
+              <span className="text-muted-foreground">Cargando residencias...</span>
+            </div>
+          ) : errorResidences ? (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 text-center">
+                <AlertCircle className="mx-auto h-10 w-10 text-destructive" />
+                <h3 className="mt-2 text-lg font-semibold text-destructive">Error al Cargar Residencias</h3>
+                <p className="mt-1 text-sm text-destructive/80">
+                    No pudimos recuperar la lista de residencias. Por favor, revisa tu conexión o intenta más tarde.
+                </p>
+                <p className="mt-3 text-xs text-muted-foreground">
+                    <span className="font-semibold">Detalle técnico:</span> {errorResidences}
+                </p>
+            </div>
+          ) : residences.length === 0 ? (
+            <div className="text-center p-8 border-2 border-dashed rounded-lg">
+              <h3 className="text-xl font-semibold">No hay residencias creadas</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Parece que aún no se ha configurado ninguna residencia.
+              </p>
+              {isMasterUser && (
+                  <Button onClick={handleCreateNew} className="mt-4">
+                      <PlusCircle className="mr-2 h-4 w-4" /> Crear la primera residencia
+                  </Button>
+              )}
+            </div>
+          ) : (
             <div className="space-y-2">
               {residences.map(res => (
                 <Card key={res.id} className="flex flex-col md:flex-row justify-between items-start md:items-center p-3">

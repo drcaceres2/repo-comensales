@@ -29,7 +29,8 @@ export default function PrivacyPolicyPage() {
     },
     informationSharing: {
       title: "3. Compartición de información",
-      text: "No compartimos ninguna información del usuario con terceros. Tampoco utilizamos servicios de publicidad, ni integraciones con plataformas externas que rastreen o recopilen datos de los usuarios."
+      points: ["No compartimos ninguna información del usuario con terceros.",
+      "Tampoco utilizamos servicios de publicidad, ni integraciones con plataformas externas que rastreen o recopilen datos de los usuarios."]
     },
     security: {
       title: "4. Seguridad",
@@ -89,7 +90,11 @@ export default function PrivacyPolicyPage() {
                 <FileText className="mr-3 h-7 w-7" /> {/* Changed Icon */}
                 {privacyPolicyContent.informationSharing.title}
               </h2>
-              <p>{privacyPolicyContent.informationSharing.text}</p>
+               <ul className="list-disc list-inside space-y-1 pl-2">
+                {privacyPolicyContent.informationSharing.points.map((point, index) => (
+                  <li key={index}>{point}</li>
+                ))}
+              </ul>
             </div>
 
             {/* Section: Security */}

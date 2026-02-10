@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
 import {
   collection,
@@ -33,14 +33,14 @@ import {
   Licenciamiento,
   FacturaCero, // Assuming FacturaCero might be an ID string or a specific object type
   FacturaCeroId
-} from '@/../../shared/models/contratos'; // Adjust path as needed
+} from '../../../../shared/models/contratos'; // Adjust path as needed
 
 import {
   UserProfile,
   ResidenciaId,
   campoFechaConZonaHoraria,
   // Ensure other necessary types from types.ts are imported if needed
-} from '@/../../shared/models/types'; // Adjust path as needed
+} from '../../../../shared/models/types'; // Adjust path as needed
 
 // Utility and Component imports
 import { 
@@ -48,7 +48,7 @@ import {
     addDurationToFCZH, 
     toDateFCZH, 
     intervalToDurationFCZH 
-} from '@/../../shared/utils/commonUtils';
+} from '../../../../shared/utils/commonUtils';
 import { 
   writeClientLog, 
   formatFCZHToMonthYear, 
@@ -64,7 +64,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from '@/hooks/use-toast'; // Or your preferred toast mechanism
+import { useToast } from '@/hooks/useToast'; // Or your preferred toast mechanism
 import { PlusCircle, Trash2 } from 'lucide-react'; // Example icons
 
 // Types for Firebase Function validation
@@ -83,7 +83,7 @@ interface SingleContractAuditFunctionResult {
 }
 
 const LicenciasPage = () => {
-  const [user, loadingAuth, errorAuth] = useAuthState(auth);
+  const { user, loading: loadingAuth, error: errorAuth } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 

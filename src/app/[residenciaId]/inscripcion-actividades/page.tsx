@@ -4,12 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Timestamp, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp, writeBatch, limit } from 'firebase/firestore'; // Added limit
 import { db, auth } from '@/lib/firebase';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { useAuth } from '@/hooks/useAuth';
 
 // UI Components
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/useToast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Loader2, AlertCircle, Home, CalendarDays, Info, CheckCircle, XCircle, UserPlus, LogOut, MailCheck, MailWarning, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,6 @@ import { Badge } from "@/components/ui/badge";
 import {
     Residencia,
     Actividad,
-    ActividadMealDefinition,
     InscripcionActividad,
     UserProfile,
     ResidenciaId,
@@ -27,28 +26,10 @@ import {
     LogActionType,
     EstadoInscripcionActividad,
     UserRole // Ensure UserRole is imported
-} from '@/../../shared/models/types';
+} from '../../../../shared/models/types';
+import { logClientAction } from '@/lib/utils';
 
-// Helper to create Log Entries
-async function createLogEntry(
-    actionType: LogActionType,
-    residenciaId: ResidenciaId,
-    userId: string | null,
-    details?: string,
-    relatedDocPath?: string
-) {
-    if (!userId) return;
-    try {
-        console.log("Log Entry (Resident Activities):", { actionType, residenciaId, userId, details, relatedDocPath });
-        // Placeholder for actual log creation
-        // const logEntryData = { timestamp: serverTimestamp(), userId, residenciaId, actionType, relatedDocPath, details };
-        // await addDoc(collection(db, "logEntries"), logEntryData);
-    } catch (error) {
-        console.error("Error creating log entry:", error);
-    }
-}
-
-const formatActivityDateRange = (fechaInicio: Timestamp | undefined, fechaFin: Timestamp | undefined): string => {
+const formatActivityDateRange = (fechaInicio: string | Timestamp | undefined, fechaFin: string | Timestamp | undefined): string => {
     if (!fechaInicio || !fechaFin) return 'Fechas no definidas';
     const startDate = (fechaInicio as Timestamp)?.toDate ? (fechaInicio as Timestamp).toDate() : new Date(fechaInicio as any);
     const endDate = (fechaFin as Timestamp)?.toDate ? (fechaFin as Timestamp).toDate() : new Date(fechaFin as any);
@@ -66,7 +47,7 @@ export default function ResidenteActividadesPage() {
     const residenciaId = params.residenciaId as ResidenciaId;
     const { toast } = useToast();
 
-    const [currentUser, authLoading, authError] = useAuthState(auth);
+    const { user: currentUser, loading: authLoading, error: authError } = useAuth();
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [profileLoading, setProfileLoading] = useState(true);
     const [profileError, setProfileError] = useState<string | null>(null);
@@ -100,7 +81,7 @@ export default function ResidenteActividadesPage() {
                     setUserProfile(profile);
 
                     // <<< UPDATED AUTHORIZATION LOGIC >>>
-                    const allowedRoles: UserRole[] = ['residente', 'director', 'asistente', 'auditor'];
+                    const allowedRoles: UserRole[] = ['residente', 'director', 'asistente', 'auditor' as UserRole];
                     const userRoles = profile.roles || [];
                     const hasRequiredRole = userRoles.some(role => allowedRoles.includes(role));
 
@@ -162,7 +143,7 @@ export default function ResidenteActividadesPage() {
             // Add activities user is already definitively inscribed in (even if inscription window closed for others)
             // Iterate over a copy of map values if modifying map during iteration or use for...of
             for (const inscription of Array.from(inscriptionsMap.values())) {
-                 if (inscription.estadoInscripcion === 'inscrito_directo' || inscription.estadoInscripcion === 'inscrito_aceptado') {
+                 if (inscription.estadoInscripcion === 'inscrito_directo' || inscription.estadoInscripcion === 'invitado_aceptado') {
                     if (!activitiesToShow.find(act => act.id === inscription.actividadId)) {
                         const actDoc = await getDoc(doc(db, "actividades", inscription.actividadId));
                         if (actDoc.exists()) {
@@ -172,7 +153,7 @@ export default function ResidenteActividadesPage() {
                 }
             }
              activitiesToShow = Array.from(new Map(activitiesToShow.map(item => [item.id, item])).values())
-                                   .sort((a,b) => (a.fechaInicio as Timestamp).toMillis() - (b.fechaInicio as Timestamp).toMillis());
+                                   .sort((a,b) => new Date(a.fechaInicio).getTime() - new Date(b.fechaFin).getTime());
 
 
             if (activitiesToShow.length === 0) {
@@ -248,14 +229,21 @@ export default function ResidenteActividadesPage() {
                 userId: currentUser.uid,
                 residenciaId: residenciaId,
                 estadoInscripcion: 'inscrito_directo',
-                fechaEstado: serverTimestamp() as Timestamp,
+                fechaEstado: serverTimestamp() as any,
             };
             const docRef = await addDoc(collection(db, "inscripcionesActividad"), newInscriptionData);
-            const newInscription = { ...newInscriptionData, id: docRef.id, fechaEstado: Timestamp.now() } as InscripcionActividad;
+            const newInscription = { ...newInscriptionData, id: docRef.id, fechaEstado: Timestamp.now().toMillis() } as InscripcionActividad;
             setUserInscriptionsMap(prev => new Map(prev).set(selectedActivity.id, newInscription));
             
             toast({ title: "¡Inscripción Exitosa!", description: `Te has apuntado a "${selectedActivity.nombre}".`});
-            await createLogEntry('inscripcion_actividad_registrada', residenciaId, currentUser.uid, `Inscrito (directo) a actividad: ${selectedActivity.nombre}`, docRef.path);
+            await logClientAction(
+                'INSCRIPCION_USUARIO_ACTIVIDAD', 
+                {   targetId: selectedActivity.id, 
+                    targetCollection: 'actividades',
+                    residenciaId: residenciaId,
+                    details: {message: `Inscrito a actividad: ${selectedActivity.nombre}`}
+                }
+            );
             setShowDetailModal(false);
         } catch (error) {
             console.error("Error signing up:", error);
@@ -298,16 +286,23 @@ export default function ResidenteActividadesPage() {
             // <<< END NEW >>>
 
             const inscriptionRef = doc(db, "inscripcionesActividad", currentInscription.id);
-            const newEstado: EstadoInscripcionActividad = accept ? 'inscrito_aceptado' : 'invitado_rechazado';
+            const newEstado: EstadoInscripcionActividad = accept ? 'invitado_aceptado' : 'invitado_rechazado';
             await updateDoc(inscriptionRef, {
                 estadoInscripcion: newEstado,
                 fechaEstado: serverTimestamp() as Timestamp
             });
-            const updatedInscription = { ...currentInscription, estadoInscripcion: newEstado, fechaEstado: Timestamp.now() }; 
+            const updatedInscription = { ...currentInscription, estadoInscripcion: newEstado, fechaEstado: Timestamp.now().toMillis() }; 
             setUserInscriptionsMap(prev => new Map(prev).set(selectedActivity.id, updatedInscription));
 
             toast({ title: accept ? "Invitación Aceptada" : "Invitación Rechazada", description: `Has ${accept ? 'aceptado' : 'rechazado'} la invitación para "${selectedActivity.nombre}".` });
-            await createLogEntry(accept ? 'inscripcion_invitacion_aceptada' : 'inscripcion_invitacion_rechazada', residenciaId, currentUser.uid, `Invitación ${accept ? 'aceptada' : 'rechazada'} para: ${selectedActivity.nombre}`, inscriptionRef.path);
+            await logClientAction(
+                'INVITACION_USUARIO_ACTIVIDAD', 
+                {   targetId: selectedActivity.id, 
+                    targetCollection: 'actividades',
+                    residenciaId: residenciaId,
+                    details: {message: `El usuario ${accept ? 'aceptó' : 'rechazó'} la invitación para "${selectedActivity.nombre}".`}
+                }
+            );
             setShowDetailModal(false);
         } catch (error) {
             console.error("Error responding to invitation:", error);
@@ -330,11 +325,18 @@ export default function ResidenteActividadesPage() {
                 estadoInscripcion: newEstado,
                 fechaEstado: serverTimestamp() as Timestamp
             });
-            const updatedInscription = { ...inscriptionToCancel, estadoInscripcion: newEstado, fechaEstado: Timestamp.now() };
+            const updatedInscription = { ...inscriptionToCancel, estadoInscripcion: newEstado, fechaEstado: Timestamp.now().toMillis() };
             setUserInscriptionsMap(prev => new Map(prev).set(actividadId, updatedInscription));
 
             toast({ title: "Inscripción Cancelada", description: `Has cancelado tu participación en "${selectedActivity.nombre}".` });
-            await createLogEntry('inscripcion_actividad_cancelada', residenciaId, currentUser.uid, `Inscripción cancelada para: ${selectedActivity.nombre}`, inscriptionRef.path);
+            await logClientAction(
+                'SALIDA_USUARIO_ACTIVIDAD', 
+                {   targetId: selectedActivity.id, 
+                    targetCollection: 'actividades',
+                    residenciaId: residenciaId,
+                    details: {message: `El usuario canceló su participación en "${selectedActivity.nombre}".` }
+                }
+            );
             setShowDetailModal(false); 
         } catch (error) {
             console.error("Error cancelling inscription:", error);
@@ -401,7 +403,7 @@ export default function ResidenteActividadesPage() {
                         </Button>
                     ) : <Badge variant="outline">Invitación Pendiente (Inscripción cerrada)</Badge>;
                 case 'inscrito_directo':
-                case 'inscrito_aceptado':
+                case 'invitado_aceptado':
                     return (
                         <div className="flex flex-col items-center space-y-2">
                             <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-white"><CheckCircle className="mr-2 h-4 w-4" />Inscrito</Badge>
@@ -455,7 +457,7 @@ export default function ResidenteActividadesPage() {
                         </div>
                     ) : null;
                 case 'inscrito_directo':
-                case 'inscrito_aceptado':
+                case 'invitado_aceptado':
                      return <p className="text-sm text-green-600 dark:text-green-400 flex items-center"><CheckCircle className="mr-2 h-5 w-5"/> Ya estás inscrito.</p>;
                 default: return null;
             }
@@ -563,9 +565,9 @@ export default function ResidenteActividadesPage() {
                                     <div>
                                         <h4 className="font-semibold text-md mb-2 text-slate-700 dark:text-slate-200">Plan de Comidas Incluido:</h4>
                                         <ul className="space-y-2 text-sm list-disc list-inside pl-1">
-                                            {selectedActivity.planComidas.map(meal => (
+                                            {(selectedActivity.planComidas as any[]).map((meal: any) => (
                                                 <li key={meal.id} className="text-slate-600 dark:text-slate-400">
-                                                    <strong>{meal.nombreGrupoMeal} - {meal.nombreEspecificoMeal}:</strong>
+                                                    <strong>{meal.nombreGrupoTiempoComida} - {meal.nombreTiempoComida_AlternativaUnica}:</strong>
                                                     <span className="ml-1">{meal.descripcionMeal || "Detalles no especificados."}</span>
                                                     {meal.horaEstimadaMeal && <span className="text-xs text-muted-foreground"> (aprox. {meal.horaEstimadaMeal})</span>}
                                                 </li>

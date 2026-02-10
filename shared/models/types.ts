@@ -1,9 +1,7 @@
-import { FieldValue } from 'firebase/firestore';
-
 // --- Usuarios  ---
 export type UserId = string;
 export type UserRole = 'master' | 'admin' | 'director' | 'residente' | 'invitado' | 'asistente' | 'contador';
-export interface UserProfile {
+export interface UserProfile {  
     id: UserId;
     nombre: string;
     apellido: string;
@@ -13,7 +11,7 @@ export interface UserProfile {
     roles: UserRole[];
     isActive: boolean;
     residenciaId?: ResidenciaId | null;
-    dietaId?: DietaId;
+    dietaId?: DietaId | null;
     numeroDeRopa?: string;
     habitacion?: string;
     universidad?: string;
@@ -22,8 +20,8 @@ export interface UserProfile {
     telefonoMovil?: string;
     fechaDeNacimiento?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
     asistentePermisos?: AsistentePermisos | null;
-    centroCostoPorDefectoId?: CentroCostoId;
-    puedeTraerInvitados: 'no' | 'requiere_autorizacion' | 'si';
+    centroCostoPorDefectoId?: CentroCostoId | null;
+    puedeTraerInvitados: 'no' | 'requiere_autorizacion' | 'si' | null;
     notificacionPreferencias?: NotificacionPreferencias | null; 
     tieneAutenticacion: boolean;
 
@@ -123,17 +121,6 @@ export interface alternativaRestringidaDetalle {
     requiereAprobacion: boolean;
     alternativaRestringida: AlternativaTiempoComidaId;
 }
-export interface Faltas {
-    id: string;
-    fecha: number; // Timestamp stored as number (millis) from epoch
-    residencia: ResidenciaId;
-    usuario: UserId;
-    titulo: string;
-    descripcion?: string;
-    notificada: boolean;
-    confirmada: boolean;
-    origen: string;
-}
 
 // --- Residencias y propiedades esenciales ---
 export type ResidenciaId = string;
@@ -214,7 +201,7 @@ export interface Dieta {
     residenciaId: ResidenciaId;
     nombre: string;
     descripcion?: string;
-    isDefault?: boolean; 
+    isDefault: boolean; 
     isActive: boolean;
 }
 
@@ -298,47 +285,39 @@ export interface AlternativaTiempoComidaMod {
     comedorId?: ComedorId | null;
 }
 
-// --- Elecciones de los residentes e invitados
-export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requerido' | 'contingencia' | 'contingencia_no_considerada' | 'anulada_por_cambio';
-export type OrigenEleccion = 
-    | 'semanario' 
-    | 'excepcion' // excepción que no necesitaba autorización
-    | 'excepcion_autorizada' // excepción que sí necesitaba autorización y fue concedida
-    | 'contingencia' // excepcion que no fue autorizada y quedó la contingencia
-    | 'director' 
-    | 'invitado_wizard'
-    | 'actividad'; 
-export interface Semanario {
-    id?: string; 
-    userId: UserId;
-    residenciaId: ResidenciaId;
-    elecciones: {
-        [tiempoComidaId: TiempoComidaId]: AlternativaTiempoComidaId | null;
-    };
-    ultimaActualizacion: number; // Timestamp stored as number (millis)
-}
-export interface Eleccion {
+// --------------------------------------------------------
+// 1. MODELO DE INTENCIÓN (Mutable por el usuario/reglas)
+// --------------------------------------------------------
+
+/**
+ * Excepcion: Representa la voluntad del usuario de desviarse de su Semanario.
+ * Si no existe este documento, aplica el Semanario.
+ * Corresponde al Nivel 3 de la Cascada de la Verdad.
+ */
+export interface Excepcion {
     id?: string;
     usuarioId: UserId;
     residenciaId: ResidenciaId;
-    fecha: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-    tiempoComidaId?: TiempoComidaId;
+    fecha: string; // YYYY-MM-DD
+    
+    // Qué tiempo de comida se altera
+    tiempoComidaId: TiempoComidaId; 
+    
+    // Tipo de desviación
+    tipo: 'cambio_alternativa' | 'cancelacion_comida' | 'cambio_dieta';
+    
+    // Payload (solo si es cambio_alternativa)
     alternativaTiempoComidaId?: AlternativaTiempoComidaId;
-    dietaId?: DietaId;
-    solicitadoAdministracion: boolean;
-    congelado: boolean; // El proceso de solicitud a la administración comenzó y ya no se pueden hacer cambios aunque no se haya hecho la solicitud
-    asistencia?: boolean | null; // null si no se sabe, true si comió, false si no llegó a comer
-    fechaSolicitudAdministracion: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-    estadoAprobacion: EstadoAprobacion;
-    origen: OrigenEleccion;
-    centroCostoId?: CentroCostoId;
-    comentario?: string;
-    processedForBilling?: boolean;
-    actividadId?: ActividadId;
-    TiempoComidaAlternativaUnicaActividadId?: TiempoComidaAlternativaUnicaActividadId;
-    tipoEleccion: 'regular' | 'actividad';
-    origenCentroCosto?: 'usuario-por-defecto' | 'comedor-por-defecto' | 'manual' | 'modificado';
+    
+    // Contexto
+    motivo?: string;
+    autorizadoPor?: UserId; // Si requería aprobación
 }
+
+/**
+ * Ausencia: Negación de servicio declarada por el usuario.
+ * Corresponde al Nivel 2 de la Cascada de la Verdad.
+ */
 export type AusenciaId = string;
 export interface Ausencia {
     id?: AusenciaId;
@@ -352,21 +331,25 @@ export interface Ausencia {
     fechaCreacion: number; // Timestamp stored as number (millis) from epoch
     motivo?: string; 
 }
-export type ComentarioId = string;
-export interface Comentario {
-    id: ComentarioId;
-    usuarioId: UserId; 
-    destinatarioId?: UserId; 
+
+/**
+ * Semanario: Plantilla base de comidas del usuario.
+ * Corresponde al Nivel 4 (Fallback) de la Cascada de la Verdad.
+ */
+export interface Semanario {
+    id?: string; 
+    userId: UserId;
     residenciaId: ResidenciaId;
-    texto: string;
-    fechaEnvio: number; // Timestamp stored as number (millis) from epoch
-    leido: boolean;
-    archivado: boolean;
-    relacionadoA?: { 
-        coleccion: 'eleccion' | 'ausencia' | 'usuario'; 
-        documentoId: string;
+    elecciones: {
+        [tiempoComidaId: TiempoComidaId]: AlternativaTiempoComidaId | null;
     };
+    ultimaActualizacion: number; // Timestamp stored as number (millis)
 }
+
+/**
+ * Objeto de Vista (ViewModel) para el frontend.
+ * Se construye en el cliente para mostrar el estado resuelto de la semana.
+ */
 export interface CeldaSemanarioDesnormalizado {
     // Información del TiempoComida base
     tiempoComidaId?: TiempoComidaId | null; // null en caso de horario alterado y añadido
@@ -405,6 +388,75 @@ export interface SemanarioDesnormalizado {
       };
 }
 
+// --------------------------------------------------------
+// 2. MODELO DE HECHO (Inmutable / Snapshot)
+// --------------------------------------------------------
+
+/**
+ * Comensal: Es la unidad atómica para Cocina y Contabilidad (Ticket de Comida).
+ * Se genera automáticamente al cerrar/solicitar el día (Snapshot).
+ * Es la "Fuente de la Verdad" para el historial.
+ */
+export interface Comensal {
+    id: string;
+    
+    // Coordenadas
+    residenciaId: ResidenciaId;
+    usuarioId: UserId;
+    fecha: string; // YYYY-MM-DD
+    
+    // Detalle del consumo (Snapshot de nombres para evitar cambios históricos)
+    tiempoComidaId: TiempoComidaId;
+    nombreTiempoComida: string; 
+    
+    alternativaId: AlternativaTiempoComidaId;
+    nombreAlternativa: string;
+    
+    // Contabilidad (CRÍTICO: Se calcula al crear el snapshot)
+    centroCostoId: CentroCostoId; 
+    
+    // Trazabilidad del origen (Priority Cascade Result)
+    origen: 'SEMANARIO' | 'EXCEPCION' | 'ACTIVIDAD' | 'INVITADO_EXTERNO';
+    referenciaOrigenId?: string; // ID de la Excepcion o Actividad
+    
+    // Estado
+    solicitadoAdministracion: boolean; // true = enviado a cocina
+    comentarioCocina?: string; // Feedback específico de este plato (ej. "carne muy hecha")
+}
+
+export interface Faltas {
+    id: string;
+    fecha: number; // Timestamp stored as number (millis) from epoch
+    residencia: ResidenciaId;
+    usuario: UserId;
+    titulo: string;
+    descripcion?: string;
+    notificada: boolean;
+    confirmada: boolean;
+    origen: string;
+}
+
+// --------------------------------------------------------
+// 3. MÓDULOS DE SOPORTE
+// --------------------------------------------------------
+
+// --- Comentarios ---
+export type ComentarioId = string;
+export interface Comentario {
+    id: ComentarioId;
+    residenciaId: ResidenciaId;
+    autorId: UserId; // Residente que se queja/avisa
+    fechaCreacion: number;
+    
+    texto: string;
+    categoria: 'comida' | 'limpieza' | 'mantenimiento' | 'varios';
+    
+    // Estado de gestión del Director
+    estado: 'nuevo' | 'leido' | 'diferido' | 'archivado';
+    fechaDiferidoHasta?: number; // "Recuérdame esto el lunes"
+}
+
+
 // --- Solicitud a la administración ---
 export interface comensalesSolicitadosAdministracion {
     id: string; 
@@ -435,6 +487,10 @@ export interface Recordatorio {
 export type RecurrenciaRecordatorio = 'semanal' | 'quincenal' | 'mensual-diasemana' | 'mensual-diames' | 'anual';
 
 // --- Actividades ---
+/**
+ * Actividad: Evento que sobrescribe la rutina de comida.
+ * Corresponde al Nivel 1 (Máxima Prioridad) de la Cascada de la Verdad.
+ */
 export type ActividadId = string; 
 export interface Actividad {
     //Campos generales
@@ -513,7 +569,7 @@ prioridad: NotificacionPrioridad; // e.g., 'alta', 'media'
 titulo: string; // e.g., "Recordatorio: Elige tu comida"
 mensaje: string; // e.g., "Tienes hasta las 8 PM para elegir tu almuerzo."
 relacionadoA?: {
-    coleccion: 'eleccion' | 'actividad' | 'ausencia' | 'mealCount';
+    coleccion: 'excepcion' | 'actividad' | 'ausencia' | 'mealCount';
     documentoId: string;
 };
 leido: boolean; // Whether the user has read the notification
@@ -558,30 +614,75 @@ export interface comensalesContabilizados {
 }
 
 // --- Registro de actividad ---
-export interface ClientLogWrite extends Omit<LogEntry, "id" | "timestamp"> {
-    timestamp: FieldValue; // Type for client-side serverTimestamp()
-}
 export type LogEntryId = string;
 export interface LogEntry {
-    id: LogEntryId;
-    timestamp: string | number; // Server will convert to ServerTimestamp, client will handle string/number shall use UTC timezone
-    userId: UserId;
-    targetUid?: UserId | null;
-    residenciaId?: ResidenciaId; 
-    actionType: LogActionType;
-    relatedDocPath?: string; 
-    details?: string | object; 
+    id: string;
+    userId: string;          // Quién lo hizo
+    userEmail?: string;      // (Opcional) Ayuda visual rápida
+    action: LogActionType;   // Qué hizo
+    // GENERALIZACIÓN: En vez de targetUid, usamos targetId y colección
+    targetId?: string | null;         // ID del objeto afectado (User, Menu, Factura)
+    targetCollection?: string | null; // 'users', 'menus', etc.
+    residenciaId?: string;   // Contexto
+    details?: Record<string, any>; // Flexible para guardar el "antes y después"
+    timestamp: any; // En lectura será un Firestore.Timestamp. 
+                    // No lo fuerces a string aquí o te pelearás con el SDK.
+    source: 'web-client' | 'cloud-function' | 'system';
 }
 export type LogActionType =
-    'cliente' | 'contrato' | 'pedido' | 'factura' | 'licencia' |
-    'userProfile' | 'residencia' | 'dieta' |
-    'horario_solicitud' | 'tiempo_comida' | 'alternativa' |
-    'semanario' | 'eleccion' | 'ausencia' |
-    'autorizacion' | 'comentario' |
-    'modo_eleccion' |
-    'actividad' |        
-    'inscripcion_invitacion' | 
-    'feedback';
+    // Clientes
+    | 'CLIENTE_CREADO' | 'CLIENTE_ACTUALIZADO' | 'CLIENTE_ELIMINADO'
+    // Contratos
+    | 'CONTRATO_CREADO' | 'CONTRATO_ACTUALIZADO' | 'CONTRATO_ELIMINADO'
+    // Pedidos
+    | 'PEDIDO_CREADO' | 'PEDIDO_ACTUALIZADO' | 'PEDIDO_ELIMINADO'
+    // Facturas
+    | 'FACTURA_CREADA' | 'FACTURA_ACTUALIZADA' | 'FACTURA_ELIMINADA'
+    // Licencias
+    | 'LICENCIA_CREADA' | 'LICENCIA_ACTUALIZADA' | 'LICENCIA_ELIMINADA'
+    // Usuarios (userProfile)
+    | 'USUARIO_CREADO' | 'USUARIO_ACTUALIZADO' | 'USUARIO_ELIMINADO' | 'USUARIO_INICIO_SESION'
+    // Residencias
+    | 'RESIDENCIA_CREADA' | 'RESIDENCIA_ACTUALIZADA' | 'RESIDENCIA_ELIMINADA'
+    // Dietas
+    | 'DIETA_CREADA' | 'DIETA_ACTUALIZADA' | 'DIETA_ELIMINADA'
+    // Comedores
+    | 'COMEDOR_CREADO' | 'COMEDOR_ACTUALIZADO' | 'COMEDOR_ELIMINADO'
+    // Horario de solicitud de comida
+    | 'HORARIO_SOLICITUD_COMIDA_CREADO' | 'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO' | 'HORARIO_SOLICITUD_COMIDA_ELIMINADO'
+    // Tiempos de comida
+    | 'TIEMPO_COMIDA_CREADO' | 'TIEMPO_COMIDA_ACTUALIZADO' | 'TIEMPO_COMIDA_ELIMINADO'
+    // Alternativas de tiempo de comida
+    | 'ALTERNATIVA_TIEMPO_COMIDA_CREADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ACTUALIZADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ELIMINADA'
+    // Semanarios
+    | 'SEMANARIO_CREADO' | 'SEMANARIO_ACTUALIZADO' | 'SEMANARIO_ELIMINADO'
+    // Excepciones
+    | 'EXCEPCION_CREADA' | 'EXCEPCION_ACTUALIZADA' | 'EXCEPCION_ELIMINADA'
+    // Ausencias
+    | 'AUSENCIA_CREADA' | 'AUSENCIA_ACTUALIZADA' | 'AUSENCIA_ELIMINADA'
+    // Autorizaciones
+    | 'AUTORIZACION_CREADA' | 'AUTORIZACION_ACTUALIZADA' | 'AUTORIZACION_ELIMINADA'
+    // Comentarios
+    | 'COMENTARIO_CREADO' | 'COMENTARIO_ACTUALIZADO' | 'COMENTARIO_ELIMINADO'
+    // Modo de elección
+    | 'MODO_ELECCION_CREADO' | 'MODO_ELECCION_ACTUALIZADO' | 'MODO_ELECCION_ELIMINADO'
+    // Actividades
+    | 'ACTIVIDAD_CREADA' | 'ACTIVIDAD_ACTUALIZADA' | 'ACTIVIDAD_ELIMINADA'
+    // Inscripciones a actividades
+    | 'INSCRIPCION_USUARIO_ACTIVIDAD' | 'SALIDA_USUARIO_ACTIVIDAD' | 'INVITACION_USUARIO_ACTIVIDAD'
+    // Recordatorios
+    | 'RECORDATORIO_CREADO' | 'RECORDATORIO_ACTUALIZADO' | 'RECORDATORIO_ELIMINADO'
+    // Feedback
+    | 'FEEDBACK_ENVIADO';
+export interface LogPayload {
+    action: LogActionType;
+    targetId?: string;
+    targetCollection?: string; // Opcional, pero recomendado
+    residenciaId?: string;
+    details?: Record<string, any>;
+}
+
+// --- Feedback ---
 export type FeedbackId = string; 
 export interface Feedback {
     id?: FeedbackId; 

@@ -1,11 +1,9 @@
-// src/app/admin/residencia/page.tsx
-'use client';
+"use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import withAuth from '@/components/withAuth';
+import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
 import {
   UserProfile,
@@ -18,10 +16,9 @@ import {
   DayOfWeekMap,
   CentroCosto,
   LogActionType,
-  ClientLogWrite, 
   UserId,
   ResidenciaId
-} from '@/../../shared/models/types';
+} from '../../../../shared/models/types';
 import {
   doc,
   getDoc,
@@ -62,7 +59,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { writeClientLog, checkAndDisplayTimezoneWarning } from "@/lib/utils";
+import { checkAndDisplayTimezoneWarning } from "@/lib/utils";
+import { useActionState } from 'react';
+import { comedorServerAction, type ComedorActionState } from './comedorAction';
+import { horarioServerAction, type HorarioActionState } from './horarioAction';
 
 // Helper for new Comedor
 const getNewComedorDefaults = (residenciaId: string): Omit<Comedor, 'id'> => ({
@@ -88,7 +88,7 @@ function ResidenciaHorariosComedoresPage() {
   const router = useRouter();
   // const searchParams = useSearchParams(); // For master to potentially get residenciaId from query
   const { toast } = useToast();
-  const [authUser, authFirebaseLoading, authFirebaseError] = useAuthState(auth);
+  const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
@@ -121,14 +121,45 @@ function ResidenciaHorariosComedoresPage() {
   const [alternativasParaValidacion, setAlternativasParaValidacion] = useState<AlternativaTiempoComida[]>([]);
   const [isLoadingAlternativas, setIsLoadingAlternativas] = useState<boolean>(false);
 
-
   // CentroCosto States for the current Residencia
   const [centrosCostoResidencia, setCentrosCostoResidencia] = useState<CentroCosto[]>([]);
   const [isLoadingCentrosCostoResidencia, setIsLoadingCentrosCostoResidencia] = useState<boolean>(false);
 
+  // Server Action state for comedor form
+  const [comedorState, comedorFormAction, isComedorFormPending] = useActionState(comedorServerAction, { result: null, error: null } as ComedorActionState);
+
+  // Server Action state for horario form
+  const [horarioState, horarioFormAction, isHorarioFormPending] = useActionState(horarioServerAction, { result: null, error: null } as HorarioActionState);
+
+  useEffect(() => {
+    if (horarioState.error) {
+      console.error('Error from horarioAction:', horarioState.error);
+      const errorMsg = typeof horarioState.error === 'string' ? horarioState.error : (horarioState.error as any).message || String(horarioState.error);
+      toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
+    }
+    if (horarioState.result) {
+      toast({ title: 'Éxito', description: horarioState.result.action === 'created' ? 'Horario creado' : 'Horario actualizado' });
+      setShowHorarioForm(false);
+      fetchHorarios();
+    }
+  }, [horarioState, toast]);
+
+  useEffect(() => {
+    if (comedorState.error) {
+      console.error('Error from comedorAction:', comedorState.error);
+      const errorMsg = typeof comedorState.error === 'string' ? comedorState.error : (comedorState.error as any).message || String(comedorState.error);
+      toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
+    }
+    if (comedorState.result) {
+      // On success, close form and refresh list
+      toast({ title: 'Éxito', description: comedorState.result.action === 'created' ? 'Comedor creado' : 'Comedor actualizado' });
+      setShowComedorForm(false);
+      fetchComedores();
+    }
+  }, [comedorState, toast]);
+
   // ...
   const [timezoneWarningShown, setTimezoneWarningShown] = useState<boolean>(false); // To show warning only once
-
 
     // ... (isLoadingCentrosCostoResidencia state) ...
 
@@ -246,11 +277,10 @@ function ResidenciaHorariosComedoresPage() {
             if (profile.residenciaId) {
                 setTargetResidenciaId(profile.residenciaId);
             } else {
-                // toast({ title: "Seleccionar Residencia", description: "Como master, necesitas especificar una residencia.", variant: "default"});
+                toast({ title: "Seleccionar Residencia", description: "Como master, necesitas especificar una residencia.", variant: "default"});
                 // setIsAuthorizedForPage(false); // Or rather, show a selector or message
             }
           }
-
         } else {
           setUserProfile(null); setProfileError("Perfil de usuario no encontrado.");
           toast({ title: "Error de Perfil", description: "No se encontró tu perfil de usuario.", variant: "destructive" });
@@ -521,6 +551,19 @@ function ResidenciaHorariosComedoresPage() {
 
       // Proceed with deletion if not used
       await deleteDoc(doc(db, 'comedores', comedorId));
+      
+      // Log the deletion
+      await writeClientLog(
+        authUser!.uid,
+        'COMEDOR_ELIMINADO',
+        {
+          residenciaId: targetResidenciaId,
+          targetId: comedorId,
+          targetCollection: 'comedores',
+          details: { message: `Comedor '${comedorName}' eliminado permanentemente` }
+        }
+      );
+      
       toast({ title: "Comedor Eliminado", description: `Comedor '${comedorName}' eliminado.` });
       fetchComedores(); 
       if (currentComedor.id === comedorId) {
@@ -611,16 +654,17 @@ function ResidenciaHorariosComedoresPage() {
         isPrimary: currentHorario.isPrimary === undefined ? false : currentHorario.isPrimary,
       };
 
-      let actionType: LogActionType = 'horario_solicitud';
+      let actionType: 'HORARIO_SOLICITUD_COMIDA_CREADO' | 'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO' = 'HORARIO_SOLICITUD_COMIDA_CREADO';
       let docIdForLog = currentHorario.id;
 
       if (isEditingHorario && currentHorario.id) {
         const horarioRef = doc(db, 'horariosSolicitudComida', currentHorario.id);
         const { id, ...dataToUpdate } = dataPayload;
         batch.update(horarioRef, dataToUpdate);
+        actionType = 'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO';
         // newPrimaryHorarioId is already currentHorario.id
       } else {
-        actionType = 'horario_solicitud';
+        actionType = 'HORARIO_SOLICITUD_COMIDA_CREADO';
         // For new horario, Firestore will generate ID. We add it to batch and get ref.
         // To get the ID for logging and for newPrimaryHorarioId if it's primary,
         // we must commit the batch partially or create this one doc outside the batch first if it's primary
@@ -639,7 +683,7 @@ function ResidenciaHorariosComedoresPage() {
         ? horarios.map(h => h.id === currentHorario.id ? { ...h, ...dataPayload } : h)
         : [...horarios, { ...dataPayload, id: newPrimaryHorarioId! }]; // Simulate adding new
 
-      if (currentHorario.isPrimary || actionType === 'horario_solicitud' || previousPrimaryHorarioIdToUpdate) {
+      if (currentHorario.isPrimary || actionType === 'HORARIO_SOLICITUD_COMIDA_CREADO' || previousPrimaryHorarioIdToUpdate) {
           // Re-evaluate primaries after this potential change
           let finalHorariosToCheck = tempHorariosAfterSave;
           if(previousPrimaryHorarioIdToUpdate){ // if an old primary was demoted
@@ -681,8 +725,8 @@ function ResidenciaHorariosComedoresPage() {
       await batch.commit();
 
       toast({
-        title: actionType === 'horario_solicitud' ? "Horario Creado" : "Horario Actualizado",
-        description: `Horario '${currentHorario.nombre}' ${actionType === 'horario_solicitud' ? 'creado' : 'actualizado'} con éxito.`,
+        title: actionType === 'HORARIO_SOLICITUD_COMIDA_CREADO' ? "Horario Creado" : "Horario Actualizado",
+        description: `Horario '${currentHorario.nombre}' ${actionType === 'HORARIO_SOLICITUD_COMIDA_CREADO' ? 'creado' : 'actualizado'} con éxito.`,
       });
 
       // Logging
@@ -691,18 +735,21 @@ function ResidenciaHorariosComedoresPage() {
         actionType,
         {
           residenciaId: targetResidenciaId,
-          details: `Horario '${currentHorario.nombre}' (ID: ${docIdForLog}) ${actionType === 'horario_solicitud' ? 'creado' : 'actualizado'} por ${authUser.email}. Día: ${DayOfWeekMap[currentHorario.dia]}, Hora: ${currentHorario.horaSolicitud}, Primario: ${currentHorario.isPrimary ? 'Sí':'No'}.` +
-                   (previousPrimaryHorarioIdToUpdate ? ` Horario anterior primario (ID: ${previousPrimaryHorarioIdToUpdate}) fue desmarcado.` : '')
+          targetId: docIdForLog,
+          targetCollection: 'horariosSolicitudComida',
+          details: { message: `Horario '${currentHorario.nombre}' ${actionType === 'HORARIO_SOLICITUD_COMIDA_CREADO' ? 'creado' : 'actualizado'}. Día: ${DayOfWeekMap[currentHorario.dia]}, Hora: ${currentHorario.horaSolicitud}` }
         }
       );
       if (previousPrimaryHorarioIdToUpdate) { // Log demotion of old primary if it happened
           const oldPrimaryDetails = horarios.find(h=>h.id === previousPrimaryHorarioIdToUpdate);
           await writeClientLog(
             authUser.uid,
-            'horario_solicitud', // Still an update
+            'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO',
             {
               residenciaId: targetResidenciaId,
-              details: `Horario '${oldPrimaryDetails?.nombre || 'N/A'}' (ID: ${previousPrimaryHorarioIdToUpdate}) desmarcado como primario automáticamente debido a nuevo primario para ${DayOfWeekMap[currentHorario.dia]}. Acción por ${authUser.email}.`
+              targetId: previousPrimaryHorarioIdToUpdate,
+              targetCollection: 'horariosSolicitudComida',
+              details: { message: `Horario '${oldPrimaryDetails?.nombre || 'N/A'}' desmarcado como primario automáticamente` }
             }
           );
       }
@@ -752,10 +799,12 @@ function ResidenciaHorariosComedoresPage() {
         });
         await writeClientLog(
             authUser!.uid, // Assumes authUser is not null here due to canEdit check
-            'horario_solicitud', // Or a more specific 'horario_solicitud_deactivated' if you add it
+            'HORARIO_SOLICITUD_COMIDA_ELIMINADO',
             {
                 residenciaId: targetResidenciaId,
-                details: `Horario '${horarioName}' (ID: ${horarioId}) desactivado (soft delete) por ${authUser!.email}. Alternativas inactivas asociadas: ${asociadasAlternativas.length}.`
+                targetId: horarioId,
+                targetCollection: 'horariosSolicitudComida',
+                details: { message: `Horario '${horarioName}' desactivado (soft delete)` }
             }
         );
       } else {
@@ -764,10 +813,12 @@ function ResidenciaHorariosComedoresPage() {
         toast({ title: "Horario Eliminado", description: `Horario '${horarioName}' eliminado permanentemente.` });
         await writeClientLog(
             authUser!.uid,
-            'horario_solicitud',
+            'HORARIO_SOLICITUD_COMIDA_ELIMINADO',
             {
                 residenciaId: targetResidenciaId,
-                details: `Horario '${horarioName}' (ID: ${horarioId}) eliminado permanentemente por ${authUser!.email}. No tenía alternativas asociadas.`
+                targetId: horarioId,
+                targetCollection: 'horariosSolicitudComida',
+                details: { message: `Horario '${horarioName}' eliminado permanentemente` }
             }
         );
       }
@@ -884,7 +935,7 @@ function ResidenciaHorariosComedoresPage() {
           {/* TODO: Comedor Form (conditional on showComedorForm) */}
           {showComedorForm && canEdit && (
             <Card className="mb-6 shadow-md" >
-              <form onSubmit={handleSubmitComedorForm}>
+              <form action={comedorFormAction}>
                 <CardHeader>
                   <CardTitle>{isEditingComedor ? 'Editar Comedor' : 'Nuevo Comedor'}</CardTitle>
                   <CardDescription>
@@ -900,7 +951,7 @@ function ResidenciaHorariosComedoresPage() {
                       value={currentComedor.nombre || ''}
                       onChange={handleInputChangeComedor}
                       required
-                      disabled={formLoadingComedor}
+                      disabled={formLoadingComedor || isComedorFormPending}
                       maxLength={100}
                     />
                   </div>
@@ -911,7 +962,7 @@ function ResidenciaHorariosComedoresPage() {
                       name="descripcion"
                       value={currentComedor.descripcion || ''}
                       onChange={handleInputChangeComedor}
-                      disabled={formLoadingComedor}
+                      disabled={formLoadingComedor || isComedorFormPending}
                       maxLength={500}
                     />
                   </div>
@@ -924,7 +975,7 @@ function ResidenciaHorariosComedoresPage() {
                       value={currentComedor.capacidad || 0}
                       onChange={handleInputChangeComedor}
                       onFocus={(event) => event.target.select()}
-                      disabled={formLoadingComedor}
+                      disabled={formLoadingComedor || isComedorFormPending}
                       min="0"
                     />
                   </div>
@@ -933,9 +984,9 @@ function ResidenciaHorariosComedoresPage() {
                         {(residenciaDetails?.configuracionContabilidad?.nombreEtiquetaCentroCosto || 'Centro de Costo')} por Defecto (Opcional)
                     </Label>
                     <Select
-                        value={currentComedor.centroCostoPorDefectoId || ''}
-                        onValueChange={(value) => setCurrentComedor(prev => ({ ...prev, centroCostoPorDefectoId: value }))}
-                        disabled={formLoadingComedor || isLoadingCentrosCostoResidencia}
+                      value={currentComedor.centroCostoPorDefectoId || ''}
+                      onValueChange={(value) => setCurrentComedor(prev => ({ ...prev, centroCostoPorDefectoId: value }))}
+                      disabled={formLoadingComedor || isLoadingCentrosCostoResidencia || isComedorFormPending}
                     >
                         <SelectTrigger id="comedorCentroCostoDefault">
                             <SelectValue placeholder={
@@ -962,19 +1013,25 @@ function ResidenciaHorariosComedoresPage() {
                             )}
                         </SelectContent>
                     </Select>
+                      {/* Hidden input so native form submits the selected value */}
+                      <input type="hidden" name="centroCostoPorDefectoId" value={currentComedor.centroCostoPorDefectoId || ''} />
                     <p className="text-xs text-muted-foreground mt-1">
                         {(residenciaDetails?.configuracionContabilidad?.nombreEtiquetaCentroCosto || 'Centro de costo')} que se asignará por defecto a las elecciones hechas en este comedor.
                     </p>
                   </div>
                 </CardContent>
                 <CardFooter className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setShowComedorForm(false)} disabled={formLoadingComedor}>
+                    <Button type="button" variant="outline" onClick={() => setShowComedorForm(false)} disabled={formLoadingComedor || isComedorFormPending}>
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={formLoadingComedor}>
-                    {formLoadingComedor && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isEditingComedor ? 'Guardar Cambios' : 'Crear Comedor'}
-                  </Button>
+                    <input type="hidden" name="isEditing" value={isEditingComedor ? 'true' : 'false'} />
+                    <input type="hidden" name="id" value={currentComedor.id || ''} />
+                    <input type="hidden" name="residenciaId" value={targetResidenciaId || ''} />
+                    <input type="hidden" name="actorUserId" value={authUser?.uid || ''} />
+                    <Button type="submit" disabled={formLoadingComedor || isComedorFormPending}>
+                      {isComedorFormPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {isEditingComedor ? 'Guardar Cambios' : 'Crear Comedor'}
+                    </Button>
                 </CardFooter>
               </form>
             </Card>
@@ -1042,14 +1099,14 @@ function ResidenciaHorariosComedoresPage() {
             )}
           </div>
            <CardDescription>
-             {canEdit ? "Define cuándo los usuarios pueden solicitar comidas." : "Visualiza los horarios de solicitud de comida."}
+             {canEdit ? "Define cuándo los directores pueden solicitar comidas." : "Visualiza los horarios de solicitud de comida."}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {/* TODO: Horario Form (conditional on showHorarioForm) */}
           {showHorarioForm && canEdit && (
             <Card className="mb-6 shadow-md">
-              <form onSubmit={handleSubmitHorarioForm}>
+              <form action={horarioFormAction}>
                 <CardHeader>
                   <CardTitle>{isEditingHorario ? 'Editar Horario de Solicitud' : 'Nuevo Horario de Solicitud'}</CardTitle>
                   <CardDescription>
@@ -1065,7 +1122,7 @@ function ResidenciaHorariosComedoresPage() {
                       value={currentHorario.nombre || ''}
                       onChange={handleInputChangeHorario}
                       required
-                      disabled={formLoadingHorario}
+                      disabled={formLoadingHorario || isHorarioFormPending}
                       maxLength={100}
                       placeholder="Ej: Límite Almuerzo entre semana"
                     />
@@ -1078,7 +1135,7 @@ function ResidenciaHorariosComedoresPage() {
                         name="dia"
                         value={currentHorario.dia || 'lunes'}
                         onValueChange={(value: DayOfWeekKey) => handleHorarioDiaChange(value)}
-                        disabled={formLoadingHorario}
+                        disabled={formLoadingHorario || isHorarioFormPending}
                       >
                         <SelectTrigger id="horarioDia">
                           <SelectValue placeholder="Selecciona un día" />
@@ -1099,7 +1156,7 @@ function ResidenciaHorariosComedoresPage() {
                         value={currentHorario.horaSolicitud || '12:00'}
                         onChange={handleInputChangeHorario}
                         required
-                        disabled={formLoadingHorario}
+                        disabled={formLoadingHorario || isHorarioFormPending}
                         pattern="[0-2][0-9]:[0-5][0-9]" // Basic pattern, full validation in handler
                       />
                     </div>
@@ -1126,9 +1183,9 @@ function ResidenciaHorariosComedoresPage() {
                             }
                             setCurrentHorario(prev => ({...prev, isPrimary: Boolean(checked)}));
                         }}
-                        // The main disabling factor is formLoadingHorario.
-                        // The onCheckedChange above handles the specific UX for an active primary.
-                        disabled={formLoadingHorario}
+                          // The main disabling factor is formLoadingHorario.
+                          // The onCheckedChange above handles the specific UX for an active primary.
+                          disabled={formLoadingHorario || isHorarioFormPending}
                       />
                       <Label htmlFor="horarioIsPrimary" className="font-normal">¿Es Horario Primario?</Label>
                     </div>
@@ -1149,12 +1206,16 @@ function ResidenciaHorariosComedoresPage() {
                   </CardDescription>
 
                 </CardContent>
-                <CardFooter className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setShowHorarioForm(false)} disabled={formLoadingHorario}>
+                  <CardFooter className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={() => setShowHorarioForm(false)} disabled={formLoadingHorario || isHorarioFormPending}>
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={formLoadingHorario}>
-                    {formLoadingHorario && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <input type="hidden" name="isEditing" value={isEditingHorario ? 'true' : 'false'} />
+                  <input type="hidden" name="id" value={currentHorario.id || ''} />
+                  <input type="hidden" name="residenciaId" value={targetResidenciaId || ''} />
+                  <input type="hidden" name="actorUserId" value={authUser?.uid || ''} />
+                  <Button type="submit" disabled={formLoadingHorario || isHorarioFormPending}>
+                    {isHorarioFormPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {isEditingHorario ? 'Guardar Cambios' : 'Crear Horario'}
                   </Button>
                 </CardFooter>

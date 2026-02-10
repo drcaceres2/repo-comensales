@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth, db } from '@/lib/firebase'; // Adjust path as needed
+import { db } from '@/lib/firebase'; // Adjust path as needed
 import {
   collection,
   addDoc,
@@ -23,14 +22,14 @@ import {
   Cliente,
   ClienteId,
   FrecuenciaSuscripcion, // Ensure this type is defined in your shared models
-} from '@/../../shared/models/contratos'; // Adjust path as needed
+} from '../../../../shared/models/contratos'; // Adjust path as needed
 import {   
   Residencia,
   ResidenciaId,
   UserProfile, 
   UserId,
   campoFechaConZonaHoraria,
-} from '@/../../shared/models/types'; // Adjust path as needed
+} from '../../../../shared/models/types'; // Adjust path as needed
 import { writeClientLog } from '@/lib/utils'; // Adjust path as needed
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,12 +42,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'; // Assuming you have this
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import { format, differenceInDays, differenceInMonths, differenceInWeeks, addDays, addMonths, addWeeks, isValid } from 'date-fns';
 import { formatInTimeZone, toDate, fromZonedTime } from 'date-fns-tz';
+import { useAuth } from '@/hooks/useAuth';
 
 const CrearPedidoPage = () => {
-  const [authUser, authLoading, authError] = useAuthState(auth);
+  const { user: authUser, loading: authLoading, error: authError } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
