@@ -1,0 +1,42 @@
+/* Sidebar CSS Variables and Styles */
+
+/* Constants for sidebar dimensions */
+:root {
+  --sidebar-width-default: 16rem;
+  --sidebar-width-icon: 3rem;
+  --sidebar-width-mobile-default: 18rem;
+}
+
+/* Sidebar wrapper styles with CSS variables */
+.sidebar-provider {
+  --sidebar-width: var(--sidebar-width-default);
+  --sidebar-width-icon: 3rem;
+}
+
+.sidebar-mobile-sheet {
+  --sidebar-width-mobile: var(--sidebar-width-mobile-default);
+}
+
+/* Chart color variable support */
+[data-chart] {
+  --chart-color: inherit;
+}
+
+/* Dynamic CSS variable support */
+.sidebar-wrapper {
+  --sidebar-width: 16rem;
+  --sidebar-width-icon: 3rem;
+}
+
+.skeleton-loader {
+  --skeleton-width: 100%;
+}
+
+.chart-indicator {
+  --color-bg: currentColor;
+  --color-border: currentColor;
+}
+
+.chart-legend-dot {
+  --chart-color: currentColor;
+}

@@ -140,3 +140,8 @@
 .dark .fc-event {
   background-color: hsl(var(--primary)) !important;
 }
+
+/* Progress bar width styling */
+.progress-fill {
+  width: var(--progress-percent, 0%);
+}

@@ -1,0 +1,14 @@
+{
+  "extends": ["stylelint-config-recommended"],
+  "rules": {
+    "declaration-no-important": null,
+    "no-descending-specificity": null,
+    "function-no-unknown": null
+  },
+  "ignoreFiles": [
+    "**/*.tsx",
+    "**/*.ts",
+    "**/*.jsx",
+    "**/*.js"
+  ]
+}

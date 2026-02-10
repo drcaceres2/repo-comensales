@@ -22,7 +22,7 @@ import {
 import { TiempoComidaSchema } from '@/../../shared/schemas/tiempoComida';
 import { AusenciaSchema } from '@/../../shared/schemas/ausencias';
 import { InscripcionActividadSchema, ActividadSchema } from '@/../../shared/schemas/actividades';
-import { EleccionSchema } from '@/../../shared/schemas/elecciones';
+import { ExcepcionSchema } from '@/../../shared/schemas/excepciones';
 import { SemanarioSchema } from '@/../../shared/schemas/semanario';
 
 // Infer types from Zod schemas
@@ -30,7 +30,7 @@ type TiempoComida = z.infer<typeof TiempoComidaSchema>;
 type Ausencia = z.infer<typeof AusenciaSchema>;
 type InscripcionActividad = z.infer<typeof InscripcionActividadSchema>;
 type Actividad = z.infer<typeof ActividadSchema>;
-type Eleccion = z.infer<typeof EleccionSchema>;
+type Excepcion = z.infer<typeof ExcepcionSchema>;
 type Semanario = z.infer<typeof SemanarioSchema>;
 
 
@@ -43,7 +43,7 @@ export interface MealPlanningData {
   ausencias: Ausencia[];
   inscripciones: InscripcionActividad[];
   actividades: Actividad[];
-  elecciones: Eleccion[];
+  excepciones: Excepcion[];
 }
 
 interface UseMealPlanningDataParams {
@@ -91,13 +91,13 @@ export const useMealPlanningData = ({
           semanarioSnap,
           ausenciasSnap,
           inscripcionesSnap,
-          eleccionesSnap,
+          excepcionesSnap,
         ] = await Promise.all([
           getDocs(collection(db, 'residencias', residenciaId, 'tiemposComida')),
           getDoc(doc(db, 'residencias', residenciaId, 'semanarios', userId)),
           getDocs(query(collection(db, 'residencias', residenciaId, 'ausencias'), where('userId', '==', userId))),
           getDocs(query(collection(db, 'residencias', residenciaId, 'inscripciones'), where('userId', '==', userId))),
-          getDocs(query(collection(db, 'residencias', residenciaId, 'elecciones'), 
+          getDocs(query(collection(db, 'residencias', residenciaId, 'excepciones'), 
             where('usuarioId', '==', userId), 
             where('fecha', '>=', startDateString), 
             where('fecha', '<=', endDateString)
@@ -120,7 +120,7 @@ export const useMealPlanningData = ({
         const tiemposComida = parseArrayResult(TiempoComidaSchema, tiemposComidaSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         const ausencias = parseArrayResult(AusenciaSchema, ausenciasSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         const inscripciones = parseArrayResult(InscripcionActividadSchema, inscripcionesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        const elecciones = parseArrayResult(EleccionSchema, eleccionesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const excepciones = parseArrayResult(ExcepcionSchema, excepcionesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
         const semanario = semanarioSnap.exists() ? parseResult(SemanarioSchema, {id: semanarioSnap.id, ...semanarioSnap.data()}) : null;
 
@@ -145,7 +145,7 @@ export const useMealPlanningData = ({
           ausencias,
           inscripciones,
           actividades,
-          elecciones,
+          excepciones,
         });
 
       } catch (e: any) {

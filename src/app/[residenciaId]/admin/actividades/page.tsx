@@ -10,7 +10,7 @@ import {
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { z } from 'zod';
-import { ActividadSchema } from '../../../../../shared/schemas/actividades';
+import { ActividadSchema } from '@/../shared/schemas/actividades';
 
 // UI Components
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,7 @@ import {
     LogActionType,
     LogEntry, 
     UserId 
-} from '../../../../../shared/models/types';
+} from '@/../shared/models/types';
 import { logClientAction } from '@/lib/utils';
 
 const getDefaultMealDefinition = (): Partial<ActividadMealDefinition> => ({
@@ -295,7 +295,7 @@ function AdminActividadesPage() {
                 );
             } else { // Create
                 const docRef = await addDoc(collection(db, "actividades"), { ...dataToSave });
-                const newActividad = { id: docRef.id, ...dataToSave };
+                const newActividad = { id: docRef.id, ...dataToSave, residenciaId: residenciaId } as Actividad;
                 setActividades(prev => [newActividad, ...prev].sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
                 toast({ title: "Actividad Creada", description: `"${dataToSave.nombre}" ha sido creada.` });
                 await logClientAction(

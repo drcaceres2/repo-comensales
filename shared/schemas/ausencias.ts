@@ -2,11 +2,14 @@ import { z } from 'zod';
 import { FirebaseIdSchema, TimeStringSchema, DateStringSchema } from './common';
 
 export const AusenciaSchema = z.object({
-  id: FirebaseIdSchema.optional(), // Opcional al crear
-  usuarioId: FirebaseIdSchema,
-  fechaInicio: DateStringSchema, // "2023-10-01"
-  fechaFin: DateStringSchema,    // "2023-10-05"
-  tipo: z.enum(['baja', 'viaje', 'enfermedad', 'otro']), // Según tu lógica
+  id: FirebaseIdSchema.optional(),
+  userId: FirebaseIdSchema,
+  residenciaId: FirebaseIdSchema,
+  fechaInicio: DateStringSchema, // "YYYY-MM-DD"
+  ultimoTiempoComidaId: FirebaseIdSchema.optional(),
+  fechaFin: DateStringSchema, // "YYYY-MM-DD"
+  primerTiempoComidaId: FirebaseIdSchema.optional(),
+  retornoPendienteConfirmacion: z.boolean().optional(),
+  fechaCreacion: z.number(), // Timestamp in milliseconds
   motivo: z.string().optional(),
-  comidasAfectadas: z.array(z.string()).optional(), // IDs de tiempos de comida
 });

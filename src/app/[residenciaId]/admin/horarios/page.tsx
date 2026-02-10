@@ -20,6 +20,7 @@ import { addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, dele
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from "@/hooks/useToast";
+import { logClientAction } from '@/lib/utils';
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -229,31 +230,6 @@ function AlternativaForm({
             </div>
         </div>
     );
-}
-
-// Log Helper Function - Updated to use authUser.uid
-async function createLogEntry(
-    actionType: LogActionType,
-    residenciaId: ResidenciaId,
-    userId: string | null, // Accept uid
-    details?: string,
-    relatedDocPath?: string
-) {
-    if (!userId)
-        userId = '';
-    try {
-        const logEntryData: Partial<Omit<ClientLogWrite, 'userId' | 'actionType' | 'timestamp'>> = {
-            residenciaId: residenciaId,
-            relatedDocPath: relatedDocPath,
-            details: details,
-        };
-        writeClientLog(userId,actionType,logEntryData);
-        console.log("Log Entry:", logEntryData);
-        // Uncomment to write to Firestore
-        // await addDoc(collection(db, "logEntries"), logEntryData);
-    } catch (error) {
-        console.error("Error creating log entry:", error);
-    }
 }
 
 function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
@@ -557,7 +533,10 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         try {
             const docRef = await addDoc(collection(db, "tiemposComida"), nuevoTiempoData);
             const newTiempoWithId: TiempoComida = { id: docRef.id, ...nuevoTiempoData };
-            await createLogEntry('tiempo_comida', residenciaId, authUser?.uid || null, `Created tiempo: ${nuevoTiempoData.nombre}`, docRef.path);
+            await logClientAction('TIEMPO_COMIDA_CREADO', {
+                residenciaId: residenciaId,
+                details: { description: `Created tiempo: ${nuevoTiempoData.nombre}`, docPath: docRef.path },
+            });
             setTiemposComida(prev => sortTiemposComida([...prev, newTiempoWithId]));
             
             setNewTiempoComidaName('');
@@ -623,7 +602,10 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
 
         try {
             await updateDoc(tiempoRef, updatedTiempoData);
-            await createLogEntry('tiempo_comida', residenciaId, authUser?.uid || null, `Updated tiempo: ${updatedTiempoData.nombre}`, tiempoRef.path);
+            await logClientAction('TIEMPO_COMIDA_ACTUALIZADO', {
+                residenciaId: residenciaId,
+                details: { description: `Updated tiempo: ${updatedTiempoData.nombre}`, docPath: tiempoRef.path },
+            });
             
             setTiemposComida(prev =>
                 sortTiemposComida(
@@ -658,12 +640,13 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
      
             const tiempoRef = doc(db, "tiemposComida", id);
             try {
-                console.log(`Attempting delete for TiempoComida ID: ${id}`);
                 // <<< Use deleteDoc >>>
                 await deleteDoc(tiempoRef);
-                console.log(`TiempoComida deleted: ${id}`);
      
-                await createLogEntry('tiempo_comida', residenciaId, authUser?.uid || null, `Deleted tiempo: ${nombre} (ID: ${id})`, tiempoRef.path);     
+                await logClientAction('TIEMPO_COMIDA_ELIMINADO', {
+                    residenciaId: residenciaId,
+                    details: { description: `Deleted tiempo: ${nombre} (ID: ${id})`, docPath: tiempoRef.path },
+                });     
                 // <<< Update state AFTER successful delete >>>
                 setTiemposComida(prev => prev.filter(t => t.id !== id));
                 toast({ title: "Eliminado", description: `Tiempo "${nombre}" eliminado.`, variant: "destructive" });
@@ -788,7 +771,10 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
 
             await batch.commit();
 
-            await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `Created alternativa: ${nuevaAlternativaData.nombre}`, newDocRef.path);
+            await logClientAction('ALTERNATIVA_TIEMPO_COMIDA_CREADA', {
+                residenciaId: residenciaId,
+                details: { description: `Created alternativa: ${nuevaAlternativaData.nombre}`, docPath: newDocRef.path },
+            });
 
             // --- Update Local State Atomically ---
             let updatedAlternativas = [...alternativas];
@@ -882,7 +868,10 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             
             await batch.commit();
 
-            await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `Updated alternativa: ${updatedAlternativaDataForFirestore.nombre}`, altRef.path);
+            await logClientAction('ALTERNATIVA_TIEMPO_COMIDA_ACTUALIZADA', {
+                residenciaId: residenciaId,
+                details: { description: `Updated alternativa: ${updatedAlternativaDataForFirestore.nombre}`, docPath: altRef.path },
+            });
 
             // --- Update Local State Atomically ---
             let updatedAlternativas = [...alternativas];
@@ -924,11 +913,12 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const handleDeleteAlternativa = async (id: string, nombre: string) => {
         const altRef = doc(db, "alternativasTiempoComida", id);
         try {
-            console.log(`Attempting delete for Alternativa ID: ${id}`);
             await deleteDoc(altRef);
-            console.log(`Alternativa deleted: ${id}`);
 
-            await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `Deleted alternativa: ${nombre} (ID: ${id})`, altRef.path);
+            await logClientAction('ALTERNATIVA_TIEMPO_COMIDA_ELIMINADA', {
+                residenciaId: residenciaId,
+                details: { description: `Deleted alternativa: ${nombre} (ID: ${id})`, docPath: altRef.path },
+            });
 
             setAlternativas(prev => prev.filter(alt => alt.id !== id));
             toast({ title: "Eliminada", description: `Alternativa "${nombre}" eliminada.`, variant: "destructive" });
@@ -954,7 +944,6 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
 
         const altRef = doc(db, "alternativasTiempoComida", id);
         try {
-            console.log(`${newStatus ? 'Activating' : 'Deactivating'} alternativa ID: ${id}`);
             await updateDoc(altRef, { isActive: newStatus });
 
             // Update local state optimistically or after success
@@ -964,7 +953,10 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                 )
             );
 
-            await createLogEntry('alternativa', residenciaId, authUser?.uid || null, `${newStatus ? 'Activated' : 'Deactivated'} alternativa: ${alternativa?.nombre || id}`, altRef.path);
+            await logClientAction('ALTERNATIVA_TIEMPO_COMIDA_ACTUALIZADA', {
+                residenciaId: residenciaId,
+                details: { description: `${newStatus ? 'Activated' : 'Deactivated'} alternativa: ${alternativa?.nombre || id}`, docPath: altRef.path },
+            });
 
             toast({
                 title: newStatus ? "Activada" : "Desactivada",

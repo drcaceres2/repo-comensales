@@ -10,10 +10,10 @@ import { db } from '@/lib/firebase'; // Your initialized instances
 
 // Hook Imports
 import { useAuth } from '@/hooks/useAuth';
-import { useDocumentSubscription } from '@/hooks/useFirebaseData';
+import { useDocumentSubscription } from '@/hooks/useDataSubscription';
 
 // Model Imports
-import { UserProfile, UserRole, ResidenciaId } from '../../../../shared/models/types';
+import { UserProfile, UserRole, ResidenciaId } from '@/../shared/models/types';
 
 export default function SolicitarComensalesPage() {
   const router = useRouter();
@@ -22,7 +22,7 @@ export default function SolicitarComensalesPage() {
 
   const { user, loading: authLoading, error: authError } = useAuth();
   const userProfileRef = user ? doc(db, "users", user.uid) : null;
-  const { loading: profileLoading, error: profileError, value: userProfile } = useDocumentSubscription<UserProfile>(userProfileRef);
+  const { loading: profileLoading, error: profileError, data: userProfile } = useDocumentSubscription<UserProfile>(userProfileRef);
 
   const isLoading = authLoading || profileLoading;
   const hasError = authError || profileError;

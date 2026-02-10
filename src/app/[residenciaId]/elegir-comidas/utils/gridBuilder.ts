@@ -4,14 +4,15 @@
  * This file implements the layered composition logic described in the Architecture Definition Document.
  */
 import {
-  Residencia,
   Semanario,
   TiempoComida,
   Ausencia,
   InscripcionActividad,
   Actividad,
-  Eleccion, // Assuming this type exists in types.ts
-} from '../../../../../shared/models/types';
+  Excepcion,
+  Comensal,
+  ResidenciaId,
+} from '@/../shared/models/types';
 import { format, parseISO, isSameDay } from 'date-fns';
 import { formatToDayOfWeekKey, estaDentroFechas } from '@/lib/fechasResidencia';
 
@@ -52,13 +53,14 @@ export interface GridMatrix {
  */
 interface BuildGridParams {
   weekDays: Date[];
-  residencia: Residencia;
+  residenciaId: ResidenciaId;
+  zonaHoraria: string; // IANA timezone string
   tiemposComida: TiempoComida[];
   semanario: Semanario | null;
   ausencias: Ausencia[];
   actividades: Actividad[];
   inscripciones: InscripcionActividad[];
-  elecciones: Eleccion[];
+  excepciones: Excepcion[];
 }
 
 // --- CORE FUNCTION ---
@@ -73,13 +75,14 @@ interface BuildGridParams {
 export function buildMealGrid(params: BuildGridParams): GridMatrix {
   const {
     weekDays,
-    residencia,
+    residenciaId,
+    zonaHoraria,
     tiemposComida,
     semanario,
     ausencias,
     actividades,
     inscripciones,
-    elecciones,
+    excepciones,
   } = params;
 
   const grid: GridMatrix = {};
@@ -125,7 +128,7 @@ export function buildMealGrid(params: BuildGridParams): GridMatrix {
       // --- Layer 2: Exclusion (Ausencias) ---
       // Absences block the cell, overriding weekly preferences.
       const ausenciaDelDia = ausencias.find(a =>
-        estaDentroFechas(dayStr, a.fechaInicio, a.fechaFin, residencia.zonaHoraria)
+        estaDentroFechas(dayStr, a.fechaInicio, a.fechaFin, zonaHoraria)
       );
       if (ausenciaDelDia) {
         cell.status = 'blocked';
@@ -149,20 +152,23 @@ export function buildMealGrid(params: BuildGridParams): GridMatrix {
         cell.reason = `Actividad: ${actividad?.nombre || 'ver detalles'}`;
       }
       
-      // --- Layer 4: Volition (Elecciones) ---
-      // A user's specific choice for a day.
-      const eleccionDelDia = elecciones.find(
+      // --- Layer 4: Volition (User Exceptions) ---
+      // A user's specific exception (override) for a day.
+      const excepcionDelDia = excepciones.find(
         e => e.fecha === dayStr && e.tiempoComidaId === tiempoComidaConfig.id
       );
 
-      if (eleccionDelDia) {
+      if (excepcionDelDia) {
         const isBlocked = cell.status === 'blocked';
         // If the cell is blocked, the manual choice is a conflict.
         cell.isConflicting = isBlocked;
 
         if (!isBlocked) {
-          // If not blocked, the manual choice wins over the weekly preference.
-          cell.status = eleccionDelDia.selected ? 'selected' : 'unselected';
+          // If not blocked, the exception determines the status:
+          // - 'cambio_alternativa': meal is selected with the new alternative
+          // - 'cancelacion_comida': meal is explicitly cancelled/unselected
+          const isSelected = excepcionDelDia.tipo === 'cambio_alternativa';
+          cell.status = isSelected ? 'selected' : 'unselected';
           cell.source = 'manual';
         }
       }

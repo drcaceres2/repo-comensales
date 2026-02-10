@@ -204,6 +204,8 @@ const ChartTooltipContent = (
                     <itemConfig.icon />
                   ) : (
                     !hideIndicator && (
+                      // CSS variables required for Tailwind custom CSS properties utilities
+                      // stylelint-disable
                       <div
                         className={cn(
                           "shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]",
@@ -298,11 +300,13 @@ const ChartLegendContent = (
             {itemConfig?.icon && !hideIcon ? (
               <itemConfig.icon />
             ) : (
+              // CSS variable required for Tailwind custom color utilities
+              // stylelint-disable
               <div
-                className="h-2 w-2 shrink-0 rounded-[2px]"
+                className="h-2 w-2 shrink-0 rounded-[2px] bg-[var(--chart-color)]"
                 style={{
-                  backgroundColor: item.color,
-                }}
+                  "--chart-color": item.color,
+                } as React.CSSProperties}
               />
             )}
             {itemConfig?.label}

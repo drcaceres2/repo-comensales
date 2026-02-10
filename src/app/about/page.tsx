@@ -27,7 +27,7 @@ export default function AboutPage() {
     <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-8 min-h-screen flex flex-col items-center justify-center">
       <Card className="w-full max-w-2xl shadow-xl">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 bg-white rounded-lg p-2" style={{ width: '100px', height: '100px' }}>
+          <div className="mx-auto mb-4 bg-white rounded-lg p-2 w-[100px] h-[100px]">
             <img
               src={appLogoUrl}
               alt={`${appName} Logo`}

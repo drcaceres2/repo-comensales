@@ -8,9 +8,12 @@
 
 import { useState, useEffect } from 'react';
 import { useMealPlanningData, MealPlanningData } from '../hooks/useMealPlanningData';
-import { buildMealGrid, GridMatrix } from '../utils/gridBuilder';
-import { ResidenciaId, UserId } from '../../../../../shared/models/types';
+import { buildMealGrid, GridMatrix, CellData } from '../utils/gridBuilder';
+import { ResidenciaId, UserId, Excepcion } from '@/../shared/models/types';
+import { startOfWeek, addDays, format } from 'date-fns';
 import { debounce } from 'lodash';
+import { doc, setDoc, deleteDoc, collection } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 // --- TODO: Create these dumb components ---
 // import { WeeklyGrid } from './WeeklyGrid';
@@ -49,9 +52,15 @@ export function MealPlannerContainer({ userId, residenciaId }: MealPlannerContai
   useEffect(() => {
     if (serverData) {
       const newGrid = buildMealGrid({
-        weekDays: getWeekDays(weekDate), // Helper needed
-        residencia: { id: residenciaId } as any, // Pass necessary parts of residencia
-        ...serverData,
+        weekDays: getWeekDays(weekDate),
+        residenciaId: residenciaId,
+        zonaHoraria: 'UTC', // TODO: Get from residencia data
+        tiemposComida: serverData.tiemposComida,
+        semanario: serverData.semanario,
+        ausencias: serverData.ausencias,
+        actividades: serverData.actividades,
+        inscripciones: serverData.inscripciones,
+        excepciones: serverData.excepciones,
       });
       setDisplayGrid(newGrid);
     }
@@ -66,17 +75,17 @@ export function MealPlannerContainer({ userId, residenciaId }: MealPlannerContai
       return;
     }
 
-    const newStatus = currentCell.status === 'selected' ? 'unselected' : 'selected';
+    const newStatus: 'selected' | 'unselected' = currentCell.status === 'selected' ? 'unselected' : 'selected';
 
     // Optimistic UI Update
-    const newGrid = {
+    const newGrid: GridMatrix = {
       ...displayGrid,
       [day]: {
         ...displayGrid[day],
         [mealGroup]: {
-          ...currentCell,
           status: newStatus,
-          source: 'manual', // The user's choice is now the source of truth
+          source: 'manual' as const,
+          tiempoComidaId: currentCell.tiempoComidaId,
           isConflicting: false,
         },
       },
@@ -84,19 +93,45 @@ export function MealPlannerContainer({ userId, residenciaId }: MealPlannerContai
     setDisplayGrid(newGrid);
     
     // Debounce the save operation
-    saveEleccion(day, currentCell.tiempoComidaId, newStatus);
+    saveExcepcion(day, currentCell.tiempoComidaId, newStatus);
   };
   
-  // TODO: Implement debouncing with lodash or a custom hook
-  const saveEleccion = (day: string, tiempoComidaId: string | null, newStatus: 'selected' | 'unselected') => {
+  // Debounced save operation for exceptions
+  const saveExcepcionImpl = async (day: string, tiempoComidaId: string | null, newStatus: 'selected' | 'unselected') => {
     if (!tiempoComidaId) return;
-    console.log(`Debounced save: User ${userId}, Day ${day}, TC ${tiempoComidaId}, Status ${newStatus}`);
-    // --- Firestore Logic Here ---
-    // 1. Create Composite ID: `${userId}_${day}_${tiempoComidaId}`
-    // 2. If newStatus is 'unselected', perform a `deleteDoc`.
-    // 3. If newStatus is 'selected', perform a `setDoc` with the Eleccion payload.
-    // 4. Implement rollback by calling `buildMealGrid` again on error and show toast.
+    
+    try {
+      const dateStr = format(addDays(startOfWeek(weekDate, { weekStartsOn: 1 }), parseInt(day)), 'yyyy-MM-dd');
+      const excepcionDocId = `${userId}_${dateStr}_${tiempoComidaId}`;
+      const excecionDocRef = doc(collection(db, 'residencias', residenciaId, 'excepciones'), excepcionDocId);
+
+      if (newStatus === 'unselected') {
+        // Delete the exception if deselected
+        await deleteDoc(excecionDocRef);
+        console.log(`Deleted exception: ${excepcionDocId}`);
+      } else {
+        // Create/update the exception if selected
+        const excepcionData: Omit<Excepcion, 'id'> = {
+          usuarioId: userId,
+          residenciaId: residenciaId,
+          fecha: dateStr,
+          tiempoComidaId: tiempoComidaId,
+          tipo: 'cambio_alternativa', // Default type - can be customized per alternative
+          // alternativaTiempoComidaId will be set based on the actual selection
+          motivo: undefined,
+          autorizadoPor: undefined,
+        };
+        await setDoc(excecionDocRef, excepcionData);
+        console.log(`Saved exception: ${excepcionDocId}`, excepcionData);
+      }
+    } catch (error) {
+      console.error(`Error saving exception: ${error}`);
+      // TODO: Show error toast and rollback UI
+    }
   };
+
+  // Create debounced version with 1 second delay
+  const saveExcepcion = debounce(saveExcepcionImpl, 1000);
 
   if (error) {
     return <div className="text-red-500">Error: {error.message}</div>;

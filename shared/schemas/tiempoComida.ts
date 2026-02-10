@@ -1,15 +1,16 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, TimeStringSchema, DateStringSchema } from './common';
+import { FirebaseIdSchema, TimeStringSchema, DateStringSchema, DayOfWeekKeySchema } from './common';
 
 export const TiempoComidaSchema = z.object({
   id: FirebaseIdSchema,
   nombre: z.string(),
+  residenciaId: FirebaseIdSchema,
+  nombreGrupo: z.string(),
   ordenGrupo: z.number(),
-  activa: z.boolean(),
-  horaInicio: TimeStringSchema.optional(),
-  horaFin: TimeStringSchema.optional(),
-  // Validación extra: reglas de negocio básicas
-  residenciaId: FirebaseIdSchema.optional(),
+  dia: DayOfWeekKeySchema.nullable().optional(),
+  horaEstimada: TimeStringSchema.nullable().optional(),
+  aplicacionOrdinaria: z.boolean(),
+  isActive: z.boolean(),
 });
 
 export const MealSelectionMutationSchema = z.object({

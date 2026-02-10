@@ -16,9 +16,7 @@ import {
     TiempoComida,
     AlternativaTiempoComida,
     DayOfWeekKey,
-    Eleccion,
-    OrigenEleccion,
-    EstadoAprobacion,
+    Comensal,
     HorarioSolicitudComida,
     HorarioSolicitudComidaId,
     TiempoComidaId,
@@ -27,10 +25,11 @@ import {
     UserRole,
     ResidenciaId,
     LogActionType
-} from '../../../../shared/models/types';
+} from '@/../shared/models/types';
 import { logClientAction, addLogToBatch } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from "@/hooks/useToast";
+import ProgressBar from './components/ProgressBar';
 
 // Importaciones para UI/UX
 import { Calendar as CalendarIcon, Loader2, AlertCircle, Info } from "lucide-react";
@@ -441,49 +440,53 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null { // Allow
         console.log("Using Dieta ID:", guestDietaId || "Not set");
 
         try {
-            // Save Elecciones (only if details were provided)
+            // Save Comensales (meal records) only if details were provided
             if (detailPreference !== 'no_ahora') {
                 for (const dayISO of Object.keys(mealSelections)) {
-                    const daySelections = mealSelections[dayISO]; const fecha = Timestamp.fromDate(parseISO(dayISO));
+                    const daySelections = mealSelections[dayISO];
                     for (const tiempoId of Object.keys(daySelections)) {
                         const alternativaIdOrPendiente = daySelections[tiempoId];
                         if (alternativaIdOrPendiente === 'pendiente') continue;
                         const alternativaId = alternativaIdOrPendiente;
+                        
+                        // Find the selected alternative to get its name
                         const selectedAlternativa = alternativas.find(alt => alt.id === alternativaId);
                         if (!selectedAlternativa) continue;
-                        const estadoAprobacion: EstadoAprobacion = selectedAlternativa.requiereAprobacion ? 'pendiente' : 'no_requerido';
-                        const eleccionData: Omit<Eleccion, 'id'> = {
-                            usuarioId: authUser.uid, // Use authUser UID
+                        
+                        // Find the tiempo de comida to get its name
+                        const tiempoComidaObj = Array.from(tiemposComida.values())
+                            .flat()
+                            .find(tc => tc.id === tiempoId);
+                        if (!tiempoComidaObj) continue;
+                        
+                        // Create Comensal record (meal request for guest)
+                        const comensalData: Omit<Comensal, 'id'> = {
+                            usuarioId: authUser.uid,
                             residenciaId: residenciaId,
                             fecha: dayISO,
                             tiempoComidaId: tiempoId,
-                            alternativaTiempoComidaId: alternativaId,
-                            dietaId: guestDietaId || undefined,
+                            nombreTiempoComida: tiempoComidaObj.nombre,
+                            alternativaId: alternativaId,
+                            nombreAlternativa: selectedAlternativa.nombre,
+                            centroCostoId: guestUserProfile?.centroCostoPorDefectoId || 'default_centro_costo',
+                            origen: 'INVITADO_EXTERNO',
                             solicitadoAdministracion: true,
-                            congelado: false,
-                            estadoAprobacion: estadoAprobacion,
-                            origen: 'invitado_wizard' as OrigenEleccion,
-                            fechaSolicitudAdministracion: new Date().toISOString(),
-                            tipoEleccion: 'regular',
                         };
-                        // Use top-level elecciones collection
-                        const eleccionDocRef = doc(collection(db, `elecciones`));
-                        batch.set(eleccionDocRef, eleccionData);
                         
-                        // Log this action in the logs collection
-                        const esAsistente = authUser.uid !== eleccionData.usuarioId;
-                        addLogToBatch(batch, 'ELECCION_CREADA', {
+                        // Use residencia-scoped comensales collection
+                        const comensalDocRef = doc(collection(db, `residencias/${residenciaId}/comensales`));
+                        batch.set(comensalDocRef, comensalData);
+                        
+                        // Log this action
+                        addLogToBatch(batch, 'COMENSAL_CREADO', {
                             residenciaId: residenciaId,
-                            targetId: eleccionDocRef.id, // Enlazamos con el ID exacto de la elección
-                            targetCollection: 'elecciones',
+                            targetId: comensalDocRef.id,
+                            targetCollection: 'comensales',
                             details: {
                                 fecha: dayISO,
-                                tiempo: tiempoId,
+                                tiempoComida: tiempoComidaObj.nombre,
                                 alternativa: selectedAlternativa.nombre,
-                                // Auditoría Forense:
-                                operadoPor: authUser.email, // El Asistente
-                                aNombreDe: eleccionData.usuarioId, // El VIP
-                                esAsistido: esAsistente
+                                invitado: authUser.email,
                             }
                         });
                     }
@@ -578,9 +581,7 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null { // Allow
                     <CardTitle className="text-2xl sm:text-3xl">Bienvenida, {guestUserProfile?.nombre || 'Invitado'}!</CardTitle> {/* Use profile name */}
                     <CardDescription>Paso {currentStep} de {TOTAL_STEPS}: Completa los detalles de tu estancia.</CardDescription>
                     {/* Progress Bar */}
-                    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mt-2">
-                        <div className="bg-primary h-2.5 rounded-full" style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}></div>
-                    </div>
+                    <ProgressBar current={currentStep} total={TOTAL_STEPS} />
                 </CardHeader>
                 <CardContent className="min-h-[300px]"> {/* Set min-height */}
                     {/* --- Step 1: Select Dates --- */}

@@ -658,6 +658,8 @@ export type LogActionType =
     | 'SEMANARIO_CREADO' | 'SEMANARIO_ACTUALIZADO' | 'SEMANARIO_ELIMINADO'
     // Excepciones
     | 'EXCEPCION_CREADA' | 'EXCEPCION_ACTUALIZADA' | 'EXCEPCION_ELIMINADA'
+    // Comensales (meal records for kitchen/accounting)
+    | 'COMENSAL_CREADO' | 'COMENSAL_ACTUALIZADO' | 'COMENSAL_ELIMINADO'
     // Ausencias
     | 'AUSENCIA_CREADA' | 'AUSENCIA_ACTUALIZADA' | 'AUSENCIA_ELIMINADA'
     // Autorizaciones
@@ -666,6 +668,8 @@ export type LogActionType =
     | 'COMENTARIO_CREADO' | 'COMENTARIO_ACTUALIZADO' | 'COMENTARIO_ELIMINADO'
     // Modo de elección
     | 'MODO_ELECCION_CREADO' | 'MODO_ELECCION_ACTUALIZADO' | 'MODO_ELECCION_ELIMINADO'
+    // Elecciones (Meal selections)
+    | 'ELECCION_CREADA' | 'ELECCION_ACTUALIZADA' | 'ELECCION_ELIMINADA'
     // Actividades
     | 'ACTIVIDAD_CREADA' | 'ACTIVIDAD_ACTUALIZADA' | 'ACTIVIDAD_ELIMINADA'
     // Inscripciones a actividades

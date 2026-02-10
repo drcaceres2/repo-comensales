@@ -5,6 +5,7 @@ import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
 import { PanelLeft } from "lucide-react"
 import Image from 'next/image'
+import './sidebar.css'
 
 import { useIsMobile } from "@/hooks/useMobile"
 import { cn } from "@/lib/utils"
@@ -111,19 +112,23 @@ const SidebarProvider = ({
     [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
   )
 
+  // Merge custom styles with CSS variables
+  const mergedStyle = {
+    "--sidebar-width": SIDEBAR_WIDTH,
+    "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+    ...style,
+  } as React.CSSProperties
+
   return (
     <SidebarContext value={contextValue}>
       <TooltipProvider delayDuration={0}>
         <div
-          style={{
-            "--sidebar-width": SIDEBAR_WIDTH,
-            "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
-            ...style,
-          } as React.CSSProperties}
           className={cn(
             "group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-sidebar",
             className
           )}
+          // CSS variables needed for Tailwind utilities to work properly
+          style={mergedStyle}
           {...props}
         >
           {children}
@@ -208,6 +213,8 @@ const Sidebar = ({
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
         {finalMobileTriggerElement} {/* This should now always be a ReactElement if we proceed */}
+        {/* CSS variable required for Tailwind var() utilities */}
+        {/* stylelint-disable */}
         <SheetContent
           data-sidebar="sidebar"
           data-mobile="true"
@@ -700,6 +707,8 @@ const SidebarMenuSkeleton = ({
           data-sidebar="menu-skeleton-icon"
         />
       )}
+      {/* CSS variable required for Tailwind max-width utilities */}
+      {/* stylelint-disable */}
       <Skeleton
         className="h-4 flex-1 max-w-[--skeleton-width]"
         data-sidebar="menu-skeleton-text"
