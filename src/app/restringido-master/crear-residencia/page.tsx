@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
-import { UserProfile, Residencia, Dieta } from '../../../../shared/models/types';
+import { UserProfile, Residencia, Dieta, Ubicacion } from '../../../../shared/models/types';
+import countriesData from '../../../../shared/data/countries.json';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
   doc,
@@ -48,7 +49,12 @@ const getNewResidenciaDefaults = (): Partial<Residencia> => ({ // Changed return
   antelacionActividadesDefault: 7,
   tipoResidencia: 'estudiantes',
   esquemaAdministracion: 'estricto',
-  zonaHoraria: 'America/Tegucigalpa',
+  ubicacion: {
+    pais: 'HN',
+    ciudad: 'Tegucigalpa',
+    timezone: 'America/Tegucigalpa',
+    direccion: ''
+  },
   nombreTradicionalDesayuno: "Desayuno",
   nombreTradicionalAlmuerzo: "Almuerzo",
   nombreTradicionalCena: "Cena",
@@ -108,8 +114,18 @@ function CrearResidenciaAdminPage() {
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [formLoading, setFormLoading] = useState<boolean>(false);
   const [antelacionError, setAntelacionError] = useState<string | null>(null);
-
   const [residenciaIdError, setResidenciaIdError] = useState<string | null>(null);
+
+  // Helper for ubicacion change
+  const handleUbicacionChange = (field: keyof Ubicacion, value: string) => {
+    setCurrentResidencia(prev => ({
+      ...prev,
+      ubicacion: {
+        ...prev.ubicacion!, // Assume initialized in defaults or loaded
+        [field]: value
+      }
+    }));
+  };
 
   const [formData, setFormData] = useState<Partial<Omit<Residencia, 'id'>>>(getNewResidenciaDefaults());
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -274,7 +290,18 @@ function CrearResidenciaAdminPage() {
          toast({ title: "Acción no permitida", description: "No tienes permisos para editar esta residencia.", variant: "destructive" });
         return;
     }
-    setCurrentResidencia({ ...getNewResidenciaDefaults(), ...residencia });
+    // Ensure ubicacion exists if editing legacy data
+    const residenciaToEdit = { ...getNewResidenciaDefaults(), ...residencia };
+    if (!residenciaToEdit.ubicacion) {
+        // Fallback migration for old data if needed
+         residenciaToEdit.ubicacion = {
+            pais: 'HN', // Default or try to guess?
+            ciudad: 'Tegucigalpa',
+            timezone: (residencia as any).zonaHoraria || 'America/Tegucigalpa',
+            direccion: residencia.direccion
+        };
+    }
+    setCurrentResidencia(residenciaToEdit);
     setIsEditing(true);
     setShowCreateForm(true);
   };
@@ -302,9 +329,19 @@ function CrearResidenciaAdminPage() {
         return;
     }
 
-    if (!currentResidencia.zonaHoraria || !currentResidencia.zonaHoraria.includes('/')) {
+    if (!currentResidencia.ubicacion?.timezone || !currentResidencia.ubicacion.timezone.includes('/')) {
         toast({ title: "Campo requerido", description: "La zona horaria es obligatoria y debe tener un formato válido (Ej: Region/Ciudad).", variant: "default"});
         return;
+    }
+
+    if (!currentResidencia.ubicacion?.pais) {
+         toast({ title: "Campo requerido", description: "El país es obligatorio.", variant: "default"});
+         return;
+    }
+
+    if (!currentResidencia.ubicacion?.ciudad) {
+         toast({ title: "Campo requerido", description: "La ciudad es obligatoria.", variant: "default"});
+         return;
     }
 
     setFormLoading(true);
@@ -318,7 +355,13 @@ function CrearResidenciaAdminPage() {
         antelacionActividadesDefault: currentResidencia.antelacionActividadesDefault || 7,
         tipoResidencia: currentResidencia.tipoResidencia || 'estudiantes',
         esquemaAdministracion: currentResidencia.esquemaAdministracion || 'estricto',
-        zonaHoraria: (currentResidencia.zonaHoraria as string) || (getNewResidenciaDefaults().zonaHoraria as string),
+        ubicacion: {
+            pais: currentResidencia.ubicacion!.pais,
+            region: currentResidencia.ubicacion!.region || '',
+            ciudad: currentResidencia.ubicacion!.ciudad,
+            direccion: currentResidencia.ubicacion!.direccion || currentResidencia.direccion || '', // Sync or fallback
+            timezone: currentResidencia.ubicacion!.timezone,
+        },
         nombreTradicionalDesayuno: currentResidencia.nombreTradicionalDesayuno || "Desayuno",
         nombreTradicionalAlmuerzo: currentResidencia.nombreTradicionalAlmuerzo || "Almuerzo",
         nombreTradicionalCena: currentResidencia.nombreTradicionalCena || "Cena",
@@ -423,7 +466,10 @@ function CrearResidenciaAdminPage() {
   const handleTimezoneChange = useCallback((newTimezone: string) => {
     setCurrentResidencia(prev => ({
       ...prev,
-      zonaHoraria: newTimezone,
+      ubicacion: {
+        ...prev.ubicacion!,
+        timezone: newTimezone
+      }
     }));
   }, []);
 
@@ -556,13 +602,56 @@ function CrearResidenciaAdminPage() {
                 <Label htmlFor="logoUrl">URL del Logo</Label>
                 <Input id="logoUrl" name="logoUrl" type="url" value={currentResidencia.logoUrl || ''} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="pais">País <span className="text-destructive">*</span></Label>
+                    <Select
+                      value={currentResidencia.ubicacion?.pais || 'HN'}
+                      onValueChange={(val) => handleUbicacionChange('pais', val)}
+                      disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                    >
+                      <SelectTrigger id="pais">
+                        <SelectValue placeholder="Seleccionar País" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          {countriesData.map((c: {code: string, name: string}) => (
+                              <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="region">Región / Estado / Provincia</Label>
+                    <Input
+                        id="region"
+                        value={currentResidencia.ubicacion?.region || ''}
+                        onChange={(e) => handleUbicacionChange('region', e.target.value)}
+                        placeholder="Ej. Francisco Morazán"
+                        disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                    />
+                  </div>
+              </div>
+
+               <div>
+                <Label htmlFor="ciudad">Ciudad <span className="text-destructive">*</span></Label>
+                <Input
+                    id="ciudad"
+                    value={currentResidencia.ubicacion?.ciudad || ''}
+                    onChange={(e) => handleUbicacionChange('ciudad', e.target.value)}
+                    placeholder="Ej. Tegucigalpa"
+                    required
+                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                />
+              </div>
+
               {/* Timezone Selection using TimezoneSelector Component */}
               <div>
                 <TimezoneSelector
                   label="Zona Horaria"
-                  initialTimezone={currentResidencia.zonaHoraria || getNewResidenciaDefaults().zonaHoraria}
+                  initialTimezone={currentResidencia.ubicacion?.timezone || 'America/Tegucigalpa'}
                   onTimezoneChange={handleTimezoneChange}
                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  allowManualEntry={true}
                   // You can pass custom classNames if needed, e.g.:
                   // selectClassName="w-full p-2 border rounded mt-1 bg-background text-foreground"
                   // containerClassName="mb-4"

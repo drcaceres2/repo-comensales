@@ -36,7 +36,6 @@ export const dayOfWeekKeyToDate = (dayKey: DayOfWeekKey, weekStartDate: Date): D
   let daysToAdd = targetDayIndex - 1; // Assuming Monday is 1 from dayKeyToDateFnsNumber
   if (dayKey === 'domingo') daysToAdd = 6; // Sunday is 6 days after Monday
 
-
   return addDays(weekStartDate, daysToAdd);
 };
 
@@ -214,7 +213,7 @@ export const comprararFechasSinHora = (fecha1: Date | string, fecha2: Date | str
     return null;
   }
   const fecha1IsoSinHora = format(fecha1Iso, "YYYY-MM-DD");
-  const fecha2IsoSinHora = format(fecha1Iso, "YYYY-MM-DD");
+  const fecha2IsoSinHora = format(fecha2Iso, "YYYY-MM-DD");
   if(fecha1IsoSinHora===fecha2IsoSinHora)
     return 'igual';
   else if(isBefore(fecha1IsoSinHora, fecha2IsoSinHora))

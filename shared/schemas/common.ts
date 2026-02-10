@@ -1,16 +1,21 @@
 import { z } from 'zod';
 
-// Formato estricto YYYY-MM-DD
-export const DateStringSchema = z.string().regex(
-  /^\d{4}-\d{2}-\d{2}$/, 
-  { message: "La fecha debe tener formato YYYY-MM-DD" }
-);
-
 // IDs de Firestore (no vacíos)
 export const FirebaseIdSchema = z.string().min(1, "ID inválido");
 
-// Tipos base para reutilizar
-export const TimeStringSchema = z.string().regex(/^\d{2}:\d{2}$/, "Formato HH:mm requerido");
+export const CadenaOpcionalLimitada = (min: number = 1, max?: number) => {
+    // 1. Definimos la regla base para el string (cuando SÍ hay valor)
+    let stringRule = z.string().min(min, { message: `Mínimo ${min} caracter(es)` });
 
-// Day of week schema
-export const DayOfWeekKeySchema = z.enum(['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']);
+    // 2. Si nos pasaron un max, lo inyectamos a la regla
+    if (max) {
+        stringRule = stringRule.max(max, { message: `Máximo ${max} caracteres` });
+    }
+
+    // 3. Retornamos el pipeline completo
+    return z.string()
+        .trim() // Limpieza inicial
+        .transform(v => v === "" ? undefined : v) // La magia del formulario
+        .pipe(stringRule.optional()); // Aplicamos las reglas construidas arriba
+};
+

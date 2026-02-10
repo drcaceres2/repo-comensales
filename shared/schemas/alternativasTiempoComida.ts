@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, TimeStringSchema } from './common';
+import { FirebaseIdSchema } from './common';
+import { TimeStringSchema } from './fechas';
 
 export const AlternativaTiempoComidaSchema = z.object({
   id: FirebaseIdSchema,

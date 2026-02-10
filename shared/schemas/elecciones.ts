@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, DateStringSchema } from './common';
+import { FirebaseIdSchema } from './common';
+import { DateStringSchema } from './fechas';
 import { ExcepcionSchema } from './excepciones';
 
 /**

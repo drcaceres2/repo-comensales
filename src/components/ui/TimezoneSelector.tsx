@@ -26,6 +26,7 @@ export interface TimezoneSelectorProps {
   selectClassName?: string;
   labelClassName?: string;
   containerClassName?: string;
+  allowManualEntry?: boolean;
 }
 
 const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({
@@ -35,56 +36,83 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({
   label,
   selectClassName = "w-full p-2 border rounded mt-1 bg-background text-foreground",
   labelClassName = "block text-sm font-medium text-gray-700 dark:text-gray-300", // Added dark mode suggestion
-  containerClassName = "mb-4"
+  containerClassName = "mb-4",
+  allowManualEntry = false,
 }) => {
   const [selectedRegion, setSelectedRegion] = useState<string>("");
   const [selectedCity, setSelectedCity] = useState<string>("");
+  const [isManual, setIsManual] = useState<boolean>(false);
+  const [manualTimezone, setManualTimezone] = useState<string>("");
+
+  // Helper to attempt parsing and validating a timezone string
+  const parseAndValidateTimezone = (tzString: string | undefined): boolean => {
+    if (!tzString) return false;
+    
+    const parts = tzString.split('/');
+    if (parts.length < 2) return false;
+
+    const region = parts[0];
+    const city = parts.slice(1).join('/'); // City can contain '/'
+
+    // Check if the region exists and the city is found within that region's timezones
+    if (region && timezonesData[region] && city && timezonesData[region].find(tz => tz.name === city)) {
+      return true;
+    }
+    return false;
+  };
 
   useEffect(() => {
     let regionToSet = "";
     let cityToSet = "";
-
-    // Helper to attempt parsing and validating a timezone string
-    const parseAndValidateTimezone = (tzString: string | undefined): boolean => {
-      if (!tzString) return false;
-      
-      const parts = tzString.split('/');
-      const region = parts[0];
-      const city = parts.slice(1).join('/'); // City can contain '/'
-
-      // Check if the region exists and the city is found within that region's timezones
-      if (region && timezonesData[region] && city && timezonesData[region].find(tz => tz.name === city)) {
-        regionToSet = region;
-        cityToSet = city;
-        return true;
-      }
-      return false;
-    };
+    
+    // Internal helper to set state
+    const setFromTimezone = (tzString: string | undefined) => {
+        if (!tzString) return;
+        const parts = tzString.split('/');
+        if (parts.length < 2) return;
+        const region = parts[0];
+        const city = parts.slice(1).join('/');
+        
+        if (region && timezonesData[region] && city && timezonesData[region].find(tz => tz.name === city)) {
+             regionToSet = region;
+             cityToSet = city;
+        }
+    }
 
     // 1. Try to set timezone from the initialTimezone prop
-    if (!parseAndValidateTimezone(initialTimezone)) {
-      // 2. If initialTimezone was not provided or was invalid,
-      //    attempt to set timezone from DEFAULT_TIMEZONE_STRING.
-      //    If this also fails (e.g., default string is somehow not in the JSON),
-      //    regionToSet and cityToSet will remain "", leading to "-- Select --" in dropdowns.
-      parseAndValidateTimezone(DEFAULT_TIMEZONE_STRING);
+    if (initialTimezone) {
+       const isValid = parseAndValidateTimezone(initialTimezone);
+       if (!isValid && allowManualEntry) {
+           setIsManual(true);
+           setManualTimezone(initialTimezone);
+       } else if (!isValid) {
+           // Fallback to default if invalid and manual entry not allowed
+           setFromTimezone(DEFAULT_TIMEZONE_STRING);
+       } else {
+           setFromTimezone(initialTimezone);
+       }
+    } else {
+        setFromTimezone(DEFAULT_TIMEZONE_STRING);
     }
 
     setSelectedRegion(regionToSet);
     setSelectedCity(cityToSet);
 
-  }, [initialTimezone]); // timezonesData is a module constant and doesn't need to be a dependency
+  }, [initialTimezone, allowManualEntry]); // timezonesData is a module constant and doesn't need to be a dependency
 
   // useEffect to call onTimezoneChange when a valid city in a valid region is selected
   useEffect(() => {
-    if (selectedRegion && selectedCity && timezonesData[selectedRegion]?.find(tz => tz.name === selectedCity)) {
+    if (isManual) {
+        onTimezoneChange(manualTimezone);
+    } else if (selectedRegion && selectedCity && timezonesData[selectedRegion]?.find(tz => tz.name === selectedCity)) {
       onTimezoneChange(`${selectedRegion}/${selectedCity}`);
     } else if (!selectedRegion || !selectedCity) {
       // Call with empty string if selection is incomplete or invalid
       // This might happen if initialTimezone was invalid or selections are reset
-      onTimezoneChange("");
+      // Don't clear if it was just switched to manual
+      if (!isManual) onTimezoneChange("");
     }
-  }, [selectedRegion, selectedCity, onTimezoneChange]);
+  }, [selectedRegion, selectedCity, isManual, manualTimezone, onTimezoneChange]);
 
   const handleRegionChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setSelectedRegion(event.target.value);
@@ -94,6 +122,31 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({
   const handleCityChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setSelectedCity(event.target.value);
   };
+  
+  const handleManualChange = (event: ChangeEvent<HTMLInputElement>) => {
+      setManualTimezone(event.target.value);
+  }
+
+  const toggleManual = () => {
+      setIsManual(!isManual);
+      if (!isManual) {
+          // Switching TO manual
+          // Set manual timezone to current selection if valid
+          if (selectedRegion && selectedCity) {
+              setManualTimezone(`${selectedRegion}/${selectedCity}`);
+          }
+      } else {
+          // Switching BACK to selector
+          // Try to parse current manual timezone
+           if (parseAndValidateTimezone(manualTimezone)) {
+               const parts = manualTimezone.split('/');
+               const r = parts[0];
+               const c = parts.slice(1).join('/');
+               setSelectedRegion(r);
+               setSelectedCity(c);
+           }
+      }
+  }
 
   const availableRegions = Object.keys(timezonesData);
   const availableCities = selectedRegion ? timezonesData[selectedRegion] : [];
@@ -129,6 +182,31 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({
           ))}
         </select>
       </div>
+      
+      {allowManualEntry && (
+        <div className="mt-2">
+            <div className="flex items-center space-x-2">
+                <input 
+                    type="checkbox" 
+                    id="manualTimezone" 
+                    checked={isManual} 
+                    onChange={toggleManual}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <label htmlFor="manualTimezone" className="text-sm text-muted-foreground">Ingresar zona horaria manualmente</label>
+            </div>
+            {isManual && (
+                <input
+                    type="text"
+                    value={manualTimezone}
+                    onChange={handleManualChange}
+                    className={selectClassName}
+                    placeholder="Ej: America/Tegucigalpa"
+                    disabled={disabled}
+                />
+            )}
+        </div>
+      )}
     </div>
   );
 };

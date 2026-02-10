@@ -1,10 +1,6 @@
 import { z } from 'zod';
-import {
-  ActividadEstado,
-  TipoAccesoActividad,
-  TipoSolicitudComidasActividad,
-  EstadoInscripcionActividad,
-} from '@/../shared/models/types';
+import { CadenaOpcionalLimitada } from './common';
+
 
 // Esquema para el enum ActividadEstado
 const ActividadEstadoEnum = z.enum([
@@ -47,7 +43,7 @@ export const ActividadSchema = z.object({
   id: z.string(),
   residenciaId: z.string(),
   nombre: z.string().min(1, 'El nombre debe tener al menos 1 caracter').max(25, 'El nombre no puede tener más de 25 caracteres'),
-  descripcionGeneral: z.string().min(1).max(63).optional(),
+  descripcionGeneral: CadenaOpcionalLimitada(1, 63),
   maxParticipantes: z.number().int().min(1).max(1000).optional(),
   estado: ActividadEstadoEnum,
   organizadorUserId: z.string(),
@@ -79,7 +75,7 @@ export const InscripcionActividadSchema = z.object({
   fechaEstado: z.number(), // Timestamp en milisegundos
   invitadoPorUserId: z.string().optional(),
   fechaInvitacionOriginal: z.number().nullable().optional(), // Timestamp en milisegundos
-  nombreInvitadoNoAutenticado: z.string().min(1).max(100).optional(),
+  nombreInvitadoNoAutenticado: CadenaOpcionalLimitada(1, 100),
 });
 
 export type Actividad = z.infer<typeof ActividadSchema>;

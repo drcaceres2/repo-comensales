@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, DateStringSchema } from './common';
+import {FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
+import { IsoDateStringSchema } from './fechas';
 
 // ============================================
 // Esquemas para campos complejos de UserProfile
@@ -8,15 +9,15 @@ import { FirebaseIdSchema, DateStringSchema } from './common';
 export const AsistentePermisosDetalleSchema = z.object({
     nivelAcceso: z.enum(['Todas', 'Propias', 'Ninguna']),
     restriccionTiempo: z.boolean(),
-    fechaInicio: DateStringSchema.nullable().optional(),
-    fechaFin: DateStringSchema.nullable().optional(),
+    fechaInicio: IsoDateStringSchema.nullable().optional(),
+    fechaFin: IsoDateStringSchema.nullable().optional(),
 }).strict();
 
 export const AsistenciasUsuariosDetalleSchema = z.object({
     usuarioAsistido: FirebaseIdSchema,
     restriccionTiempo: z.boolean(),
-    fechaInicio: DateStringSchema.nullable().optional(),
-    fechaFin: DateStringSchema.nullable().optional(),
+    fechaInicio: IsoDateStringSchema.nullable().optional(),
+    fechaFin: IsoDateStringSchema.nullable().optional(),
 }).strict();
 
 export const AsistentePermisosSchema = z.object({
@@ -57,17 +58,17 @@ export const userProfileSchema = z.object({
     isActive: z.boolean(),
     residenciaId: FirebaseIdSchema.nullable().optional(),
     dietaId: FirebaseIdSchema.nullable().optional(),
-    numeroDeRopa: z.string().max(10).optional(),
-    habitacion: z.string().max(10).optional(),
-    universidad: z.string().max(150).optional(),
-    carrera: z.string().optional(),
-    dni: z.string().optional(),
-    fechaDeNacimiento: DateStringSchema.nullable().optional(),
+    numeroDeRopa: CadenaOpcionalLimitada(1,10),
+    habitacion: CadenaOpcionalLimitada(1,10),
+    universidad: CadenaOpcionalLimitada(2,150),
+    carrera: CadenaOpcionalLimitada(2,50),
+    identificacion: CadenaOpcionalLimitada(),
+    fechaDeNacimiento: IsoDateStringSchema.nullable().optional(),
     centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']),
-    valorCampoPersonalizado1: z.string().optional(),
-    valorCampoPersonalizado2: z.string().optional(),
-    valorCampoPersonalizado3: z.string().optional(),
+    valorCampoPersonalizado1: CadenaOpcionalLimitada(),
+    valorCampoPersonalizado2: CadenaOpcionalLimitada(),
+    valorCampoPersonalizado3: CadenaOpcionalLimitada(),
     telefonoMovil: z.string()
         .regex(/^(\+?(\d[\d\- ]+)?(\([\d\- ]+\))?[\d\- ]+\d$)/)
         .refine(val => {
@@ -94,20 +95,20 @@ export const createUserProfileSchema = z.object({
     fotoPerfil: z.string().nullable().optional(),
     email: z.string().email(),
     roles: z.array(z.enum(['residente', 'director', 'admin', 'master', 'invitado', 'asistente', 'contador'])),
-    isActive: z.boolean().default(true),
-    residenciaId: FirebaseIdSchema.nullable().optional(),
-    dietaId: FirebaseIdSchema.nullable().optional(),
     numeroDeRopa: z.string().max(10).optional(),
     habitacion: z.string().max(10).optional(),
     universidad: z.string().max(150).optional(),
-    carrera: z.string().optional(),
-    dni: z.string().optional(),
-    fechaDeNacimiento: DateStringSchema.nullable().optional(),
+    carrera: CadenaOpcionalLimitada(),
+    dni: CadenaOpcionalLimitada(),
+    fechaDeNacimiento: IsoDateStringSchema.nullable().optional(),
+    // ADDED: residenciaId and dietaId were missing
+    residenciaId: FirebaseIdSchema.nullable().optional(),
+    dietaId: FirebaseIdSchema.nullable().optional(),
     centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().optional(),
-    valorCampoPersonalizado1: z.string().optional(),
-    valorCampoPersonalizado2: z.string().optional(),
-    valorCampoPersonalizado3: z.string().optional(),
+    valorCampoPersonalizado1: CadenaOpcionalLimitada(),
+    valorCampoPersonalizado2: CadenaOpcionalLimitada(),
+    valorCampoPersonalizado3: CadenaOpcionalLimitada(),
     telefonoMovil: z.string()
         .regex(/^(\+?(\d[\d\- ]+)?(\([\d\- ]+\))?[\d\- ]+\d$)/)
         .refine(val => {
@@ -136,14 +137,14 @@ export const updateUserProfileSchema = z.object({
     numeroDeRopa: z.string().max(10).optional(),
     habitacion: z.string().max(10).optional(),
     universidad: z.string().max(150).optional(),
-    carrera: z.string().optional(),
-    dni: z.string().optional(),
-    fechaDeNacimiento: DateStringSchema.nullable().optional(),
+    carrera: CadenaOpcionalLimitada(),
+    dni: CadenaOpcionalLimitada(),
+    fechaDeNacimiento: IsoDateStringSchema.nullable().optional(),
     centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().optional(),
-    valorCampoPersonalizado1: z.string().optional(),
-    valorCampoPersonalizado2: z.string().optional(),
-    valorCampoPersonalizado3: z.string().optional(),
+    valorCampoPersonalizado1: CadenaOpcionalLimitada(),
+    valorCampoPersonalizado2: CadenaOpcionalLimitada(),
+    valorCampoPersonalizado3: CadenaOpcionalLimitada(),
     telefonoMovil: z.string()
         .regex(/^(\+?(\d[\d\- ]+)?(\([\d\- ]+\))?[\d\- ]+\d$)/)
         .refine(val => {
@@ -165,7 +166,7 @@ export const UserSelectorItemSchema = z.object({
     nombreCorto: z.string().nullable().optional(),
     email: z.string().email(),
     roles: z.array(z.string()),
-    habitacion: z.string().optional(),
+    habitacion: CadenaOpcionalLimitada(),
     isActive: z.boolean(),
 }).strip();
 

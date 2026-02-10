@@ -18,12 +18,12 @@ import { db } from '@/lib/firebase';
 import {
   ResidenciaId,
   UserId,
-} from '@/../../shared/models/types';
-import { TiempoComidaSchema } from '@/../../shared/schemas/tiempoComida';
-import { AusenciaSchema } from '@/../../shared/schemas/ausencias';
-import { InscripcionActividadSchema, ActividadSchema } from '@/../../shared/schemas/actividades';
-import { ExcepcionSchema } from '@/../../shared/schemas/excepciones';
-import { SemanarioSchema } from '@/../../shared/schemas/semanario';
+} from '../../../../../shared/models/types';
+import { TiempoComidaSchema } from '../../../../../shared/schemas/tiempoComida';
+import { AusenciaSchema } from '../../../../../shared/schemas/ausencias';
+import { InscripcionActividadSchema, ActividadSchema } from '../../../../../shared/schemas/actividades';
+import { ExcepcionSchema } from '../../../../../shared/schemas/excepciones';
+import { SemanarioSchema } from '../../../../../shared/schemas/semanario';
 
 // Infer types from Zod schemas
 type TiempoComida = z.infer<typeof TiempoComidaSchema>;

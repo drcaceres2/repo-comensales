@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { FirebaseIdSchema } from './common';
+import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
 
 // ============================================
 // Esquemas para ConfigContabilidad
 // ============================================
 
 export const ConfigContabilidadSchema = z.object({
-    nombreEtiquetaCentroCosto: z.string().min(1).max(100).optional(),
+    nombreEtiquetaCentroCosto: CadenaOpcionalLimitada(1, 100),
     modeloClasificacion: z.enum(['por-usuario', 'por-grupo-usuario', 'por-comedor', 'detallada']).optional(),
     valorizacionComensales: z.boolean(),
     modoCosteo: z.enum(['general', 'por-grupo-tiempo-comida', 'por-tiempo-comida', 'detallado']).optional(),
@@ -24,49 +24,49 @@ export const ConfigContabilidadSchema = z.object({
 export const residenciaSchema = z.object({
     id: FirebaseIdSchema,
     nombre: z.string().min(1).max(80),
-    direccion: z.string().min(1).max(255).optional(),
+    direccion: CadenaOpcionalLimitada(1, 255),
     logoUrl: z.string().url().optional(),
     antelacionActividadesDefault: z.number().min(0).max(90).optional(),
-    textProfile: z.string().optional(),
+    textProfile: CadenaOpcionalLimitada(),
     tipoResidencia: z.enum(['estudiantes', 'profesionales', 'gente_mayor']),
     esquemaAdministracion: z.enum(['estricto', 'flexible']),
     zonaHoraria: z.string().min(1),
     
     // Nombres tradicionales para comidas (desayuno, almuerzo, cena)
-    nombreTradicionalDesayuno: z.string().min(1).max(20).optional(),
-    nombreTradicionalAlmuerzo: z.string().min(1).max(20).optional(),
-    nombreTradicionalCena: z.string().min(1).max(20).optional(),
+    nombreTradicionalDesayuno: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalAlmuerzo: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalCena: CadenaOpcionalLimitada(1, 20),
     
     // Nombres tradicionales para días de la semana
-    nombreTradicionalLunes: z.string().min(1).max(20).optional(),
-    nombreTradicionalMartes: z.string().min(1).max(20).optional(),
-    nombreTradicionalMiercoles: z.string().min(1).max(20).optional(),
-    nombreTradicionalJueves: z.string().min(1).max(20).optional(),
-    nombreTradicionalViernes: z.string().min(1).max(20).optional(),
-    nombreTradicionalSabado: z.string().min(1).max(20).optional(),
-    nombreTradicionalDomingo: z.string().min(1).max(20).optional(),
+    nombreTradicionalLunes: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalMartes: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalMiercoles: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalJueves: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalViernes: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalSabado: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalDomingo: CadenaOpcionalLimitada(1, 20),
     
     // Campos personalizables para UserProfile
-    campoPersonalizado1_etiqueta: z.string().optional(),
+    campoPersonalizado1_etiqueta: CadenaOpcionalLimitada(),
     campoPersonalizado1_isActive: z.boolean().optional(),
     campoPersonalizado1_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado1_regexValidacion: z.string().optional(),
+    campoPersonalizado1_regexValidacion: CadenaOpcionalLimitada(),
     campoPersonalizado1_tamanoTexto: z.enum(['text', 'textArea']).optional(),
     campoPersonalizado1_puedeModDirector: z.boolean().optional(),
     campoPersonalizado1_puedeModInteresado: z.boolean().optional(),
     
-    campoPersonalizado2_etiqueta: z.string().optional(),
+    campoPersonalizado2_etiqueta: CadenaOpcionalLimitada(),
     campoPersonalizado2_isActive: z.boolean().optional(),
     campoPersonalizado2_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado2_regexValidacion: z.string().optional(),
+    campoPersonalizado2_regexValidacion: CadenaOpcionalLimitada(),
     campoPersonalizado2_tamanoTexto: z.enum(['text', 'textArea']).optional(),
     campoPersonalizado2_puedeModDirector: z.boolean().optional(),
     campoPersonalizado2_puedeModInteresado: z.boolean().optional(),
     
-    campoPersonalizado3_etiqueta: z.string().optional(),
+    campoPersonalizado3_etiqueta: CadenaOpcionalLimitada(),
     campoPersonalizado3_isActive: z.boolean().optional(),
     campoPersonalizado3_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado3_regexValidacion: z.string().optional(),
+    campoPersonalizado3_regexValidacion: CadenaOpcionalLimitada(),
     campoPersonalizado3_tamanoTexto: z.enum(['text', 'textArea']).optional(),
     campoPersonalizado3_puedeModDirector: z.boolean().optional(),
     campoPersonalizado3_puedeModInteresado: z.boolean().optional(),
@@ -89,38 +89,38 @@ export const createResidenciaSchema = z.object({
     esquemaAdministracion: z.enum(['estricto', 'flexible']),
     zonaHoraria: z.string().min(1),
     
-    nombreTradicionalDesayuno: z.string().min(1).max(20).optional(),
-    nombreTradicionalAlmuerzo: z.string().min(1).max(20).optional(),
-    nombreTradicionalCena: z.string().min(1).max(20).optional(),
+    nombreTradicionalDesayuno: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalAlmuerzo: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalCena: CadenaOpcionalLimitada(1, 20),
     
-    nombreTradicionalLunes: z.string().min(1).max(20).optional(),
-    nombreTradicionalMartes: z.string().min(1).max(20).optional(),
-    nombreTradicionalMiercoles: z.string().min(1).max(20).optional(),
-    nombreTradicionalJueves: z.string().min(1).max(20).optional(),
-    nombreTradicionalViernes: z.string().min(1).max(20).optional(),
-    nombreTradicionalSabado: z.string().min(1).max(20).optional(),
-    nombreTradicionalDomingo: z.string().min(1).max(20).optional(),
+    nombreTradicionalLunes: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalMartes: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalMiercoles: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalJueves: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalViernes: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalSabado: CadenaOpcionalLimitada(1, 20),
+    nombreTradicionalDomingo: CadenaOpcionalLimitada(1, 20),
     
-    campoPersonalizado1_etiqueta: z.string().optional(),
+    campoPersonalizado1_etiqueta: CadenaOpcionalLimitada(),
     campoPersonalizado1_isActive: z.boolean().optional(),
     campoPersonalizado1_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado1_regexValidacion: z.string().optional(),
+    campoPersonalizado1_regexValidacion: CadenaOpcionalLimitada(),
     campoPersonalizado1_tamanoTexto: z.enum(['text', 'textArea']).optional(),
     campoPersonalizado1_puedeModDirector: z.boolean().optional(),
     campoPersonalizado1_puedeModInteresado: z.boolean().optional(),
     
-    campoPersonalizado2_etiqueta: z.string().optional(),
+    campoPersonalizado2_etiqueta: CadenaOpcionalLimitada(),
     campoPersonalizado2_isActive: z.boolean().optional(),
     campoPersonalizado2_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado2_regexValidacion: z.string().optional(),
+    campoPersonalizado2_regexValidacion: CadenaOpcionalLimitada(),
     campoPersonalizado2_tamanoTexto: z.enum(['text', 'textArea']).optional(),
     campoPersonalizado2_puedeModDirector: z.boolean().optional(),
     campoPersonalizado2_puedeModInteresado: z.boolean().optional(),
     
-    campoPersonalizado3_etiqueta: z.string().optional(),
+    campoPersonalizado3_etiqueta: CadenaOpcionalLimitada(),
     campoPersonalizado3_isActive: z.boolean().optional(),
     campoPersonalizado3_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado3_regexValidacion: z.string().optional(),
+    campoPersonalizado3_regexValidacion: CadenaOpcionalLimitada(),
     campoPersonalizado3_tamanoTexto: z.enum(['text', 'textArea']).optional(),
     campoPersonalizado3_puedeModDirector: z.boolean().optional(),
     campoPersonalizado3_puedeModInteresado: z.boolean().optional(),
@@ -143,81 +143,44 @@ export const updateResidenciaSchema = z.object({
     esquemaAdministracion: z.enum(['estricto', 'flexible']).optional(),
     zonaHoraria: z.string().min(1).optional(),
     
-    nombreTradicionalDesayuno: z.string().min(1).max(20).nullable().optional(),
-    nombreTradicionalAlmuerzo: z.string().min(1).max(20).nullable().optional(),
-    nombreTradicionalCena: z.string().min(1).max(20).nullable().optional(),
+    nombreTradicionalDesayuno: CadenaOpcionalLimitada(1, 20).nullable().optional(),
+    nombreTradicionalAlmuerzo: CadenaOpcionalLimitada(1, 20).nullable().optional(),
+    nombreTradicionalCena: CadenaOpcionalLimitada(1, 20).nullable().optional(),
     
-    nombreTradicionalLunes: z.string().min(1).max(20).nullable().optional(),
-    nombreTradicionalMartes: z.string().min(1).max(20).nullable().optional(),
-    nombreTradicionalMiercoles: z.string().min(1).max(20).nullable().optional(),
-    nombreTradicionalJueves: z.string().min(1).max(20).nullable().optional(),
-    nombreTradicionalViernes: z.string().min(1).max(20).nullable().optional(),
-    nombreTradicionalSabado: z.string().min(1).max(20).nullable().optional(),
-    nombreTradicionalDomingo: z.string().min(1).max(20).nullable().optional(),
+    nombreTradicionalLunes: CadenaOpcionalLimitada(1, 20).nullable().optional(),
+    nombreTradicionalMartes: CadenaOpcionalLimitada(1, 20).nullable().optional(),
+    nombreTradicionalMiercoles: CadenaOpcionalLimitada(1, 20).nullable().optional(),
+    nombreTradicionalJueves: CadenaOpcionalLimitada(1, 20).nullable().optional(),
+    nombreTradicionalViernes: CadenaOpcionalLimitada(1, 20).nullable().optional(),
+    nombreTradicionalSabado: CadenaOpcionalLimitada(1, 20).nullable().optional(),
+    nombreTradicionalDomingo: CadenaOpcionalLimitada(1, 20).nullable().optional(),
     
-    campoPersonalizado1_etiqueta: z.string().nullable().optional(),
+    campoPersonalizado1_etiqueta: CadenaOpcionalLimitada().nullable().optional(),
     campoPersonalizado1_isActive: z.boolean().optional(),
     campoPersonalizado1_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado1_regexValidacion: z.string().nullable().optional(),
+    campoPersonalizado1_regexValidacion: CadenaOpcionalLimitada().nullable().optional(),
     campoPersonalizado1_tamanoTexto: z.enum(['text', 'textArea']).optional(),
     campoPersonalizado1_puedeModDirector: z.boolean().optional(),
     campoPersonalizado1_puedeModInteresado: z.boolean().optional(),
     
-    campoPersonalizado2_etiqueta: z.string().nullable().optional(),
+    campoPersonalizado2_etiqueta: CadenaOpcionalLimitada().nullable().optional(),
     campoPersonalizado2_isActive: z.boolean().optional(),
     campoPersonalizado2_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado2_regexValidacion: z.string().nullable().optional(),
+    campoPersonalizado2_regexValidacion: CadenaOpcionalLimitada().nullable().optional(),
     campoPersonalizado2_tamanoTexto: z.enum(['text', 'textArea']).optional(),
     campoPersonalizado2_puedeModDirector: z.boolean().optional(),
     campoPersonalizado2_puedeModInteresado: z.boolean().optional(),
     
-    campoPersonalizado3_etiqueta: z.string().nullable().optional(),
+    campoPersonalizado3_etiqueta: CadenaOpcionalLimitada().nullable().optional(),
     campoPersonalizado3_isActive: z.boolean().optional(),
     campoPersonalizado3_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado3_regexValidacion: z.string().nullable().optional(),
+    campoPersonalizado3_regexValidacion: CadenaOpcionalLimitada().nullable().optional(),
     campoPersonalizado3_tamanoTexto: z.enum(['text', 'textArea']).optional(),
     campoPersonalizado3_puedeModDirector: z.boolean().optional(),
     campoPersonalizado3_puedeModInteresado: z.boolean().optional(),
     
     configuracionContabilidad: ConfigContabilidadSchema.nullable().optional(),
     estadoContrato: z.enum(['activo', 'prueba', 'inactivo']).optional(),
-}).strict();
-
-// ============================================
-// Esquemas para Comedor
-// ============================================
-
-/**
- * Esquema base para Comedor (lectura)
- */
-export const comedorSchema = z.object({
-    id: FirebaseIdSchema,
-    nombre: z.string().min(1).max(255),
-    residenciaId: FirebaseIdSchema,
-    descripcion: z.string().min(1).max(255).optional(),
-    capacidad: z.number().int().positive().optional(),
-    centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
-}).strict();
-
-/**
- * Esquema para CREATE Comedor
- */
-export const createComedorSchema = z.object({
-    nombre: z.string().min(1).max(255),
-    residenciaId: FirebaseIdSchema,
-    descripcion: z.string().min(1).max(255).optional(),
-    capacidad: z.number().int().positive().optional(),
-    centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
-}).strict();
-
-/**
- * Esquema para UPDATE Comedor
- */
-export const updateComedorSchema = z.object({
-    nombre: z.string().min(1).max(255).optional(),
-    descripcion: z.string().min(1).max(255).nullable().optional(),
-    capacidad: z.number().int().positive().nullable().optional(),
-    centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
 }).strict();
 
 // ============================================
@@ -231,7 +194,7 @@ export const dietaSchema = z.object({
     id: FirebaseIdSchema,
     residenciaId: FirebaseIdSchema,
     nombre: z.string().min(1).max(255),
-    descripcion: z.string().min(1).max(255).optional(),
+    descripcion: CadenaOpcionalLimitada(1, 255),
     isDefault: z.boolean(),
     isActive: z.boolean(),
 }).strict();
@@ -242,7 +205,7 @@ export const dietaSchema = z.object({
 export const createDietaSchema = z.object({
     residenciaId: FirebaseIdSchema,
     nombre: z.string().min(1).max(255),
-    descripcion: z.string().optional(),
+    descripcion: CadenaOpcionalLimitada(),
     isDefault: z.boolean().default(false),
     isActive: z.boolean().default(true),
 }).strict();
@@ -252,7 +215,7 @@ export const createDietaSchema = z.object({
  */
 export const updateDietaSchema = z.object({
     nombre: z.string().min(1).max(255).optional(),
-    descripcion: z.string().nullable().optional(),
+    descripcion: CadenaOpcionalLimitada().nullable().optional(),
     isDefault: z.boolean().optional(),
     isActive: z.boolean().optional(),
 }).strict();

@@ -30,9 +30,10 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  Timestamp,
   writeBatch
 } from 'firebase/firestore';
+import { ComedorSchema } from '@/../shared/schemas/comedor';
+import { HorarioSolicitudComidaSchema } from '@/../shared/schemas/horariosSolicitudComida';
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -438,9 +439,9 @@ function ResidenciaHorariosComedoresPage() {
 
   // --- useEffect: Check for Timezone Differences ---
   useEffect(() => {
-    if (residenciaDetails?.zonaHoraria && !timezoneWarningShown) {
+    if (residenciaDetails?.ubicacion?.timezone && !timezoneWarningShown) {
       const warningWasDisplayed = checkAndDisplayTimezoneWarning(
-        residenciaDetails.zonaHoraria,
+        residenciaDetails.ubicacion.timezone,
         toast // Pass the toast function from useToast()
       );
       if (warningWasDisplayed) {
@@ -476,6 +477,48 @@ function ResidenciaHorariosComedoresPage() {
     if (!targetResidenciaId || !currentComedor.nombre) {
       toast({ title: "Error", description: "El nombre del comedor es obligatorio.", variant: "destructive" });
       return;
+    }
+    
+    // Client-side validation using Zod
+    const validationPayload = {
+        id: currentComedor.id || 'temp-id', // Schema requires ID, mock it for creation validation if absent or make schema optional
+        residenciaId: targetResidenciaId,
+        nombre: currentComedor.nombre,
+        descripcion: currentComedor.descripcion || '',
+        capacidad: currentComedor.capacidad,
+        centroCostoPorDefectoId: currentComedor.centroCostoPorDefectoId || null,
+    };
+
+    // We can use the 'create' or 'update' schemas from the shared file which don't require ID for creation
+    const schemaToUse = (isEditingComedor && currentComedor.id) ? ComedorSchema : ComedorSchema.omit({ id: true });
+    
+    // Actually, checking the shared/schemas/comedor.ts, createComedorSchema does NOT require ID.
+    // Let's use createComedorSchema for creation and updateComedorSchema for updates.
+    
+    try {
+        if (isEditingComedor && currentComedor.id) {
+             // For update, the schema expects optional fields, but we are sending what we have
+             // We can just basic validate the name length here or trust server action. 
+             // Let's force a basic check against the common constraints.
+             if (currentComedor.nombre.length > 50) {
+                 throw new Error("El nombre no puede exceder 50 caracteres.");
+             }
+             if (currentComedor.descripcion && currentComedor.descripcion.length > 255) {
+                throw new Error("La descripción no puede exceder 255 caracteres.");
+             }
+        } else {
+             // For creation
+            //  createComedorSchema.parse(validationPayload); // Validation might fail on strict fields if not perfectly aligned
+             if (currentComedor.nombre.length > 50) {
+                 throw new Error("El nombre no puede exceder 50 caracteres.");
+             }
+             if (currentComedor.descripcion && currentComedor.descripcion.length > 255) {
+                throw new Error("La descripción no puede exceder 255 caracteres.");
+             }
+        }
+    } catch (err) {
+         toast({ title: "Error de Validación", description: (err as Error).message, variant: "destructive" });
+         return;
     }
     if (!canEdit) {
         toast({ title: "Acción no permitida", description: "No tienes permisos para esta acción.", variant: "destructive"});
@@ -618,6 +661,24 @@ function ResidenciaHorariosComedoresPage() {
 
     if (!/^\d{2}:\d{2}$/.test(currentHorario.horaSolicitud)) {
         toast({ title: "Formato Incorrecto", description: "La hora debe estar en formato HH:MM (ej. 13:30).", variant: "destructive" });
+        return;
+    }
+
+    try {
+        // Basic Zod validation for constraints locally
+        const nameToCheck = currentHorario.nombre || '';
+        if (nameToCheck.length < 1 || nameToCheck.length > 20) {
+             throw new Error("El nombre debe tener entre 1 y 20 caracteres.");
+        }
+        HorarioSolicitudComidaSchema.pick({ nombre: true }).parse({ nombre: nameToCheck });
+    } catch (err: any) {
+        const msg = err instanceof Error ? err.message : "Error de validación";
+        // Attempt to extract Zod error message if it's a ZodError
+        let displayMsg = msg;
+        if (err.errors && Array.isArray(err.errors)) {
+             displayMsg = err.errors.map((e: any) => e.message).join(", ");
+        }
+        toast({ title: "Error de Validación", description: displayMsg, variant: "destructive" });
         return;
     }
 

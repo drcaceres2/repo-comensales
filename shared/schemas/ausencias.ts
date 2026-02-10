@@ -1,15 +1,16 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, TimeStringSchema, DateStringSchema } from './common';
+import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
+import { campoFechaConZonaHorariaSchema } from './fechas';
 
 export const AusenciaSchema = z.object({
   id: FirebaseIdSchema.optional(),
   userId: FirebaseIdSchema,
   residenciaId: FirebaseIdSchema,
-  fechaInicio: DateStringSchema, // "YYYY-MM-DD"
+  fechaInicio: campoFechaConZonaHorariaSchema,
   ultimoTiempoComidaId: FirebaseIdSchema.optional(),
-  fechaFin: DateStringSchema, // "YYYY-MM-DD"
+  fechaFin: campoFechaConZonaHorariaSchema,
   primerTiempoComidaId: FirebaseIdSchema.optional(),
   retornoPendienteConfirmacion: z.boolean().optional(),
-  fechaCreacion: z.number(), // Timestamp in milliseconds
-  motivo: z.string().optional(),
+  fechaCreacion: campoFechaConZonaHorariaSchema,
+  motivo: CadenaOpcionalLimitada(3,100),
 });

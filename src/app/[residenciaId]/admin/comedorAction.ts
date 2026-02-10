@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '../../../lib/firebaseAdmin';
-import { createComedorSchema, updateComedorSchema } from '@/../shared/schemas/residencia';
+import { createComedorSchema, updateComedorSchema } from '@/../shared/schemas/comedor';
 import { ZodError } from 'zod';
 
 export type ComedorActionState = {

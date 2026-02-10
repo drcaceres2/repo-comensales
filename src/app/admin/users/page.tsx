@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/useToast";
 import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea'; // ADDED: Textarea import
+import { Textarea } from '@/components/ui/textarea';
 
 // --- React & Next Imports ---
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -619,12 +619,17 @@ function UserManagementPage(): JSX.Element | null {
                 dataForValidation.asistentePermisos = undefined;
             }
     
-            if (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId && isResidenciaConditionallyRequired) {
+        if (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId && isResidenciaConditionallyRequired) {
                 if (formData.residenciaId !== adminUserProfile.residenciaId) {
                     dataForValidation.residenciaId = adminUserProfile.residenciaId;
                 }
             }
     
+            // Cleanse empty strings for optional ID fields
+            if (dataForValidation.residenciaId === '') dataForValidation.residenciaId = null;
+            if (dataForValidation.dietaId === '') dataForValidation.dietaId = null;
+            if (dataForValidation.centroCostoPorDefectoId === '') dataForValidation.centroCostoPorDefectoId = null;
+
             if (dataForValidation.fechaDeNacimiento && typeof dataForValidation.fechaDeNacimiento === 'string') {
                 const formatted = formatTimestampForInput(dataForValidation.fechaDeNacimiento);
                 dataForValidation.fechaDeNacimiento = formatted;
@@ -694,7 +699,7 @@ function UserManagementPage(): JSX.Element | null {
                 fotoPerfil: null,
                 tieneAutenticacion: true,
                 roles: validatedData.roles!,
-                isActive: validatedData.isActive ?? true,
+                isActive: true, // validatedData.isActive is not in create schema validatedData.isActive ?? true,
                 residenciaId: validatedData.residenciaId,
                 dietaId: validatedData.dietaId || undefined,
                 fechaDeNacimiento: validatedData.fechaDeNacimiento || null,
@@ -881,6 +886,11 @@ function UserManagementPage(): JSX.Element | null {
             if (finalResidenciaId) {
                 dataForValidation.residenciaId = finalResidenciaId;
             }
+            
+            // Cleanse empty strings for optional ID fields
+            if (dataForValidation.residenciaId === '') dataForValidation.residenciaId = null;
+            if (dataForValidation.dietaId === '') dataForValidation.dietaId = null;
+            if (dataForValidation.centroCostoPorDefectoId === '') dataForValidation.centroCostoPorDefectoId = null;
 
             const validationResult = clientUpdateUserFormSchema.safeParse(dataForValidation);
 
@@ -944,9 +954,9 @@ function UserManagementPage(): JSX.Element | null {
                 tieneAutenticacion: true,
                 roles: validatedData.roles ?? undefined,
                 isActive: validatedData.isActive ?? undefined,
-                residenciaId: finalResidenciaId || undefined,
-                dietaId: validatedData.dietaId || undefined,
-                fechaDeNacimiento: validatedData.fechaDeNacimiento || null,
+                residenciaId: validatedData.residenciaId,
+                dietaId: validatedData.dietaId,
+                fechaDeNacimiento: validatedData.fechaDeNacimiento,
                 telefonoMovil: validatedData.telefonoMovil?.trim() || undefined,
                 dni: validatedData.dni?.trim() || undefined,
                 numeroDeRopa: validatedData.numeroDeRopa?.trim() || undefined,
@@ -956,7 +966,7 @@ function UserManagementPage(): JSX.Element | null {
                 puedeTraerInvitados: validatedData.puedeTraerInvitados || undefined,
                 asistentePermisos: null,
                 notificacionPreferencias: (validatedData.notificacionPreferencias as any) || undefined,
-                centroCostoPorDefectoId: validatedData.centroCostoPorDefectoId || undefined,
+                centroCostoPorDefectoId: validatedData.centroCostoPorDefectoId,
                 valorCampoPersonalizado1: validatedData.valorCampoPersonalizado1?.trim() || undefined,
                 valorCampoPersonalizado2: validatedData.valorCampoPersonalizado2?.trim() || undefined,
                 valorCampoPersonalizado3: validatedData.valorCampoPersonalizado3?.trim() || undefined,

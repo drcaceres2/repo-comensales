@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, TimeStringSchema, DateStringSchema, DayOfWeekKeySchema } from './common';
+import { FirebaseIdSchema } from './common';
+import { TimeStringSchema, IsoDateStringSchema, DayOfWeekKeySchema } from './fechas';
 
 export const TiempoComidaSchema = z.object({
   id: FirebaseIdSchema,
@@ -16,7 +17,7 @@ export const TiempoComidaSchema = z.object({
 export const MealSelectionMutationSchema = z.object({
   userId: FirebaseIdSchema,     // ¿Quién come?
   residenciaId: FirebaseIdSchema,
-  fecha: DateStringSchema,      // ¿Cuándo?
+  fecha: IsoDateStringSchema,      // ¿Cuándo?
   tiempoComidaId: FirebaseIdSchema, // ¿Desayuno, Comida, Cena?
   
   // La intención del usuario
