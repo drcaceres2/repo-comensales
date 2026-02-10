@@ -188,8 +188,8 @@ export const createUser = onCall(
             ...profileData,
             id: newUserId as any,
             email: email,
-            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
-            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
+            fechaCreacion: FieldValue.serverTimestamp(),
+            ultimaActualizacion: FieldValue.serverTimestamp(),
             isActive: profileData.isActive ?? true,
             roles: targetUserRoles,
             residenciaId: targetResidenciaId,
@@ -336,7 +336,7 @@ export const updateUser = onCall(
         // Prepare Firestore updates
         const firestoreUpdateData = {
             ...validatedData,
-            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
+            ultimaActualizacion: FieldValue.serverTimestamp(),
         };
 
         try {
@@ -611,7 +611,7 @@ export const updateResidencia = onCall(
 
             const firestoreUpdateData = {
                 ...validatedData,
-                ultimaActualizacion: admin.firestore.FieldValue.serverTimestamp() as any,
+                ultimaActualizacion: FieldValue.serverTimestamp(),
             };
 
             await db.collection("residencias").doc(residenciaIdToUpdate).update(firestoreUpdateData);
@@ -717,7 +717,7 @@ export const logAction = async (
     details: payload.details || {},
     
     // LA CLAVE: Usar el Timestamp del servidor de Admin SDK
-    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    timestamp: FieldValue.serverTimestamp(),
     source: 'cloud-function'
   };
 
@@ -807,8 +807,8 @@ export const createHardcodedMasterUser = onCall(
             nombreCorto: "DCV",
             email: hardcodedEmail,
             fotoPerfil: "",
-            fechaCreacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
-            ultimaActualizacion: (db.constructor as any).FieldValue.serverTimestamp() as any,
+            fechaCreacion: FieldValue.serverTimestamp(),
+            ultimaActualizacion: FieldValue.serverTimestamp(),
             isActive: true,
             roles: ["master"],
             puedeTraerInvitados: "si", // Added to satisfy UserProfile type

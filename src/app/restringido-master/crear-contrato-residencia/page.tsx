@@ -6,7 +6,7 @@ import { db } from '@/lib/firebase'; // Assuming firebase is initialized in @/li
 import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ContratoResidencia, ContratoResidenciaId, Cliente, ClienteId, ClienteProbando, Pedido } from '../../../../shared/models/contratos'; // Adjust path as needed
 import { UserProfile, UserId, ResidenciaId, campoFechaConZonaHoraria } from '../../../../shared/models/types'; // Adjust path as needed
-import { writeClientLog } from '@/lib/utils'; // Adjust path as needed
+import { logClientAction } from '@/lib/utils'; // Adjust path as needed
 import { Button } from '@/components/ui/button'; // Adjust path as needed
 import { Input } from '@/components/ui/input'; // Adjust path as needed
 import { Label } from '@/components/ui/label'; // Adjust path as needed
@@ -546,9 +546,18 @@ export default function CrearContratoResidenciaPage() {
             await updateDoc(contratoRef, updatedContratoData);
             toast({ title: 'Contrato Actualizado', description: `Contrato ${editingContratoId} actualizado.` });
             
-            await writeClientLog(
-                authUser.uid as UserId, 'contrato',
-                { relatedDocPath: contratoRef.path, details: { action: 'update_contrato_residencia', contratoId: editingContratoId, changes: updatedContratoData } }
+            await logClientAction(
+                'CONTRATO_ACTUALIZADO',
+                {
+                    residenciaId: selectedResidenciaId,
+                    targetId: editingContratoId,
+                    targetCollection: 'contratosResidencia',
+                    details: {
+                        action: 'update_contrato_residencia',
+                        contratoId: editingContratoId,
+                        changes: updatedContratoData
+                    }
+                }
             );
 
             setContratos(prev => prev.map(c => c.id === editingContratoId ? { ...c, ...updatedContratoData, id: editingContratoId, cliente: existingContractToUpdate.cliente } : c));
@@ -584,9 +593,18 @@ export default function CrearContratoResidenciaPage() {
 
             toast({ title: 'Contrato Creado', description: `Contrato ${docRef.id} para cliente ${finalClienteId} creado.` });
             
-            await writeClientLog(
-                authUser.uid as UserId, 'contrato',
-                { relatedDocPath: docRef.path, details: { action: 'create_contrato_residencia', contratoId: docRef.id, data: newContratoData } }
+            await logClientAction(
+                'CONTRATO_CREADO',
+                {
+                    residenciaId: selectedResidenciaId,
+                    targetId: docRef.id,
+                    targetCollection: 'contratosResidencia',
+                    details: {
+                        action: 'create_contrato_residencia',
+                        contratoId: docRef.id,
+                        data: newContratoData
+                    }
+                }
             );
 
             // --- Call CrearPedidoPrueba if a trial solution is included ---
@@ -653,16 +671,21 @@ export default function CrearContratoResidenciaPage() {
     setIsLoading(true); // Use general loading state or a specific delete loading state
     try {
       const contratoRef = doc(db, 'contratosResidencia', contratoToDeleteId);
+      const contratoToDelete = contratos.find(c => c.id === contratoToDeleteId);
       await deleteDoc(contratoRef);
 
       toast({ title: 'Contrato Eliminado', description: `El contrato ${contratoToDeleteId} ha sido eliminado.` });
       
-      await writeClientLog(
-        authUser.uid as UserId,
-        'contrato',
+      await logClientAction(
+        'CONTRATO_ELIMINADO',
         {
-          relatedDocPath: contratoRef.path,
-          details: { action: 'delete_contrato_residencia', contratoId: contratoToDeleteId }
+          residenciaId: contratoToDelete?.residencia || 'N/A',
+          targetId: contratoToDeleteId,
+          targetCollection: 'contratosResidencia',
+          details: {
+              action: 'delete_contrato_residencia',
+              contratoId: contratoToDeleteId
+          }
         }
       );
 
@@ -672,11 +695,18 @@ export default function CrearContratoResidenciaPage() {
     } catch (error: any) {
       console.error("Error eliminando contrato:", error);
       toast({ title: 'Error al Eliminar', description: error.message, variant: "destructive" });
-      await writeClientLog(
-        authUser.uid as UserId,
-        'contrato',
+      const contratoToDelete = contratos.find(c => c.id === contratoToDeleteId);
+      await logClientAction(
+        'CONTRATO_ELIMINADO',
         {
-          details: { action: 'delete_contrato_residencia_error', contratoId: contratoToDeleteId, error: error.message }
+            residenciaId: contratoToDelete?.residencia || 'N/A',
+            targetId: contratoToDeleteId,
+            targetCollection: 'contratosResidencia',
+            details: {
+                action: 'delete_contrato_residencia_error',
+                contratoId: contratoToDeleteId,
+                error: error.message
+            }
         }
       );
     } finally {

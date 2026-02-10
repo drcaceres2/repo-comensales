@@ -1,3 +1,8 @@
+// A flexible type for Firestore Timestamps
+// On write, it can be a server timestamp.
+// On read, it will be a Firestore Timestamp object, which can be converted to a number or Date.
+export type FirestoreTimestamp = { seconds: number; nanoseconds: number } | any;
+
 // --- Usuarios  ---
 export type UserId = string;
 export type UserRole = 'master' | 'admin' | 'director' | 'residente' | 'invitado' | 'asistente' | 'contador';
@@ -25,9 +30,9 @@ export interface UserProfile {
     notificacionPreferencias?: NotificacionPreferencias | null; 
     tieneAutenticacion: boolean;
 
-    fechaCreacion?: number | null;      // Milliseconds since epoch, or null 
-    ultimaActualizacion?: number | null; // Milliseconds since epoch, or null
-    lastLogin?: number | null;          // Milliseconds since epoch, or null (if you track this)
+    fechaCreacion?: FirestoreTimestamp | null;
+    ultimaActualizacion?: FirestoreTimestamp | null;
+    lastLogin?: FirestoreTimestamp | null;
 
     // Valores para los campos personalizables (definidos en Residencia)
     valorCampoPersonalizado1?: string;
@@ -48,9 +53,9 @@ export interface Administradora {
     notificacionPreferencias?: NotificacionPreferencias | null; 
     tieneAutenticacion: boolean;
 
-    fechaCreacion?: number | null;      // Milliseconds since epoch, or null 
-    ultimaActualizacion?: number | null; // Milliseconds since epoch, or null
-    lastLogin?: number | null;          // Milliseconds since epoch, or null (if you track this)
+    fechaCreacion?: FirestoreTimestamp | null;
+    ultimaActualizacion?: FirestoreTimestamp | null;
+    lastLogin?: FirestoreTimestamp | null;
 }
 export interface NotificacionPreferencias {
     canalEmail: boolean; // Opt-in for email

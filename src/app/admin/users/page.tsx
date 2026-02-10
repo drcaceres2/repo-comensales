@@ -52,7 +52,7 @@ import {
     DietaId, 
     Dieta, 
     CentroCosto
-} from '../../../../shared/models/types';
+} from '@/../shared/models/types';
 // Zod Schemas import
 import { 
     clientCreateUserFormSchema,
@@ -181,11 +181,9 @@ function UserManagementPage(): JSX.Element | null {
 
     const fetchResidences = useCallback(async (profile: UserProfile | null) => {
         if (!profile) {
-            console.log("No profile provided, skipping fetchResidences.");
             return;
         }
 
-        console.log("Fetching residences from Firestore based on user role...");
         const isMaster = profile.roles.includes('master');
         const adminResidenciaId = profile.residenciaId;
 
@@ -193,40 +191,26 @@ function UserManagementPage(): JSX.Element | null {
             const residencesData: Record<ResidenciaId, { nombre: string }> = {};
 
             if (isMaster) {
-                // Master user: fetch all residences
-                console.log("User is Master, fetching all residences.");
                 const residencesCol = collection(db, "residencias");
                 const querySnapshot = await getDocs(residencesCol);
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
                     if (data.nombre) {
                         residencesData[doc.id] = { nombre: data.nombre };
-                    } else {
-                        console.warn(`Residence document ${doc.id} is missing the 'nombre' field.`);
                     }
                 });
             } else if (adminResidenciaId) {
-                // Admin user: fetch only their assigned residence
-                console.log(`User is Admin, fetching residence: ${adminResidenciaId}`);
                 const residenciaDocRef = doc(db, "residencias", adminResidenciaId);
                 const docSnap = await getDoc(residenciaDocRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     if (data.nombre) {
                         residencesData[docSnap.id] = { nombre: data.nombre };
-                    } else {
-                        console.warn(`Residence document ${docSnap.id} is missing the 'nombre' field.`);
                     }
                 } else {
-                     console.error(`Admin's assigned residence document ${adminResidenciaId} not found.`);
                      throw new Error("La residencia asignada no fue encontrada.");
                 }
-            } else {
-                // Admin without a residenceId, or other roles. Fetch nothing.
-                console.log("User is not Master and has no residenciaId. No residences to fetch.");
             }
-
-            console.log("Fetched residences:", residencesData);
             setResidences(residencesData);
         } catch (error) {
             console.error("Error fetching residences:", error);
@@ -241,7 +225,6 @@ function UserManagementPage(): JSX.Element | null {
     }, [toast]);
 
     const fetchDietas = useCallback(async () => {
-        console.log("Fetching all dietas from Firestore...");
         try {
             const dietasCol = collection(db, "dietas");
             const querySnapshot = await getDocs(dietasCol);
@@ -257,7 +240,6 @@ function UserManagementPage(): JSX.Element | null {
                     residenciaId: data.residenciaId,
                 } as Dieta);
             });
-            console.log("Fetched all dietas:", fetchedDietas);
             setDietas(fetchedDietas.sort((a, b) => a.nombre.localeCompare(b.nombre)));
         } catch (error) {
             console.error("Error fetching all dietas:", error);
@@ -272,22 +254,18 @@ function UserManagementPage(): JSX.Element | null {
         }
     }, [toast]);
 
-    // ADDED: Fetch Full Residencia Details
     const fetchFullResidenciaDetails = useCallback(async (residenciaId: ResidenciaId) => {
         if (!residenciaId) {
             setCurrentResidenciaDetails(null);
             return;
         }
-        console.log(`Fetching full details for residencia ${residenciaId}...`);
         setIsLoadingResidenciaDetails(true);
         try {
             const residenciaDocRef = doc(db, "residencias", residenciaId);
             const docSnap = await getDoc(residenciaDocRef);
             if (docSnap.exists()) {
                 setCurrentResidenciaDetails({ id: docSnap.id, ...docSnap.data() } as Residencia);
-                console.log("Fetched residencia details:", { id: docSnap.id, ...docSnap.data() });
             } else {
-                console.warn(`Residencia document ${residenciaId} not found.`);
                 setCurrentResidenciaDetails(null);
                 toast({ title: "Error", description: `No se encontraron detalles para la residencia ID: ${residenciaId}.`, variant: "destructive" });
             }
@@ -300,17 +278,14 @@ function UserManagementPage(): JSX.Element | null {
         }
     }, [toast]);
 
-    // ADDED: Fetch Centros de Costo for Residencia
     const fetchCentrosCostoForResidencia = useCallback(async (residenciaId: ResidenciaId) => {
         if (!residenciaId) {
             setCentrosCostoList([]);
             return;
         }
-        console.log(`Fetching centros de costo for residencia ${residenciaId}...`);
         setIsLoadingCentrosCosto(true);
         try {
             const ccCol = collection(db, "centrosCosto");
-            // Query for active centros de costo belonging to the specific residencia
             const q = query(ccCol, where("residenciaId", "==", residenciaId), where("isActive", "==", true));
             const querySnapshot = await getDocs(q);
             const fetchedCCs: CentroCosto[] = [];
@@ -318,7 +293,6 @@ function UserManagementPage(): JSX.Element | null {
                 fetchedCCs.push({ id: doc.id, ...doc.data() } as CentroCosto);
             });
             setCentrosCostoList(fetchedCCs.sort((a, b) => a.nombre.localeCompare(b.nombre)));
-            console.log("Fetched centros de costo:", fetchedCCs);
         } catch (error) {
             console.error(`Error fetching centros de costo for ${residenciaId}:`, error);
             setCentrosCostoList([]);
@@ -340,10 +314,9 @@ function UserManagementPage(): JSX.Element | null {
             const querySnapshot = await getDocs(q);
             const fetchedResidentes: UserProfile[] = [];
             querySnapshot.forEach((doc) => {
-                // Ensure not to add the asistente themselves if they are also a residente (edge case)
-                if (editingUserId !== doc.id) { // Or if creating, this check is not directly applicable
+                if (editingUserId !== doc.id) {
                     fetchedResidentes.push({ id: doc.id, ...doc.data() } as UserProfile);
-                } else if (!editingUserId && formData.email !== doc.data().email) { // for creation, don't list self if email known
+                } else if (!editingUserId && formData.email !== doc.data().email) {
                     fetchedResidentes.push({ id: doc.id, ...doc.data() } as UserProfile);
                 }
             });
@@ -355,15 +328,13 @@ function UserManagementPage(): JSX.Element | null {
         } finally {
             setIsLoadingResidentesForAsistente(false);
         }
-    }, [toast, editingUserId, formData.email]); // Added editingUserId and formData.email
+    }, [toast, editingUserId, formData.email]);
 
     const fetchUsersToManage = useCallback(async (profile: UserProfile | null) => {
         if (!profile) {
-            console.log("No profile provided, skipping fetchUsersToManage.");
             setIsLoadingUsers(false);
             return;
         }
-        console.log("Fetching users to manage from Firestore based on user role...");
         setIsLoadingUsers(true);
 
         const isMaster = profile.roles.includes('master');
@@ -374,13 +345,10 @@ function UserManagementPage(): JSX.Element | null {
             let q;
 
             if (isMaster) {
-                console.log("User is Master, fetching all users.");
                 q = query(usersCol);
             } else if (adminResidenciaId) {
-                console.log(`User is Admin, fetching users for residencia: ${adminResidenciaId}`);
                 q = query(usersCol, where("residenciaId", "==", adminResidenciaId));
             } else {
-                 console.log("User is not Master and has no residenciaId. No users to fetch.");
                  setUsers([]);
                  setIsLoadingUsers(false);
                  setHasAttemptedFetchUsers(true);
@@ -419,7 +387,6 @@ function UserManagementPage(): JSX.Element | null {
                     tieneAutenticacion: true,
                 });
             });
-            console.log("Fetched users to manage:", usersData);
             setUsers(usersData.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre))); 
         } catch (error) {
             console.error("Error fetching users to manage:", error);
@@ -437,14 +404,12 @@ function UserManagementPage(): JSX.Element | null {
 
     useEffect(() => {
         if (authFirebaseLoading) {
-            console.log("Auth state loading (useAuthState)...");
             setAdminProfileLoading(true);
             setIsAuthorized(false);
             return;
         }
 
         if (authFirebaseError) {
-            console.error("Firebase Auth Error (useAuthState):", authFirebaseError);
             toast({ title: "Error de Autenticación", description: authFirebaseError.message, variant: "destructive" });
             setAdminProfileLoading(false);
             setAdminUserProfile(null);
@@ -455,7 +420,6 @@ function UserManagementPage(): JSX.Element | null {
         }
 
         if (!authUser) {
-            console.log("No Firebase user (authUser is null). Redirecting to login.");
             setAdminProfileLoading(false);
             setAdminUserProfile(null);
             setAdminProfileError(null); 
@@ -463,7 +427,6 @@ function UserManagementPage(): JSX.Element | null {
             router.replace('/');
             return;
         }
-        console.log("Admin user authenticated via Firebase (UID:", authUser.uid,"). Fetching admin's profile...");
         setAdminProfileLoading(true);
         setAdminProfileError(null);
         const adminDocRef = doc(db, "users", authUser.uid);
@@ -472,33 +435,27 @@ function UserManagementPage(): JSX.Element | null {
             .then((docSnap) => {
                 if (docSnap.exists()) {
                     const fetchedProfile = docSnap.data() as UserProfile;
-                    setAdminUserProfile(fetchedProfile); // Update the state
+                    setAdminUserProfile(fetchedProfile);
 
-                    // Now, check the fetched data directly
-                    if (fetchedProfile.residenciaId && !fetchedProfile.roles.includes('master')) { // Added roles check for clarity and correctness
+                    if (fetchedProfile.residenciaId && !fetchedProfile.roles.includes('master')) {
                         setFormData(prevFormData => ({
                             ...prevFormData,
                             residenciaId: fetchedProfile.residenciaId!,
                         }));
                     }
-
-                    console.log("Admin's profile fetched:", docSnap.data());
                 } else {
-                    console.error("Admin's profile not found in Firestore for UID:", authUser.uid);
                     setAdminUserProfile(null);
                     setAdminProfileError("Perfil de administrador no encontrado. No estás autorizado.");
                     toast({ title: "Error de Perfil", description: "No se encontró tu perfil de administrador.", variant: "destructive" });
                 }
             })
             .catch((error) => {
-                console.error("Error fetching admin's profile:", error);
                 setAdminUserProfile(null);
                 setAdminProfileError(`Error al cargar tu perfil: ${error.message}`);
                 toast({ title: "Error Cargando Perfil Administrador", description: `No se pudo cargar tu perfil: ${error.message}`, variant: "destructive" });
             })
             .finally(() => {
                 setAdminProfileLoading(false);
-                console.log("Admin profile fetch attempt finished.");
             });
     }, [authUser, authFirebaseLoading, authFirebaseError, router, toast]);
 
@@ -508,7 +465,6 @@ function UserManagementPage(): JSX.Element | null {
             return;
         }
         if (adminProfileError || !adminUserProfile) {
-            console.log("Admin authorization check failed: Profile error or profile missing.");
             setIsAuthorized(false);
             return;
         }
@@ -516,27 +472,24 @@ function UserManagementPage(): JSX.Element | null {
         const isAdminAuthorized = roles.includes('admin') || roles.includes('master');
 
         if (isAdminAuthorized) {
-            console.log("Admin user is authorized. Proceeding with fetching page data.");
             setIsAuthorized(true);
             if (adminUserProfile.roles.includes('master')) {
                 setSelectedResidenciaFilter(ALL_RESIDENCIAS_FILTER_KEY);
             } else if (adminUserProfile.roles.includes('admin') && adminUserProfile.residenciaId) {
                 setSelectedResidenciaFilter(adminUserProfile.residenciaId);
-                 // ADDED: Fetch details for admin's specific residencia if not master
                 if (adminUserProfile.residenciaId) {
                     fetchFullResidenciaDetails(adminUserProfile.residenciaId);
                     fetchCentrosCostoForResidencia(adminUserProfile.residenciaId);
                 }
             } else {
                 setSelectedResidenciaFilter(NO_RESIDENCIA_FILTER_KEY);
-                 setCurrentResidenciaDetails(null); // Clear if no specific residencia tied to admin
+                 setCurrentResidenciaDetails(null);
                  setCentrosCostoList([]);
             }
             if (!hasAttemptedFetchResidences) fetchResidences(adminUserProfile);
             if (!hasAttemptedFetchDietas) fetchDietas();
             if (!hasAttemptedFetchUsers) fetchUsersToManage(adminUserProfile);
         } else {
-            console.warn("Admin user does not have admin/master role. Access denied.");
             setIsAuthorized(false);
             toast({ title: "Acceso Denegado", description: "No tienes los permisos (admin/master) para acceder a esta página.", variant: "destructive" });
         }
@@ -552,25 +505,24 @@ function UserManagementPage(): JSX.Element | null {
         hasAttemptedFetchUsers,     
         isLoadingUsers,
         toast,
-        fetchFullResidenciaDetails, // ADDED
-        fetchCentrosCostoForResidencia // ADDED
+        fetchFullResidenciaDetails,
+        fetchCentrosCostoForResidencia
     ]);
 
     useEffect(() => {
         if (formData.residenciaId && formData.residenciaId !== currentResidenciaDetails?.id) {
             fetchFullResidenciaDetails(formData.residenciaId);
             fetchCentrosCostoForResidencia(formData.residenciaId);
-            fetchResidentesForResidencia(formData.residenciaId); // ADDED
+            fetchResidentesForResidencia(formData.residenciaId);
         } else if (!formData.residenciaId) {
             setCurrentResidenciaDetails(null);
             setCentrosCostoList([]);
-            setResidentesForAsistente([]); // ADDED: Clear if no residencia
+            setResidentesForAsistente([]);
         }
-        // If roles change and 'asistente' is now selected, and residenciaId is already set, fetch residentes
         else if (formData.residenciaId && formData.roles?.includes('asistente') && residentesForAsistente.length === 0){
             fetchResidentesForResidencia(formData.residenciaId);
         }
-    }, [formData.residenciaId, formData.roles, fetchFullResidenciaDetails, fetchCentrosCostoForResidencia, fetchResidentesForResidencia, currentResidenciaDetails?.id, residentesForAsistente.length]); // Added formData.roles, fetchResidentesForResidencia, residentesForAsistente.length
+    }, [formData.residenciaId, formData.roles, fetchFullResidenciaDetails, fetchCentrosCostoForResidencia, fetchResidentesForResidencia, currentResidenciaDetails?.id, residentesForAsistente.length]);
 
     const handleFormChange = (field: keyof Omit<UserFormData, 'roles'>, value: string | boolean | number | undefined) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -620,10 +572,7 @@ function UserManagementPage(): JSX.Element | null {
                 dietaId = '';
             }
 
-            // MODIFIED: asistentePermisos logic removed, it will remain null from formData type.
-            // let updatedAsistentePermisos = prev.asistentePermisos; // This line and below block removed
-
-            return { ...prev, roles: updatedRoles, dietaId, residenciaId /* asistentePermisos is already null */ };
+            return { ...prev, roles: updatedRoles, dietaId, residenciaId };
         });
     };
 
@@ -632,14 +581,13 @@ function UserManagementPage(): JSX.Element | null {
             const updatedFormData = { ...prev, [field]: value };
 
             if (field === 'residenciaId') {
-                updatedFormData.dietaId = ''; // Clear dieta on residencia change
-                updatedFormData.centroCostoPorDefectoId = ''; // Clear Centro de Costo
-                // ADDED: Clear custom field values as they depend on the residencia
+                updatedFormData.dietaId = '';
+                updatedFormData.centroCostoPorDefectoId = '';
                 updatedFormData.valorCampoPersonalizado1 = '';
                 updatedFormData.valorCampoPersonalizado2 = '';
                 updatedFormData.valorCampoPersonalizado3 = '';
 
-                if (updatedFormData.roles.includes('residente') && value) { // value is the new residenciaId
+                if (updatedFormData.roles.includes('residente') && value) {
                     const defaultDieta = dietas.find(d => d.residenciaId === value && d.isDefault && d.isActive);
                     if (defaultDieta) {
                         updatedFormData.dietaId = defaultDieta.id;
@@ -662,10 +610,8 @@ function UserManagementPage(): JSX.Element | null {
         setIsSaving(true);
     
         try {
-            // --- Preparar datos para validación ---
             let dataForValidation: Partial<ClientCreateUserForm> = { ...formData };
             
-            // Remove null values to match schema expectations
             if (dataForValidation.puedeTraerInvitados === null) {
                 dataForValidation.puedeTraerInvitados = undefined;
             }
@@ -673,29 +619,23 @@ function UserManagementPage(): JSX.Element | null {
                 dataForValidation.asistentePermisos = undefined;
             }
     
-            // Corregir residenciaId si es necesario basado en permisos del admin
             if (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId && isResidenciaConditionallyRequired) {
                 if (formData.residenciaId !== adminUserProfile.residenciaId) {
-                    console.warn("Correcting residenciaId for non-master admin during validation.");
                     dataForValidation.residenciaId = adminUserProfile.residenciaId;
                 }
             }
     
-            // Convertir fechaDeNacimiento a formato YYYY-MM-DD si es necesario
             if (dataForValidation.fechaDeNacimiento && typeof dataForValidation.fechaDeNacimiento === 'string') {
                 const formatted = formatTimestampForInput(dataForValidation.fechaDeNacimiento);
                 dataForValidation.fechaDeNacimiento = formatted;
             }
 
-            // --- Validar con Zod ---
             const validationResult = clientCreateUserFormSchema.safeParse(dataForValidation);
     
             if (!validationResult.success) {
-                // Extraer errores de Zod
                 const zodErrors = validationResult.error.flatten();
                 const errorMessages: string[] = [];
     
-                // FieldErrors
                 if (zodErrors.fieldErrors) {
                     Object.entries(zodErrors.fieldErrors).forEach(([field, messages]) => {
                         if (messages && Array.isArray(messages) && messages.length > 0) {
@@ -704,12 +644,10 @@ function UserManagementPage(): JSX.Element | null {
                     });
                 }
     
-                // FormErrors (errores globales como password !== confirmPassword)
                 if (zodErrors.formErrors && zodErrors.formErrors.length > 0) {
                     errorMessages.push(...zodErrors.formErrors);
                 }
     
-                // Agregar validaciones de campos personalizados (lógica específica de negocio)
                 const validationErrors: string[] = [...errorMessages];
     
                 if (currentResidenciaDetails?.campoPersonalizado1_isActive && currentResidenciaDetails?.campoPersonalizado1_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado1_regexValidacion) {
@@ -731,7 +669,6 @@ function UserManagementPage(): JSX.Element | null {
                     }
                 }
     
-                // Mostrar errores
                 const title = validationErrors.length === 1
                     ? "Error de Validación"
                     : `Existen ${validationErrors.length} errores de validación`;
@@ -747,11 +684,8 @@ function UserManagementPage(): JSX.Element | null {
                 return;
             }
     
-            // Datos validados
             const validatedData = validationResult.data;
-            console.log(`Calling createUser Cloud Function for ${validatedData.email}...`);
     
-            // Construir payload para la Cloud Function
             const profileDataForFunction: Omit<UserProfile, 'id'> = {
                 nombre: validatedData.nombre!.trim(),
                 apellido: validatedData.apellido!.trim(),
@@ -786,7 +720,6 @@ function UserManagementPage(): JSX.Element | null {
                 performedByUid: adminUserProfile?.id,
             };
     
-            // Remover keys undefined
             Object.keys(userDataForFunction.profileData).forEach(key => {
                 const k = key as keyof typeof profileDataForFunction;
                 if (userDataForFunction.profileData[k] === undefined) {
@@ -798,8 +731,6 @@ function UserManagementPage(): JSX.Element | null {
             const resultData = result.data as { success: boolean; userId?: string; message?: string };
     
             if (resultData.success && resultData.userId) {
-                console.log(`Cloud Function created user successfully with UID: ${resultData.userId}`);
-    
                 const newUserForUI: UserProfile = {
                     ...(userDataForFunction.profileData as Omit<UserProfile, 'id'>),
                     id: resultData.userId,
@@ -814,7 +745,6 @@ function UserManagementPage(): JSX.Element | null {
             }
     
         } catch (error: any) {
-            console.error("Error calling createUser function or processing result:", error);
             const message = error.message || "Ocurrió un error al contactar el servicio de creación.";
             let title = "Error al Crear Usuario";
             if (message.includes("already exists")) title = "Error de Duplicado";
@@ -832,14 +762,13 @@ function UserManagementPage(): JSX.Element | null {
         toast({ title: "Error", description: "No se encontró el usuario para editar.", variant: "destructive" });
         return;
     }
-    console.log("Editing user:", userToEdit);
     setEditingUserId(userId);
 
     setFormData({
         nombre: userToEdit.nombre || '',
         apellido: userToEdit.apellido || '',
-        nombreCorto: userToEdit.nombreCorto || '', // ADDED
-        fotoPerfil: userToEdit.fotoPerfil || null, // ADDED (or simply null if not yet in UserProfile)
+        nombreCorto: userToEdit.nombreCorto || '',
+        fotoPerfil: userToEdit.fotoPerfil || null,
         email: userToEdit.email || '',
         isActive: userToEdit.isActive === undefined ? true : userToEdit.isActive,
         roles: userToEdit.roles || [],
@@ -852,15 +781,14 @@ function UserManagementPage(): JSX.Element | null {
         dni: userToEdit.dni || '',
         password: '', confirmPassword: '',
         telefonoMovil: userToEdit.telefonoMovil || '',
-        fechaDeNacimiento: userToEdit.fechaDeNacimiento ? formatTimestampForInput(userToEdit.fechaDeNacimiento) : '', // Use empty string if undefined for date input
+        fechaDeNacimiento: userToEdit.fechaDeNacimiento ? formatTimestampForInput(userToEdit.fechaDeNacimiento) : '',
         centroCostoPorDefectoId: userToEdit.centroCostoPorDefectoId || '',
         puedeTraerInvitados: userToEdit.puedeTraerInvitados || 'no',
         valorCampoPersonalizado1: userToEdit.valorCampoPersonalizado1 || '',
         valorCampoPersonalizado2: userToEdit.valorCampoPersonalizado2 || '',
         valorCampoPersonalizado3: userToEdit.valorCampoPersonalizado3 || '',
-        asistentePermisos: null, // MODIFIED
+        asistentePermisos: null,
         tieneAutenticacion: true,
-        // Ensure other fields from UserFormData are mapped if they exist in UserProfile
         notificacionPreferencias: userToEdit.notificacionPreferencias || undefined,
     });
     };
@@ -870,8 +798,8 @@ function UserManagementPage(): JSX.Element | null {
         setFormData({
             nombre: '',
             apellido: '',
-            nombreCorto: '', // ADDED
-            fotoPerfil: null, // ADDED
+            nombreCorto: '',
+            fotoPerfil: null,
             email: '',
             isActive: true,
             roles: [],
@@ -891,12 +819,10 @@ function UserManagementPage(): JSX.Element | null {
             valorCampoPersonalizado1: '',
             valorCampoPersonalizado2: '',
             valorCampoPersonalizado3: '',
-            asistentePermisos: null, // MODIFIED
+            asistentePermisos: null,
             tieneAutenticacion: true,
-            // Ensure all other relevant UserFormData fields are reset here if they exist
             notificacionPreferencias: undefined,
         });
-        console.log("Cancelled edit.");
     };
 
     const handleDeleteUser = (userId: string) => {
@@ -909,16 +835,11 @@ function UserManagementPage(): JSX.Element | null {
     const confirmDeleteUser = async () => {
         if (!userToDeleteId) return;
         const userToDeleteInfo = users.find(u => u.id === userToDeleteId);
-        console.log("Confirmed delete for user ID:", userToDeleteId);
         try {
-            // Call the function, passing the user ID
             const result = await deleteUserCallable({ userId: userToDeleteId });
             const resultData = result.data as { success: boolean; message?: string };
 
             if (resultData.success) {
-                console.log(`Cloud Function deleted user ${userToDeleteId} successfully (Auth & Firestore).`);
-
-                // Remove user from local state
                 setUsers(prevUsers => prevUsers.filter(user => user.id !== userToDeleteId));
                 toast({ title: "Usuario Eliminado", description: `El usuario ${userToDeleteInfo?.nombre || userToDeleteId} ha sido eliminado.` });
 
@@ -927,7 +848,6 @@ function UserManagementPage(): JSX.Element | null {
             }
 
         } catch (error: any) {
-            console.error("Error calling deleteUser function or processing result:", error);
             const message = error.message || "Ocurrió un error al contactar el servicio de eliminación.";
             let title = "Error al Eliminar";
             if (message.includes("permission denied")) title = "Error de Permisos";
@@ -936,7 +856,6 @@ function UserManagementPage(): JSX.Element | null {
         } finally {
             setIsConfirmingDelete(false);
             setUserToDeleteId(null);
-            // setIsDeleting(false); // Reset loading state if added
         }
     };
 
@@ -948,15 +867,12 @@ function UserManagementPage(): JSX.Element | null {
         try {
             let finalResidenciaId = formData.residenciaId;
             
-            // Corregir residenciaId si es necesario basado en permisos del admin
             if (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId && isResidenciaConditionallyRequired) {
                 if (formData.residenciaId !== adminUserProfile.residenciaId) {
-                    console.warn("Correcting residenciaId for non-master admin during update.");
                     finalResidenciaId = adminUserProfile.residenciaId;
                 }
             }
 
-            // Convertir fechaDeNacimiento a formato YYYY-MM-DD si es necesario
             let dataForValidation: Partial<ClientUpdateUserForm> = { ...formData };
             if (dataForValidation.fechaDeNacimiento && typeof dataForValidation.fechaDeNacimiento === 'string') {
                 const formatted = formatTimestampForInput(dataForValidation.fechaDeNacimiento);
@@ -966,15 +882,12 @@ function UserManagementPage(): JSX.Element | null {
                 dataForValidation.residenciaId = finalResidenciaId;
             }
 
-            // --- Validar con Zod ---
             const validationResult = clientUpdateUserFormSchema.safeParse(dataForValidation);
 
             if (!validationResult.success) {
-                // Extraer errores de Zod
                 const zodErrors = validationResult.error.flatten();
                 const validationErrors: string[] = [];
     
-                // FieldErrors
                 if (zodErrors.fieldErrors) {
                     Object.entries(zodErrors.fieldErrors).forEach(([field, messages]) => {
                         if (messages && Array.isArray(messages) && messages.length > 0) {
@@ -983,12 +896,10 @@ function UserManagementPage(): JSX.Element | null {
                     });
                 }
     
-                // FormErrors
                 if (zodErrors.formErrors && zodErrors.formErrors.length > 0) {
                     validationErrors.push(...zodErrors.formErrors);
                 }
     
-                // Agregar validaciones de campos personalizados
                 if (currentResidenciaDetails?.campoPersonalizado1_isActive && currentResidenciaDetails?.campoPersonalizado1_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado1_regexValidacion) {
                     const regex = new RegExp(currentResidenciaDetails.campoPersonalizado1_regexValidacion);
                     if (dataForValidation.valorCampoPersonalizado1 && !regex.test(dataForValidation.valorCampoPersonalizado1)) {
@@ -1024,9 +935,7 @@ function UserManagementPage(): JSX.Element | null {
             }
 
             const validatedData = validationResult.data;
-            console.log(`Calling updateUser Cloud Function for user ${editingUserId}...`);
 
-            // Preparar datos para actualización
             const profileUpdateData: Partial<UserProfile> = {
                 nombre: validatedData.nombre?.trim() || undefined,
                 apellido: validatedData.apellido?.trim() || undefined,
@@ -1053,7 +962,6 @@ function UserManagementPage(): JSX.Element | null {
                 valorCampoPersonalizado3: validatedData.valorCampoPersonalizado3?.trim() || undefined,
             };
 
-            // Remover keys undefined
             Object.keys(profileUpdateData).forEach(keyStr => {
                 const key = keyStr as keyof Partial<UserProfile>;
                 if (profileUpdateData[key] === undefined) {
@@ -1071,8 +979,6 @@ function UserManagementPage(): JSX.Element | null {
             const resultData = result.data as { success: boolean; message?: string };
 
             if (resultData.success) {
-                console.log(`Cloud Function updated user ${editingUserId} successfully.`);
-
                 const originalUser = users.find(u => u.id === editingUserId)!;
 
                 const updatedUserInState: UserProfile = {
@@ -1116,7 +1022,6 @@ function UserManagementPage(): JSX.Element | null {
             }
 
         } catch (error: any) {
-            console.error("Error calling updateUser function or processing result:", error);
             const message = error.message || "Ocurrió un error al contactar el servicio de actualización.";
             let title = "Error al Actualizar";
             if (message.includes("permission denied")) title = "Error de Permisos";
@@ -1128,7 +1033,6 @@ function UserManagementPage(): JSX.Element | null {
         }
     };
 
-    // --- Helper display functions ---
     const getResidenciaName = (id?: ResidenciaId): string => {
         if (!id) return 'N/A';
         return residences[id]?.nombre || 'Desconocida';
@@ -1153,16 +1057,10 @@ function UserManagementPage(): JSX.Element | null {
         return roleMap[role] || role;
     };
 
-    // --- Calculate conditional requirements for the form for better UX ---
     const isResidenciaConditionallyRequired = formData.roles.some(r => ['residente', 'director', 'asistente', 'auditor', 'admin'].includes(r));
     const isDietaConditionallyRequired = formData.roles.includes('residente');
     const isNumeroDeRopaConditionallyRequired = formData.roles.includes('residente');
 
-    // =========================================================================
-    // Conditional Rendering Logic (New Auth Flow)
-    // =========================================================================
-
-    // 1. Handle Initial Loading (Firebase Auth or Admin's Profile)
     if (authFirebaseLoading || (authUser && adminProfileLoading)) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
@@ -1174,7 +1072,6 @@ function UserManagementPage(): JSX.Element | null {
         );
     }
 
-    // 2. Handle Firebase Auth Error or Admin's Profile Fetch Error
     if (authFirebaseError || adminProfileError) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
@@ -1188,11 +1085,7 @@ function UserManagementPage(): JSX.Element | null {
         );
     }
 
-    // 3. Handle Not Authorized (Admin doesn't have 'admin' or 'master' role)
-    // This check runs after auth and profile loading are complete and no errors occurred.
     if (!isAuthorized) {
-        // authUser should exist here if we got past the initial checks without redirecting,
-        // but isAuthorized is false due to role check.
         return (
             <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
                 <AlertCircle className="h-12 w-12 text-destructive mb-4" />
@@ -1205,14 +1098,10 @@ function UserManagementPage(): JSX.Element | null {
         );
     }
 
-    // 4. Render Actual Page Content (If all checks above passed, user is authorized)
-    // At this point, authUser and adminUserProfile should be non-null.
-
     return (
         <div className="container mx-auto p-4 space-y-6">
             <h1 className="text-3xl font-bold tracking-tight">Gestión de Usuarios</h1>
 
-            {/* --- Form Card --- */}
             <Card>
                 <CardHeader>
                     <CardTitle>{editingUserId ? 'Editar Usuario' : 'Crear Nuevo Usuario'}</CardTitle>
@@ -1221,8 +1110,7 @@ function UserManagementPage(): JSX.Element | null {
                     </CardDescription>
                 </CardHeader>
                 <form onSubmit={editingUserId ? handleUpdateUser : handleCreateUser}>
-                    <CardContent className="space-y-6"> {/* Adjusted padding from p-6 to space-y-6 for consistency */}
-                        {/* Nombre, Apellido y Nombre Corto */}
+                    <CardContent className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                            <div className="space-y-1.5">
                                 <Label htmlFor="nombre">Nombre *</Label>
@@ -1237,7 +1125,6 @@ function UserManagementPage(): JSX.Element | null {
                                 <Input id="nombreCorto" value={formData.nombreCorto || ''} onChange={(e) => handleFormChange('nombreCorto', e.target.value)} placeholder="Ej. Juanito" disabled={isSaving} />
                             </div>
                         </div>
-                        {/* Foto Perfil Placeholder */}
                         <div className="space-y-1.5">
                             <Label htmlFor="fotoPerfil">Foto de Perfil</Label>
                             <div className="p-3 border rounded-md text-sm text-muted-foreground bg-gray-50 dark:bg-gray-800">
@@ -1250,25 +1137,21 @@ function UserManagementPage(): JSX.Element | null {
                         <Input
                             id="telefonoMovil"
                             name="telefonoMovil"
-                            type="tel" // Using type="tel" can be helpful for mobile browsers
+                            type="tel"
                             value={formData.telefonoMovil || ''}
-                            onChange={(e) => handleFormChange('telefonoMovil', e.target.value)} // Assuming you have a generic input change handler
+                            onChange={(e) => handleFormChange('telefonoMovil', e.target.value)}
                             placeholder="Ej: +34600123456"
-                            // disabled={formLoading} // Or your loading state variable
                         />
-                        {/* Optional: Add a small description for the expected format */}
                         <p className="text-xs text-muted-foreground mt-1">
                             Incluir prefijo de país si es necesario (ej. +34).
                         </p>
                         </div>
-                        {/* Email */}
                         <div className="space-y-1.5">
                             <Label htmlFor="email">Email *</Label>
                             <Input id="email" type="email" value={formData.email || ''} onChange={(e) => handleFormChange('email', e.target.value)} placeholder="ej. juan.perez@email.com" disabled={isSaving || !!editingUserId} />
                             {editingUserId && <p className="text-xs text-muted-foreground pt-1">El email no se puede cambiar después de la creación.</p>}
                         </div>
 
-                        {/* Password Fields (Only for Create Mode) */}
                         {!editingUserId && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-1.5">
@@ -1282,27 +1165,24 @@ function UserManagementPage(): JSX.Element | null {
                             </div>
                         )}
 
-                        {/* Roles Checkboxes */}
                         <div className="space-y-2">
                             <Label className="font-medium">Roles *</Label>
-                            {/* Adjusted grid columns for better responsiveness */}
                             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2 pt-1">
                                 {availableRoles.map((role) => {
-                                    // Determine if the checkbox should be disabled
                                     const isMasterRole = role === 'master';
                                     const isAdminMaster = adminUserProfile?.roles?.includes('master');
-                                    const isDisabled = isSaving || (isMasterRole && !isAdminMaster); // Disable 'master' if admin is not master
+                                    const isDisabled = isSaving || (isMasterRole && !isAdminMaster);
                                     return (
                                         <div key={role} className="flex items-center space-x-2">
                                             <Checkbox
                                                 id={`role-${role}`}
                                                 checked={(formData.roles || []).includes(role)}
                                                 onCheckedChange={(checked) => handleRoleChange(role, !!checked)}
-                                                disabled={isDisabled} // Apply the disabled state
+                                                disabled={isDisabled}
                                             />
                                             <Label
                                                 htmlFor={`role-${role}`}
-                                                className={`font-normal capitalize text-sm whitespace-nowrap ${isDisabled ? 'text-muted-foreground cursor-not-allowed' : ''}`} // Style disabled label
+                                                className={`font-normal capitalize text-sm whitespace-nowrap ${isDisabled ? 'text-muted-foreground cursor-not-allowed' : ''}`}
                                             >
                                                 {formatSingleRoleName(role)}
                                             </Label>
@@ -1313,7 +1193,6 @@ function UserManagementPage(): JSX.Element | null {
                             {formData.roles.length === 0 && <p className="text-xs text-destructive mt-1">Seleccione al menos un rol.</p> }
                         </div>
 
-                        {/* Is Active Switch (Only show when editing) */}
                         {editingUserId && (
                             <div className="flex items-center space-x-2 pt-3">
                                 <Switch id="isActive" checked={!!formData.isActive} onCheckedChange={(checked) => handleFormChange('isActive', checked)} disabled={isSaving} />
@@ -1321,28 +1200,24 @@ function UserManagementPage(): JSX.Element | null {
                             </div>
                         )}
 
-                        {/* Residencia y Dieta Selects (conditional) */}
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                              <div className="space-y-1.5">
                                  <Label htmlFor="residencia">Residencia Asignada {isResidenciaConditionallyRequired ? '*' : ''}</Label>
                                 <Select
                                     value={
-                                        // If admin is not master and has a residencia, force their residenciaId
                                         (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId)
                                         ? adminUserProfile.residenciaId
-                                        : formData.residenciaId || '' // Otherwise, use the form's value
+                                        : formData.residenciaId || ''
                                     }
                                     onValueChange={(value) => {
-                                        // Only allow change if user is master or doesn't have a fixed residencia
                                         if (adminUserProfile?.roles.includes('master') || !adminUserProfile?.residenciaId) {
                                             handleSelectChange('residenciaId', value);
                                         }
                                     }}
                                     disabled={
-                                        !!( // Coerce the entire result to a boolean
+                                        !!(
                                             isSaving ||
                                             !isResidenciaConditionallyRequired ||
-                                            // Disable if admin is not master and has a residencia assigned
                                             (adminUserProfile && !adminUserProfile.roles.includes('master') && !!adminUserProfile.residenciaId)
                                         )
                                     }
@@ -1351,22 +1226,17 @@ function UserManagementPage(): JSX.Element | null {
                                         <SelectValue placeholder={isResidenciaConditionallyRequired ? "Seleccione residencia..." : "N/A (Opcional)"} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {/* Render options based on whether the admin is master or not */}
                                         {(adminUserProfile?.roles.includes('master') || !adminUserProfile?.residenciaId) ? (
-                                            // Master or admin without residencia: show all options
                                             Object.entries(residences).map(([id, res]) => (
                                                 <SelectItem key={id} value={id}>
                                                     {res.nombre}
                                                 </SelectItem>
                                             ))
                                         ) : adminUserProfile?.residenciaId && residences[adminUserProfile.residenciaId] ? (
-                                            // Non-master admin with residencia: show only their residencia
-                                            <SelectItem key={adminUserProfile.residenciaId} value={adminUserProfile.residenciaId}>
+                                            <SelectItem key="admin-residencia" value={adminUserProfile.residenciaId}>
                                                 {residences[adminUserProfile.residenciaId].nombre}
                                             </SelectItem>
                                         ) : (
-                                            // Handle loading state or fallback for admin with missing residencia
-                                            // Use a unique key here, perhaps incorporating a timestamp or a more descriptive key
                                             <SelectItem key="residences-loading-or-fallback" value="loading" disabled>
                                                 {Object.keys(residences).length === 0 ? "Cargando residencias..." : "Error cargando residencia asignada..."}
                                             </SelectItem>
@@ -1382,7 +1252,7 @@ function UserManagementPage(): JSX.Element | null {
                                         <SelectContent>
                                             {formData.residenciaId ? (
                                                 dietas
-                                                    .filter(d => d.residenciaId === formData.residenciaId && d.isActive) // Only show active dietas for the selected residencia
+                                                    .filter(d => d.residenciaId === formData.residenciaId && d.isActive)
                                                     .map(d => (
                                                         <SelectItem key={d.id} value={d.id}>
                                                             {d.nombre} {d.isDefault ? '(Default)' : ''}
@@ -1406,7 +1276,6 @@ function UserManagementPage(): JSX.Element | null {
                              </div>
                          </div>
                         
-                        {/* --- START: New UserProfile Fields --- */}
                         <Card className="p-4 mt-4 bg-slate-50 dark:bg-slate-800/30 border-dashed">
                             <h4 className="text-base font-medium mb-3 text-slate-700 dark:text-slate-300">Configuraciones Adicionales</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1561,10 +1430,7 @@ function UserManagementPage(): JSX.Element | null {
                                 )}
                             </div>
                         </Card>
-                        {/* --- END: New UserProfile Fields --- */}
 
-
-                        {/* Optional Fields Group (Existing) */}
                         <Card className="p-4 mt-4 bg-slate-50 dark:bg-slate-800/30 border-dashed">
                              <h4 className="text-base font-medium mb-3 text-slate-700 dark:text-slate-300">Detalles Adicionales (Opcional - Existentes)</h4>
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1594,7 +1460,7 @@ function UserManagementPage(): JSX.Element | null {
                         </Card>
 
                     </CardContent>
-                    <CardFooter className="border-t pt-6"> {/* Added border and padding */}
+                    <CardFooter className="border-t pt-6">
                         <Button type="submit" disabled={isSaving} className="mr-3">
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             {isSaving ? (editingUserId ? 'Guardando Cambios...' : 'Creando Usuario...') : (editingUserId ? 'Guardar Cambios' : 'Crear Usuario')}
@@ -1608,14 +1474,12 @@ function UserManagementPage(): JSX.Element | null {
                 </form>
             </Card>
 
-            {/* --- Existing Users List Card --- */}
             <Card>
                 <CardHeader>
                     <CardTitle>Usuarios Existentes</CardTitle>
                     <CardDescription>Lista de todos los usuarios registrados en el sistema.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {/* --- BEGIN Residencia Filter for Master Users --- */}
                     {adminUserProfile?.roles?.includes('master') && Object.keys(residences).length > 0 && (
                         <div className="mb-4 p-1 max-w-sm">
                             <Label htmlFor="residenciaFilter" className="text-sm font-medium">Filtrar por Residencia:</Label>
@@ -1642,19 +1506,16 @@ function UserManagementPage(): JSX.Element | null {
                             </Select>
                         </div>
                     )}
-                    {/* --- END Residencia Filter --- */}
 
-                    {/* --- BEGIN User List Display Logic --- */}
                     {isLoadingUsers ? (
                         <div className="space-y-4">
                            <Skeleton className="h-12 w-full" />
                            <Skeleton className="h-12 w-full" />
                            <Skeleton className="h-12 w-full" />
                         </div>
-                    ) : ( // This is the "else" branch for isLoadingUsers:
+                    ) : (
                         filteredUsers.length > 0 ? (
-                            // If there are users to display (after filtering)
-                            <div> {/* This div should NOT have overflow-x-auto */}
+                            <div>
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -1674,7 +1535,7 @@ function UserManagementPage(): JSX.Element | null {
                                                     <div className="capitalize text-xs break-words">
                                                         {(user.roles || []).map(formatSingleRoleName).join(', ')}
                                                     </div>
-                                                    <div className="mt-1">{/* Add a little space above the badge */}
+                                                    <div className="mt-1">
                                                         <Badge variant={user.isActive ? 'default' : 'outline'} className={`text-xs ${user.isActive ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-700/30 dark:text-green-300 dark:border-green-700' : 'bg-red-100 text-red-700 border-red-300 dark:bg-red-700/30 dark:text-red-300 dark:border-red-700'}`}>
                                                             {user.isActive ? 'Activo' : 'Inactivo'}
                                                         </Badge>
@@ -1690,24 +1551,20 @@ function UserManagementPage(): JSX.Element | null {
                                         ))}
                                     </TableBody>
                                 </Table>
-                            </div> // This div closes the table container
+                            </div>
                         ) : users.length > 0 && filteredUsers.length === 0 ? (
-                            // If there are users in the system, but the current filter yields no results
                             <p className="text-muted-foreground text-center py-8">
                                 No hay usuarios que coincidan con el filtro seleccionado.
                             </p>
                         ) : (
-                            // If there are no users in the system at all (users array is empty)
                             <p className="text-muted-foreground text-center py-8">
                                 No hay usuarios registrados en el sistema.
                             </p>
                         )
                     )}
-                    {/* --- END User List Display Logic --- */}
                 </CardContent>
             </Card>
 
-            {/* --- Delete Confirmation Dialog --- */}
             <AlertDialog open={isConfirmingDelete} onOpenChange={setIsConfirmingDelete}>
                  <AlertDialogContent>
                     <AlertDialogHeader>

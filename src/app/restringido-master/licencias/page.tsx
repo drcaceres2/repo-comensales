@@ -50,7 +50,7 @@ import {
     intervalToDurationFCZH 
 } from '../../../../shared/utils/commonUtils';
 import { 
-  writeClientLog, 
+  logClientAction, 
   formatFCZHToMonthYear, 
 } from '@/lib/utils';
 
@@ -487,21 +487,29 @@ const LicenciasPage = () => {
               if (data.auditResult) {
                   toast({ title: "Auditoría de Contrato Exitosa", description: `Resultado: ${data.licenseResult}. ${data.errorMessage || ''}` });
                   if (auth.currentUser) { // Check if currentUser is available
-                    await writeClientLog(
-                      auth.currentUser.uid,
-                      'licencia',
-                      { residenciaId: 'No disponible', 
-                        details: `Auditoría de contrato ${contratoIdToAudit} exitosa: ${data.licenseResult}. ${data.errorMessage || ''}`}
+                    await logClientAction(
+                      'CONTRATO_ACTUALIZADO',
+                      { residenciaId: selectedContrato.residencia || 'N/A', 
+                        targetId: contratoIdToAudit,
+                        targetCollection: 'contratosResidencia',
+                        details: {
+                          message: `Auditoría de contrato ${contratoIdToAudit} exitosa: ${data.licenseResult}. ${data.errorMessage || ''}`
+                        }
+                      }
                     );
                   }
               } else {
                   toast({ title: "Error en Auditoría de Contrato", description: `Resultado: ${data.licenseResult}. ${data.errorMessage || 'Error desconocido.'}`, variant: "destructive" });
                   if (auth.currentUser) { // Check if currentUser is available
-                    await writeClientLog(
-                      auth.currentUser.uid,
-                      'licencia',
-                      { residenciaId: 'No disponible', 
-                        details: `Error en auditoría de contrato ${contratoIdToAudit}: ${data.licenseResult}. ${data.errorMessage || 'Error desconocido.'}`}
+                    await logClientAction(
+                      'CONTRATO_ACTUALIZADO',
+                      { residenciaId: selectedContrato.residencia || 'N/A', 
+                        targetId: contratoIdToAudit,
+                        targetCollection: 'contratosResidencia',
+                        details: {
+                          message: `Error en auditoría de contrato ${contratoIdToAudit}: ${data.licenseResult}. ${data.errorMessage || 'Error desconocido.'}`
+                        }
+                      }
                     );
                   }
               }
@@ -511,11 +519,15 @@ const LicenciasPage = () => {
               toast({ title: "Error Inesperado", description: "No se pudo completar la auditoría del contrato.", variant: "destructive" });
               const errorMessage = error instanceof Error ? error.message : String(error);
               if (auth.currentUser) { // Check if currentUser is available
-                await writeClientLog(
-                  auth.currentUser.uid,
-                  'licencia',
-                  { residenciaId: 'No disponible', 
-                    details: `Error llamando a actualizacionLicenciaContrato para ${contratoIdToAudit}: ${errorMessage} (LicenciasPage_AuditCall_Catch)`}
+                await logClientAction(
+                  'CONTRATO_ACTUALIZADO',
+                  { residenciaId: selectedContrato.residencia || 'N/A',
+                    targetId: contratoIdToAudit,
+                    targetCollection: 'contratosResidencia',
+                    details: {
+                        message: `Error llamando a actualizacionLicenciaContrato para ${contratoIdToAudit}: ${errorMessage} (LicenciasPage_AuditCall_Catch)`
+                    }
+                  }
                 );
               }
           } finally {
@@ -526,21 +538,29 @@ const LicenciasPage = () => {
           console.warn("No selectedContrato.id available to trigger audit.");
           toast({ title: "Advertencia", description: "No se seleccionó ningún contrato para auditar.", variant: "default" });
           if (auth.currentUser) { // Check if currentUser is available
-            await writeClientLog(
-              auth.currentUser.uid,
-              'licencia',
-              { residenciaId: 'No disponible', 
-                details: `Intento de auditoría sin ContratoResidenciaId seleccionado. (LicenciasPage_AuditCall_NoID)`}
+            await logClientAction(
+              'CONTRATO_ACTUALIZADO',
+              { residenciaId: 'N/A', 
+                targetId: 'N/A',
+                targetCollection: 'contratosResidencia',
+                details: {
+                  message: `Intento de auditoría sin ContratoResidenciaId seleccionado. (LicenciasPage_AuditCall_NoID)`
+                }
+              }
             );
           }
       }
 
       // 6. Log Action
-      await writeClientLog(
-        user.uid,
-        'factura',
-        { residenciaId: 'No disponible', 
-          details: `Pedido 'pedidoId: ${selectedPedido.id}, facturaVinculada: ${facturaIdToLink}) Licencia ${licenciaRef.id}`}
+      await logClientAction(
+        'LICENCIA_CREADA',
+        { residenciaId: selectedContrato.residencia || 'N/A', 
+          targetId: licenciaRef.id,
+          targetCollection: 'licencias',
+          details: {
+                message: `Pedido 'pedidoId: ${selectedPedido.id}, facturaVinculada: ${facturaIdToLink}) Licencia ${licenciaRef.id}`
+          }
+        }
       );
 
       toast({

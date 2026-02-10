@@ -59,7 +59,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { checkAndDisplayTimezoneWarning } from "@/lib/utils";
+import { checkAndDisplayTimezoneWarning, logClientAction } from "@/lib/utils";
 import { useActionState } from 'react';
 import { comedorServerAction, type ComedorActionState } from './comedorAction';
 import { horarioServerAction, type HorarioActionState } from './horarioAction';
@@ -82,7 +82,6 @@ const getNewHorarioDefaults = (residenciaId: string): Omit<HorarioSolicitudComid
     isPrimary: false,
     isActive: true,
 });
-
 
 function ResidenciaHorariosComedoresPage() {
   const router = useRouter();
@@ -553,14 +552,15 @@ function ResidenciaHorariosComedoresPage() {
       await deleteDoc(doc(db, 'comedores', comedorId));
       
       // Log the deletion
-      await writeClientLog(
-        authUser!.uid,
+      await logClientAction(
         'COMEDOR_ELIMINADO',
         {
           residenciaId: targetResidenciaId,
           targetId: comedorId,
           targetCollection: 'comedores',
-          details: { message: `Comedor '${comedorName}' eliminado permanentemente` }
+          details: {
+            message: `Comedor '${comedorName}' eliminado permanentemente`
+          }
         }
       );
       
@@ -730,26 +730,28 @@ function ResidenciaHorariosComedoresPage() {
       });
 
       // Logging
-      await writeClientLog(
-        authUser.uid,
+      await logClientAction(
         actionType,
         {
           residenciaId: targetResidenciaId,
           targetId: docIdForLog,
           targetCollection: 'horariosSolicitudComida',
-          details: { message: `Horario '${currentHorario.nombre}' ${actionType === 'HORARIO_SOLICITUD_COMIDA_CREADO' ? 'creado' : 'actualizado'}. Día: ${DayOfWeekMap[currentHorario.dia]}, Hora: ${currentHorario.horaSolicitud}` }
+          details: {
+            message: `Horario '${currentHorario.nombre}' ${actionType === 'HORARIO_SOLICITUD_COMIDA_CREADO' ? 'creado' : 'actualizado'}. Día: ${DayOfWeekMap[currentHorario.dia]}, Hora: ${currentHorario.horaSolicitud}`
+          }
         }
       );
       if (previousPrimaryHorarioIdToUpdate) { // Log demotion of old primary if it happened
           const oldPrimaryDetails = horarios.find(h=>h.id === previousPrimaryHorarioIdToUpdate);
-          await writeClientLog(
-            authUser.uid,
+          await logClientAction(
             'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO',
             {
               residenciaId: targetResidenciaId,
               targetId: previousPrimaryHorarioIdToUpdate,
               targetCollection: 'horariosSolicitudComida',
-              details: { message: `Horario '${oldPrimaryDetails?.nombre || 'N/A'}' desmarcado como primario automáticamente` }
+              details: {
+                message: `Horario '${oldPrimaryDetails?.nombre || 'N/A'}' desmarcado como primario automáticamente`
+              }
             }
           );
       }
@@ -797,28 +799,30 @@ function ResidenciaHorariosComedoresPage() {
           description: `El horario '${horarioName}' ha sido desactivado porque tiene alternativas inactivas asociadas.`,
           variant: "default"
         });
-        await writeClientLog(
-            authUser!.uid, // Assumes authUser is not null here due to canEdit check
+        await logClientAction(
             'HORARIO_SOLICITUD_COMIDA_ELIMINADO',
             {
                 residenciaId: targetResidenciaId,
                 targetId: horarioId,
                 targetCollection: 'horariosSolicitudComida',
-                details: { message: `Horario '${horarioName}' desactivado (soft delete)` }
+                details: {
+                  message: `Horario '${horarioName}' desactivado (soft delete)`
+                }
             }
         );
       } else {
         // Complete deletion
         await deleteDoc(doc(db, 'horariosSolicitudComida', horarioId));
         toast({ title: "Horario Eliminado", description: `Horario '${horarioName}' eliminado permanentemente.` });
-        await writeClientLog(
-            authUser!.uid,
+        await logClientAction(
             'HORARIO_SOLICITUD_COMIDA_ELIMINADO',
             {
                 residenciaId: targetResidenciaId,
                 targetId: horarioId,
                 targetCollection: 'horariosSolicitudComida',
-                details: { message: `Horario '${horarioName}' eliminado permanentemente` }
+                details: {
+                  message: `Horario '${horarioName}' eliminado permanentemente`
+                }
             }
         );
       }

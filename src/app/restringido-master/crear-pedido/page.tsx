@@ -30,7 +30,7 @@ import {
   UserId,
   campoFechaConZonaHoraria,
 } from '../../../../shared/models/types'; // Adjust path as needed
-import { writeClientLog } from '@/lib/utils'; // Adjust path as needed
+import { logClientAction } from '@/lib/utils'; // Adjust path as needed
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -588,10 +588,18 @@ const CrearPedidoPage = () => {
         await updateDoc(pedidoRef, pedidoData); // updateDoc merges, so ensure all fields are present if not partial update
         
         toast({ title: 'Pedido Actualizado', description: `El pedido ${editingPedidoId} ha sido actualizado.` });
-        await writeClientLog(
-          authUser.uid as UserId,
-          'pedido',
-          { relatedDocPath: pedidoRef.path, details: { action: 'update_pedido', pedidoId: editingPedidoId, changes: pedidoData } }
+        await logClientAction(
+          'PEDIDO_ACTUALIZADO',
+          {
+            residenciaId: selectedResidencia?.id || 'N/A',
+            targetId: editingPedidoId,
+            targetCollection: 'pedidos',
+            details: {
+              action: 'update_pedido',
+              pedidoId: editingPedidoId,
+              changes: pedidoData
+            }
+          }
         );
         setPedidos(prev => prev.map(p => p.id === editingPedidoId ? { ...p, ...pedidoData, id: editingPedidoId } : p));
       } else {
@@ -600,10 +608,18 @@ const CrearPedidoPage = () => {
         const newPedidoId = docRef.id as PedidoId;
         
         toast({ title: 'Pedido Creado', description: `Nuevo pedido ${newPedidoId} creado para el contrato ${selectedContratoId}.` });
-        await writeClientLog(
-          authUser.uid as UserId,
-          'pedido',
-          { relatedDocPath: docRef.path, details: { action: 'create_pedido', pedidoId: newPedidoId, data: pedidoData } }
+        await logClientAction(
+          'PEDIDO_CREADO',
+          {
+            residenciaId: selectedResidencia?.id || 'N/A',
+            targetId: newPedidoId,
+            targetCollection: 'pedidos',
+            details: {
+              action: 'create_pedido',
+              pedidoId: newPedidoId,
+              data: pedidoData
+            }
+          }
         );
         setPedidos(prev => [...prev, { ...pedidoData, id: newPedidoId }]);
       }
@@ -611,10 +627,19 @@ const CrearPedidoPage = () => {
     } catch (error: any) {
       console.error("Error guardando pedido:", error);
       toast({ title: 'Error al Guardar Pedido', description: error.message, variant: 'destructive' });
-      await writeClientLog(
-        authUser.uid as UserId,
-        'pedido',
-        { details: { action: isEditing ? 'update_pedido_error' : 'create_pedido_error', pedidoId: editingPedidoId, error: error.message, data: pedidoData } }
+      await logClientAction(
+        isEditing ? 'PEDIDO_ACTUALIZADO' : 'PEDIDO_CREADO',
+        {
+          residenciaId: selectedResidencia?.id || 'N/A',
+          targetId: editingPedidoId || 'N/A',
+          targetCollection: 'pedidos',
+          details: {
+            action: isEditing ? 'update_pedido_error' : 'create_pedido_error',
+            pedidoId: editingPedidoId,
+            error: error.message,
+            data: pedidoData
+          }
+        }
       );
     } finally {
       setIsLoading(false);
@@ -702,22 +727,41 @@ const CrearPedidoPage = () => {
     setIsLoading(true);
     try {
       const pedidoRef = doc(db, 'pedidos', pedidoToDeleteId);
+      const pedidoToDelete = pedidos.find(p => p.id === pedidoToDeleteId);
+      const residenciaId = pedidoToDelete ? (contratos.find(c => c.id === pedidoToDelete.contrato)?.residencia || 'N/A') : 'N/A';
       await deleteDoc(pedidoRef);
 
       toast({ title: 'Pedido Eliminado', description: `El pedido ${pedidoToDeleteId} ha sido eliminado.` });
-      await writeClientLog(
-        authUser.uid as UserId,
-        'pedido',
-        { relatedDocPath: pedidoRef.path, details: { action: 'delete_pedido', pedidoId: pedidoToDeleteId } }
+      await logClientAction(
+        'PEDIDO_ELIMINADO',
+        {
+          residenciaId: residenciaId,
+          targetId: pedidoToDeleteId,
+          targetCollection: 'pedidos',
+          details: {
+            action: 'delete_pedido',
+            pedidoId: pedidoToDeleteId
+          }
+        }
       );
       setPedidos(prev => prev.filter(p => p.id !== pedidoToDeleteId));
     } catch (error: any) {
       console.error("Error eliminando pedido:", error);
       toast({ title: 'Error al Eliminar Pedido', description: error.message, variant: "destructive" });
-       await writeClientLog(
-        authUser.uid as UserId,
-        'pedido',
-        { details: { action: 'delete_pedido_error', pedidoId: pedidoToDeleteId, error: error.message } }
+       const pedidoToDelete = pedidos.find(p => p.id === pedidoToDeleteId);
+       const residenciaId = pedidoToDelete ? (contratos.find(c => c.id === pedidoToDelete.contrato)?.residencia || 'N/A') : 'N/A';
+       await logClientAction(
+        'PEDIDO_ELIMINADO',
+        {
+          residenciaId: residenciaId,
+          targetId: pedidoToDeleteId,
+          targetCollection: 'pedidos',
+          details: {
+            action: 'delete_pedido_error',
+            pedidoId: pedidoToDeleteId,
+            error: error.message
+          }
+        }
       );
     } finally {
       setIsConfirmingDelete(false);

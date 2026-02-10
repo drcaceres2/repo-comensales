@@ -81,8 +81,8 @@ export const residenciaSchema = z.object({
  */
 export const createResidenciaSchema = z.object({
     nombre: z.string().min(1).max(80),
-    direccion: z.string().min(1).max(255).optional(),
-    logoUrl: z.string().url().optional(),
+    direccion: z.string().max(255).optional(),
+    logoUrl: z.string().url().or(z.literal('')).optional(),
     antelacionActividadesDefault: z.number().min(0).max(90).optional(),
     textProfile: z.string().optional(),
     tipoResidencia: z.enum(['estudiantes', 'profesionales', 'gente_mayor']),
@@ -135,8 +135,8 @@ export const createResidenciaSchema = z.object({
  */
 export const updateResidenciaSchema = z.object({
     nombre: z.string().min(1).max(80).optional(),
-    direccion: z.string().min(1).max(255).nullable().optional(),
-    logoUrl: z.string().url().nullable().optional(),
+    direccion: z.string().max(255).nullable().optional(),
+    logoUrl: z.string().url().or(z.literal('')).nullable().optional(),
     antelacionActividadesDefault: z.number().min(0).max(90).nullable().optional(),
     textProfile: z.string().nullable().optional(),
     tipoResidencia: z.enum(['estudiantes', 'profesionales', 'gente_mayor']).optional(),

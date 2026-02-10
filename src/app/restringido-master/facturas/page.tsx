@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, Timestamp, serverTimestamp, runTransaction } from 'firebase/firestore'; // Added runTransaction
 import { UserProfile, ResidenciaId, campoFechaConZonaHoraria } from '../../../../shared/models/types'; // Adjust path as needed
-import { writeClientLog } from '@/lib/utils'; // Adjust path as needed
+import { logClientAction } from '@/lib/utils'; // Adjust path as needed
 import { Button } from '@/components/ui/button'; // Adjust path as needed
 import { Input } from '@/components/ui/input'; // Adjust path as needed
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; 
@@ -632,11 +632,16 @@ function CrearFacturasPage() {
                 montoTotal: roundToTwoDecimals(formData.montoTotal),
             };
             const docRef = await addDoc(collection(db, "facturas"), newFacturaData);
-            await writeClientLog(
-                authUser!.uid,
-                'factura',
-                { residenciaId: 'No disponible', 
-                  details: `Pedido '${newFacturaData.idPedido || ''}' (Factura: ${docRef.id})` 
+            await logClientAction(
+                'FACTURA_CREADA',
+                { 
+                  residenciaId: getDisplayResidenciaIdForPedido(selectedPedido!) || 'N/A',
+                  targetId: docRef.id,
+                  targetCollection: 'facturas',
+                  details: {
+                    pedidoId: newFacturaData.idPedido,
+                    facturaId: docRef.id,
+                  }
                 }
               );
             toast({ title: "Éxito", description: "Factura creada correctamente." });
@@ -698,11 +703,17 @@ function CrearFacturasPage() {
             };
             const facturaRef = doc(db, "facturas", selectedFactura!.id as string);
             await updateDoc(facturaRef, updatedFacturaData);
-            await writeClientLog(
-                authUser!.uid,
-                'factura',
-                { residenciaId: (selectedPedido ? getDisplayResidenciaIdForPedido(selectedPedido) : 'No se encontró'), 
-                  details: `Pedido '${ selectedPedido?.id || ''}' (Factura: ${selectedFactura.id})` 
+            await logClientAction(
+                'FACTURA_ACTUALIZADA',
+                { 
+                  residenciaId: getDisplayResidenciaIdForPedido(selectedPedido!) || 'N/A',
+                  targetId: selectedFactura.id,
+                  targetCollection: 'facturas',
+                  details: {
+                    pedidoId: selectedPedido!.id,
+                    facturaId: selectedFactura.id,
+                    changes: updatedFacturaData
+                  }
                 }
               );
             toast({ title: "Éxito", description: "Factura actualizada correctamente." });
@@ -722,11 +733,16 @@ function CrearFacturasPage() {
         try {
             const facturaRef = doc(db, "facturas", selectedFactura.id as string);
             await deleteDoc(facturaRef);
-            await writeClientLog(
-                authUser!.uid,
-                'factura',
-                { residenciaId: (selectedPedido ? getDisplayResidenciaIdForPedido(selectedPedido) : 'No se encontró'), 
-                  details: `Pedido '${ selectedPedido?.id || ''}' (Factura: ${selectedFactura.id})` 
+            await logClientAction(
+                'FACTURA_ELIMINADA',
+                { 
+                  residenciaId: getDisplayResidenciaIdForPedido(selectedPedido!) || 'N/A',
+                  targetId: selectedFactura.id,
+                  targetCollection: 'facturas',
+                  details: {
+                    pedidoId: selectedPedido.id,
+                    facturaId: selectedFactura.id
+                  }
                 }
               );
             toast({ title: "Éxito", description: "Factura eliminada correctamente." });

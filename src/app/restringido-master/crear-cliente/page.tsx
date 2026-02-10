@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { auth, db } from '@/lib/firebase'; 
 import { collection, addDoc, getDocs, query, where, doc, updateDoc, deleteDoc, DocumentData, getDoc, DocumentSnapshot } from 'firebase/firestore';
 import { Cliente, PersonaNaturalHonduras, PersonaNaturalExtranjera, PersonaJuridicaHonduras, PersonaJuridicaExtranjera } from '../../../../shared/models/contratos';
-import { UserProfile, UserId, ClientLogWrite } from '../../../../shared/models/types';
-import { writeClientLog } from '@/lib/utils'; 
+import { UserProfile, UserId } from '../../../../shared/models/types';
+import { logClientAction } from '@/lib/utils'; 
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
@@ -289,25 +289,25 @@ const CrearClientePage = () => {
                 const clientId = editingClient.id;
                 const clientRef = doc(db, 'clientes', clientId);
                 await updateDoc(clientRef, formState as DocumentData);
-                await writeClientLog(
-                    actorUserId, // actorUserId
-                    'cliente', // actionType
-                    { // logDetails
+                await logClientAction(
+                    'CLIENTE_ACTUALIZADO',
+                    {
                       residenciaId: 'No aplica',
                       details: { action: 'update', clientId: clientId, editorEmail: userProfile.email, newData: formState },
-                      relatedDocPath: `clientes/${clientId}`
+                      targetId: clientId,
+                      targetCollection: 'clientes'
                     }
                   );
                 toast({ title: "Éxito", description: "Cliente actualizado con éxito" });
             } else {
                 const docRef = await addDoc(collection(db, 'clientes'), formState as DocumentData);
-                await writeClientLog(
-                    actorUserId, // actorUserId
-                    'cliente', // actionType
-                    { // logDetails
+                await logClientAction(
+                    'CLIENTE_CREADO',
+                    {
                       residenciaId: 'No aplica',
                       details: { action: 'create', clientId: docRef.id, creatorEmail: userProfile.email, data: formState },
-                      relatedDocPath: `clientes/${docRef.id}`
+                      targetId: docRef.id,
+                      targetCollection: 'clientes'
                     }
                   );
                 toast({ title: "Éxito", description: "Cliente creado con éxito" });
@@ -335,13 +335,13 @@ const CrearClientePage = () => {
         if (window.confirm("¿Está seguro de que desea eliminar este cliente?")) {
             try {
                 await deleteDoc(doc(db, 'clientes', clientId));
-                await writeClientLog(
-                    userProfile.id, // actorUserId
-                    'cliente', // actionType
-                    { // logDetails
+                await logClientAction(
+                    'CLIENTE_ELIMINADO',
+                    {
                       residenciaId: 'No aplica',
                       details: { action: 'delete', clientId: clientId, deleterEmail: userProfile.email },
-                      relatedDocPath: `clientes/${clientId}`
+                      targetId: clientId,
+                      targetCollection: 'clientes'
                     }
                   );                
                 toast({ title: "Éxito", description: "Cliente eliminado con éxito" });
