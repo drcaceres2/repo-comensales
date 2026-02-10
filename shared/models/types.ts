@@ -290,9 +290,9 @@ export interface AlternativaTiempoComidaMod {
 // --------------------------------------------------------
 
 /**
- * Excepcion: Reemplaza a 'Eleccion'.
- * Representa la voluntad del usuario de desviarse de su Semanario.
+ * Excepcion: Representa la voluntad del usuario de desviarse de su Semanario.
  * Si no existe este documento, aplica el Semanario.
+ * Corresponde al Nivel 3 de la Cascada de la Verdad.
  */
 export interface Excepcion {
     id?: string;
@@ -315,29 +315,9 @@ export interface Excepcion {
 }
 
 /**
- * Actividad: Evento que sobrescribe la rutina de comida.
- * Prioridad Máxima en la cascada de decisión.
+ * Ausencia: Negación de servicio declarada por el usuario.
+ * Corresponde al Nivel 2 de la Cascada de la Verdad.
  */
-export interface Actividad {
-    id: string;
-    residenciaId: ResidenciaId;
-    nombre: string;
-    fecha: string; // YYYY-MM-DD
-    
-    // Configuración de comida para el evento
-    tiempoComidaId: TiempoComidaId;
-    alternativaId: AlternativaTiempoComidaId; // Ej. "Barbacoa"
-    centroCostoId?: CentroCostoId; // Si la actividad tiene su propio presupuesto
-    
-    // Gestión de Asistentes (Mutex con Ausencias)
-    tipoAsistencia: 'abierta' | 'invitacion';
-    invitadosIds?: UserId[]; // Whitelist si es por invitación
-    inscritosIds: UserId[]; // La lista real de quién va
-    
-    // Ciclo de Vida
-    fechaLimiteInscripcion: number; // Timestamp
-    estadoSolicitud: 'abierta' | 'cerrada' | 'solicitada_cocina';
-}
 export type AusenciaId = string;
 export interface Ausencia {
     id?: AusenciaId;
@@ -351,6 +331,11 @@ export interface Ausencia {
     fechaCreacion: number; // Timestamp stored as number (millis) from epoch
     motivo?: string; 
 }
+
+/**
+ * Semanario: Plantilla base de comidas del usuario.
+ * Corresponde al Nivel 4 (Fallback) de la Cascada de la Verdad.
+ */
 export interface Semanario {
     id?: string; 
     userId: UserId;
@@ -360,6 +345,11 @@ export interface Semanario {
     };
     ultimaActualizacion: number; // Timestamp stored as number (millis)
 }
+
+/**
+ * Objeto de Vista (ViewModel) para el frontend.
+ * Se construye en el cliente para mostrar el estado resuelto de la semana.
+ */
 export interface CeldaSemanarioDesnormalizado {
     // Información del TiempoComida base
     tiempoComidaId?: TiempoComidaId | null; // null en caso de horario alterado y añadido
@@ -403,9 +393,9 @@ export interface SemanarioDesnormalizado {
 // --------------------------------------------------------
 
 /**
- * Comensal: (Antes TicketComida).
- * Es la unidad atómica para Cocina y Contabilidad.
- * Se genera automáticamente al cerrar/solicitar el día.
+ * Comensal: Es la unidad atómica para Cocina y Contabilidad (Ticket de Comida).
+ * Se genera automáticamente al cerrar/solicitar el día (Snapshot).
+ * Es la "Fuente de la Verdad" para el historial.
  */
 export interface Comensal {
     id: string;
@@ -433,29 +423,7 @@ export interface Comensal {
     solicitadoAdministracion: boolean; // true = enviado a cocina
     comentarioCocina?: string; // Feedback específico de este plato (ej. "carne muy hecha")
 }
-export interface Eleccion {
-    id?: string;
-    usuarioId: UserId;
-    residenciaId: ResidenciaId;
-    fecha: string; // Date stored as a string using ISO 8601 format "YYYY-MM-DD"
-    tiempoComidaId: TiempoComidaId; // Mandatory for meal planning context
-    selected: boolean; // ADDED: Represents the manual choice (true for eat, false for not eat) to override semanario.
-    alternativaTiempoComidaId?: AlternativaTiempoComidaId;
-    dietaId?: DietaId;
-    solicitadoAdministracion: boolean;
-    congelado: boolean; // El proceso de solicitud a la administración comenzó y ya no se pueden hacer cambios aunque no se haya hecho la solicitud
-    asistencia?: boolean | null; // null si no se sabe, true si comió, false si no llegó a comer
-    fechaSolicitudAdministracion: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-    estadoAprobacion: EstadoAprobacion;
-    origen: OrigenEleccion;
-    centroCostoId?: CentroCostoId;
-    comentario?: string;
-    processedForBilling?: boolean;
-    actividadId?: ActividadId;
-    TiempoComidaAlternativaUnicaActividadId?: TiempoComidaAlternativaUnicaActividadId;
-    tipoEleccion: 'regular' | 'actividad';
-    origenCentroCosto?: 'usuario-por-defecto' | 'comedor-por-defecto' | 'manual' | 'modificado';
-}
+
 export interface Faltas {
     id: string;
     fecha: number; // Timestamp stored as number (millis) from epoch
@@ -467,17 +435,6 @@ export interface Faltas {
     confirmada: boolean;
     origen: string;
 }
-
-// --- Elecciones de los residentes e invitados
-export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado' | 'no_requerido' | 'contingencia' | 'contingencia_no_considerada' | 'anulada_por_cambio';
-export type OrigenEleccion = 
-    | 'semanario' 
-    | 'excepcion' // excepción que no necesitaba autorización
-    | 'excepcion_autorizada' // excepción que sí necesitaba autorización y fue concedida
-    | 'contingencia' // excepcion que no fue autorizada y quedó la contingencia
-    | 'director' 
-    | 'invitado_wizard'
-    | 'actividad';
 
 // --------------------------------------------------------
 // 3. MÓDULOS DE SOPORTE
@@ -530,6 +487,10 @@ export interface Recordatorio {
 export type RecurrenciaRecordatorio = 'semanal' | 'quincenal' | 'mensual-diasemana' | 'mensual-diames' | 'anual';
 
 // --- Actividades ---
+/**
+ * Actividad: Evento que sobrescribe la rutina de comida.
+ * Corresponde al Nivel 1 (Máxima Prioridad) de la Cascada de la Verdad.
+ */
 export type ActividadId = string; 
 export interface Actividad {
     //Campos generales
@@ -608,7 +569,7 @@ prioridad: NotificacionPrioridad; // e.g., 'alta', 'media'
 titulo: string; // e.g., "Recordatorio: Elige tu comida"
 mensaje: string; // e.g., "Tienes hasta las 8 PM para elegir tu almuerzo."
 relacionadoA?: {
-    coleccion: 'eleccion' | 'actividad' | 'ausencia' | 'mealCount';
+    coleccion: 'excepcion' | 'actividad' | 'ausencia' | 'mealCount';
     documentoId: string;
 };
 leido: boolean; // Whether the user has read the notification
@@ -695,8 +656,8 @@ export type LogActionType =
     | 'ALTERNATIVA_TIEMPO_COMIDA_CREADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ACTUALIZADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ELIMINADA'
     // Semanarios
     | 'SEMANARIO_CREADO' | 'SEMANARIO_ACTUALIZADO' | 'SEMANARIO_ELIMINADO'
-    // Elecciones
-    | 'ELECCION_CREADA' | 'ELECCION_ACTUALIZADA' | 'ELECCION_ELIMINADA'
+    // Excepciones
+    | 'EXCEPCION_CREADA' | 'EXCEPCION_ACTUALIZADA' | 'EXCEPCION_ELIMINADA'
     // Ausencias
     | 'AUSENCIA_CREADA' | 'AUSENCIA_ACTUALIZADA' | 'AUSENCIA_ELIMINADA'
     // Autorizaciones
