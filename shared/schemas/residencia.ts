@@ -14,6 +14,17 @@ export const ConfigContabilidadSchema = z.object({
     costoDiferenciadoDietas: z.boolean(),
 }).strict();
 
+export const ConfiguracionCampoSchema = z.object({
+    etiqueta: z.string().min(1).max(50),
+    isActive: z.boolean(),
+    necesitaValidacion: z.boolean().optional(),
+    regexValidacion: z.string().max(200).optional(),
+    tamanoTexto: z.enum(['text', 'textArea']).optional(),
+    puedeModDirector: z.boolean().optional(),
+    puedeModInteresado: z.boolean().optional(),
+    esObligatorio: z.boolean().optional(),
+}).strict();
+
 // ============================================
 // Esquemas para Residencia
 // ============================================
@@ -48,29 +59,7 @@ export const residenciaSchema = z.object({
     nombreTradicionalDomingo: CadenaOpcionalLimitada(1, 20),
     
     // Campos personalizables para UserProfile
-    campoPersonalizado1_etiqueta: CadenaOpcionalLimitada(),
-    campoPersonalizado1_isActive: z.boolean().optional(),
-    campoPersonalizado1_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado1_regexValidacion: CadenaOpcionalLimitada(),
-    campoPersonalizado1_tamanoTexto: z.enum(['text', 'textArea']).optional(),
-    campoPersonalizado1_puedeModDirector: z.boolean().optional(),
-    campoPersonalizado1_puedeModInteresado: z.boolean().optional(),
-    
-    campoPersonalizado2_etiqueta: CadenaOpcionalLimitada(),
-    campoPersonalizado2_isActive: z.boolean().optional(),
-    campoPersonalizado2_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado2_regexValidacion: CadenaOpcionalLimitada(),
-    campoPersonalizado2_tamanoTexto: z.enum(['text', 'textArea']).optional(),
-    campoPersonalizado2_puedeModDirector: z.boolean().optional(),
-    campoPersonalizado2_puedeModInteresado: z.boolean().optional(),
-    
-    campoPersonalizado3_etiqueta: CadenaOpcionalLimitada(),
-    campoPersonalizado3_isActive: z.boolean().optional(),
-    campoPersonalizado3_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado3_regexValidacion: CadenaOpcionalLimitada(),
-    campoPersonalizado3_tamanoTexto: z.enum(['text', 'textArea']).optional(),
-    campoPersonalizado3_puedeModDirector: z.boolean().optional(),
-    campoPersonalizado3_puedeModInteresado: z.boolean().optional(),
+    camposPersonalizados: z.record(ConfiguracionCampoSchema).optional(),
     
     configuracionContabilidad: ConfigContabilidadSchema.nullable().optional(),
     estadoContrato: z.enum(['activo', 'prueba', 'inactivo']),
@@ -102,29 +91,7 @@ export const createResidenciaSchema = z.object({
     nombreTradicionalSabado: CadenaOpcionalLimitada(1, 20),
     nombreTradicionalDomingo: CadenaOpcionalLimitada(1, 20),
     
-    campoPersonalizado1_etiqueta: CadenaOpcionalLimitada(),
-    campoPersonalizado1_isActive: z.boolean().optional(),
-    campoPersonalizado1_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado1_regexValidacion: CadenaOpcionalLimitada(),
-    campoPersonalizado1_tamanoTexto: z.enum(['text', 'textArea']).optional(),
-    campoPersonalizado1_puedeModDirector: z.boolean().optional(),
-    campoPersonalizado1_puedeModInteresado: z.boolean().optional(),
-    
-    campoPersonalizado2_etiqueta: CadenaOpcionalLimitada(),
-    campoPersonalizado2_isActive: z.boolean().optional(),
-    campoPersonalizado2_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado2_regexValidacion: CadenaOpcionalLimitada(),
-    campoPersonalizado2_tamanoTexto: z.enum(['text', 'textArea']).optional(),
-    campoPersonalizado2_puedeModDirector: z.boolean().optional(),
-    campoPersonalizado2_puedeModInteresado: z.boolean().optional(),
-    
-    campoPersonalizado3_etiqueta: CadenaOpcionalLimitada(),
-    campoPersonalizado3_isActive: z.boolean().optional(),
-    campoPersonalizado3_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado3_regexValidacion: CadenaOpcionalLimitada(),
-    campoPersonalizado3_tamanoTexto: z.enum(['text', 'textArea']).optional(),
-    campoPersonalizado3_puedeModDirector: z.boolean().optional(),
-    campoPersonalizado3_puedeModInteresado: z.boolean().optional(),
+    camposPersonalizados: z.record(ConfiguracionCampoSchema).optional(),
     
     configuracionContabilidad: ConfigContabilidadSchema.nullable().optional(),
     estadoContrato: z.enum(['activo', 'prueba', 'inactivo']),
@@ -156,29 +123,7 @@ export const updateResidenciaSchema = z.object({
     nombreTradicionalSabado: CadenaOpcionalLimitada(1, 20).nullable().optional(),
     nombreTradicionalDomingo: CadenaOpcionalLimitada(1, 20).nullable().optional(),
     
-    campoPersonalizado1_etiqueta: CadenaOpcionalLimitada().nullable().optional(),
-    campoPersonalizado1_isActive: z.boolean().optional(),
-    campoPersonalizado1_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado1_regexValidacion: CadenaOpcionalLimitada().nullable().optional(),
-    campoPersonalizado1_tamanoTexto: z.enum(['text', 'textArea']).optional(),
-    campoPersonalizado1_puedeModDirector: z.boolean().optional(),
-    campoPersonalizado1_puedeModInteresado: z.boolean().optional(),
-    
-    campoPersonalizado2_etiqueta: CadenaOpcionalLimitada().nullable().optional(),
-    campoPersonalizado2_isActive: z.boolean().optional(),
-    campoPersonalizado2_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado2_regexValidacion: CadenaOpcionalLimitada().nullable().optional(),
-    campoPersonalizado2_tamanoTexto: z.enum(['text', 'textArea']).optional(),
-    campoPersonalizado2_puedeModDirector: z.boolean().optional(),
-    campoPersonalizado2_puedeModInteresado: z.boolean().optional(),
-    
-    campoPersonalizado3_etiqueta: CadenaOpcionalLimitada().nullable().optional(),
-    campoPersonalizado3_isActive: z.boolean().optional(),
-    campoPersonalizado3_necesitaValidacion: z.boolean().optional(),
-    campoPersonalizado3_regexValidacion: CadenaOpcionalLimitada().nullable().optional(),
-    campoPersonalizado3_tamanoTexto: z.enum(['text', 'textArea']).optional(),
-    campoPersonalizado3_puedeModDirector: z.boolean().optional(),
-    campoPersonalizado3_puedeModInteresado: z.boolean().optional(),
+    camposPersonalizados: z.record(ConfiguracionCampoSchema).optional(),
     
     configuracionContabilidad: ConfigContabilidadSchema.nullable().optional(),
     estadoContrato: z.enum(['activo', 'prueba', 'inactivo']).optional(),

@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
-import { campoFechaConZonaHorariaSchema, IsoDateStringSchema } from './fechas';
+import { FirebaseIdSchema, CadenaOpcionalLimitada, FirestoreTimestampSchema } from './common';
+import { IsoDateStringSchema } from './fechas';
 
 export const ComentarioSchema = z.object({
     id: FirebaseIdSchema,
     residenciaId: FirebaseIdSchema,
     autorId: FirebaseIdSchema,
-    fechaHoraCreacion: campoFechaConZonaHorariaSchema,
+    fechaHoraCreacion: FirestoreTimestampSchema,
     texto: CadenaOpcionalLimitada(1, 500),
     categoria: z.enum(['comida', 'limpieza', 'mantenimiento', 'varios']),
     estado: z.enum(['nuevo', 'leido', 'diferido', 'archivado']),
@@ -15,7 +15,7 @@ export const ComentarioSchema = z.object({
 
 export const FaltaSchema = z.object({
     id: FirebaseIdSchema,
-    fecha: campoFechaConZonaHorariaSchema,
+    fecha: IsoDateStringSchema,
     residencia: FirebaseIdSchema,
     usuario: FirebaseIdSchema,
     titulo: CadenaOpcionalLimitada(1, 100),

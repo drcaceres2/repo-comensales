@@ -25,14 +25,12 @@ const geistMono = Geist_Mono({
 });
 
 function LayoutHeader() {
-  const { user, loading, error } = useAuth(); // Custom hook usage
+  const { user, loading, error, logout } = useAuth(); // Custom hook usage
   const router = useRouter();
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
+      await logout();
       console.log('User signed out successfully');
       router.push('/');
     } catch (errorMsg) {

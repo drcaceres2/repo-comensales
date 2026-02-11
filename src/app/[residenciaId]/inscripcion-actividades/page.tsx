@@ -10,7 +10,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/useToast";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Loader2, AlertCircle, Home, CalendarDays, Info, CheckCircle, XCircle, UserPlus, LogOut, MailCheck, MailWarning, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 
@@ -28,6 +27,12 @@ import {
     UserRole // Ensure UserRole is imported
 } from '../../../../shared/models/types';
 import { logClientAction } from '@/lib/utils';
+
+// Zod schemas para validación
+import {
+    InscripcionActividadCreateSchema,
+    InscripcionActividadUpdateSchema
+} from '@/../../shared/schemas/actividades';
 
 const formatActivityDateRange = (fechaInicio: string | Timestamp | undefined, fechaFin: string | Timestamp | undefined): string => {
     if (!fechaInicio || !fechaFin) return 'Fechas no definidas';
@@ -224,15 +229,27 @@ export default function ResidenteActividadesPage() {
             }
             // <<< END NEW >>>
 
-            const newInscriptionData: Omit<InscripcionActividad, 'id'> = {
+            // Validar datos antes de escribir en Firestore
+            const inscriptionDataToValidate = {
                 actividadId: selectedActivity.id,
                 userId: currentUser.uid,
                 residenciaId: residenciaId,
-                estadoInscripcion: 'inscrito_directo',
-                fechaEstado: serverTimestamp() as any,
+                estadoInscripcion: 'inscrito_directo' as const,
+            };
+            const validatedData = InscripcionActividadCreateSchema.parse(inscriptionDataToValidate);
+            
+            const newInscriptionData = {
+                ...validatedData,
+                fechaHoraCreacion: serverTimestamp() as any,
+                fechaHoraModificacion: serverTimestamp() as any,
             };
             const docRef = await addDoc(collection(db, "inscripcionesActividad"), newInscriptionData);
-            const newInscription = { ...newInscriptionData, id: docRef.id, fechaEstado: Timestamp.now().toMillis() } as InscripcionActividad;
+            const newInscription = { 
+                ...newInscriptionData, 
+                id: docRef.id, 
+                fechaHoraCreacion: Timestamp.now(), 
+                fechaHoraModificacion: Timestamp.now() 
+            } as InscripcionActividad;
             setUserInscriptionsMap(prev => new Map(prev).set(selectedActivity.id, newInscription));
             
             toast({ title: "¡Inscripción Exitosa!", description: `Te has apuntado a "${selectedActivity.nombre}".`});
@@ -287,11 +304,20 @@ export default function ResidenteActividadesPage() {
 
             const inscriptionRef = doc(db, "inscripcionesActividad", currentInscription.id);
             const newEstado: EstadoInscripcionActividad = accept ? 'invitado_aceptado' : 'invitado_rechazado';
+            
+            // Validar datos de actualización
+            const updateData = { estadoInscripcion: newEstado };
+            InscripcionActividadUpdateSchema.parse(updateData);
+            
             await updateDoc(inscriptionRef, {
-                estadoInscripcion: newEstado,
-                fechaEstado: serverTimestamp() as Timestamp
+                ...updateData,
+                fechaHoraModificacion: serverTimestamp() as Timestamp
             });
-            const updatedInscription = { ...currentInscription, estadoInscripcion: newEstado, fechaEstado: Timestamp.now().toMillis() }; 
+            const updatedInscription = { 
+                ...currentInscription, 
+                estadoInscripcion: newEstado, 
+                fechaHoraModificacion: Timestamp.now() 
+            }; 
             setUserInscriptionsMap(prev => new Map(prev).set(selectedActivity.id, updatedInscription));
 
             toast({ title: accept ? "Invitación Aceptada" : "Invitación Rechazada", description: `Has ${accept ? 'aceptado' : 'rechazado'} la invitación para "${selectedActivity.nombre}".` });
@@ -321,11 +347,20 @@ export default function ResidenteActividadesPage() {
         try {
             const inscriptionRef = doc(db, "inscripcionesActividad", inscriptionToCancel.id);
             const newEstado: EstadoInscripcionActividad = 'cancelado_usuario';
+            
+            // Validar datos de actualización
+            const updateData = { estadoInscripcion: newEstado };
+            InscripcionActividadUpdateSchema.parse(updateData);
+            
             await updateDoc(inscriptionRef, {
-                estadoInscripcion: newEstado,
-                fechaEstado: serverTimestamp() as Timestamp
+                ...updateData,
+                fechaHoraModificacion: serverTimestamp() as Timestamp
             });
-            const updatedInscription = { ...inscriptionToCancel, estadoInscripcion: newEstado, fechaEstado: Timestamp.now().toMillis() };
+            const updatedInscription = { 
+                ...inscriptionToCancel, 
+                estadoInscripcion: newEstado, 
+                fechaHoraModificacion: Timestamp.now() 
+            };
             setUserInscriptionsMap(prev => new Map(prev).set(actividadId, updatedInscription));
 
             toast({ title: "Inscripción Cancelada", description: `Has cancelado tu participación en "${selectedActivity.nombre}".` });

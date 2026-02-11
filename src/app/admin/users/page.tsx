@@ -87,9 +87,7 @@ function UserManagementPage(): JSX.Element | null {
         confirmPassword?: string;
         telefonoMovil?: string;
         fechaDeNacimiento?: string;
-        valorCampoPersonalizado1?: string;
-        valorCampoPersonalizado2?: string;
-        valorCampoPersonalizado3?: string;
+        camposPersonalizados?: { [key: string]: string };
         asistentePermisos: null; // MODIFIED: Explicitly null
         tieneAutenticacion: true;
     };
@@ -122,8 +120,8 @@ function UserManagementPage(): JSX.Element | null {
         return {
             nombre: '',
             apellido: '',
-            nombreCorto: '', // ADDED
-            fotoPerfil: null, // ADDED
+            nombreCorto: '',
+            fotoPerfil: null,
             email: '',
             isActive: true,
             roles: [],
@@ -140,10 +138,8 @@ function UserManagementPage(): JSX.Element | null {
             fechaDeNacimiento: '',
             centroCostoPorDefectoId: '',
             puedeTraerInvitados: 'no',
-            valorCampoPersonalizado1: '',
-            valorCampoPersonalizado2: '',
-            valorCampoPersonalizado3: '',
-            asistentePermisos: null, // MODIFIED
+            camposPersonalizados: {},
+            asistentePermisos: null,
             notificacionPreferencias: undefined,
             tieneAutenticacion: true,
         };
@@ -375,16 +371,17 @@ function UserManagementPage(): JSX.Element | null {
                     universidad: data.universidad || '',
                     carrera: data.carrera || '',
                     identificacion: data.identificacion || '',
+                    telefonoMovil: data.telefonoMovil || '',
                     fechaDeNacimiento: data.fechaDeNacimiento || null, 
+                    asistentePermisos: data.asistentePermisos || null,
                     centroCostoPorDefectoId: data.centroCostoPorDefectoId || null,
                     puedeTraerInvitados: data.puedeTraerInvitados || 'no',
-                    valorCampoPersonalizado1: data.valorCampoPersonalizado1 || '',
-                    valorCampoPersonalizado2: data.valorCampoPersonalizado2 || '',
-                    valorCampoPersonalizado3: data.valorCampoPersonalizado3 || '',
-                    telefonoMovil: data.telefonoMovil || '',
-                    asistentePermisos: data.asistentePermisos || null,
                     notificacionPreferencias: data.notificacionPreferencias || null,
                     tieneAutenticacion: true,
+                    fechaHoraCreacion: data.fechaHoraCreacion || null,
+                    ultimaActualizacion: data.ultimaActualizacion || null,
+                    lastLogin: data.lastLogin || null,
+                    camposPersonalizados: data.camposPersonalizados || {},
                 });
             });
             setUsers(usersData.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre))); 
@@ -583,9 +580,7 @@ function UserManagementPage(): JSX.Element | null {
             if (field === 'residenciaId') {
                 updatedFormData.dietaId = '';
                 updatedFormData.centroCostoPorDefectoId = '';
-                updatedFormData.valorCampoPersonalizado1 = '';
-                updatedFormData.valorCampoPersonalizado2 = '';
-                updatedFormData.valorCampoPersonalizado3 = '';
+                updatedFormData.camposPersonalizados = {};
 
                 if (updatedFormData.roles.includes('residente') && value) {
                     const defaultDieta = dietas.find(d => d.residenciaId === value && d.isDefault && d.isActive);
@@ -659,22 +654,15 @@ function UserManagementPage(): JSX.Element | null {
     
                 const validationErrors: string[] = [...errorMessages];
     
-                if (currentResidenciaDetails?.campoPersonalizado1_isActive && currentResidenciaDetails?.campoPersonalizado1_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado1_regexValidacion) {
-                    const regex = new RegExp(currentResidenciaDetails.campoPersonalizado1_regexValidacion);
-                    if (dataForValidation.valorCampoPersonalizado1 && !regex.test(dataForValidation.valorCampoPersonalizado1)) {
-                        validationErrors.push(`${currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor Personalizado 1'} no es válido.`);
-                    }
-                }
-                if (currentResidenciaDetails?.campoPersonalizado2_isActive && currentResidenciaDetails?.campoPersonalizado2_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado2_regexValidacion) {
-                    const regex = new RegExp(currentResidenciaDetails.campoPersonalizado2_regexValidacion);
-                    if (dataForValidation.valorCampoPersonalizado2 && !regex.test(dataForValidation.valorCampoPersonalizado2)) {
-                        validationErrors.push(`${currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor Personalizado 2'} no es válido.`);
-                    }
-                }
-                if (currentResidenciaDetails?.campoPersonalizado3_isActive && currentResidenciaDetails?.campoPersonalizado3_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado3_regexValidacion) {
-                    const regex = new RegExp(currentResidenciaDetails.campoPersonalizado3_regexValidacion);
-                    if (dataForValidation.valorCampoPersonalizado3 && !regex.test(dataForValidation.valorCampoPersonalizado3)) {
-                        validationErrors.push(`${currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor Personalizado 3'} no es válido.`);
+                if (currentResidenciaDetails?.camposPersonalizados) {
+                    for (const key in currentResidenciaDetails.camposPersonalizados) {
+                        const campo = currentResidenciaDetails.camposPersonalizados[key];
+                        if (campo.isActive && campo.necesitaValidacion && campo.regexValidacion) {
+                            const regex = new RegExp(campo.regexValidacion);
+                            if (dataForValidation.camposPersonalizados?.[key] && !regex.test(dataForValidation.camposPersonalizados[key])) {
+                                validationErrors.push(`${campo.etiqueta || `Campo ${key}`} no es válido.`);
+                            }
+                        }
                     }
                 }
     
@@ -718,9 +706,9 @@ function UserManagementPage(): JSX.Element | null {
                 asistentePermisos: null,
                 notificacionPreferencias: (validatedData.notificacionPreferencias as any) || undefined,
                 centroCostoPorDefectoId: validatedData.centroCostoPorDefectoId || undefined,
-                valorCampoPersonalizado1: validatedData.valorCampoPersonalizado1?.trim() || undefined,
-                valorCampoPersonalizado2: validatedData.valorCampoPersonalizado2?.trim() || undefined,
-                valorCampoPersonalizado3: validatedData.valorCampoPersonalizado3?.trim() || undefined,
+                camposPersonalizados: validatedData.camposPersonalizados || {},
+                fechaHoraCreacion: null,
+                ultimaActualizacion: null,
             };
     
             const userDataForFunction = {
@@ -798,9 +786,7 @@ function UserManagementPage(): JSX.Element | null {
         fechaDeNacimiento: userToEdit.fechaDeNacimiento ? formatTimestampForInput(userToEdit.fechaDeNacimiento) : '',
         centroCostoPorDefectoId: userToEdit.centroCostoPorDefectoId || '',
         puedeTraerInvitados: userToEdit.puedeTraerInvitados || 'no',
-        valorCampoPersonalizado1: userToEdit.valorCampoPersonalizado1 || '',
-        valorCampoPersonalizado2: userToEdit.valorCampoPersonalizado2 || '',
-        valorCampoPersonalizado3: userToEdit.valorCampoPersonalizado3 || '',
+        camposPersonalizados: userToEdit.camposPersonalizados || {},
         asistentePermisos: null,
         tieneAutenticacion: true,
         notificacionPreferencias: userToEdit.notificacionPreferencias || undefined,
@@ -830,9 +816,7 @@ function UserManagementPage(): JSX.Element | null {
             fechaDeNacimiento: '',
             centroCostoPorDefectoId: '',
             puedeTraerInvitados: 'no',
-            valorCampoPersonalizado1: '',
-            valorCampoPersonalizado2: '',
-            valorCampoPersonalizado3: '',
+            camposPersonalizados: {},
             asistentePermisos: null,
             tieneAutenticacion: true,
             notificacionPreferencias: undefined,
@@ -919,22 +903,15 @@ function UserManagementPage(): JSX.Element | null {
                     validationErrors.push(...zodErrors.formErrors);
                 }
     
-                if (currentResidenciaDetails?.campoPersonalizado1_isActive && currentResidenciaDetails?.campoPersonalizado1_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado1_regexValidacion) {
-                    const regex = new RegExp(currentResidenciaDetails.campoPersonalizado1_regexValidacion);
-                    if (dataForValidation.valorCampoPersonalizado1 && !regex.test(dataForValidation.valorCampoPersonalizado1)) {
-                        validationErrors.push(`${currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor Personalizado 1'} no es válido.`);
-                    }
-                }
-                if (currentResidenciaDetails?.campoPersonalizado2_isActive && currentResidenciaDetails?.campoPersonalizado2_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado2_regexValidacion) {
-                    const regex = new RegExp(currentResidenciaDetails.campoPersonalizado2_regexValidacion);
-                    if (dataForValidation.valorCampoPersonalizado2 && !regex.test(dataForValidation.valorCampoPersonalizado2)) {
-                        validationErrors.push(`${currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor Personalizado 2'} no es válido.`);
-                    }
-                }
-                if (currentResidenciaDetails?.campoPersonalizado3_isActive && currentResidenciaDetails?.campoPersonalizado3_necesitaValidacion && currentResidenciaDetails?.campoPersonalizado3_regexValidacion) {
-                    const regex = new RegExp(currentResidenciaDetails.campoPersonalizado3_regexValidacion);
-                    if (dataForValidation.valorCampoPersonalizado3 && !regex.test(dataForValidation.valorCampoPersonalizado3)) {
-                        validationErrors.push(`${currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor Personalizado 3'} no es válido.`);
+                if (currentResidenciaDetails?.camposPersonalizados) {
+                    for (const key in currentResidenciaDetails.camposPersonalizados) {
+                        const campo = currentResidenciaDetails.camposPersonalizados[key];
+                        if (campo.isActive && campo.necesitaValidacion && campo.regexValidacion) {
+                            const regex = new RegExp(campo.regexValidacion);
+                            if (dataForValidation.camposPersonalizados?.[key] && !regex.test(dataForValidation.camposPersonalizados[key])) {
+                                validationErrors.push(`${campo.etiqueta || `Campo ${key}`} no es válido.`);
+                            }
+                        }
                     }
                 }
 
@@ -976,9 +953,7 @@ function UserManagementPage(): JSX.Element | null {
                 asistentePermisos: null,
                 notificacionPreferencias: (validatedData.notificacionPreferencias as any) || undefined,
                 centroCostoPorDefectoId: validatedData.centroCostoPorDefectoId,
-                valorCampoPersonalizado1: validatedData.valorCampoPersonalizado1?.trim() || undefined,
-                valorCampoPersonalizado2: validatedData.valorCampoPersonalizado2?.trim() || undefined,
-                valorCampoPersonalizado3: validatedData.valorCampoPersonalizado3?.trim() || undefined,
+                camposPersonalizados: validatedData.camposPersonalizados || {},
             };
 
             Object.keys(profileUpdateData).forEach(keyStr => {
@@ -1023,9 +998,7 @@ function UserManagementPage(): JSX.Element | null {
                     asistentePermisos: null,
                     notificacionPreferencias: (validatedData.notificacionPreferencias as any) || undefined,
                     centroCostoPorDefectoId: validatedData.centroCostoPorDefectoId || undefined,
-                    valorCampoPersonalizado1: validatedData.valorCampoPersonalizado1?.trim() || undefined,
-                    valorCampoPersonalizado2: validatedData.valorCampoPersonalizado2?.trim() || undefined,
-                    valorCampoPersonalizado3: validatedData.valorCampoPersonalizado3?.trim() || undefined,
+                    camposPersonalizados: validatedData.camposPersonalizados || {},
                     id: editingUserId,
                 };
 
@@ -1357,96 +1330,45 @@ function UserManagementPage(): JSX.Element | null {
                         <Card className="p-4 mt-4 bg-slate-50 dark:bg-slate-800/30 border-dashed">
                              <h4 className="text-base font-medium mb-3 text-slate-700 dark:text-slate-300">Campos Personalizados (Definidos en Residencia)</h4>
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {currentResidenciaDetails?.campoPersonalizado1_isActive && (
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="valorCampoPersonalizado1">
-                                            {currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor Personalizado 1'}
-                                            {currentResidenciaDetails.campoPersonalizado1_necesitaValidacion ? ' *' : ''}
-                                        </Label>
-                                        {currentResidenciaDetails.campoPersonalizado1_tamanoTexto === 'textArea' ? (
-                                            <Textarea
-                                                id="valorCampoPersonalizado1"
-                                                value={formData.valorCampoPersonalizado1 || ''}
-                                                onChange={(e) => handleFormChange('valorCampoPersonalizado1', e.target.value)}
-                                                placeholder={currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor 1'}
-                                                disabled={isSaving || !formData.residenciaId}
-                                            />
-                                        ) : (
-                                            <Input
-                                                id="valorCampoPersonalizado1"
-                                                value={formData.valorCampoPersonalizado1 || ''}
-                                                onChange={(e) => handleFormChange('valorCampoPersonalizado1', e.target.value)}
-                                                placeholder={currentResidenciaDetails.campoPersonalizado1_etiqueta || 'Valor 1'}
-                                                disabled={isSaving || !formData.residenciaId}
-                                            />
-                                        )}
-                                        {currentResidenciaDetails.campoPersonalizado1_necesitaValidacion && currentResidenciaDetails.campoPersonalizado1_regexValidacion && (
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                Validación requerida. Formato esperado: {currentResidenciaDetails.campoPersonalizado1_regexValidacion}
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-                                {currentResidenciaDetails?.campoPersonalizado2_isActive && (
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="valorCampoPersonalizado2">
-                                            {currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor Personalizado 2'}
-                                            {currentResidenciaDetails.campoPersonalizado2_necesitaValidacion ? ' *' : ''}
-                                        </Label>
-                                        {currentResidenciaDetails.campoPersonalizado2_tamanoTexto === 'textArea' ? (
-                                            <Textarea
-                                                id="valorCampoPersonalizado2"
-                                                value={formData.valorCampoPersonalizado2 || ''}
-                                                onChange={(e) => handleFormChange('valorCampoPersonalizado2', e.target.value)}
-                                                placeholder={currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor 2'}
-                                                disabled={isSaving || !formData.residenciaId}
-                                            />
-                                        ) : (
-                                            <Input
-                                                id="valorCampoPersonalizado2"
-                                                value={formData.valorCampoPersonalizado2 || ''}
-                                                onChange={(e) => handleFormChange('valorCampoPersonalizado2', e.target.value)}
-                                                placeholder={currentResidenciaDetails.campoPersonalizado2_etiqueta || 'Valor 2'}
-                                                disabled={isSaving || !formData.residenciaId}
-                                            />
-                                        )}
-                                        {currentResidenciaDetails.campoPersonalizado2_necesitaValidacion && currentResidenciaDetails.campoPersonalizado2_regexValidacion && (
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                Validación requerida. Formato esperado: {currentResidenciaDetails.campoPersonalizado2_regexValidacion}
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-                                {currentResidenciaDetails?.campoPersonalizado3_isActive && (
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="valorCampoPersonalizado3">
-                                            {currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor Personalizado 3'}
-                                            {currentResidenciaDetails.campoPersonalizado3_necesitaValidacion ? ' *' : ''}
-                                        </Label>
-                                        {currentResidenciaDetails.campoPersonalizado3_tamanoTexto === 'textArea' ? (
-                                            <Textarea
-                                                id="valorCampoPersonalizado3"
-                                                value={formData.valorCampoPersonalizado3 || ''}
-                                                onChange={(e) => handleFormChange('valorCampoPersonalizado3', e.target.value)}
-                                                placeholder={currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor 3'}
-                                                disabled={isSaving || !formData.residenciaId}
-                                            />
-                                        ) : (
-                                            <Input
-                                                id="valorCampoPersonalizado3"
-                                                value={formData.valorCampoPersonalizado3 || ''}
-                                                onChange={(e) => handleFormChange('valorCampoPersonalizado3', e.target.value)}
-                                                placeholder={currentResidenciaDetails.campoPersonalizado3_etiqueta || 'Valor 3'}
-                                                disabled={isSaving || !formData.residenciaId}
-                                            />
-                                        )}
-                                        {currentResidenciaDetails.campoPersonalizado3_necesitaValidacion && currentResidenciaDetails.campoPersonalizado3_regexValidacion && (
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                Validación requerida. Formato esperado: {currentResidenciaDetails.campoPersonalizado3_regexValidacion}
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
+                                {currentResidenciaDetails?.camposPersonalizados && Object.entries(currentResidenciaDetails.camposPersonalizados).map(([key, campo]) => {
+                                    if (!campo.isActive) return null;
+                                    return (
+                                        <div key={key} className="space-y-1.5">
+                                            <Label htmlFor={`campo-${key}`}>
+                                                {campo.etiqueta || `Campo ${key}`}
+                                                {campo.esObligatorio ? ' *' : ''}
+                                            </Label>
+                                            {campo.tamanoTexto === 'textArea' ? (
+                                                <Textarea
+                                                    id={`campo-${key}`}
+                                                    value={formData.camposPersonalizados?.[key] || ''}
+                                                    onChange={(e) => {
+                                                        const newCampos = { ...formData.camposPersonalizados, [key]: e.target.value };
+                                                        setFormData(prev => ({ ...prev, camposPersonalizados: newCampos }));
+                                                    }}
+                                                    placeholder={campo.etiqueta || `Valor para ${key}`}
+                                                    disabled={isSaving || !formData.residenciaId}
+                                                />
+                                            ) : (
+                                                <Input
+                                                    id={`campo-${key}`}
+                                                    value={formData.camposPersonalizados?.[key] || ''}
+                                                    onChange={(e) => {
+                                                        const newCampos = { ...formData.camposPersonalizados, [key]: e.target.value };
+                                                        setFormData(prev => ({ ...prev, camposPersonalizados: newCampos }));
+                                                    }}
+                                                    placeholder={campo.etiqueta || `Valor para ${key}`}
+                                                    disabled={isSaving || !formData.residenciaId}
+                                                />
+                                            )}
+                                            {campo.necesitaValidacion && campo.regexValidacion && (
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Validación requerida. Formato esperado: {campo.regexValidacion}
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </Card>
 

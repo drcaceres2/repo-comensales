@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ShieldAlert, LockKeyhole, Info, Home, LogOut } from "lucide-react";
+import { LockKeyhole, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 

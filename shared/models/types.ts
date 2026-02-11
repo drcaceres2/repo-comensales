@@ -15,6 +15,17 @@ export type IsoDateString = string;
 // Formato YYYY-MM-DDTHH:mm:ss
 export type IsoDateTimeString = string;
 
+export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
+export const DayOfWeekMap: Record<DayOfWeekKey, string> = {
+    lunes: 'Lunes',
+    martes: 'Martes',
+    miercoles: 'Miércoles',
+    jueves: 'Jueves',
+    viernes: 'Viernes',
+    sabado: 'Sábado',
+    domingo: 'Domingo'
+};
+
 // --- Ubicación y Zonas Horarias ---
 export interface Ubicacion {
   // Geografía Política
@@ -57,21 +68,19 @@ export interface UserProfile {
     carrera?: string;
     identificacion?: string;
     telefonoMovil?: string;
-    fechaDeNacimiento?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
+    fechaDeNacimiento?: IsoDateString | null;
     asistentePermisos?: AsistentePermisos | null;
     centroCostoPorDefectoId?: CentroCostoId | null;
     puedeTraerInvitados: 'no' | 'requiere_autorizacion' | 'si' | null;
     notificacionPreferencias?: NotificacionPreferencias | null; 
     tieneAutenticacion: boolean;
 
-    fechaCreacion?: FirestoreTimestamp | null;
-    ultimaActualizacion?: FirestoreTimestamp | null;
+    fechaHoraCreacion: FirestoreTimestamp;
+    ultimaActualizacion: FirestoreTimestamp;
     lastLogin?: FirestoreTimestamp | null;
 
     // Valores para los campos personalizables (definidos en Residencia)
-    valorCampoPersonalizado1?: string;
-    valorCampoPersonalizado2?: string;
-    valorCampoPersonalizado3?: string;
+    camposPersonalizados?: { [key: string]: string };
 }
 export interface Administradora {
     id: UserId;
@@ -83,12 +92,12 @@ export interface Administradora {
     fotoPerfil?: string | null;
     isActive: boolean;
     telefonoMovil?: string;
-    fechaDeNacimiento?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
+    fechaDeNacimiento?: IsoDateString | null;
     notificacionPreferencias?: NotificacionPreferencias | null; 
     tieneAutenticacion: boolean;
 
-    fechaCreacion?: FirestoreTimestamp | null;
-    ultimaActualizacion?: FirestoreTimestamp | null;
+    fechaHoraCreacion: FirestoreTimestamp;
+    ultimaActualizacion: FirestoreTimestamp;
     lastLogin?: FirestoreTimestamp | null;
 }
 export interface NotificacionPreferencias {
@@ -117,14 +126,14 @@ export interface AsistentePermisos {
 export interface AsistentePermisosDetalle {
     nivelAcceso: 'Todas' | 'Propias' | 'Ninguna';
     restriccionTiempo: boolean;
-    fechaInicio?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
-    fechaFin?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
+    fechaInicio?: IsoDateString | null;
+    fechaFin?: IsoDateString | null;
 }
 export interface AsistenciasUsuariosDetalle {
     usuarioAsistido: UserId;
     restriccionTiempo: boolean;
-    fechaInicio?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
-    fechaFin?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
+    fechaInicio?: IsoDateString | null;
+    fechaFin?: IsoDateString | null;
 }
 
 // --- Grupos de usuarios y restricción de usuarios ---
@@ -174,46 +183,25 @@ export interface Residencia {
     esquemaAdministracion: 'estricto' | 'flexible';
     ubicacion: Ubicacion; // Zona horaria de la residencia en formato IANA (lista jerarquizada en dos niveles en @/zonas_horarias_dif.json)
 
-    nombreTradicionalDesayuno?: string;
-    nombreTradicionalAlmuerzo?: string;
-    nombreTradicionalCena?: string;
-    nombreTradicionalLunes?: string;
-    nombreTradicionalMartes?: string;
-    nombreTradicionalMiercoles?: string;
-    nombreTradicionalJueves?: string;
-    nombreTradicionalViernes?: string;
-    nombreTradicionalSabado?: string;
-    nombreTradicionalDomingo?: string;
-
     // Definición de campos personalizables para UserProfile
-    campoPersonalizado1_etiqueta?: string;
-    campoPersonalizado1_isActive?: boolean;
-    campoPersonalizado1_necesitaValidacion?: boolean;
-    campoPersonalizado1_regexValidacion?: string;
-    campoPersonalizado1_tamanoTexto?: 'text' | 'textArea';
-    campoPersonalizado1_puedeModDirector?: boolean;
-    campoPersonalizado1_puedeModInteresado?: boolean;
-
-    campoPersonalizado2_etiqueta?: string;
-    campoPersonalizado2_isActive?: boolean;
-    campoPersonalizado2_necesitaValidacion?: boolean;
-    campoPersonalizado2_regexValidacion?: string;
-    campoPersonalizado2_tamanoTexto?: 'text' | 'textArea';
-    campoPersonalizado2_puedeModDirector?: boolean;
-    campoPersonalizado2_puedeModInteresado?: boolean;
-
-    campoPersonalizado3_etiqueta?: string;
-    campoPersonalizado3_isActive?: boolean;
-    campoPersonalizado3_necesitaValidacion?: boolean;
-    campoPersonalizado3_regexValidacion?: string;
-    campoPersonalizado3_tamanoTexto?: 'text' | 'textArea';
-    campoPersonalizado3_puedeModDirector?: boolean;
-    campoPersonalizado3_puedeModInteresado?: boolean;
+    camposPersonalizados?: { [key: string]: ConfiguracionCampo };
 
     configuracionContabilidad: ConfigContabilidad | null;
 
     estadoContrato: 'activo' | 'prueba' | 'inactivo';
 }
+export interface ConfiguracionCampo {
+    etiqueta: string;
+    isActive: boolean;
+    necesitaValidacion?: boolean;
+    regexValidacion?: string;
+    tamanoTexto?: 'text' | 'textArea';
+    puedeModDirector?: boolean;
+    puedeModInteresado?: boolean;
+    esObligatorio?: boolean; // Por defecto: false
+}
+
+
 export type TipoResidencia = 'estudiantes' | 'profesionales' | 'gente_mayor';
 export type ComedorId = string;
 export interface Comedor {
@@ -288,8 +276,8 @@ export interface AlteracionHorario {
     nombre?: string;
     residenciaId: ResidenciaId;
     descripcion?: string;
-    fechaInicio: string; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
-    fechaFin: string; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
+    fechaInicio: IsoDateString;
+    fechaFin: IsoDateString;
 }
 export type TiempoComidaModId = string;
 export interface TiempoComidaMod {
@@ -317,9 +305,9 @@ export interface AlternativaTiempoComidaMod {
     tipo?: TipoAlternativa | null;              // Se utiliza solo si tipoAlteracion!='eliminar'
     tipoAcceso?: TipoAccesoAlternativa | null;  // Se utiliza solo si tipoAlteracion!='eliminar'
     requiereAprobacion?: boolean | null;        // Se utiliza solo si tipoAlteracion!='eliminar'
-    ventanaInicio?: string | null;              // Se utiliza solo si tipoAlteracion!='eliminar'
+    ventanaInicio?: IsoDateString | null;       // Se utiliza solo si tipoAlteracion!='eliminar'
     iniciaDiaAnterior?: boolean | null;         // Se utiliza solo si tipoAlteracion!='eliminar'
-    ventanaFin?: string | null;                 // Se utiliza solo si tipoAlteracion!='eliminar'
+    ventanaFin?: IsoDateString | null;          // Se utiliza solo si tipoAlteracion!='eliminar'
     terminaDiaSiguiente?: boolean | null;       // Se utiliza solo si tipoAlteracion!='eliminar'
     comedorId?: ComedorId | null;
 }
@@ -350,9 +338,11 @@ export interface Excepcion {
     
     // Contexto
     motivo?: string;
+    origen: 'residente' | 'director' | 'asistente' | 'wizard_invitados';
     autorizadoPor?: UserId; // Si requería aprobación
+    estadoAprobacion?: EstadoAprobacion;
 }
-
+export type EstadoAprobacion = 'no_requiere_aprobacion' | 'pendiente' | 'aprobado' | 'rechazado';
 /**
  * Ausencia: Negación de servicio declarada por el usuario.
  * Corresponde al Nivel 2 de la Cascada de la Verdad.
@@ -362,12 +352,12 @@ export interface Ausencia {
     id?: AusenciaId;
     userId: UserId;
     residenciaId: ResidenciaId;
-    fechaInicio: campoFechaConZonaHoraria; // Date stored as a string using ISO 8601 format "YYYY-MM-DD" to be handled as a date in Residencia timezone
+    fechaInicio: IsoDateString; // Date stored as a string using ISO 8601 format "YYYY-MM-DD" to be handled as a date in Residencia timezone
     ultimoTiempoComidaId?: TiempoComidaId | null; 
-    fechaFin: campoFechaConZonaHoraria; // Date stored as a string using ISO 8601 format "YYYY-MM-DD  " to be handled as a date in Residencia timezone
+    fechaFin: IsoDateString; // Date stored as a string using ISO 8601 format "YYYY-MM-DD  " to be handled as a date in Residencia timezone
     primerTiempoComidaId?: TiempoComidaId | null; 
     retornoPendienteConfirmacion?: boolean; 
-    fechaCreacion: campoFechaConZonaHoraria; // Timestamp stored as number (millis) from epoch
+    fechaHoraCreacion: FirestoreTimestamp; // Timestamp stored as number (millis) from epoch
     motivo?: string; 
 }
 
@@ -382,7 +372,7 @@ export interface Semanario {
     elecciones: {
         [tiempoComidaId: TiempoComidaId]: AlternativaTiempoComidaId | null;
     };
-    ultimaActualizacion: campoFechaConZonaHoraria; // Timestamp stored as number (millis)
+    ultimaActualizacion: FirestoreTimestamp; // Timestamp stored as number (millis)
 }
 
 /**
@@ -441,13 +431,13 @@ export interface ComensalSolicitado {
     
     // Coordenadas
     residenciaId: ResidenciaId;
-    usuarioId: UserId;
-    fecha: string; // YYYY-MM-DD según zona horaria de la residencia
+    usuarioComensalId: UserId;
+    usuarioDirectorId: UserId;
+    fecha: IsoDateString; // YYYY-MM-DD según zona horaria de la residencia
     
     // Detalle del consumo (Snapshot de nombres para evitar cambios históricos)
     tiempoComidaId: TiempoComidaId;
-    nombreTiempoComida: string; 
-    
+    nombreTiempoComida: string;
     alternativaId: AlternativaTiempoComidaId;
     nombreAlternativa: string;
     
@@ -455,13 +445,13 @@ export interface ComensalSolicitado {
     centroCostoId: CentroCostoId; 
     
     // Trazabilidad del origen (Priority Cascade Result)
-    origen: 'SEMANARIO' | 'EXCEPCION' | 'ACTIVIDAD' | 'INVITADO_EXTERNO';
+    origen: 'SEMANARIO' | 'EXCEPCION' | 'ACTIVIDAD' | 'ASISTENTE_INVITADOS' | 'INVITADO_EXTERNO';
     referenciaOrigenId?: string; // ID de la Excepcion o Actividad
     
     // Estado
     solicitadoAdministracion: boolean; // true = enviado a cocina
     comentarioCocina?: string; // Feedback específico de este plato (ej. "carne muy hecha")
-    fechaCreacion: campoFechaConZonaHoraria;
+    fechaHoraCreacion: FirestoreTimestamp;
 }
 
 
@@ -475,7 +465,7 @@ export interface Comentario {
     id: ComentarioId;
     residenciaId: ResidenciaId;
     autorId: UserId; // Residente que se queja/avisa
-    fechaHoraCreacion: campoFechaConZonaHoraria;
+    fechaHoraCreacion: FirestoreTimestamp;
     
     texto: string;
     categoria: 'comida' | 'limpieza' | 'mantenimiento' | 'varios';
@@ -486,7 +476,7 @@ export interface Comentario {
 }
 export interface Falta {
     id: string;
-    fecha: campoFechaConZonaHoraria;
+    fecha: IsoDateString;
     residencia: ResidenciaId;
     usuario: UserId;
     titulo: string;
@@ -501,8 +491,8 @@ export interface Recordatorio {
     id: RecordatorioId;
     residenciaId: ResidenciaId;
     userId: UserId;
-    fechaInicio: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
-    fechaFin: string; // Date stored as a string using ISO 8601 format "YYYY-Www-D" to be handled as a date in Residencia timezone
+    fechaInicio: IsoDateString;
+    fechaFin: IsoDateString;
     isSingleDay: boolean;
     isRecurrente: boolean;
     recurrenciaRecordatorio?: RecurrenciaRecordatorio;
@@ -530,8 +520,8 @@ export interface Actividad {
     comensalesNoUsuarios?: number; // se inscriben usuarios, se pueden inscribir invitados que no son usuarios y también se puede sencillamente agregar un número no asociado a un usuario (autenticado o no autenticado)
 
     //Campos de cálculo de comidas
-    fechaInicio: string; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
-    fechaFin: string; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
+    fechaInicio: IsoDateString; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
+    fechaFin: IsoDateString; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
     ultimoTiempoComidaAntes: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
     primerTiempoComidaDespues: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
     planComidas: TiempoComidaAlternativaUnicaActividad[]; 
@@ -563,10 +553,11 @@ export interface InscripcionActividad {
     userId: UserId; 
     residenciaId: ResidenciaId;     
     estadoInscripcion: EstadoInscripcionActividad;
-    fechaEstado: number; // Timestamp as miliseconds from epoch
     invitadoPorUserId?: UserId;     
-    fechaInvitacionOriginal?: number | null; // Timestamp as miliseconds from epoch
     nombreInvitadoNoAutenticado?: string; 
+    fechaInvitacionOriginal?: IsoDateString | null;
+    fechaHoraCreacion: FirestoreTimestamp;
+    fechaHoraModificacion: FirestoreTimestamp;
 }
 export type EstadoInscripcionActividad =
     | 'invitado_pendiente' | 'invitado_rechazado' | 'invitado_aceptado'    
@@ -578,7 +569,7 @@ export interface TiempoComidaAlternativaUnicaActividad {
     nombreTiempoComida_AlternativaUnica: string; 
     nombreGrupoTiempoComida: string;
     ordenGrupoTiempoComida: number;
-    fecha: string;  // Timestamp stored as ISO string 
+    fecha: IsoDateString;  // Timestamp stored as ISO string 
     horaEstimadaMeal?: string; 
 }
 
@@ -680,6 +671,7 @@ export type LogActionType =
     | 'TIEMPO_COMIDA_CREADO' | 'TIEMPO_COMIDA_ACTUALIZADO' | 'TIEMPO_COMIDA_ELIMINADO'
     // Alternativas de tiempo de comida
     | 'ALTERNATIVA_TIEMPO_COMIDA_CREADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ACTUALIZADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ELIMINADA'
+    | 'CARGA_MASIVA_HORARIOS'
     // Semanarios
     | 'SEMANARIO_CREADO' | 'SEMANARIO_ACTUALIZADO' | 'SEMANARIO_ELIMINADO'
     // Excepciones
@@ -730,17 +722,3 @@ export interface Feedback {
 }
     
 // --- Otros ---
-export interface campoFechaConZonaHoraria {
-    fecha: IsoDateString | IsoDateTimeString; // fecha-hora, fecha u hora guardada en formato ISO: "YYYY-MM-DD" / "yyyy-MM-dd HH:mm" / "yyyy-MM-dd HH:mm:ss" / "HH:mm" / "HH:mm:ss"
-    zonaHoraria: IanaTimezone; // formato IANA de zona horaria
-}
-export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
-export const DayOfWeekMap: Record<DayOfWeekKey, string> = {
-    lunes: 'Lunes',
-    martes: 'Martes',
-    miercoles: 'Miércoles',
-    jueves: 'Jueves',
-    viernes: 'Viernes',
-    sabado: 'Sábado',
-    domingo: 'Domingo'
-};

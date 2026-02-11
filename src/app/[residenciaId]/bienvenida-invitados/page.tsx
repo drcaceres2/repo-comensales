@@ -267,7 +267,8 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null {
                     tipo: 'cambio_alternativa',
                     alternativaTiempoComidaId: principalAlt.id,
                     motivo: 'Solicitud Invitado' + (commentText ? `: ${commentText.substring(0, 50)}...` : ''),
-                    // autorizadoPor: null // Needs approval
+                    origen: 'wizard_invitados',
+                    estadoAprobacion: 'no_requiere_aprobacion'
                 };
 
                 batch.set(excepcionRef, excepcionData);

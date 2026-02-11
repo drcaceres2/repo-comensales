@@ -312,7 +312,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
         },
         {
           id: 'adminResidenciaDashboard',
-          label: 'Dashboard Admin Residencia',
+          label: 'Comedores y Horarios Admin',
           icon: Settings,
           href: rLink,
           pathTemplate: '/admin',

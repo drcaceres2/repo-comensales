@@ -7,9 +7,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useMealPlanningData, MealPlanningData } from '../hooks/useMealPlanningData';
+import { useMealPlanningData } from '../hooks/useMealPlanningData';
 import { buildMealGrid, GridMatrix, CellData } from '../utils/gridBuilder';
-import { ResidenciaId, UserId, Excepcion } from '@/../shared/models/types';
+import { ResidenciaId, UserId, Excepcion, Semanario, Ausencia, InscripcionActividad } from '@/../shared/models/types';
 import { startOfWeek, addDays, format } from 'date-fns';
 import { debounce } from 'lodash';
 import { doc, setDoc, deleteDoc, collection } from 'firebase/firestore';
@@ -36,9 +36,10 @@ const StatsWidget = () => null; // Placeholder
 interface MealPlannerContainerProps {
   userId: UserId;
   residenciaId: ResidenciaId;
+  zonaHoraria: string;
 }
 
-export function MealPlannerContainer({ userId, residenciaId }: MealPlannerContainerProps) {
+export function MealPlannerContainer({ userId, residenciaId, zonaHoraria }: MealPlannerContainerProps) {
   const [weekDate, setWeekDate] = useState(new Date());
   
   // The local 'displayGrid' can be updated optimistically.
@@ -51,16 +52,50 @@ export function MealPlannerContainer({ userId, residenciaId }: MealPlannerContai
   // is reset when the user or week changes.
   useEffect(() => {
     if (serverData) {
+      // Normalize server data to satisfy stricter shared types
+      const semanarioNorm: Semanario | null = serverData.semanario
+        ? ({ ...serverData.semanario, ultimaActualizacion: (serverData.semanario as any).ultimaActualizacion ?? Date.now() })
+        : null;
+
+      const ausenciasNorm: Ausencia[] = (serverData.ausencias || []).map(a => ({
+        ...a,
+        fechaHoraCreacion: (a as any).fechaHoraCreacion ?? Date.now(),
+      }));
+
+      const inscripcionesNorm: InscripcionActividad[] = (serverData.inscripciones || []).map(i => {
+        const rawFechaInv = (i as any).fechaInvitacionOriginal;
+        let fechaInvitacionOriginal: string | null | undefined = undefined;
+        if (rawFechaInv === null || rawFechaInv === undefined) {
+          fechaInvitacionOriginal = rawFechaInv;
+        } else if (typeof rawFechaInv === 'number') {
+          fechaInvitacionOriginal = new Date(rawFechaInv).toISOString().slice(0,10);
+        } else {
+          fechaInvitacionOriginal = String(rawFechaInv);
+        }
+
+        return {
+          ...i,
+          fechaHoraCreacion: (i as any).fechaHoraCreacion ?? Date.now(),
+          fechaHoraModificacion: (i as any).fechaHoraModificacion ?? Date.now(),
+          fechaInvitacionOriginal,
+        };
+      });
+
+      const excepcionesNorm: Excepcion[] = (serverData.excepciones || []).map(e => ({
+        ...e,
+        origen: (e as any).origen ?? 'residente',
+      }));
+
       const newGrid = buildMealGrid({
         weekDays: getWeekDays(weekDate),
         residenciaId: residenciaId,
-        zonaHoraria: 'UTC', // TODO: Get from residencia data
+        zonaHoraria,
         tiemposComida: serverData.tiemposComida,
-        semanario: serverData.semanario,
-        ausencias: serverData.ausencias,
+        semanario: semanarioNorm,
+        ausencias: ausenciasNorm,
         actividades: serverData.actividades,
-        inscripciones: serverData.inscripciones,
-        excepciones: serverData.excepciones,
+        inscripciones: inscripcionesNorm,
+        excepciones: excepcionesNorm,
       });
       setDisplayGrid(newGrid);
     }
@@ -99,15 +134,15 @@ export function MealPlannerContainer({ userId, residenciaId }: MealPlannerContai
   // Debounced save operation for exceptions
   const saveExcepcionImpl = async (day: string, tiempoComidaId: string | null, newStatus: 'selected' | 'unselected') => {
     if (!tiempoComidaId) return;
-    
+
     try {
-      const dateStr = format(addDays(startOfWeek(weekDate, { weekStartsOn: 1 }), parseInt(day)), 'yyyy-MM-dd');
+      // `day` is already in 'yyyy-MM-dd' format (keys from the grid)
+      const dateStr = day;
       const excepcionDocId = `${userId}_${dateStr}_${tiempoComidaId}`;
-      const excecionDocRef = doc(collection(db, 'residencias', residenciaId, 'excepciones'), excepcionDocId);
+      const excepcionDocRef = doc(collection(db, 'residencias', residenciaId, 'excepciones'), excepcionDocId);
 
       if (newStatus === 'unselected') {
-        // Delete the exception if deselected
-        await deleteDoc(excecionDocRef);
+        await deleteDoc(excepcionDocRef);
         console.log(`Deleted exception: ${excepcionDocId}`);
       } else {
         // Create/update the exception if selected
@@ -120,8 +155,9 @@ export function MealPlannerContainer({ userId, residenciaId }: MealPlannerContai
           // alternativaTiempoComidaId will be set based on the actual selection
           motivo: undefined,
           autorizadoPor: undefined,
+          origen: 'residente',
         };
-        await setDoc(excecionDocRef, excepcionData);
+        await setDoc(excepcionDocRef, excepcionData);
         console.log(`Saved exception: ${excepcionDocId}`, excepcionData);
       }
     } catch (error) {

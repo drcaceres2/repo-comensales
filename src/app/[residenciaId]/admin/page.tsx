@@ -172,31 +172,7 @@ function ResidenciaHorariosComedoresPage() {
     textProfile: '',
     tipoResidencia: 'estudiantes', // Default value
     esquemaAdministracion: 'estricto', // Default value
-    nombreTradicionalDesayuno: '',
-    nombreTradicionalAlmuerzo: '',
-    nombreTradicionalCena: '',
-    nombreTradicionalLunes: '',
-    nombreTradicionalMartes: '',
-    nombreTradicionalMiercoles: '',
-    nombreTradicionalJueves: '',
-    nombreTradicionalViernes: '',
-    nombreTradicionalSabado: '',
-    nombreTradicionalDomingo: '',
-    campoPersonalizado1_etiqueta: '',
-    campoPersonalizado1_isActive: false,
-    campoPersonalizado1_necesitaValidacion: false,
-    campoPersonalizado1_regexValidacion: '',
-    campoPersonalizado1_tamanoTexto: 'text',
-    campoPersonalizado2_etiqueta: '',
-    campoPersonalizado2_isActive: false,
-    campoPersonalizado2_necesitaValidacion: false,
-    campoPersonalizado2_regexValidacion: '',
-    campoPersonalizado2_tamanoTexto: 'text',
-    campoPersonalizado3_etiqueta: '',
-    campoPersonalizado3_isActive: false,
-    campoPersonalizado3_necesitaValidacion: false,
-    campoPersonalizado3_regexValidacion: '',
-    campoPersonalizado3_tamanoTexto: 'text',
+    camposPersonalizados: {},
     configuracionContabilidad: null,
     // centroCostoPorDefectoId will be handled as a separate field for now,
     // as it's part of Comedor, not directly Residencia in your current model.
@@ -973,7 +949,7 @@ function ResidenciaHorariosComedoresPage() {
       <div className="flex justify-between items-center">
         <div>
             <h1 className="text-3xl font-bold">
-                Gestión para Residencia: {loadingResidenciaDetails ? <Loader2 className="inline h-6 w-6 animate-spin" /> : residenciaDetails?.nombre || 'Desconocida'}
+                Comedores y Horarios Solicitud Administración para: {loadingResidenciaDetails ? <Loader2 className="inline h-6 w-6 animate-spin" /> : residenciaDetails?.nombre || 'Desconocida'}
             </h1>
             {userProfile && <p className="text-muted-foreground">Usuario: {userProfile.email} (Rol: {userProfile.roles?.join(', ')})</p>}
             {residenciaDetails && <p className="text-sm text-muted-foreground">ID Residencia: {residenciaDetails.id}</p>}

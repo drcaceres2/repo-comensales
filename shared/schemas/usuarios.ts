@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import {FirebaseIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema } from './common';
+import {FirebaseIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema, FirestoreTimestampSchema } from './common';
 import { IsoDateStringSchema, OptionalIsoDateStringSchema } from './fechas';
 
 // ============================================
@@ -66,16 +66,14 @@ export const userProfileSchema = z.object({
     fechaDeNacimiento: OptionalIsoDateStringSchema,
     centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable(),
-    valorCampoPersonalizado1: CadenaOpcionalLimitada().optional(),
-    valorCampoPersonalizado2: CadenaOpcionalLimitada().optional(),
-    valorCampoPersonalizado3: CadenaOpcionalLimitada().optional(),
+    camposPersonalizados: z.record(z.string()).optional(),
     telefonoMovil: TelefonoOpcionalSchema.optional(),
     asistentePermisos: AsistentePermisosSchema.nullable().optional(),
     notificacionPreferencias: NotificacionPreferenciasSchema.nullable().optional(),
     tieneAutenticacion: z.boolean(),
-    fechaCreacion: z.any().nullable().optional(),
-    ultimaActualizacion: z.any().nullable().optional(),
-    lastLogin: z.any().nullable().optional(),
+    fechaHoraCreacion: FirestoreTimestampSchema.nullable().optional(),
+    ultimaActualizacion: FirestoreTimestampSchema.nullable().optional(),
+    lastLogin: FirestoreTimestampSchema.nullable().optional(),
 }).strict();
 
 // ============================================
@@ -150,9 +148,7 @@ const createUserProfileObject = z.object({
     dietaId: FirebaseIdSchema.nullable().optional(),
     centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().optional(),
-    valorCampoPersonalizado1: CadenaOpcionalLimitada().optional(),
-    valorCampoPersonalizado2: CadenaOpcionalLimitada().optional(),
-    valorCampoPersonalizado3: CadenaOpcionalLimitada().optional(),
+    camposPersonalizados: z.record(z.string()).optional(),
     telefonoMovil: TelefonoOpcionalSchema.optional(),
     asistentePermisos: AsistentePermisosSchema.nullable().optional(),
     notificacionPreferencias: NotificacionPreferenciasSchema.nullable().optional(),
@@ -183,9 +179,7 @@ const updateUserProfileObject = z.object({
     fechaDeNacimiento: OptionalIsoDateStringSchema,
     centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().optional(),
-    valorCampoPersonalizado1: CadenaOpcionalLimitada().optional(),
-    valorCampoPersonalizado2: CadenaOpcionalLimitada().optional(),
-    valorCampoPersonalizado3: CadenaOpcionalLimitada().optional(),
+    camposPersonalizados: z.record(z.string()).optional(),
     telefonoMovil: TelefonoOpcionalSchema.optional(),
     asistentePermisos: AsistentePermisosSchema.nullable().optional(),
     notificacionPreferencias: NotificacionPreferenciasSchema.nullable().optional(),

@@ -118,11 +118,33 @@ export const useMealPlanningData = ({
         };
 
         const tiemposComida = parseArrayResult(TiempoComidaSchema, tiemposComidaSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        const ausencias = parseArrayResult(AusenciaSchema, ausenciasSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        const inscripciones = parseArrayResult(InscripcionActividadSchema, inscripcionesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        const excepciones = parseArrayResult(ExcepcionSchema, excepcionesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
-        const semanario = semanarioSnap.exists() ? parseResult(SemanarioSchema, {id: semanarioSnap.id, ...semanarioSnap.data()}) : null;
+        // Ensure required timestamp fields exist (provide sensible defaults) before validation
+        const ausenciasRaw = ausenciasSnap.docs.map(d => ({
+          id: d.id,
+          ...d.data(),
+          fechaHoraCreacion: (d.data() as any).fechaHoraCreacion ?? Date.now(),
+        }));
+        const ausencias = parseArrayResult(AusenciaSchema, ausenciasRaw);
+
+        const inscripcionesRaw = inscripcionesSnap.docs.map(d => ({
+          id: d.id,
+          ...d.data(),
+          fechaHoraCreacion: (d.data() as any).fechaHoraCreacion ?? Date.now(),
+          fechaHoraModificacion: (d.data() as any).fechaHoraModificacion ?? Date.now(),
+        }));
+        const inscripciones = parseArrayResult(InscripcionActividadSchema, inscripcionesRaw);
+
+        const excepcionesRaw = excepcionesSnap.docs.map(d => ({
+          id: d.id,
+          ...d.data(),
+          origen: (d.data() as any).origen ?? 'residente',
+        }));
+        const excepciones = parseArrayResult(ExcepcionSchema, excepcionesRaw);
+
+        const semanario = semanarioSnap.exists()
+          ? parseResult(SemanarioSchema, { id: semanarioSnap.id, ...(semanarioSnap.data() as any), ultimaActualizacion: (semanarioSnap.data() as any).ultimaActualizacion ?? Date.now() })
+          : null;
 
         let actividades: Actividad[] = [];
         const actividadIds = [...new Set(inscripciones.map(i => i.actividadId))];

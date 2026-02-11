@@ -1,416 +1,397 @@
-'use client';
+"use client";
 
-import { useState, useMemo, useEffect } from 'react';
-import { doc, writeBatch, collection, getFirestore } from 'firebase/firestore';
-
-import { useAuth } from '@/hooks/useAuth';
-import { Comedor, HorarioSolicitudComida, TiempoComida, AlternativaTiempoComida } from '@/../shared/models/types';
-
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/hooks/useToast';
-import { app } from '@/lib/firebase';
-import { getCatalogosParaCargaHorarios } from '../horarioAction';
+import { useAuth } from '@/hooks/useAuth';
+import { auth, db } from '@/lib/firebase';
+import {
+  UserProfile,
+  Residencia,
+} from '../../../../../shared/models/types';
+import {
+  doc,
+  getDoc,
+  collection,
+  writeBatch,
+} from 'firebase/firestore';
+import { z } from 'zod';
 
-// Interfaces para los datos parseados y enriquecidos
-interface RawAlternativa {
-  nombre: string;
-  tipo: 'comedor' | 'paraLlevar' | 'ayuno';
-  tipoAcceso: 'abierto' | 'autorizado' | 'cerrado';
-  requiereAprobacion: boolean;
-  ventanaInicio: string; // "HH:mm"
-  iniciaDiaAnterior?: boolean;
-  ventanaFin: string; // "HH:mm"
-  terminaDiaSiguiente?: boolean;
-  horarioSolicitudComidaNombre?: string | null;
-  comedorNombre?: string;
-  esPrincipal: boolean;
-}
+import { Loader2, AlertCircle, Upload, Download } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { HorarioSolicitudComidaSchema } from '../../../../../shared/schemas/horariosSolicitudComida';
+import { TiempoComidaSchema } from '../../../../../shared/schemas/tiempoComida';
+import { AlternativaTiempoComidaSchema } from '../../../../../shared/schemas/alternativasTiempoComida';
+import { addLogToBatch } from '@/lib/utils';
 
-interface RawTiempoComida {
-  nombre: string;
-  nombreGrupo: string;
-  ordenGrupo: number;
-  dia?: 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo' | null;
-  horaEstimada?: string | null; // "HH:mm"
-  aplicacionOrdinaria: boolean;
-  alternativas: RawAlternativa[];
-}
+// Zod schema for the uploaded JSON structure
+const HorarioUploadSchema = z.object({
+  tempId: z.string(),
+  nombre: HorarioSolicitudComidaSchema.shape.nombre,
+  dia: HorarioSolicitudComidaSchema.shape.dia,
+  horaSolicitud: HorarioSolicitudComidaSchema.shape.horaSolicitud,
+  isPrimary: HorarioSolicitudComidaSchema.shape.isPrimary,
+  isActive: HorarioSolicitudComidaSchema.shape.isActive,
+});
 
-interface EnrichedAlternativa extends RawAlternativa {
-  comedorId?: string | null;
-  horarioSolicitudComidaId?: string | null;
-  error?: string;
-}
+const TiempoComidaUploadSchema = z.object({
+  tempId: z.string(),
+  nombre: TiempoComidaSchema.shape.nombre,
+  nombreGrupo: TiempoComidaSchema.shape.nombreGrupo,
+  ordenGrupo: TiempoComidaSchema.shape.ordenGrupo,
+  dia: TiempoComidaSchema.shape.dia,
+  horaEstimada: TiempoComidaSchema.shape.horaEstimada,
+  aplicacionOrdinaria: TiempoComidaSchema.shape.aplicacionOrdinaria,
+  isActive: TiempoComidaSchema.shape.isActive,
+});
 
-interface EnrichedTiempoComida extends Omit<RawTiempoComida, 'alternativas'> {
-  alternativas: EnrichedAlternativa[];
-  error?: string;
-}
+const AlternativaUploadSchema = z.object({
+  horarioTempId: z.string(),
+  tiempoTempId: z.string(),
+  nombre: AlternativaTiempoComidaSchema.shape.nombre,
+  tipo: AlternativaTiempoComidaSchema.shape.tipo,
+  tipoAcceso: AlternativaTiempoComidaSchema.shape.tipoAcceso,
+  requiereAprobacion: AlternativaTiempoComidaSchema.shape.requiereAprobacion,
+  ventanaInicio: AlternativaTiempoComidaSchema.shape.ventanaInicio,
+  iniciaDiaAnterior: AlternativaTiempoComidaSchema.shape.iniciaDiaAnterior,
+  ventanaFin: AlternativaTiempoComidaSchema.shape.ventanaFin,
+  terminaDiaSiguiente: AlternativaTiempoComidaSchema.shape.terminaDiaSiguiente,
+  comedorId: AlternativaTiempoComidaSchema.shape.comedorId,
+  esPrincipal: AlternativaTiempoComidaSchema.shape.esPrincipal,
+  isActive: AlternativaTiempoComidaSchema.shape.isActive,
+});
 
-const CargaHorariosPage = () => {
-  const { claims, loading: authLoading } = useAuth();
-  const residenciaId = claims?.residenciaId as string | undefined;
+const UploadDataSchema = z.object({
+  horarios: z.array(HorarioUploadSchema),
+  tiempos: z.array(TiempoComidaUploadSchema),
+  alternativas: z.array(AlternativaUploadSchema),
+});
+
+
+function CargaMasivaHorariosPage() {
+  const params = useParams<{ residenciaId: string }>();
+  const router = useRouter();
   const { toast } = useToast();
+  const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
 
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState<boolean>(true);
+
+  const [residenciaDetails, setResidenciaDetails] = useState<Residencia | null>(null);
+  const [loadingResidenciaDetails, setLoadingResidenciaDetails] = useState<boolean>(false);
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+  
   const [file, setFile] = useState<File | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [enrichedData, setEnrichedData] = useState<EnrichedTiempoComida[]>([]);
-
-  const [comedores, setComedores] = useState<Comedor[]>([]);
-  const [horarios, setHorarios] = useState<HorarioSolicitudComida[]>([]);
-  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   useEffect(() => {
-    const fetchCatalogs = async () => {
-      if (!residenciaId) {
-        setLoadingCatalogs(false);
-        return;
-      }
-      try {
-        setLoadingCatalogs(true);
-        const { comedores, horarios } = await getCatalogosParaCargaHorarios(residenciaId);
-        setComedores(comedores);
-        setHorarios(horarios);
-      } catch (error) {
-        console.error("Error fetching catalogs:", error);
-        toast({
-          variant: "destructive",
-          title: "Error al cargar catálogos",
-          description: "No se pudieron cargar los datos necesarios para la validación.",
-        });
-      } finally {
-        setLoadingCatalogs(false);
-      }
-    };
+    if (authFirebaseLoading) return;
+    if (authFirebaseError) {
+      toast({ title: "Error de Autenticación", description: authFirebaseError.message, variant: "destructive" });
+      router.push('/');
+      return;
+    }
+    if (!authUser) {
+      router.push('/');
+      return;
+    }
 
-    fetchCatalogs();
-  }, [residenciaId, toast]);
+    const userDocRef = doc(db, "users", authUser.uid);
+    setProfileLoading(true);
+    getDoc(userDocRef)
+      .then((docSnap) => {
+        if (docSnap.exists()) {
+          const profile = docSnap.data() as UserProfile;
+          setUserProfile(profile);
+          const userRoles = profile.roles || [];
+          const hasAccess = userRoles.includes('admin') && profile.residenciaId === params.residenciaId;
+          setIsAuthorized(hasAccess);
+           if (!hasAccess) {
+             toast({ title: "Acceso Denegado", description: "No tienes permiso para acceder a esta página.", variant: "destructive" });
+             router.push(`/${params.residenciaId}`);
+           }
+        } else {
+          setIsAuthorized(false);
+          toast({ title: "Error de Perfil", description: "No se encontró tu perfil de usuario.", variant: "destructive" });
+          router.push('/');
+        }
+      })
+      .catch((error) => {
+        setIsAuthorized(false);
+        toast({ title: "Error al Cargar Perfil", description: `No se pudo cargar tu perfil: ${error.message}`, variant: "destructive" });
+        router.push('/');
+      })
+      .finally(() => {
+        setProfileLoading(false);
+      });
+
+  }, [authUser, authFirebaseLoading, authFirebaseError, toast, router, params.residenciaId]);
+
+  useEffect(() => {
+    if (params.residenciaId) {
+      setLoadingResidenciaDetails(true);
+      const residenciaRef = doc(db, 'residencias', params.residenciaId);
+      getDoc(residenciaRef).then(docSnap => {
+        if (docSnap.exists()) {
+          setResidenciaDetails({ id: docSnap.id, ...docSnap.data() } as Residencia);
+        } else {
+          setResidenciaDetails(null);
+          toast({ title: "Error", description: `No se encontró la residencia.`, variant: "destructive" });
+        }
+      }).catch(error => {
+        toast({ title: "Error", description: "No se pudieron cargar los detalles de la residencia.", variant: "destructive" });
+        setResidenciaDetails(null);
+      }).finally(() => {
+        setLoadingResidenciaDetails(false);
+      });
+    }
+  }, [params.residenciaId, toast]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setFile(event.target.files[0]);
-      setEnrichedData([]);
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      setFile(files[0]);
+    } else {
+      setFile(null);
     }
   };
-  
-  const handleDownloadSample = () => {
-    const sampleData: RawTiempoComida[] = [
-      {
-        nombre: "Almuerzo Lunes",
-        nombreGrupo: "Almuerzos",
-        ordenGrupo: 2,
-        dia: "lunes",
-        horaEstimada: "12:30",
-        aplicacionOrdinaria: true,
-        alternativas: [
-          {
-            nombre: "Normal en Comedor Principal",
-            tipo: "comedor",
-            tipoAcceso: "abierto",
-            requiereAprobacion: false,
-            ventanaInicio: "12:00",
-            ventanaFin: "13:30",
-            horarioSolicitudComidaNombre: "Lunes-Viernes Mediodía",
-            comedorNombre: "Comedor Principal",
-            esPrincipal: true,
-          },
-          {
-            nombre: "Para Llevar",
-            tipo: "paraLlevar",
-            tipoAcceso: "autorizado",
-            requiereAprobacion: true,
-            ventanaInicio: "11:30",
-            ventanaFin: "12:30",
-            horarioSolicitudComidaNombre: "Lunes-Viernes Mediodía",
-            comedorNombre: "Cocina",
-            esPrincipal: false,
-          }
-        ]
-      }
-    ];
-    
-    const jsonString = JSON.stringify(sampleData, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "ejemplo_horarios.json";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
 
-  // FASE 1 & 2: Parseo y Enriquecimiento
-  const processFile = () => {
-    if (!file || !comedores || !horarios) return;
+  const handleUpload = async () => {
+    if (!file) {
+      toast({ title: "Archivo no seleccionado", description: "Por favor, selecciona un archivo JSON.", variant: "destructive" });
+      return;
+    }
+    if (!residenciaDetails) {
+        toast({ title: "Error", description: "No se han cargado los detalles de la residencia.", variant: "destructive" });
+        return;
+    }
 
     setIsProcessing(true);
-    setEnrichedData([]);
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result;
-        if (typeof text !== 'string') {
-          throw new Error("No se pudo leer el archivo.");
-        }
-        const jsonData: RawTiempoComida[] = JSON.parse(text);
-
-        const dataToEnrich: RawTiempoComida[] = JSON.parse(text);
-
-        if (!Array.isArray(dataToEnrich)) {
-          throw new Error("El JSON debe ser un array de Tiempos de Comida.");
-        }
-
-        const enriched = dataToEnrich.map((tc): EnrichedTiempoComida => {
-          let tiempoComidaError: string | undefined = undefined;
-
-          const principalesCount = tc.alternativas.filter(alt => alt.esPrincipal).length;
-          if (principalesCount !== 1) {
-            tiempoComidaError = `Debe haber exactamente una alternativa principal (hay ${principalesCount})`;
-          }
-          
-          const timeRegex = /^(?:2[0-3]|[01]?[0-9]):[0-5][0-9]$/;
-          if (tc.horaEstimada && !timeRegex.test(tc.horaEstimada)) {
-              tiempoComidaError = (tiempoComidaError ? tiempoComidaError + '; ' : '') + 'Formato de hora estimada inválido.';
-          }
-
-          const enrichedAlternativas = tc.alternativas.map((alt): EnrichedAlternativa => {
-            let error: string | undefined = undefined;
-            let comedorId: string | null = null;
-            let horarioId: string | null = null;
-            
-            if (alt.ventanaInicio && !timeRegex.test(alt.ventanaInicio)) {
-                error = (error ? error + '; ' : '') + 'Formato de ventanaInicio inválido.';
-            }
-            if (alt.ventanaFin && !timeRegex.test(alt.ventanaFin)) {
-                error = (error ? error + '; ' : '') + 'Formato de ventanaFin inválido.';
-            }
-
-            if (alt.comedorNombre) {
-              const comedor = comedores.find(c => c.nombre === alt.comedorNombre);
-              if (comedor) {
-                comedorId = comedor.id;
-              } else {
-                error = `Comedor '${alt.comedorNombre}' no encontrado.`;
-              }
-            }
-
-            if (alt.horarioSolicitudComidaNombre) {
-              const horario = horarios.find(h => h.nombre === alt.horarioSolicitudComidaNombre);
-              if (horario) {
-                horarioId = horario.id;
-              } else {
-                error = (error ? error + '; ' : '') + `Horario '${alt.horarioSolicitudComidaNombre}' no encontrado.`;
-              }
-            }
-
-            return {
-              ...alt,
-              comedorId,
-              horarioSolicitudComidaId: horarioId,
-              error,
-            };
-          });
-
-          return {
-            ...tc,
-            alternativas: enrichedAlternativas,
-            error: tiempoComidaError,
-          };
-        });
-
-        setEnrichedData(enriched);
-
-      } catch (error: any) {
-        toast({
-          variant: "destructive",
-          title: "Error al procesar el archivo",
-          description: error.message,
-        });
-      } finally {
-        setIsProcessing(false);
-      }
-    };
-    reader.onerror = () => {
-      toast({
-        variant: "destructive",
-        title: "Error al leer el archivo",
-        description: "No se pudo leer el archivo seleccionado.",
-      });
-      setIsProcessing(false);
-    };
-
-    reader.readAsText(file);
-  };
-  
-  // FASE 4: Ejecución Transaccional
-  const handleImport = async () => {
-    if (hasErrors || enrichedData.length === 0 || !residenciaId) return;
-
-    setIsUploading(true);
-    const db = getFirestore(app);
-
-    const dataToImport = enrichedData.filter(tc => !tc.error && tc.alternativas.every(alt => !alt.error));
-    
-    const chunkSize = 100;
-    const chunks = [];
-    for (let i = 0; i < dataToImport.length; i += chunkSize) {
-      chunks.push(dataToImport.slice(i, i + chunkSize));
-    }
+    const fileContent = await file.text();
 
     try {
-      for (const chunk of chunks) {
-        const batch = writeBatch(db);
+      const jsonData = JSON.parse(fileContent);
+      const validationResult = UploadDataSchema.safeParse(jsonData);
 
-        chunk.forEach(tcData => {
-          const tiempoComidaRef = doc(collection(db, `tiemposComida`));
-          const newTiempoComida: Omit<TiempoComida, 'id'> = {
-            nombre: tcData.nombre,
-            residenciaId: residenciaId,
-            nombreGrupo: tcData.nombreGrupo,
-            ordenGrupo: tcData.ordenGrupo,
-            dia: tcData.dia,
-            horaEstimada: tcData.horaEstimada,
-            aplicacionOrdinaria: tcData.aplicacionOrdinaria,
-            isActive: true
-          };
-          batch.set(tiempoComidaRef, newTiempoComida);
-
-          tcData.alternativas.forEach(altData => {
-            const alternativaRef = doc(collection(db, `alternativasTiempoComida`));
-            const newAlternativa: Omit<AlternativaTiempoComida, 'id'> = {
-                nombre: altData.nombre,
-                tipo: altData.tipo,
-                tipoAcceso: altData.tipoAcceso,
-                requiereAprobacion: altData.requiereAprobacion,
-                ventanaInicio: altData.ventanaInicio,
-                iniciaDiaAnterior: altData.iniciaDiaAnterior,
-                ventanaFin: altData.ventanaFin,
-                terminaDiaSiguiente: altData.terminaDiaSiguiente,
-                horarioSolicitudComidaId: altData.horarioSolicitudComidaId || null,
-                tiempoComidaId: tiempoComidaRef.id,
-                residenciaId: residenciaId,
-                comedorId: altData.comedorId || undefined,
-                esPrincipal: altData.esPrincipal,
-                isActive: true
-            };
-            batch.set(alternativaRef, newAlternativa);
-          });
+      if (!validationResult.success) {
+        console.error(validationResult.error.flatten());
+        toast({
+          title: "Error de Validación",
+          description: "La estructura del archivo JSON es incorrecta. Revisa la consola para más detalles.",
+          variant: "destructive",
         });
-
-        await batch.commit();
+        setIsProcessing(false);
+        return;
       }
 
-      toast({
-        title: "Importación completada",
-        description: `Se han importado ${dataToImport.length} Tiempos de Comida con sus alternativas.`,
+      const { horarios, tiempos, alternativas } = validationResult.data;
+      const batch = writeBatch(db);
+      const residenciaId = residenciaDetails.id;
+
+      const horariosIdMap = new Map<string, string>();
+      horarios.forEach(h => {
+        const newDocRef = doc(collection(db, 'horariosSolicitudComida'));
+        horariosIdMap.set(h.tempId, newDocRef.id);
+        batch.set(newDocRef, { ...h, id: newDocRef.id, residenciaId });
       });
-      setEnrichedData([]);
+
+      const tiemposIdMap = new Map<string, string>();
+      tiempos.forEach(t => {
+        const newDocRef = doc(collection(db, 'tiemposComida'));
+        tiemposIdMap.set(t.tempId, newDocRef.id);
+        batch.set(newDocRef, { ...t, id: newDocRef.id, residenciaId });
+      });
+      
+      alternativas.forEach(alt => {
+        const newDocRef = doc(collection(db, 'alternativasTiempoComida'));
+        const horarioSolicitudComidaId = horariosIdMap.get(alt.horarioTempId);
+        const tiempoComidaId = tiemposIdMap.get(alt.tiempoTempId);
+
+        if (!horarioSolicitudComidaId || !tiempoComidaId) {
+          throw new Error(`No se encontró el ID temporal para la alternativa ${alt.nombre}. Horario ID: ${alt.horarioTempId}, Tiempo ID: ${alt.tiempoTempId}`);
+        }
+        const { horarioTempId, tiempoTempId, ...rest } = alt;
+
+        batch.set(newDocRef, {
+          ...rest,
+          id: newDocRef.id,
+          residenciaId,
+          horarioSolicitudComidaId,
+          tiempoComidaId,
+        });
+      });
+      
+      addLogToBatch(batch, 'CARGA_MASIVA_HORARIOS', {
+        residenciaId,
+        details: {
+            horariosCount: horarios.length,
+            tiemposCount: tiempos.length,
+            alternativasCount: alternativas.length,
+            fileName: file.name
+        }
+      });
+
+      await batch.commit();
+
+      toast({
+        title: "Carga Exitosa",
+        description: `Se han creado ${horarios.length} horarios, ${tiempos.length} tiempos de comida y ${alternativas.length} alternativas.`,
+      });
       setFile(null);
 
+
     } catch (error: any) {
+      console.error("Error processing file:", error);
       toast({
+        title: "Error al Procesar",
+        description: error.message || "Ocurrió un error desconocido al procesar el archivo.",
         variant: "destructive",
-        title: "Error durante la importación",
-        description: `Ocurrió un error al guardar en Firestore: ${error.message}`,
       });
     } finally {
-      setIsUploading(false);
+      setIsProcessing(false);
     }
   };
 
-  const hasErrors = useMemo(() => enrichedData.some(tc => tc.error || tc.alternativas.some(alt => alt.error)), [enrichedData]);
+  const handleDownloadSample = () => {
+    const sampleData = {
+      "horarios": [
+        {
+          "tempId": "h1",
+          "nombre": "Solicitud General",
+          "dia": "lunes",
+          "horaSolicitud": "10:00",
+          "isPrimary": true,
+          "isActive": true
+        }
+      ],
+      "tiempos": [
+        {
+          "tempId": "t1",
+          "nombre": "Desayuno",
+          "nombreGrupo": "Comidas Principales",
+          "ordenGrupo": 1,
+          "dia": "lunes",
+          "horaEstimada": "08:00",
+          "aplicacionOrdinaria": true,
+          "isActive": true
+        },
+        {
+          "tempId": "t2",
+          "nombre": "Almuerzo",
+          "nombreGrupo": "Comidas Principales",
+          "ordenGrupo": 2,
+          "dia": "lunes",
+          "horaEstimada": "13:00",
+          "aplicacionOrdinaria": true,
+          "isActive": true
+        }
+      ],
+      "alternativas": [
+        {
+          "horarioTempId": "h1",
+          "tiempoTempId": "t1",
+          "nombre": "Desayuno en Comedor",
+          "tipo": "comedor",
+          "tipoAcceso": "abierto",
+          "requiereAprobacion": false,
+          "ventanaInicio": "07:00",
+          "iniciaDiaAnterior": false,
+          "ventanaFin": "09:00",
+          "terminaDiaSiguiente": false,
+          "comedorId": "ID_DEL_COMEDOR_EXISTENTE",
+          "esPrincipal": true,
+          "isActive": true
+        },
+        {
+          "horarioTempId": "h1",
+          "tiempoTempId": "t2",
+          "nombre": "Almuerzo para llevar",
+          "tipo": "paraLlevar",
+          "tipoAcceso": "autorizado",
+          "requiereAprobacion": true,
+          "ventanaInicio": "12:00",
+          "iniciaDiaAnterior": false,
+          "ventanaFin": "14:00",
+          "terminaDiaSiguiente": false,
+          "comedorId": "ID_DEL_COMEDOR_EXISTENTE",
+          "esPrincipal": false,
+          "isActive": true
+        }
+      ]
+    };
 
-  if (authLoading) {
-    return <div>Cargando...</div>;
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(sampleData, null, 2)
+    )}`;
+    const link = document.createElement("a");
+    link.href = jsonString;
+    link.download = "horarios_ejemplo.json";
+
+    link.click();
+  };
+
+
+  if (authFirebaseLoading || profileLoading || loadingResidenciaDetails) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Cargando...</span>
+      </div>
+    );
   }
 
+  if (!isAuthorized) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+        <h1 className="text-2xl font-bold text-destructive mb-2">Acceso Denegado</h1>
+        <p className="mb-4 text-muted-foreground">No tienes los permisos necesarios para ver esta página.</p>
+        <Button onClick={() => router.push('/')}>Volver al Inicio</Button>
+      </div>
+    );
+  }
+  
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Carga Masiva de Horarios</h1>
+    <div className="container mx-auto p-4 space-y-8">
+      <div className="flex justify-between items-center">
+        <div>
+            <h1 className="text-3xl font-bold">
+                Carga Masiva de Horarios: {residenciaDetails?.nombre || ''}
+            </h1>
+             {residenciaDetails && <p className="text-sm text-muted-foreground">ID Residencia: {residenciaDetails.id}</p>}
+        </div>
+        <Button onClick={() => auth.signOut().then(()=>router.push('/'))} variant="outline">Cerrar Sesión</Button>
+      </div>
 
-      <Card className="mb-6">
+      <Card>
         <CardHeader>
-          <CardTitle>Paso 1: Seleccionar Archivo JSON</CardTitle>
+          <CardTitle>Subir Archivo de Horarios</CardTitle>
           <CardDescription>
-            Sube un archivo JSON con la estructura de Tiempos de Comida y sus Alternativas.
-            Los IDs de 'comedor' y 'horarioSolicitudComida' son reemplazados por 'comedorNombre' y 'horarioSolicitudComidaNombre'.
+            Selecciona un archivo JSON para cargar masivamente los horarios, tiempos de comida y sus alternativas.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col sm:flex-row gap-4">
-          <Input type="file" accept=".json" onChange={handleFileChange} className="max-w-sm" disabled={!residenciaId} />
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button onClick={processFile} disabled={!file || isProcessing || loadingCatalogs || !residenciaId}>
-              {isProcessing ? 'Procesando...' : (loadingCatalogs ? 'Cargando...' : 'Procesar Archivo')}
-            </Button>
-            <Button onClick={handleDownloadSample} variant="outline">
-              Descargar Ejemplo
-            </Button>
-          </div>
+        <CardContent className="space-y-4">
+            <div className="grid w-full max-w-sm items-center gap-1.5">
+                <Label htmlFor="file-upload">Archivo JSON</Label>
+                <Input id="file-upload" type="file" accept=".json" onChange={handleFileChange} />
+            </div>
+            <div className="flex space-x-2">
+                <Button onClick={handleUpload} disabled={isProcessing || !file}>
+                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                    {isProcessing ? 'Procesando...' : 'Cargar y Procesar Archivo'}
+                </Button>
+                <Button onClick={handleDownloadSample} variant="outline">
+                    <Download className="mr-2 h-4 w-4" />
+                    Descargar Ejemplo
+                </Button>
+            </div>
         </CardContent>
       </Card>
-      
-      {enrichedData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Paso 2: Previsualización y Validación</CardTitle>
-            <CardDescription>
-              Revisa los datos procesados. Las filas con errores se marcarán en rojo.
-              Corrige el archivo JSON y vuelve a cargarlo hasta que no haya errores.
-            </CardDescription>
-            {hasErrors && (
-                <Alert variant="destructive">
-                    <AlertTitle>Errores encontrados</AlertTitle>
-                    <AlertDescription>
-                    Se encontraron errores en los datos. Por favor, corrige el archivo de origen y vuelve a procesarlo.
-                    </AlertDescription>
-                </Alert>
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className="max-h-[500px] overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Grupo</TableHead>
-                    <TableHead>Tiempo Comida</TableHead>
-                    <TableHead>Alternativa</TableHead>
-                    <TableHead>Comedor</TableHead>
-                    <TableHead>Horario Solicitud</TableHead>
-                    <TableHead>Estado</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {enrichedData.map((tc, index) => (
-                    tc.alternativas.map((alt, altIndex) => (
-                      <TableRow key={`${index}-${altIndex}`} className={alt.error || tc.error ? 'bg-red-100' : ''}>
-                        {altIndex === 0 && <TableCell rowSpan={tc.alternativas.length}>{tc.nombreGrupo}</TableCell>}
-                        {altIndex === 0 && <TableCell rowSpan={tc.alternativas.length}>{tc.nombre}</TableCell>}
-                        <TableCell>{alt.nombre}</TableCell>
-                        <TableCell>{alt.comedorNombre || 'N/A'}</TableCell>
-                        <TableCell>{alt.horarioSolicitudComidaNombre || 'N/A'}</TableCell>
-                        <TableCell className="font-medium text-red-600">{alt.error || tc.error}</TableCell>
-                      </TableRow>
-                    ))
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <Button onClick={handleImport} disabled={hasErrors || isUploading || enrichedData.length === 0} className="mt-4">
-              {isUploading ? 'Importando...' : 'Importar a Firestore'}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
-};
+}
 
-export default CargaHorariosPage;
+export default CargaMasivaHorariosPage;

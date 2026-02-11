@@ -15,5 +15,7 @@ export const ExcepcionSchema = z.object({
   tipo: z.enum(['cambio_alternativa', 'cancelacion_comida', 'cambio_dieta']),
   alternativaTiempoComidaId: FirebaseIdSchema.optional(), // Solo si tipo='cambio_alternativa'
   motivo: CadenaOpcionalLimitada(),
+  origen: z.enum(['residente', 'director', 'asistente', 'wizard_invitados']),
   autorizadoPor: FirebaseIdSchema.optional(),
+  estadoAprobacion: z.enum(['no_requiere_aprobacion', 'pendiente', 'aprobado', 'rechazado']).optional(),
 });

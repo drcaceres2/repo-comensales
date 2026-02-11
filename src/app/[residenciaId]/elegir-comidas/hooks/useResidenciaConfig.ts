@@ -10,7 +10,7 @@ export function useResidenciaConfig(residenciaId: string) {
   const tiemposQuery = useMemo(() => 
     query(
       collection(db, 'residencias', residenciaId, 'tiemposComida'), 
-      where('activa', '==', true),
+      where('isActive', '==', true),
       orderBy('ordenGrupo')
     ), 
   [residenciaId]);

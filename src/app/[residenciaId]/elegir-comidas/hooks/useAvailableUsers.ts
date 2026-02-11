@@ -48,7 +48,7 @@ async function obtenerAsistidosResidentesFiltrados(
     .filter((a) => {
       if (!a.restriccionTiempo) return true;
       if (a.fechaInicio && a.fechaFin && userResidencia) {
-        return estaDentroFechas(now, a.fechaInicio, a.fechaFin, userResidencia.zonaHoraria);
+        return estaDentroFechas(now, a.fechaInicio, a.fechaFin, userResidencia.ubicacion.timezone);
       }
       return false;
     })

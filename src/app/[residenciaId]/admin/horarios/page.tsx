@@ -4,19 +4,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation'; // Added useRouter
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
-    Residencia, 
     TiempoComida, 
     AlternativaTiempoComida, 
-    Comedor, ComedorId, 
+    Comedor,
     DayOfWeekKey, DayOfWeekMap, 
     TipoAccesoAlternativa, 
-    LogEntry, LogActionType,
     ResidenciaId, 
-    HorarioSolicitudComida, HorarioSolicitudComidaId, 
+    HorarioSolicitudComida,
     UserProfile, UserRole, 
     TipoAlternativa 
 } from '../../../../../shared/models/types';
-import { addDoc, collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
+import { addDoc, collection, query, where, 
+    getDocs, doc, getDoc, updateDoc, deleteDoc, 
+    writeBatch, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from "@/hooks/useToast";
@@ -32,7 +32,8 @@ import {
     AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, 
     AlertDialogTrigger 
 } from "@/components/ui/alert-dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, 
+    SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 // import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from '@/components/ui/skeleton';

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
-import { UserProfile, Residencia, Ubicacion } from '../../../../shared/models/types';
+import { UserProfile, Residencia, Ubicacion, ConfiguracionCampo } from '../../../../shared/models/types';
 import countriesData from '../../../../shared/data/countries.json';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
@@ -39,7 +39,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, AlertCircle, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
 
-// Helper to create a new Residencia object with defaults
 const getNewResidenciaDefaults = (): Partial<Residencia> => ({ // Changed return type
   id: '', // Added id field
   nombre: '',
@@ -55,37 +54,7 @@ const getNewResidenciaDefaults = (): Partial<Residencia> => ({ // Changed return
     timezone: 'America/Tegucigalpa',
     direccion: ''
   },
-  nombreTradicionalDesayuno: "Desayuno",
-  nombreTradicionalAlmuerzo: "Almuerzo",
-  nombreTradicionalCena: "Cena",
-  nombreTradicionalLunes: "Lunes",
-  nombreTradicionalMartes: "Martes",
-  nombreTradicionalMiercoles: "Miércoles",
-  nombreTradicionalJueves: "Jueves",
-  nombreTradicionalViernes: "Viernes",
-  nombreTradicionalSabado: "Sábado",
-  nombreTradicionalDomingo: "Domingo",
-  campoPersonalizado1_etiqueta: '',
-  campoPersonalizado1_isActive: false,
-  campoPersonalizado1_necesitaValidacion: false,
-  campoPersonalizado1_regexValidacion: '',
-  campoPersonalizado1_tamanoTexto: 'text',
-  campoPersonalizado1_puedeModDirector: true,
-  campoPersonalizado1_puedeModInteresado: true,
-  campoPersonalizado2_etiqueta: '',
-  campoPersonalizado2_isActive: false,
-  campoPersonalizado2_necesitaValidacion: false,
-  campoPersonalizado2_regexValidacion: '',
-  campoPersonalizado2_tamanoTexto: 'text',
-  campoPersonalizado2_puedeModDirector: true,
-  campoPersonalizado2_puedeModInteresado: true,
-  campoPersonalizado3_etiqueta: '',
-  campoPersonalizado3_isActive: false,
-  campoPersonalizado3_necesitaValidacion: false,
-  campoPersonalizado3_regexValidacion: '',
-  campoPersonalizado3_tamanoTexto: 'text',
-  campoPersonalizado3_puedeModDirector: true,
-  campoPersonalizado3_puedeModInteresado: true,
+  camposPersonalizados: {},
   textProfile: 'espanol-honduras',
 });
 
@@ -362,37 +331,7 @@ function CrearResidenciaAdminPage() {
             direccion: currentResidencia.ubicacion!.direccion || currentResidencia.direccion || '', // Sync or fallback
             timezone: currentResidencia.ubicacion!.timezone,
         },
-        nombreTradicionalDesayuno: currentResidencia.nombreTradicionalDesayuno || "Desayuno",
-        nombreTradicionalAlmuerzo: currentResidencia.nombreTradicionalAlmuerzo || "Almuerzo",
-        nombreTradicionalCena: currentResidencia.nombreTradicionalCena || "Cena",
-        nombreTradicionalLunes: currentResidencia.nombreTradicionalLunes || "Lunes",
-        nombreTradicionalMartes: currentResidencia.nombreTradicionalMartes || "Martes",
-        nombreTradicionalMiercoles: currentResidencia.nombreTradicionalMiercoles || "Miércoles",
-        nombreTradicionalJueves: currentResidencia.nombreTradicionalJueves || "Jueves",
-        nombreTradicionalViernes: currentResidencia.nombreTradicionalViernes || "Viernes",
-        nombreTradicionalSabado: currentResidencia.nombreTradicionalSabado || "Sábado",
-        nombreTradicionalDomingo: currentResidencia.nombreTradicionalDomingo || "Domingo",
-        campoPersonalizado1_etiqueta: currentResidencia.campoPersonalizado1_etiqueta || '',
-        campoPersonalizado1_isActive: !!currentResidencia.campoPersonalizado1_isActive,
-        campoPersonalizado1_necesitaValidacion: !!currentResidencia.campoPersonalizado1_necesitaValidacion,
-        campoPersonalizado1_regexValidacion: currentResidencia.campoPersonalizado1_regexValidacion || '',
-        campoPersonalizado1_tamanoTexto: currentResidencia.campoPersonalizado1_tamanoTexto || 'text',
-        campoPersonalizado1_puedeModDirector: !!currentResidencia.campoPersonalizado1_puedeModDirector,
-        campoPersonalizado1_puedeModInteresado: !!currentResidencia.campoPersonalizado1_puedeModInteresado,
-        campoPersonalizado2_etiqueta: currentResidencia.campoPersonalizado2_etiqueta || '',
-        campoPersonalizado2_isActive: !!currentResidencia.campoPersonalizado2_isActive,
-        campoPersonalizado2_necesitaValidacion: !!currentResidencia.campoPersonalizado2_necesitaValidacion,
-        campoPersonalizado2_regexValidacion: currentResidencia.campoPersonalizado2_regexValidacion || '',
-        campoPersonalizado2_tamanoTexto: currentResidencia.campoPersonalizado2_tamanoTexto || 'text',
-        campoPersonalizado2_puedeModDirector: !!currentResidencia.campoPersonalizado2_puedeModDirector,
-        campoPersonalizado2_puedeModInteresado: !!currentResidencia.campoPersonalizado2_puedeModInteresado,
-        campoPersonalizado3_etiqueta: currentResidencia.campoPersonalizado3_etiqueta || '',
-        campoPersonalizado3_isActive: !!currentResidencia.campoPersonalizado3_isActive,
-        campoPersonalizado3_necesitaValidacion: !!currentResidencia.campoPersonalizado3_necesitaValidacion,
-        campoPersonalizado3_regexValidacion: currentResidencia.campoPersonalizado3_regexValidacion || '',
-        campoPersonalizado3_tamanoTexto: currentResidencia.campoPersonalizado3_tamanoTexto || 'text',
-        campoPersonalizado3_puedeModDirector: !!currentResidencia.campoPersonalizado3_puedeModDirector,
-        campoPersonalizado3_puedeModInteresado: !!currentResidencia.campoPersonalizado3_puedeModInteresado,
+        camposPersonalizados: currentResidencia.camposPersonalizados || {},
         textProfile: currentResidencia.textProfile || 'espanol-honduras',
         estadoContrato: 'activo',
       };
@@ -460,6 +399,42 @@ function CrearResidenciaAdminPage() {
     } finally {
       setFormLoading(false);
     }
+  };
+
+  const handleCampoPersonalizadoChange = (key: string, field: keyof ConfiguracionCampo, value: any) => {
+    setCurrentResidencia(prev => {
+      const newCamposPersonalizados = { ...prev.camposPersonalizados };
+      if (newCamposPersonalizados[key]) {
+        (newCamposPersonalizados[key] as any)[field] = value;
+      }
+      return { ...prev, camposPersonalizados: newCamposPersonalizados };
+    });
+  };
+
+  const addCampoPersonalizado = () => {
+    setCurrentResidencia(prev => {
+      const newCamposPersonalizados = { ...prev.camposPersonalizados };
+      const newKey = `campo${Date.now()}`;
+      newCamposPersonalizados[newKey] = {
+        etiqueta: 'Nuevo Campo',
+        isActive: true,
+        esObligatorio: false,
+        necesitaValidacion: false,
+        regexValidacion: '',
+        tamanoTexto: 'text',
+        puedeModDirector: true,
+        puedeModInteresado: true,
+      };
+      return { ...prev, camposPersonalizados: newCamposPersonalizados };
+    });
+  };
+
+  const removeCampoPersonalizado = (key: string) => {
+    setCurrentResidencia(prev => {
+      const newCamposPersonalizados = { ...prev.camposPersonalizados };
+      delete newCamposPersonalizados[key];
+      return { ...prev, camposPersonalizados: newCamposPersonalizados };
+    });
   };
 
   // Add this handler function
@@ -731,318 +706,128 @@ function CrearResidenciaAdminPage() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* Nombre Tradicional Desayuno */}
-              <div>
-                <Label htmlFor="nombreTradicionalDesayuno">Nombre Tradicional Desayuno</Label>
-                <Input
-                  id="nombreTradicionalDesayuno"
-                  name="nombreTradicionalDesayuno"
-                  value={currentResidencia.nombreTradicionalDesayuno || ''}
-                  onChange={handleInputChange}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="mt-1"
-                  placeholder="Ej: Desayuno"
-                />
-              </div>
-
-              {/* Nombre Tradicional Almuerzo */}
-              <div>
-                <Label htmlFor="nombreTradicionalAlmuerzo">Nombre Tradicional Almuerzo</Label>
-                <Input
-                  id="nombreTradicionalAlmuerzo"
-                  name="nombreTradicionalAlmuerzo"
-                  value={currentResidencia.nombreTradicionalAlmuerzo || ''}
-                  onChange={handleInputChange}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="mt-1"
-                  placeholder="Ej: Almuerzo"
-                />
-              </div>
-
-              {/* Nombre Tradicional Cena */}
-              <div>
-                <Label htmlFor="nombreTradicionalCena">Nombre Tradicional Cena</Label>
-                <Input
-                  id="nombreTradicionalCena"
-                  name="nombreTradicionalCena"
-                  value={currentResidencia.nombreTradicionalCena || ''}
-                  onChange={handleInputChange}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="mt-1"
-                  placeholder="Ej: Cena"
-                />
-              </div>
-
-              {/* Nombre Tradicional Lunes */}
-              <div>
-                <Label htmlFor="nombreTradicionalLunes">Nombre Tradicional Lunes</Label>
-                <Input
-                  id="nombreTradicionalLunes"
-                  name="nombreTradicionalLunes"
-                  value={currentResidencia.nombreTradicionalLunes || ''}
-                  onChange={handleInputChange}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="mt-1"
-                  placeholder="Ej: Lunes"
-                />
-              </div>
-
-              {/* Nombre Tradicional Martes */}
-              <div>
-                <Label htmlFor="nombreTradicionalMartes">Nombre Tradicional Martes</Label>
-                <Input
-                  id="nombreTradicionalMartes"
-                  name="nombreTradicionalMartes"
-                  value={currentResidencia.nombreTradicionalMartes || ''}
-                  onChange={handleInputChange}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="mt-1"
-                  placeholder="Ej: Martes"
-                />
-              </div>
-
-              {/* Nombre Tradicional Miercoles */}
-              <div>
-                <Label htmlFor="nombreTradicionalMiercoles">Nombre Tradicional Miércoles</Label>
-                <Input
-                  id="nombreTradicionalMiercoles"
-                  name="nombreTradicionalMiercoles"
-                  value={currentResidencia.nombreTradicionalMiercoles || ''}
-                  onChange={handleInputChange}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="mt-1"
-                  placeholder="Ej: Miércoles"
-                />
-              </div>
-
-              {/* Nombre Tradicional Jueves */}
-              <div>
-                <Label htmlFor="nombreTradicionalJueves">Nombre Tradicional Jueves</Label>
-                <Input
-                  id="nombreTradicionalJueves"
-                  name="nombreTradicionalJueves"
-                  value={currentResidencia.nombreTradicionalJueves || ''}
-                  onChange={handleInputChange}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="mt-1"
-                  placeholder="Ej: Jueves"
-                />
-              </div>
-
-              {/* Nombre Tradicional Viernes */}
-              <div>
-                <Label htmlFor="nombreTradicionalViernes">Nombre Tradicional Viernes</Label>
-                <Input
-                  id="nombreTradicionalViernes"
-                  name="nombreTradicionalViernes"
-                  value={currentResidencia.nombreTradicionalViernes || ''}
-                  onChange={handleInputChange}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="mt-1"
-                  placeholder="Ej: Viernes"
-                />
-              </div>
-
-              {/* Nombre Tradicional Sabado */}
-              <div>
-                <Label htmlFor="nombreTradicionalSabado">Nombre Tradicional Sábado</Label>
-                <Input
-                  id="nombreTradicionalSabado"
-                  name="nombreTradicionalSabado"
-                  value={currentResidencia.nombreTradicionalSabado || ''}
-                  onChange={handleInputChange}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="mt-1"
-                  placeholder="Ej: Sábado"
-                />
-              </div>
-
-              {/* Nombre Tradicional Domingo */}
-              <div>
-                <Label htmlFor="nombreTradicionalDomingo">Nombre Tradicional Domingo</Label>
-                <Input
-                  id="nombreTradicionalDomingo"
-                  name="nombreTradicionalDomingo"
-                  value={currentResidencia.nombreTradicionalDomingo || ''}
-                  onChange={handleInputChange}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                  className="mt-1"
-                  placeholder="Ej: Domingo"
-                />
-              </div>
-
-              {/* Campos Personalizados - Ejemplo con el 1, replicar para 2 y 3 si es necesario */}
               <Card>
-                <CardHeader><CardTitle className="text-lg">Campo Personalizado 1</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="campoPersonalizado1_isActive" name="campoPersonalizado1_isActive" checked={currentResidencia.campoPersonalizado1_isActive || false} onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado1_isActive: Boolean(checked)}))} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                        <Label htmlFor="campoPersonalizado1_isActive">Activo</Label>
-                    </div>
-                    {currentResidencia.campoPersonalizado1_isActive && (
-                        <>
-                            <div>
-                                <Label htmlFor="campoPersonalizado1_etiqueta">Etiqueta Campo Personalizado 1</Label>
-                                <Input id="campoPersonalizado1_etiqueta" name="campoPersonalizado1_etiqueta" value={currentResidencia.campoPersonalizado1_etiqueta || ''} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                            </div>
-                             <div className="flex items-center space-x-2">
-                                <Checkbox id="campoPersonalizado1_necesitaValidacion" name="campoPersonalizado1_necesitaValidacion" checked={currentResidencia.campoPersonalizado1_necesitaValidacion || false} onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado1_necesitaValidacion: Boolean(checked)}))} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                                <Label htmlFor="campoPersonalizado1_necesitaValidacion">Necesita Validación (Regex)</Label>
-                            </div>
-                            {currentResidencia.campoPersonalizado1_necesitaValidacion && (
-                                <div>
-                                    <Label htmlFor="campoPersonalizado1_regexValidacion">Regex de Validación</Label>
-                                    <Input id="campoPersonalizado1_regexValidacion" name="campoPersonalizado1_regexValidacion" value={currentResidencia.campoPersonalizado1_regexValidacion || ''} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                                </div>
-                            )}
-                            <div>
-                                <Label htmlFor="campoPersonalizado1_tamanoTexto">Tamaño del Texto</Label>
-                                 <Select
-                                    value={currentResidencia.campoPersonalizado1_tamanoTexto || 'text'}
-                                    onValueChange={handleSelectChange('campoPersonalizado1_tamanoTexto')}
-                                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                                >
-                                    <SelectTrigger id="campoPersonalizado1_tamanoTexto">
-                                        <SelectValue placeholder="Tamaño del Texto" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="text">Una línea (Text)</SelectItem>
-                                        <SelectItem value="textArea">Múltiples líneas (Textarea)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-center space-x-2 pt-2">
-                              <Checkbox
-                                  id="campoPersonalizado1_puedeModDirector"
-                                  name="campoPersonalizado1_puedeModDirector"
-                                  checked={currentResidencia.campoPersonalizado1_puedeModDirector || false}
-                                  onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado1_puedeModDirector: Boolean(checked)}))}
-                                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                              />
-                              <Label htmlFor="campoPersonalizado1_puedeModDirector">Puede ser modificado por Director</Label>
-                          </div>
+                <CardHeader>
+                  <CardTitle className="text-lg">Campos Personalizados</CardTitle>
+                  <CardDescription>
+                    Define campos adicionales para los perfiles de usuario.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {Object.keys(currentResidencia.camposPersonalizados || {}).map((key) => {
+                    const campo = (currentResidencia.camposPersonalizados || {})[key];
+                    return (
+                      <Card key={key} className="p-4">
+                        <div className="flex justify-between items-center mb-2">
+                          <p className="font-semibold">{campo.etiqueta || `Campo ${key}`}</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeCampoPersonalizado(key)}
+                            disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="space-y-3">
                           <div className="flex items-center space-x-2">
-                              <Checkbox
-                                  id="campoPersonalizado1_puedeModInteresado"
-                                  name="campoPersonalizado1_puedeModInteresado"
-                                  checked={currentResidencia.campoPersonalizado1_puedeModInteresado || false}
-                                  onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado1_puedeModInteresado: Boolean(checked)}))}
-                                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                              />
-                              <Label htmlFor="campoPersonalizado1_puedeModInteresado">Puede ser modificado por Interesado</Label>
+                            <Checkbox
+                              id={`${key}-isActive`}
+                              checked={campo.isActive}
+                              onCheckedChange={(checked) => handleCampoPersonalizadoChange(key, 'isActive', !!checked)}
+                              disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                            />
+                            <Label htmlFor={`${key}-isActive`}>Activo</Label>
                           </div>
-                        </>
-                    )}
-                </CardContent>
-              </Card>
-
-              {/* Card for Campo Personalizado 2 */}
-              <Card>
-                <CardHeader><CardTitle className="text-lg">Campo Personalizado 2</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="campoPersonalizado2_isActive" name="campoPersonalizado2_isActive" checked={currentResidencia.campoPersonalizado2_isActive || false} onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado2_isActive: Boolean(checked)}))} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                        <Label htmlFor="campoPersonalizado2_isActive">Activo</Label>
-                    </div>
-                    {currentResidencia.campoPersonalizado2_isActive && (
-                        <>
-                            <div>
-                                <Label htmlFor="campoPersonalizado2_etiqueta">Etiqueta Campo Personalizado 2</Label>
-                                <Input id="campoPersonalizado2_etiqueta" name="campoPersonalizado2_etiqueta" value={currentResidencia.campoPersonalizado2_etiqueta || ''} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                            </div>
-                             <div className="flex items-center space-x-2">
-                                <Checkbox id="campoPersonalizado2_necesitaValidacion" name="campoPersonalizado2_necesitaValidacion" checked={currentResidencia.campoPersonalizado2_necesitaValidacion || false} onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado2_necesitaValidacion: Boolean(checked)}))} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                                <Label htmlFor="campoPersonalizado2_necesitaValidacion">Necesita Validación (Regex)</Label>
-                            </div>
-                            {currentResidencia.campoPersonalizado2_necesitaValidacion && (
-                                <div>
-                                    <Label htmlFor="campoPersonalizado2_regexValidacion">Regex de Validación</Label>
-                                    <Input id="campoPersonalizado2_regexValidacion" name="campoPersonalizado2_regexValidacion" value={currentResidencia.campoPersonalizado2_regexValidacion || ''} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                                </div>
-                            )}
-                            <div>
-                                <Label htmlFor="campoPersonalizado2_tamanoTexto">Tamaño del Texto</Label>
-                                 <Select
-                                    value={currentResidencia.campoPersonalizado2_tamanoTexto || 'text'}
-                                    onValueChange={handleSelectChange('campoPersonalizado2_tamanoTexto')}
-                                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                                >
-                                    <SelectTrigger id="campoPersonalizado2_tamanoTexto">
-                                        <SelectValue placeholder="Tamaño del Texto" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="text">Una línea (Text)</SelectItem>
-                                        <SelectItem value="textArea">Múltiples líneas (Textarea)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-center space-x-2 pt-2">
-                                <Checkbox
-                                    id="campoPersonalizado2_puedeModDirector"
-                                    name="campoPersonalizado2_puedeModDirector"
-                                    checked={currentResidencia.campoPersonalizado2_puedeModDirector || false}
-                                    onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado2_puedeModDirector: Boolean(checked)}))}
-                                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                          {campo.isActive && (
+                            <>
+                              <div>
+                                <Label htmlFor={`${key}-etiqueta`}>Etiqueta</Label>
+                                <Input
+                                  id={`${key}-etiqueta`}
+                                  value={campo.etiqueta || ''}
+                                  onChange={(e) => handleCampoPersonalizadoChange(key, 'etiqueta', e.target.value)}
+                                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
-                                <Label htmlFor="campoPersonalizado2_puedeModDirector">Puede ser modificado por Director</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
+                              </div>
+                              <div className="flex items-center space-x-2">
                                 <Checkbox
-                                    id="campoPersonalizado2_puedeModInteresado"
-                                    name="campoPersonalizado2_puedeModInteresado"
-                                    checked={currentResidencia.campoPersonalizado2_puedeModInteresado || false}
-                                    onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado2_puedeModInteresado: Boolean(checked)}))}
-                                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                                  id={`${key}-esObligatorio`}
+                                  checked={campo.esObligatorio || false}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(key, 'esObligatorio', !!checked)}
+                                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
-                                <Label htmlFor="campoPersonalizado2_puedeModInteresado">Puede ser modificado por Interesado</Label>
-                            </div>
-                        </>
-                    )}
-                </CardContent>
-              </Card>
-
-              {/* Card for Campo Personalizado 3 */}
-              <Card>
-                <CardHeader><CardTitle className="text-lg">Campo Personalizado 3</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                        <Checkbox id="campoPersonalizado3_isActive" name="campoPersonalizado3_isActive" checked={currentResidencia.campoPersonalizado3_isActive || false} onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado3_isActive: Boolean(checked)}))} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                        <Label htmlFor="campoPersonalizado3_isActive">Activo</Label>
-                    </div>
-                    {currentResidencia.campoPersonalizado3_isActive && (
-                        <>
-                            <div>
-                                <Label htmlFor="campoPersonalizado3_etiqueta">Etiqueta Campo Personalizado 3</Label>
-                                <Input id="campoPersonalizado3_etiqueta" name="campoPersonalizado3_etiqueta" value={currentResidencia.campoPersonalizado3_etiqueta || ''} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                            </div>
-                             <div className="flex items-center space-x-2">
-                                <Checkbox id="campoPersonalizado3_necesitaValidacion" name="campoPersonalizado3_necesitaValidacion" checked={currentResidencia.campoPersonalizado3_necesitaValidacion || false} onCheckedChange={(checked) => setCurrentResidencia(prev => ({...prev, campoPersonalizado3_necesitaValidacion: Boolean(checked)}))} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                                <Label htmlFor="campoPersonalizado3_necesitaValidacion">Necesita Validación (Regex)</Label>
-                            </div>
-                            {currentResidencia.campoPersonalizado3_necesitaValidacion && (
+                                <Label htmlFor={`${key}-esObligatorio`}>Es Obligatorio</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`${key}-necesitaValidacion`}
+                                  checked={campo.necesitaValidacion || false}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(key, 'necesitaValidacion', !!checked)}
+                                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                                />
+                                <Label htmlFor={`${key}-necesitaValidacion`}>Necesita Validación (Regex)</Label>
+                              </div>
+                              {campo.necesitaValidacion && (
                                 <div>
-                                    <Label htmlFor="campoPersonalizado3_regexValidacion">Regex de Validación</Label>
-                                    <Input id="campoPersonalizado3_regexValidacion" name="campoPersonalizado3_regexValidacion" value={currentResidencia.campoPersonalizado3_regexValidacion || ''} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
-                                </div>
-                            )}
-                            <div>
-                                <Label htmlFor="campoPersonalizado3_tamanoTexto">Tamaño del Texto</Label>
-                                 <Select
-                                    value={currentResidencia.campoPersonalizado3_tamanoTexto || 'text'}
-                                    onValueChange={handleSelectChange('campoPersonalizado3_tamanoTexto')}
+                                  <Label htmlFor={`${key}-regexValidacion`}>Regex de Validación</Label>
+                                  <Input
+                                    id={`${key}-regexValidacion`}
+                                    value={campo.regexValidacion || ''}
+                                    onChange={(e) => handleCampoPersonalizadoChange(key, 'regexValidacion', e.target.value)}
                                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                                  />
+                                </div>
+                              )}
+                              <div>
+                                <Label htmlFor={`${key}-tamanoTexto`}>Tamaño del Texto</Label>
+                                <Select
+                                  value={campo.tamanoTexto || 'text'}
+                                  onValueChange={(value) => handleCampoPersonalizadoChange(key, 'tamanoTexto', value)}
+                                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 >
-                                    <SelectTrigger id="campoPersonalizado3_tamanoTexto">
-                                        <SelectValue placeholder="Tamaño del Texto" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="text">Una línea (Text)</SelectItem>
-                                        <SelectItem value="textArea">Múltiples líneas (Textarea)</SelectItem>
-                                    </SelectContent>
+                                  <SelectTrigger id={`${key}-tamanoTexto`}>
+                                    <SelectValue placeholder="Tamaño del Texto" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="text">Una línea (Text)</SelectItem>
+                                    <SelectItem value="textArea">Múltiples líneas (Textarea)</SelectItem>
+                                  </SelectContent>
                                 </Select>
-                            </div>
-                        </>
-                    )}
+                              </div>
+                              <div className="flex items-center space-x-2 pt-2">
+                                <Checkbox
+                                  id={`${key}-puedeModDirector`}
+                                  checked={campo.puedeModDirector || false}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(key, 'puedeModDirector', !!checked)}
+                                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                                />
+                                <Label htmlFor={`${key}-puedeModDirector`}>Puede ser modificado por Director</Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`${key}-puedeModInteresado`}
+                                  checked={campo.puedeModInteresado || false}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(key, 'puedeModInteresado', !!checked)}
+                                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                                />
+                                <Label htmlFor={`${key}-puedeModInteresado`}>Puede ser modificado por Interesado</Label>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addCampoPersonalizado}
+                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Añadir Campo Personalizado
+                  </Button>
                 </CardContent>
               </Card>
             </CardContent>

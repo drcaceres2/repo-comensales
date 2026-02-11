@@ -10,7 +10,7 @@ import {
   InscripcionActividad,
   Actividad,
   Excepcion,
-  Comensal,
+  ComensalSolicitado,
   ResidenciaId,
 } from '@/../shared/models/types';
 import { format, parseISO, isSameDay } from 'date-fns';

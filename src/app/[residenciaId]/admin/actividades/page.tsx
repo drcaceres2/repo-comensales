@@ -4,12 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
     collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, 
-    query, where, orderBy, 
-    writeBatch 
+    query, where, orderBy
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
-import { z } from 'zod';
 import { ActividadSchema } from '@/../shared/schemas/actividades';
 
 // UI Components
@@ -40,13 +38,10 @@ import {
     CentroCosto,
     TiempoComida,
     UserProfile,
-    UserRole,
     ResidenciaId,
     CentroCostoId,
     TiempoComidaId,
     DayOfWeekMap, 
-    LogActionType,
-    LogEntry, 
     UserId 
 } from '@/../shared/models/types';
 import { logClientAction } from '@/lib/utils';

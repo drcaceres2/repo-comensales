@@ -86,6 +86,7 @@ export default function ElegirComidasPage() {
             key={selectedUserId} // CRITICAL: This unmounts and remounts the component on user change
             userId={selectedUserId}
             residenciaId={residenciaId}
+            zonaHoraria={residencia?.ubicacion?.timezone ?? 'UTC'}
           />
         )}
       </div>

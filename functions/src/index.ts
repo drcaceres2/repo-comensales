@@ -188,7 +188,7 @@ export const createUser = onCall(
             ...profileData,
             id: newUserId as any,
             email: email,
-            fechaCreacion: FieldValue.serverTimestamp(),
+            fechaHoraCreacion: FieldValue.serverTimestamp(),
             ultimaActualizacion: FieldValue.serverTimestamp(),
             isActive: profileData.isActive ?? true,
             roles: targetUserRoles,
@@ -807,7 +807,7 @@ export const createHardcodedMasterUser = onCall(
             nombreCorto: "DCV",
             email: hardcodedEmail,
             fotoPerfil: "",
-            fechaCreacion: FieldValue.serverTimestamp(),
+            fechaHoraCreacion: FieldValue.serverTimestamp(),
             ultimaActualizacion: FieldValue.serverTimestamp(),
             isActive: true,
             roles: ["master"],
@@ -825,9 +825,7 @@ export const createHardcodedMasterUser = onCall(
             asistentePermisos: null, 
             notificacionPreferencias: null, 
             tieneAutenticacion: true,
-            valorCampoPersonalizado1: "",
-            valorCampoPersonalizado2: "",
-            valorCampoPersonalizado3: "",
+            camposPersonalizados: {},
             // lastLogin is optional and typically updated upon login, so can be omitted here
         };
 

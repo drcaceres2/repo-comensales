@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { CadenaOpcionalLimitada } from './common';
+import { CadenaOpcionalLimitada, FirestoreTimestampSchema } from './common';
+import { IsoDateStringSchema } from './fechas';
 
 
 // Esquema para el enum ActividadEstado
@@ -48,8 +49,8 @@ export const ActividadSchema = z.object({
   estado: ActividadEstadoEnum,
   organizadorUserId: z.string(),
   comensalesNoUsuarios: z.number().int().min(1).max(1000).optional(),
-  fechaInicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener el formato YYYY-MM-DD'),
-  fechaFin: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener el formato YYYY-MM-DD'),
+  fechaInicio: IsoDateStringSchema,
+  fechaFin: IsoDateStringSchema,
   ultimoTiempoComidaAntes: z.string(),
   primerTiempoComidaDespues: z.string(),
   planComidas: z.array(z.any()), // Se puede detallar más si es necesario
@@ -65,18 +66,39 @@ export const ActividadSchema = z.object({
   defaultCentroCostoId: z.string().nullable().optional(),
 });
 
-// Esquema para InscripcionActividad
+// Esquema para InscripcionActividad (lectura desde Firestore)
 export const InscripcionActividadSchema = z.object({
   id: z.string(),
   actividadId: z.string(),
   userId: z.string(),
   residenciaId: z.string(),
   estadoInscripcion: EstadoInscripcionActividadEnum,
-  fechaEstado: z.number(), // Timestamp en milisegundos
   invitadoPorUserId: z.string().optional(),
-  fechaInvitacionOriginal: z.number().nullable().optional(), // Timestamp en milisegundos
   nombreInvitadoNoAutenticado: CadenaOpcionalLimitada(1, 100),
+  fechaInvitacionOriginal: IsoDateStringSchema.nullable().optional(),
+  fechaHoraCreacion: FirestoreTimestampSchema,
+  fechaHoraModificacion: FirestoreTimestampSchema,
+});
+
+// Esquema para crear InscripcionActividad (sin id, pues se asigna en Firestore)
+export const InscripcionActividadCreateSchema = z.object({
+  actividadId: z.string().min(1, 'ID de actividad requerido'),
+  userId: z.string().min(1, 'ID de usuario requerido'),
+  residenciaId: z.string().min(1, 'ID de residencia requerido'),
+  estadoInscripcion: EstadoInscripcionActividadEnum,
+  invitadoPorUserId: z.string().optional(),
+  nombreInvitadoNoAutenticado: CadenaOpcionalLimitada(1, 100),
+  fechaInvitacionOriginal: IsoDateStringSchema.nullable().optional(),
+  // fechaHoraCreacion y fechaHoraModificacion se asignan con serverTimestamp()
+});
+
+// Esquema para actualizar InscripcionActividad
+export const InscripcionActividadUpdateSchema = z.object({
+  estadoInscripcion: EstadoInscripcionActividadEnum,
+  // fechaHoraModificacion se asigna con serverTimestamp()
 });
 
 export type Actividad = z.infer<typeof ActividadSchema>;
 export type InscripcionActividad = z.infer<typeof InscripcionActividadSchema>;
+export type InscripcionActividadCreate = z.infer<typeof InscripcionActividadCreateSchema>;
+export type InscripcionActividadUpdate = z.infer<typeof InscripcionActividadUpdateSchema>;

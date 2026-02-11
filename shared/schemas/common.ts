@@ -31,3 +31,19 @@ export const TelefonoOpcionalSchema = z.string()
         .optional()
     );
 
+/**
+ * FirestoreTimestampSchema: Valida un timestamp de Firestore
+ * Puede ser:
+ * - Un objeto con estructura { seconds: number; nanoseconds: number }
+ * - Un número (milisegundos desde época)
+ * - Cualquier otro tipo (para compatibilidad con datos existentes)
+ */
+export const FirestoreTimestampSchema = z.union([
+    z.object({
+        seconds: z.number(),
+        nanoseconds: z.number(),
+    }),
+    z.number(),
+    z.any(), // Fallback para compatibilidad
+]).describe("Firestore Timestamp - puede ser { seconds, nanoseconds } o número en ms");
+
