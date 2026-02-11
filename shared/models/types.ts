@@ -55,7 +55,7 @@ export interface UserProfile {
     habitacion?: string;
     universidad?: string;
     carrera?: string;
-    dni?: string;
+    identificacion?: string;
     telefonoMovil?: string;
     fechaDeNacimiento?: string | null; // Fecha almacenada como ISO 8601 string "YYYY-MM-DD"
     asistentePermisos?: AsistentePermisos | null;

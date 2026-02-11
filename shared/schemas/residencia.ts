@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
+import { UbicacionSchema } from './fechas';
 
 // ============================================
 // Esquemas para ConfigContabilidad
@@ -30,7 +31,7 @@ export const residenciaSchema = z.object({
     textProfile: CadenaOpcionalLimitada(),
     tipoResidencia: z.enum(['estudiantes', 'profesionales', 'gente_mayor']),
     esquemaAdministracion: z.enum(['estricto', 'flexible']),
-    zonaHoraria: z.string().min(1),
+    ubicacion: UbicacionSchema,
     
     // Nombres tradicionales para comidas (desayuno, almuerzo, cena)
     nombreTradicionalDesayuno: CadenaOpcionalLimitada(1, 20),
@@ -87,7 +88,7 @@ export const createResidenciaSchema = z.object({
     textProfile: z.string().optional(),
     tipoResidencia: z.enum(['estudiantes', 'profesionales', 'gente_mayor']),
     esquemaAdministracion: z.enum(['estricto', 'flexible']),
-    zonaHoraria: z.string().min(1),
+    ubicacion: UbicacionSchema,
     
     nombreTradicionalDesayuno: CadenaOpcionalLimitada(1, 20),
     nombreTradicionalAlmuerzo: CadenaOpcionalLimitada(1, 20),
@@ -141,7 +142,7 @@ export const updateResidenciaSchema = z.object({
     textProfile: z.string().nullable().optional(),
     tipoResidencia: z.enum(['estudiantes', 'profesionales', 'gente_mayor']).optional(),
     esquemaAdministracion: z.enum(['estricto', 'flexible']).optional(),
-    zonaHoraria: z.string().min(1).optional(),
+    ubicacion: UbicacionSchema.optional(),
     
     nombreTradicionalDesayuno: CadenaOpcionalLimitada(1, 20).nullable().optional(),
     nombreTradicionalAlmuerzo: CadenaOpcionalLimitada(1, 20).nullable().optional(),

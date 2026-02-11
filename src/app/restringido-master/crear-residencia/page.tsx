@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
-import { UserProfile, Residencia, Dieta, Ubicacion } from '../../../../shared/models/types';
+import { UserProfile, Residencia, Ubicacion } from '../../../../shared/models/types';
 import countriesData from '../../../../shared/data/countries.json';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea"; // For multi-line fields like direccion
 import { Checkbox } from "@/components/ui/checkbox"; // For boolean fields
 import { Label } from "@/components/ui/label";
-import TimezoneSelector, { TimezonesData } from "@/components/ui/TimezoneSelector";
+import TimezoneSelector from "@/components/ui/TimezoneSelector";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import {
   AlertDialog,
@@ -552,7 +552,7 @@ function CrearResidenciaAdminPage() {
               {!isEditing && isMasterUser && (
                 <div>
                   <Label htmlFor="id">
-                    ID de Residencia (Slug) <span className="text-destructive">*</span>
+                    ID de Residencia <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="id"

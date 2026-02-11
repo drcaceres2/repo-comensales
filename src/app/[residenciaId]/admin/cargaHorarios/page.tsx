@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { doc, writeBatch, collection, getFirestore, getDocs } from 'firebase/firestore';
+import { doc, writeBatch, collection, getFirestore } from 'firebase/firestore';
 
 import { useAuth } from '@/hooks/useAuth';
 import { Comedor, HorarioSolicitudComida, TiempoComida, AlternativaTiempoComida } from '@/../shared/models/types';
@@ -12,7 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/useToast';
-import { app } from '@/lib/firebase'; // Asegúrate que la app de firebase se exporte
+import { app } from '@/lib/firebase';
+import { getCatalogosParaCargaHorarios } from '../horarioAction';
 
 // Interfaces para los datos parseados y enriquecidos
 interface RawAlternativa {
@@ -62,31 +63,19 @@ const CargaHorariosPage = () => {
 
   const [comedores, setComedores] = useState<Comedor[]>([]);
   const [horarios, setHorarios] = useState<HorarioSolicitudComida[]>([]);
-  const [loadingComedores, setLoadingComedores] = useState(true);
-  const [loadingHorarios, setLoadingHorarios] = useState(true);
+  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
 
   useEffect(() => {
     const fetchCatalogs = async () => {
       if (!residenciaId) {
-        setLoadingComedores(false);
-        setLoadingHorarios(false);
+        setLoadingCatalogs(false);
         return;
       }
       try {
-        setLoadingComedores(true);
-        setLoadingHorarios(true);
-        const db = getFirestore(app);
-        
-        const comedoresRef = collection(db, `residencias/${residenciaId}/comedores`);
-        const comedoresSnapshot = await getDocs(comedoresRef);
-        const comedoresData = comedoresSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Comedor[];
-        setComedores(comedoresData);
-
-        const horariosRef = collection(db, `residencias/${residenciaId}/horariosSolicitudComida`);
-        const horariosSnapshot = await getDocs(horariosRef);
-        const horariosData = horariosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as HorarioSolicitudComida[];
-        setHorarios(horariosData);
-
+        setLoadingCatalogs(true);
+        const { comedores, horarios } = await getCatalogosParaCargaHorarios(residenciaId);
+        setComedores(comedores);
+        setHorarios(horarios);
       } catch (error) {
         console.error("Error fetching catalogs:", error);
         toast({
@@ -95,8 +84,7 @@ const CargaHorariosPage = () => {
           description: "No se pudieron cargar los datos necesarios para la validación.",
         });
       } finally {
-        setLoadingComedores(false);
-        setLoadingHorarios(false);
+        setLoadingCatalogs(false);
       }
     };
 
@@ -110,6 +98,54 @@ const CargaHorariosPage = () => {
     }
   };
   
+  const handleDownloadSample = () => {
+    const sampleData: RawTiempoComida[] = [
+      {
+        nombre: "Almuerzo Lunes",
+        nombreGrupo: "Almuerzos",
+        ordenGrupo: 2,
+        dia: "lunes",
+        horaEstimada: "12:30",
+        aplicacionOrdinaria: true,
+        alternativas: [
+          {
+            nombre: "Normal en Comedor Principal",
+            tipo: "comedor",
+            tipoAcceso: "abierto",
+            requiereAprobacion: false,
+            ventanaInicio: "12:00",
+            ventanaFin: "13:30",
+            horarioSolicitudComidaNombre: "Lunes-Viernes Mediodía",
+            comedorNombre: "Comedor Principal",
+            esPrincipal: true,
+          },
+          {
+            nombre: "Para Llevar",
+            tipo: "paraLlevar",
+            tipoAcceso: "autorizado",
+            requiereAprobacion: true,
+            ventanaInicio: "11:30",
+            ventanaFin: "12:30",
+            horarioSolicitudComidaNombre: "Lunes-Viernes Mediodía",
+            comedorNombre: "Cocina",
+            esPrincipal: false,
+          }
+        ]
+      }
+    ];
+    
+    const jsonString = JSON.stringify(sampleData, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ejemplo_horarios.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // FASE 1 & 2: Parseo y Enriquecimiento
   const processFile = () => {
     if (!file || !comedores || !horarios) return;
@@ -126,14 +162,12 @@ const CargaHorariosPage = () => {
         }
         const jsonData: RawTiempoComida[] = JSON.parse(text);
 
-        // Validación estructural básica
         const dataToEnrich: RawTiempoComida[] = JSON.parse(text);
 
         if (!Array.isArray(dataToEnrich)) {
           throw new Error("El JSON debe ser un array de Tiempos de Comida.");
         }
 
-        // FASE 2: Enriquecimiento y Validación
         const enriched = dataToEnrich.map((tc): EnrichedTiempoComida => {
           let tiempoComidaError: string | undefined = undefined;
 
@@ -225,8 +259,7 @@ const CargaHorariosPage = () => {
 
     const dataToImport = enrichedData.filter(tc => !tc.error && tc.alternativas.every(alt => !alt.error));
     
-    // Chunking: Lógica para dividir en lotes (chunks)
-    const chunkSize = 100; // Límite seguro: 1 TC + ~4 Alternativas = 5 escrituras. 100*5=500.
+    const chunkSize = 100;
     const chunks = [];
     for (let i = 0; i < dataToImport.length; i += chunkSize) {
       chunks.push(dataToImport.slice(i, i + chunkSize));
@@ -237,8 +270,7 @@ const CargaHorariosPage = () => {
         const batch = writeBatch(db);
 
         chunk.forEach(tcData => {
-          // Crear el TiempoComida
-          const tiempoComidaRef = doc(collection(db, `residencias/${residenciaId}/tiemposComida`));
+          const tiempoComidaRef = doc(collection(db, `tiemposComida`));
           const newTiempoComida: Omit<TiempoComida, 'id'> = {
             nombre: tcData.nombre,
             residenciaId: residenciaId,
@@ -251,9 +283,8 @@ const CargaHorariosPage = () => {
           };
           batch.set(tiempoComidaRef, newTiempoComida);
 
-          // Crear las Alternativas
           tcData.alternativas.forEach(altData => {
-            const alternativaRef = doc(collection(db, `residencias/${residenciaId}/alternativasTiempoComida`));
+            const alternativaRef = doc(collection(db, `alternativasTiempoComida`));
             const newAlternativa: Omit<AlternativaTiempoComida, 'id'> = {
                 nombre: altData.nombre,
                 tipo: altData.tipo,
@@ -310,14 +341,19 @@ const CargaHorariosPage = () => {
           <CardTitle>Paso 1: Seleccionar Archivo JSON</CardTitle>
           <CardDescription>
             Sube un archivo JSON con la estructura de Tiempos de Comida y sus Alternativas.
-            Los IDs de 'comedor' y 'horarioSolicitudComida' deben ser reemplazados por 'comedorNombre' y 'horarioSolicitudComidaNombre'.
+            Los IDs de 'comedor' y 'horarioSolicitudComida' son reemplazados por 'comedorNombre' y 'horarioSolicitudComidaNombre'.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex gap-4">
+        <CardContent className="flex flex-col sm:flex-row gap-4">
           <Input type="file" accept=".json" onChange={handleFileChange} className="max-w-sm" disabled={!residenciaId} />
-          <Button onClick={processFile} disabled={!file || isProcessing || loadingComedores || loadingHorarios || !residenciaId}>
-            {isProcessing ? 'Procesando...' : (loadingComedores || loadingHorarios ? 'Cargando catálogos...' : 'Procesar Archivo')}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button onClick={processFile} disabled={!file || isProcessing || loadingCatalogs || !residenciaId}>
+              {isProcessing ? 'Procesando...' : (loadingCatalogs ? 'Cargando...' : 'Procesar Archivo')}
+            </Button>
+            <Button onClick={handleDownloadSample} variant="outline">
+              Descargar Ejemplo
+            </Button>
+          </div>
         </CardContent>
       </Card>
       
@@ -339,7 +375,6 @@ const CargaHorariosPage = () => {
             )}
           </CardHeader>
           <CardContent>
-            {/* FASE 3: Previsualización */}
             <div className="max-h-[500px] overflow-auto">
               <Table>
                 <TableHeader>

@@ -81,7 +81,7 @@ function UserManagementPage(): JSX.Element | null {
         habitacion?: string;
         universidad?: string;
         carrera?: string;
-        dni?: string;
+        identificacion?: string;
         isActive?: boolean;
         password?: string;
         confirmPassword?: string;
@@ -133,7 +133,7 @@ function UserManagementPage(): JSX.Element | null {
             habitacion: '',
             universidad: '',
             carrera: '',
-            dni: '',
+            identificacion: '',
             password: '',
             confirmPassword: '',
             telefonoMovil: '',
@@ -374,7 +374,7 @@ function UserManagementPage(): JSX.Element | null {
                     habitacion: data.habitacion || '',
                     universidad: data.universidad || '',
                     carrera: data.carrera || '',
-                    dni: data.dni || '',
+                    identificacion: data.identificacion || '',
                     fechaDeNacimiento: data.fechaDeNacimiento || null, 
                     centroCostoPorDefectoId: data.centroCostoPorDefectoId || null,
                     puedeTraerInvitados: data.puedeTraerInvitados || 'no',
@@ -607,9 +607,11 @@ function UserManagementPage(): JSX.Element | null {
 
     const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        console.log("handleCreateUser: Function triggered.");
         setIsSaving(true);
     
         try {
+            console.log("handleCreateUser: Current form data state:", formData);
             let dataForValidation: Partial<ClientCreateUserForm> = { ...formData };
             
             if (dataForValidation.puedeTraerInvitados === null) {
@@ -635,9 +637,11 @@ function UserManagementPage(): JSX.Element | null {
                 dataForValidation.fechaDeNacimiento = formatted;
             }
 
+            console.log("handleCreateUser: Data prepared for validation:", dataForValidation);
             const validationResult = clientCreateUserFormSchema.safeParse(dataForValidation);
     
             if (!validationResult.success) {
+                console.error("handleCreateUser: Zod validation failed.", validationResult.error.flatten());
                 const zodErrors = validationResult.error.flatten();
                 const errorMessages: string[] = [];
     
@@ -689,6 +693,7 @@ function UserManagementPage(): JSX.Element | null {
                 return;
             }
     
+            console.log("handleCreateUser: Zod validation successful.", validationResult.data);
             const validatedData = validationResult.data;
     
             const profileDataForFunction: Omit<UserProfile, 'id'> = {
@@ -704,7 +709,7 @@ function UserManagementPage(): JSX.Element | null {
                 dietaId: validatedData.dietaId || undefined,
                 fechaDeNacimiento: validatedData.fechaDeNacimiento || null,
                 telefonoMovil: validatedData.telefonoMovil?.trim() || undefined,
-                dni: validatedData.dni?.trim() || undefined,
+                identificacion: validatedData.identificacion?.trim() || undefined,
                 numeroDeRopa: validatedData.numeroDeRopa?.trim() || undefined,
                 habitacion: validatedData.habitacion?.trim() || undefined,
                 universidad: validatedData.universidad?.trim() || undefined,
@@ -732,8 +737,10 @@ function UserManagementPage(): JSX.Element | null {
                 }
             });
     
+            console.log("handleCreateUser: Calling 'createUser' Firebase function with:", userDataForFunction);
             const result = await createUserCallable(userDataForFunction);
             const resultData = result.data as { success: boolean; userId?: string; message?: string };
+            console.log("handleCreateUser: 'createUser' function result:", resultData);
     
             if (resultData.success && resultData.userId) {
                 const newUserForUI: UserProfile = {
@@ -750,6 +757,7 @@ function UserManagementPage(): JSX.Element | null {
             }
     
         } catch (error: any) {
+            console.error("handleCreateUser: An error occurred in the catch block:", error);
             const message = error.message || "Ocurrió un error al contactar el servicio de creación.";
             let title = "Error al Crear Usuario";
             if (message.includes("already exists")) title = "Error de Duplicado";
@@ -757,6 +765,7 @@ function UserManagementPage(): JSX.Element | null {
     
             toast({ title: title, description: message, variant: "destructive" });
         } finally {
+            console.log("handleCreateUser: Function finished.");
             setIsSaving(false);
         }
     };
@@ -783,7 +792,7 @@ function UserManagementPage(): JSX.Element | null {
         habitacion: userToEdit.habitacion || '',
         universidad: userToEdit.universidad || '',
         carrera: userToEdit.carrera || '',
-        dni: userToEdit.dni || '',
+        identificacion: userToEdit.identificacion || '',
         password: '', confirmPassword: '',
         telefonoMovil: userToEdit.telefonoMovil || '',
         fechaDeNacimiento: userToEdit.fechaDeNacimiento ? formatTimestampForInput(userToEdit.fechaDeNacimiento) : '',
@@ -814,7 +823,7 @@ function UserManagementPage(): JSX.Element | null {
             habitacion: '',
             universidad: '',
             carrera: '',
-            dni: '',
+            identificacion: '',
             password: '',
             confirmPassword: '',
             telefonoMovil: '',
@@ -958,7 +967,7 @@ function UserManagementPage(): JSX.Element | null {
                 dietaId: validatedData.dietaId,
                 fechaDeNacimiento: validatedData.fechaDeNacimiento,
                 telefonoMovil: validatedData.telefonoMovil?.trim() || undefined,
-                dni: validatedData.dni?.trim() || undefined,
+                identificacion: validatedData.identificacion?.trim() || undefined,
                 numeroDeRopa: validatedData.numeroDeRopa?.trim() || undefined,
                 habitacion: validatedData.habitacion?.trim() || undefined,
                 universidad: validatedData.universidad?.trim() || undefined,
@@ -1005,7 +1014,7 @@ function UserManagementPage(): JSX.Element | null {
                     dietaId: (validatedData.roles!.includes('residente') && validatedData.dietaId) ? validatedData.dietaId : undefined,
                     fechaDeNacimiento: validatedData.fechaDeNacimiento || undefined,
                     telefonoMovil: validatedData.telefonoMovil?.trim() || undefined,
-                    dni: validatedData.dni?.trim() || undefined,
+                    identificacion: validatedData.identificacion?.trim() || undefined,
                     numeroDeRopa: validatedData.numeroDeRopa?.trim() || undefined,
                     habitacion: validatedData.habitacion?.trim() || undefined,
                     universidad: validatedData.universidad?.trim() || undefined,
@@ -1445,8 +1454,8 @@ function UserManagementPage(): JSX.Element | null {
                              <h4 className="text-base font-medium mb-3 text-slate-700 dark:text-slate-300">Detalles Adicionales (Opcional - Existentes)</h4>
                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                  <div className="space-y-1.5">
-                                     <Label htmlFor="dni">DNI</Label>
-                                     <Input id="dni" value={formData.dni || ''} onChange={(e) => handleFormChange('dni', e.target.value)} placeholder="Ej. 12345678" disabled={isSaving} />
+                                     <Label htmlFor="identificacion">Identificación</Label>
+                                     <Input id="identificacion" value={formData.identificacion || ''} onChange={(e) => handleFormChange('identificacion', e.target.value)} placeholder="Ej. 12345678" disabled={isSaving} />
                                  </div>
                                  <div className="space-y-1.5">
                                      <Label htmlFor="habitacion">Habitación</Label>

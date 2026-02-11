@@ -19,3 +19,15 @@ export const CadenaOpcionalLimitada = (min: number = 1, max?: number) => {
         .pipe(stringRule.optional()); // Aplicamos las reglas construidas arriba
 };
 
+export const TelefonoOpcionalSchema = z.string()
+    .trim()
+    .transform(v => v === "" ? undefined : v)
+    .pipe(z.string()
+        .regex(/^(\+?(\d[\d\- ]+)?(\([\d\- ]+\))?[\d\- ]+\d$)/, { message: "El formato del número de teléfono no es válido." })
+        .refine(val => {
+            const digits = val.replace(/\D/g, '').length;
+            return digits >= 7 && digits <= 15;
+        }, { message: "El número de teléfono debe tener entre 7 y 15 dígitos." })
+        .optional()
+    );
+

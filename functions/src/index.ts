@@ -821,7 +821,7 @@ export const createHardcodedMasterUser = onCall(
             habitacion: "",
             universidad: "",
             carrera: "",
-            dni: "",
+            identificacion: "",
             asistentePermisos: null, 
             notificacionPreferencias: null, 
             tieneAutenticacion: true,

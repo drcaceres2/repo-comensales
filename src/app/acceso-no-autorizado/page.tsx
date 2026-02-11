@@ -6,7 +6,7 @@ interface AccesoNoAutorizadoPageProps {
   };
 }
 
-export default async function AccesoNoAutorizadoPage({ searchParams }: AccesoNoAutorizadoPageProps) {
+export default function AccesoNoAutorizadoPage({ searchParams }: AccesoNoAutorizadoPageProps) {
   // In a Server Component, searchParams can be accessed directly.
   // The 'mensaje' will be passed to the Client Component.
   const customMessage = searchParams?.mensaje;

@@ -35,8 +35,14 @@ export const IsoDateStringSchema = z.string().regex(
     { message: "La fecha debe tener formato YYYY-MM-DD válido" }
 );
 
+// Formato YYYY-MM-DD opcional (para formularios)
+export const OptionalIsoDateStringSchema = z.string()
+    .trim()
+    .transform(v => v === "" ? undefined : v)
+    .pipe(IsoDateStringSchema.optional());
+
 // Formato YYYY-MM-DD HH:mm:ss
-export const isoDateTimeStringSchema = z.string().regex(
+export const IsoDateTimeStringSchema = z.string().regex(
     /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01]) ([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/,
     { message: "La fecha y hora debe tener formato YYYY-MM-DD HH:mm:ss válido" }
 );
@@ -84,3 +90,4 @@ export const campoFechaConZonaHorariaSchema = z.object({
     }, "Formato de fecha/hora inválido"),
     zonaHoraria: IanaTimezoneSchema,
 });
+

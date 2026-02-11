@@ -3,6 +3,44 @@
 import { db } from '../../../lib/firebaseAdmin';
 import { HorarioSolicitudComidaSchema } from '@/../shared/schemas/horariosSolicitudComida';
 import { ZodError } from 'zod';
+import { Comedor, HorarioSolicitudComida } from '@/../shared/models/types';
+
+export async function getCatalogosParaCargaHorarios(residenciaId: string): Promise<{ comedores: Comedor[], horarios: HorarioSolicitudComida[] }> {
+  try {
+    if (!residenciaId) {
+      throw new Error("residenciaId no fue provisto");
+    }
+
+    const comedoresPromise = db.collection('comedores')
+      .where('residenciaId', '==', residenciaId)
+      .orderBy('nombre')
+      .get();
+
+    const horariosPromise = db.collection('horariosSolicitudComida')
+      .where('residenciaId', '==', residenciaId)
+      .orderBy('dia')
+      .orderBy('horaSolicitud')
+      .get();
+
+    const [comedoresSnapshot, horariosSnapshot] = await Promise.all([
+      comedoresPromise,
+      horariosPromise
+    ]);
+
+    const comedores = comedoresSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Comedor[];
+    const horarios = horariosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as HorarioSolicitudComida[];
+
+    // Serialización simple: Los datos de Firestore ya son serializables si no contienen Timestamps complejos, etc.
+    // En este caso, Comedor y HorarioSolicitudComida deberían ser seguros.
+    return { comedores, horarios };
+
+  } catch (error) {
+    console.error("Error fetching catalogs for carga masiva:", error);
+    // En lugar de retornar un objeto con error, lanzamos el error para que sea capturado por el `try-catch` del cliente.
+    throw new Error('No se pudieron cargar los catálogos desde el servidor.');
+  }
+}
+
 
 export type HorarioActionState = {
   result: { action: 'created' | 'updated' | 'deleted'; id: string } | null;
