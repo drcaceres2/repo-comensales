@@ -6,7 +6,10 @@ import { ZodError } from 'zod';
 
 export type ComedorActionState = {
   result: { action: 'created' | 'updated'; id: string } | null;
-  error: ZodError | string | null;
+  error: {
+    formErrors: string[];
+    fieldErrors: { [k: string]: string[] | undefined };
+  } | null;
 };
 
 export const comedorServerAction = async (
@@ -81,8 +84,13 @@ export const comedorServerAction = async (
   } catch (err) {
     console.error('Error in comedorServerAction:', err);
     if (err instanceof ZodError) {
-      return { result: null, error: err };
+      // Return the flattened error object, which is serializable
+      return { result: null, error: err.flatten() };
     }
-    return { result: null, error: String(err) };
+    // For other errors, return a simple object with a message
+    return {
+      result: null,
+      error: { formErrors: [(err as Error).message], fieldErrors: {} },
+    };
   }
 };

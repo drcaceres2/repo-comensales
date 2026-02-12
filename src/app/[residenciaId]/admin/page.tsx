@@ -330,19 +330,31 @@ function ResidenciaHorariosComedoresPage() {
   }, [horarioState, toast, fetchHorarios]);
 
   useEffect(() => {
+    // The error object is now always a plain object with fieldErrors, or null.
     if (comedorState?.error) {
-      // Check if it's a ZodError by looking for the flatten method
-      if (typeof comedorState.error === 'object' && comedorState.error && 'flatten' in comedorState.error) {
-        const flattenedErrors = (comedorState.error as any).flatten().fieldErrors;
-        setComedorFormErrors(flattenedErrors);
+      const fieldErrors = comedorState.error.fieldErrors;
+      const formErrors = comedorState.error.formErrors;
+
+      const hasFieldErrors = Object.values(fieldErrors).some(field => field && field.length > 0);
+
+      if (hasFieldErrors) {
+        const filteredFieldErrors = Object.entries(fieldErrors).reduce((acc, [key, value]) => {
+            if (value && value.length > 0) {
+                acc[key] = value;
+            }
+            return acc;
+        }, {} as Record<string, string[]>);
+        
+        setComedorFormErrors(filteredFieldErrors);
+
         toast({
           title: 'Error de Validación',
           description: 'Por favor, revisa los campos marcados.',
           variant: 'destructive',
         });
-      } else {
-        // It's a string error or another type of error
-        toast({ title: 'Error', description: String(comedorState.error), variant: 'destructive' });
+      } else if (formErrors.length > 0) {
+        const errorMessage = formErrors.join(', ');
+        toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
         setComedorFormErrors({}); // Clear any previous field-specific errors
       }
     } else if (comedorState?.result) {

@@ -705,7 +705,7 @@ function UserManagementPage(): JSX.Element | null {
             console.log("handleCreateUser: Zod validation successful.", validationResult.data);
             const validatedData = validationResult.data;
     
-            const profileDataForFunction: Omit<UserProfile, 'id'> = {
+            const profileDataForFunction: Partial<Omit<UserProfile, 'id'>> = {
                 nombre: validatedData.nombre!.trim(),
                 apellido: validatedData.apellido!.trim(),
                 email: validatedData.email!.trim(),
@@ -728,8 +728,6 @@ function UserManagementPage(): JSX.Element | null {
                 notificacionPreferencias: (validatedData.notificacionPreferencias as any) || undefined,
                 centroCostoPorDefectoId: validatedData.centroCostoPorDefectoId || undefined,
                 camposPersonalizados: validatedData.camposPersonalizados || {},
-                fechaHoraCreacion: null,
-                ultimaActualizacion: null,
             };
     
             const userDataForFunction = {

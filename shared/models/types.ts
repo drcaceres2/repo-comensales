@@ -281,7 +281,7 @@ export interface AlternativaTiempoComida {
     isActive: boolean;
 }
 export type TipoAlternativa = 'comedor' | 'paraLlevar' | 'ayuno';
-export type TipoAccesoAlternativa = 'abierto' | 'autorizado' | 'cerrado';
+export type TipoAccesoAlternativa = 'abierto' | 'requiere_autorizacion' | 'oculto_residentes';
 export type AlteracionHorarioId = string;
 export interface AlteracionHorario {
     id: AlteracionHorarioId;

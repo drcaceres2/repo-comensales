@@ -379,7 +379,7 @@ function CargaMasivaHorariosPage() {
                 <Label htmlFor="file-upload">Archivo JSON</Label>
                 <Input id="file-upload" type="file" accept=".json" onChange={handleFileChange} />
             </div>
-            <div className="flex space-x-2">
+            <div className="flex flex-wrap gap-2">
                 <Button onClick={handleUpload} disabled={isProcessing || !file}>
                     {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                     {isProcessing ? 'Procesando...' : 'Cargar y Procesar Archivo'}
