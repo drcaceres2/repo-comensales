@@ -202,7 +202,7 @@ service cloud.firestore {
       allow delete: if isMaster();
     }
 
-    match /logEntries/{docId} {
+    match /logs/{docId} {
       allow get:    if isMaster();
       allow list:   if isMaster();
       allow create: if isMaster() || checkCreate(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador', 'master']);

@@ -237,12 +237,13 @@ function CargaMasivaHorariosPage() {
 
       await batch.commit();
 
+      setIsProcessing(false);
+      setFile(null);
+      
       toast({
         title: "Carga Exitosa",
         description: `Se han creado ${horarios.length} horarios, ${tiempos.length} tiempos de comida y ${alternativas.length} alternativas.`,
       });
-      setFile(null);
-
 
     } catch (error: any) {
       console.error("Error processing file:", error);
@@ -251,7 +252,6 @@ function CargaMasivaHorariosPage() {
         description: error.message || "Ocurrió un error desconocido al procesar el archivo.",
         variant: "destructive",
       });
-    } finally {
       setIsProcessing(false);
     }
   };
