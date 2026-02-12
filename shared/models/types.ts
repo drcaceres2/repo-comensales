@@ -521,43 +521,65 @@ export type RecurrenciaRecordatorio = 'semanal' | 'quincenal' | 'mensual-diasema
  */
 export type ActividadId = string; 
 export interface Actividad {
-    //Campos generales
+    // Campos generales
     id: ActividadId;
     residenciaId: ResidenciaId;
+    organizadorId: UserId; 
     nombre: string; 
-    descripcionGeneral?: string;
-    maxParticipantes?: number;
+    descripcion?: string;
     estado: ActividadEstado;
-    organizadorUserId: UserId; 
-    comensalesNoUsuarios?: number; // se inscriben usuarios, se pueden inscribir invitados que no son usuarios y también se puede sencillamente agregar un número no asociado a un usuario (autenticado o no autenticado)
+    tipoSolicitudComidas: TipoSolicitudComidasActividad;
 
-    //Campos de cálculo de comidas
+    // Campos de cálculo de comidas
     fechaInicio: IsoDateString; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
     fechaFin: IsoDateString; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
-    ultimoTiempoComidaAntes: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
-    primerTiempoComidaDespues: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
+    tiempoComidaInicial: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
+    tiempoComidaFinal: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
     planComidas: TiempoComidaAlternativaUnicaActividad[]; 
-    tipoSolicitudComidas: TipoSolicitudComidasActividad;
-    estadoSolicitudAdministracion: 'no_solicitado' | 'solicitud_inicial_realizada' | 'completada';
     comedorActividad?: ComedorId | null;
     modoAtencionActividad: 'residencia' | 'externa'; // En la solicitud de comidas que lee el director, si es "residencia" lo verá con todos los demás comensales. Si es "externa" lo verá en la sección de actividades
 
     // Campos de lógica de inscripción
-    requiereInscripcion: boolean;
-    diasAntelacionCierreInscripcion?: number; 
-    tipoAccesoActividad: TipoAccesoActividad; 
-    aceptaResidentes: boolean;
-    aceptaInvitados: 'no' | 'por_invitacion' | 'invitacion_libre';
+    maxParticipantes?: number;
+    comensalesNoUsuarios: number; // se inscriben usuarios, se pueden inscribir invitados que no son usuarios y también se puede sencillamente agregar un número no asociado a un usuario (autenticado o no autenticado)
+    requiereInscripcion: boolean; // false significaría que las comidas se pedirán a la administración sin interacción de los involucraddos en "Comensales Residencia"
+    diasAntelacionSolicitudAdministracion: number; 
+    tipoAccesoResidentes?: TipoAccesoActividad; 
+    tipoAccesoInvitados?: TipoAccesoActividad;
 
     // Campos de costo
     defaultCentroCostoId?: CentroCostoId | null; 
 }
-export type ActividadEstado = 'borrador' | 'abierta_inscripcion' | 'cerrada_inscripcion' | 'confirmada_finalizada' | 'cancelada';
+export type ActividadEstado = 'borrador' | 'inscripcion_abierta' | 'inscripcion_cerrada' 
+| 'solicitada_administracion' | 'cancelada';
+/** 
+ * TipoAccesoActividad
+ * Abierta quiere decir que se inscribe voluntariamente quien lo desee. 
+ * Por invitación, como lo dice el texto. 
+ * Opción única quiere decir que no habrá otra opción para los residentes (los tiempos de comida omitidos no estarán disponibles en la residencia).
+ */
 export type TipoAccesoActividad = 'abierta' | 'invitacion_requerida' | 'opcion_unica'; 
+/**
+ * TipoSolicitudComidasActividad
+ * Aquí se define el modo en como se debe solicitar la actividad 
+ * a la administración.
+ * 
+ * 1. Ninguna: 
+ *      No se solicita a la administración. Por ejemplo si la comida 
+ *      no la prepara la administración. Igualmente sirve en la aplicación
+ *      porque los inscritos dejarán de verse reflejados en los comensales
+ *      normales.
+ * 2. Solicitud unica: Es la forma ordinaria de solicitar una actividad.
+ *      Se solicita a la administración con la antelación debida.
+ * 3. Diario: Por la longitud de la actividad, se pide a la administración
+ *      cada día en el horario normal. Por ejemplo una convivencia larga con gente
+ *      de afuera, un retiro de gente externa que vienen y van, etc.
+ * 4. Solicitud inicial mas confirmacion diaria: 
+ *      Se solicita una vez con antelación y se confirma diariamente.
+ */
 export type TipoSolicitudComidasActividad = 
-    | 'ninguna' | 'solicitud_unica' | 'diario_externo' | 'diario_residencia' 
-    | 'solicitud_inicial_mas_confirmacion_diaria_residencia' 
-    | 'solicitud_inicial_mas_confirmacion_diaria_externa';
+    | 'ninguna' | 'solicitud_unica' | 'solicitud_diaria' 
+    | 'solicitud_inicial_mas_confirmacion_diaria';
 export type InscripcionActividadId = string;   
 export interface InscripcionActividad {
     id: InscripcionActividadId; 
@@ -574,7 +596,7 @@ export interface InscripcionActividad {
 export type EstadoInscripcionActividad =
     | 'invitado_pendiente' | 'invitado_rechazado' | 'invitado_aceptado'    
     | 'inscrito_directo'     
-    | 'cancelado_usuario' | 'cancelado_admin';     
+    | 'cancelado_usuario' | 'cancelado_admin';
 export type TiempoComidaAlternativaUnicaActividadId = string; 
 export interface TiempoComidaAlternativaUnicaActividad {
     id: TiempoComidaAlternativaUnicaActividadId; 

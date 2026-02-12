@@ -51,26 +51,34 @@ const getDefaultMealDefinition = (): Partial<ActividadMealDefinition> => ({
     nombreGrupoTiempoComida: '',
     ordenGrupoTiempoComida: 0,
     fecha: new Date().toISOString(),
-    horaEstimadaMeal: '', 
+    horaEstimadaMeal: '12:00:00', 
 });
 
-const getDefaultActividad = (residenciaId: ResidenciaId, organizadorUserId: UserId, antelacionDefault?: number): Partial<Actividad> => ({
-    residenciaId,
-    nombre: '',
-    descripcionGeneral: '',
-    fechaInicio: new Date().toISOString().slice(0, 16),
-    fechaFin: new Date().toISOString().slice(0, 16),
-    ultimoTiempoComidaAntes: undefined,
-    primerTiempoComidaDespues: undefined,
-    planComidas: [getDefaultMealDefinition() as ActividadMealDefinition], 
-    requiereInscripcion: true,
-    tipoAccesoActividad: 'abierta',
-    maxParticipantes: undefined,
-    diasAntelacionCierreInscripcion: antelacionDefault ?? 7, 
-    defaultCentroCostoId: undefined,
-    estado: 'borrador',
-    organizadorUserId
-});
+const getDefaultActividad = (residenciaId: ResidenciaId, organizadorUserId: UserId, antelacionDefault?: number): Partial<Actividad> => {
+    const now = new Date();
+    now.setMinutes(0, 0, 0);
+    // Format YYYY-MM-DDTHH:mm (local time)
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localISO = new Date(now.getTime() - tzOffset).toISOString().slice(0, 16);
+    
+    return {
+        residenciaId,
+        nombre: '',
+        descripcionGeneral: '',
+        fechaInicio: localISO,
+        fechaFin: localISO,
+        ultimoTiempoComidaAntes: undefined,
+        primerTiempoComidaDespues: undefined,
+        planComidas: [getDefaultMealDefinition() as ActividadMealDefinition], 
+        requiereInscripcion: true,
+        tipoAccesoActividad: 'abierta',
+        maxParticipantes: undefined,
+        diasAntelacionCierreInscripcion: antelacionDefault ?? 7, 
+        defaultCentroCostoId: undefined,
+        estado: 'borrador',
+        organizadorUserId
+    };
+};
 
 function AdminActividadesPage() {
     const params = useParams();
@@ -98,6 +106,7 @@ function AdminActividadesPage() {
         {} // Will be initialized by open form handlers
     );
     const [isSavingActividad, setIsSavingActividad] = useState(false);
+    const [validationError, setValidationError] = useState<string | null>(null);
 
     // --- Authorization (useEffect hooks as before) ---
     useEffect(() => {
@@ -211,11 +220,13 @@ function AdminActividadesPage() {
     const handleCloseForm = () => {
         setShowActivityForm(false);
         setEditingActividad(null);
+        setValidationError(null);
         // No need to reset currentActividadFormData here, it will be reset on next open
     };
 
     const handleFormInputChange = (field: keyof Actividad, value: any) => {
         setCurrentActividadFormData(prev => ({ ...prev, [field]: value }));
+        if (validationError) setValidationError(null);
     };
     
     // Specific handler for date/time inputs if needed, but often direct value from event.target.value works for datetime-local
@@ -249,36 +260,63 @@ function AdminActividadesPage() {
 
     // --- CRUD Operations ---
     const handleSubmitActividad = async () => {
+        setValidationError(null);
+        console.log("Submitting Actividad form data:", currentActividadFormData);
+
+        if (!authUser) {
+            console.error("No authenticated user found during submission");
+            toast({ title: "Error", description: "Debes estar autenticado para realizar esta acción.", variant: "destructive" });
+            return;
+        }
+
         const dataToValidate = {
             ...currentActividadFormData,
             residenciaId: residenciaId,
-            organizadorUserId: currentActividadFormData.organizadorUserId || authUser!.uid,
+            organizadorUserId: currentActividadFormData.organizadorUserId || authUser.uid,
+            // Ensure values required by schema are at least defined
+            estado: currentActividadFormData.estado || 'borrador',
+            tipoSolicitudComidas: currentActividadFormData.tipoSolicitudComidas || 'ninguna',
+            estadoSolicitudAdministracion: currentActividadFormData.estadoSolicitudAdministracion || 'no_solicitado',
+            modoAtencionActividad: currentActividadFormData.modoAtencionActividad || 'residencia',
+            requiereInscripcion: currentActividadFormData.requiereInscripcion ?? true,
+            tipoAccesoActividad: currentActividadFormData.tipoAccesoActividad || 'abierta',
+            aceptaResidentes: currentActividadFormData.aceptaResidentes ?? true,
+            aceptaInvitados: currentActividadFormData.aceptaInvitados || 'no',
         };
+
+        console.log("Data being validated by Zod:", dataToValidate);
 
         const validationResult = ActividadSchema.partial().safeParse(dataToValidate);
 
         if (!validationResult.success) {
+            console.error("Zod Validation Errors:", validationResult.error.format());
             const firstError = validationResult.error.errors[0];
+            const errorMsg = `${firstError.path.join('.')} - ${firstError.message}`;
+            setValidationError(errorMsg);
             toast({
                 title: "Error de Validación",
-                description: `${firstError.path.join('.')} - ${firstError.message}`,
+                description: errorMsg,
                 variant: "destructive",
             });
             return;
         }
 
         setIsSavingActividad(true);
+        
+        // Transform dates only if they exist and are valid
         const dataToSave = {
             ...validationResult.data,
-            fechaInicio: new Date(validationResult.data.fechaInicio!).toISOString(),
-            fechaFin: new Date(validationResult.data.fechaFin!).toISOString(),
+            fechaInicio: validationResult.data.fechaInicio ? new Date(validationResult.data.fechaInicio).toISOString() : new Date().toISOString(),
+            fechaFin: validationResult.data.fechaFin ? new Date(validationResult.data.fechaFin).toISOString() : new Date().toISOString(),
         };
+
+        console.log("Data to be saved to Firestore:", dataToSave);
 
         try {
             if (editingActividad) { // Update
                 const actividadRef = doc(db, "actividades", editingActividad.id);
-                await updateDoc(actividadRef, dataToSave);
-                setActividades(prev => prev.map(act => act.id === editingActividad.id ? { ...act, ...dataToSave } : act).sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
+                await updateDoc(actividadRef, dataToSave as any);
+                setActividades(prev => prev.map(act => act.id === editingActividad.id ? { ...act, ...dataToSave } as Actividad : act).sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
                 toast({ title: "Actividad Actualizada", description: `"${dataToSave.nombre}" ha sido actualizada.` });
                 await logClientAction(
                     'ACTIVIDAD_ACTUALIZADA', 
@@ -305,7 +343,9 @@ function AdminActividadesPage() {
             handleCloseForm();
         } catch (error) {
             console.error("Error saving actividad:", error);
-            toast({ title: "Error al Guardar", description: `No se pudo guardar la actividad. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
+            const errorMsg = `No se pudo guardar la actividad. ${error instanceof Error ? error.message : ''}`;
+            setValidationError(errorMsg);
+            toast({ title: "Error al Guardar", description: errorMsg, variant: "destructive" });
         } finally {
             setIsSavingActividad(false);
         }
@@ -434,7 +474,7 @@ function AdminActividadesPage() {
                                     <XIcon className="h-5 w-5" />
                                 </Button>
                             </CardHeader>
-                            <CardContent className="space-y-6 py-4 flex-grow overflow-y-auto"> {/* Added more spacing and py-4 */}
+                            <CardContent className="space-y-6 py-4 flex-grow"> {/* Added more spacing and py-4 */}
                                 {/* Basic Information */}
                                 <div className="space-y-2">
                                     <Label htmlFor="act-nombre" className="text-base font-semibold">Información Básica</Label>
@@ -675,12 +715,20 @@ function AdminActividadesPage() {
                                     </div>
                                 </div>
                             </CardContent>
-                            <CardFooter className="flex-shrink-0 flex justify-end space-x-2 sticky bottom-0 bg-background py-4 border-t">
-                                <Button variant="outline" onClick={handleCloseForm} disabled={isSavingActividad}>Cancelar</Button>
-                                <Button onClick={handleSubmitActividad} disabled={isSavingActividad}>
-                                    {isSavingActividad && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    {editingActividad ? "Guardar Cambios" : "Crear Actividad"}
-                                </Button>
+                            <CardFooter className="flex-shrink-0 flex flex-col items-end space-y-2 sticky bottom-0 bg-background py-4 border-t">
+                                {validationError && (
+                                    <div className="w-full flex items-center gap-2 text-destructive text-sm font-medium mb-2 px-1">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <span>{validationError}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-end space-x-2 w-full">
+                                    <Button variant="outline" onClick={handleCloseForm} disabled={isSavingActividad}>Cancelar</Button>
+                                    <Button onClick={handleSubmitActividad} disabled={isSavingActividad}>
+                                        {isSavingActividad && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        {editingActividad ? "Guardar Cambios" : "Crear Actividad"}
+                                    </Button>
+                                </div>
                             </CardFooter>
                         </Card>
                     </div>
