@@ -357,15 +357,9 @@ function CargaMasivaHorariosPage() {
   
   return (
     <div className="container mx-auto p-4 space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-            <h1 className="text-3xl font-bold">
-                Carga Masiva de Horarios: {residenciaDetails?.nombre || ''}
-            </h1>
-             {residenciaDetails && <p className="text-sm text-muted-foreground">ID Residencia: {residenciaDetails.id}</p>}
-        </div>
-        <Button onClick={() => auth.signOut().then(()=>router.push('/'))} variant="outline">Cerrar Sesión</Button>
-      </div>
+      <h1 className="text-3xl font-bold tracking-tight">
+        Carga Masiva de Horarios para <span className="text-primary">{residenciaDetails?.nombre || ''}</span>
+      </h1>
 
       <Card>
         <CardHeader>
@@ -384,7 +378,7 @@ function CargaMasivaHorariosPage() {
                     {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                     {isProcessing ? 'Procesando...' : 'Cargar y Procesar Archivo'}
                 </Button>
-                <Button onClick={handleDownloadSample} variant="outline">
+                <Button onClick={handleDownloadSample} variant="secondary">
                     <Download className="mr-2 h-4 w-4" />
                     Descargar Ejemplo
                 </Button>

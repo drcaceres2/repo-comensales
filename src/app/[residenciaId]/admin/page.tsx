@@ -922,31 +922,28 @@ function ResidenciaHorariosComedoresPage() {
   // --- Main Page Content when targetResidenciaId IS set ---
   return (
     <div className="container mx-auto p-4 space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-            <h1 className="text-3xl font-bold">
-                Comedores y Horarios Solicitud Administración para: {loadingResidenciaDetails ? <Loader2 className="inline h-6 w-6 animate-spin" /> : residenciaDetails?.nombre || 'Desconocida'}
-            </h1>
-            {userProfile && <p className="text-muted-foreground">Usuario: {userProfile.email} (Rol: {userProfile.roles?.join(', ')})</p>}
-            {residenciaDetails && <p className="text-sm text-muted-foreground">ID Residencia: {residenciaDetails.id}</p>}
-        </div>
-        <Button onClick={() => auth.signOut().then(()=>router.push('/'))} variant="outline">Cerrar Sesión</Button>
-      </div>
+      <h1 className="text-3xl font-bold tracking-tight">
+        Gestión de Comedores y Horarios para {loadingResidenciaDetails ? <Loader2 className="inline h-6 w-6 animate-spin" /> : <span className="text-primary">{residenciaDetails?.nombre || 'Desconocida'}</span>}
+      </h1>
 
       {/* Section for Comedores */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle><Building className="inline mr-2"/>Comedores</CardTitle>
-            {canEdit && !showComedorForm && (
-              <Button onClick={handleCreateNewComedor} disabled={showComedorForm || formLoadingComedor}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Comedor
-              </Button>
-            )}
-          </div>
-          <CardDescription>
-            {canEdit ? "Administra los comedores de la residencia." : "Visualiza los comedores de la residencia."}
-          </CardDescription>
+            <div className="flex flex-col md:flex-row md:justify-between md:items-start">
+                <div>
+                    <CardTitle><Building className="inline mr-2"/>Comedores</CardTitle>
+                    <CardDescription className="mt-2">
+                        {canEdit ? "Administra los comedores de la residencia." : "Visualiza los comedores de la residencia."}
+                    </CardDescription>
+                </div>
+                {canEdit && !showComedorForm && (
+                    <div className="mt-4 md:mt-0">
+                        <Button onClick={handleCreateNewComedor} disabled={showComedorForm || formLoadingComedor}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Comedor
+                        </Button>
+                    </div>
+                )}
+            </div>
         </CardHeader>
         <CardContent>
           {/* TODO: Comedor Form (conditional on showComedorForm) */}
@@ -1112,17 +1109,21 @@ function ResidenciaHorariosComedoresPage() {
       {/* Section for HorariosSolicitudComida */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle><Clock className="inline mr-2"/>Horarios de Solicitud de Comida</CardTitle>
-            {canEdit && !showHorarioForm && (
-              <Button onClick={handleCreateNewHorario} disabled={showHorarioForm || formLoadingHorario}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Horario
-              </Button>
-            )}
-          </div>
-           <CardDescription>
-             {canEdit ? "Define cuándo los directores pueden solicitar comidas." : "Visualiza los horarios de solicitud de comida."}
-          </CardDescription>
+            <div className="flex flex-col md:flex-row md:justify-between md:items-start">
+                <div>
+                    <CardTitle><Clock className="inline mr-2"/>Horarios de Solicitud de Comida</CardTitle>
+                    <CardDescription className="mt-2">
+                        {canEdit ? "Define cuándo los directores pueden solicitar comidas." : "Visualiza los horarios de solicitud de comida."}
+                    </CardDescription>
+                </div>
+                {canEdit && !showHorarioForm && (
+                    <div className="mt-4 md:mt-0">
+                        <Button onClick={handleCreateNewHorario} disabled={showHorarioForm || formLoadingHorario}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Horario
+                        </Button>
+                    </div>
+                )}
+            </div>
         </CardHeader>
         <CardContent>
           {/* TODO: Horario Form (conditional on showHorarioForm) */}

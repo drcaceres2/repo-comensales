@@ -24,7 +24,7 @@ import {
     AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
     AlertDialogContent, AlertDialogDescription 
 } from "@/components/ui/alert-dialog";
-import { Loader2, PlusCircle, Trash2, Edit, AlertCircle, CalendarIcon, XIcon } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Edit, AlertCircle, CalendarIcon, XIcon, Activity } from 'lucide-react';
 
 // Types from types.ts
 import {
@@ -345,10 +345,14 @@ function AdminActividadesPage() {
 
     return (
         <div className="container mx-auto p-4 space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold tracking-tight">
-                    Gestionar Actividades para {residencia ? <span className="text-primary">{residencia.nombre}</span> : <Loader2 className="h-6 w-6 animate-spin inline-block" />}
-                </h1>
+            <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                    <Activity className="h-8 w-8 text-primary" />
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">Gestionar Actividades</h1>
+                        {residencia && <p className="text-muted-foreground">para <span className="font-semibold text-primary">{residencia.nombre}</span></p>}
+                    </div>
+                </div>
                 <Button onClick={handleOpenAddForm}>
                     <PlusCircle className="mr-2 h-5 w-5" /> Añadir Nueva Actividad
                 </Button>
@@ -541,11 +545,11 @@ function AdminActividadesPage() {
                                             <Label htmlFor="act-defaultCentroCosto">Centro de Costo por Defecto</Label>
                                             <Select
                                                 value={currentActividadFormData.defaultCentroCostoId || ''}
-                                                onValueChange={(value: CentroCostoId) => handleFormInputChange('defaultCentroCostoId', value || undefined)}
+                                                onValueChange={(value: CentroCostoId) => handleFormInputChange('defaultCentroCostoId', value === 'none' ? undefined : value)}
                                             >
                                                 <SelectTrigger id="act-defaultCentroCosto"><SelectValue placeholder="Seleccionar centro de costo..." /></SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="">Ninguno</SelectItem>
+                                                    <SelectItem value="none">Ninguno</SelectItem>
                                                     {centroCostosList.map(cc => (
                                                         <SelectItem key={cc.id} value={cc.id}>{cc.nombre}</SelectItem>
                                                     ))}
@@ -556,11 +560,11 @@ function AdminActividadesPage() {
                                             <Label htmlFor="act-ultimoAntes">Última Comida Estándar ANTES de la Actividad</Label>
                                             <Select
                                                 value={currentActividadFormData.ultimoTiempoComidaAntes || ''}
-                                                onValueChange={(value: TiempoComidaId) => handleFormInputChange('ultimoTiempoComidaAntes', value || undefined)}
+                                                onValueChange={(value: TiempoComidaId) => handleFormInputChange('ultimoTiempoComidaAntes', value === 'none' ? undefined : value)}
                                             >
                                                 <SelectTrigger id="act-ultimoAntes"><SelectValue placeholder="Opcional: Seleccionar tiempo..." /></SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="">Ninguno / No aplica</SelectItem>
+                                                    <SelectItem value="none">Ninguno / No aplica</SelectItem>
                                                     {tiemposComidaList.map(tc => (
                                                         <SelectItem key={tc.id} value={tc.id}>{tc.nombreGrupo} - {tc.nombre} ({tc.dia ? DayOfWeekMap[tc.dia] : ''})</SelectItem>
                                                     ))}
@@ -572,11 +576,11 @@ function AdminActividadesPage() {
                                             <Label htmlFor="act-primeroDespues">Primera Comida Estándar DESPUÉS de la Actividad</Label>
                                             <Select
                                                 value={currentActividadFormData.primerTiempoComidaDespues || ''}
-                                                onValueChange={(value: TiempoComidaId) => handleFormInputChange('primerTiempoComidaDespues', value || undefined)}
+                                                onValueChange={(value: TiempoComidaId) => handleFormInputChange('primerTiempoComidaDespues', value === 'none' ? undefined : value)}
                                             >
                                                 <SelectTrigger id="act-primeroDespues"><SelectValue placeholder="Opcional: Seleccionar tiempo..." /></SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="">Ninguno / No aplica</SelectItem>
+                                                    <SelectItem value="none">Ninguno / No aplica</SelectItem>
                                                     {tiemposComidaList.map(tc => (
                                                         <SelectItem key={tc.id} value={tc.id}>{tc.nombreGrupo} - {tc.nombre} ({tc.dia ? DayOfWeekMap[tc.dia] : ''})</SelectItem>
                                                     ))}
@@ -588,15 +592,13 @@ function AdminActividadesPage() {
 
                                 {/* Plan de Comidas de la Actividad */}
                                 <div className="space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <Label className="text-base font-semibold">Plan de Comidas de la Actividad</Label>
+                                    <Label className="text-base font-semibold">Plan de Comidas de la Actividad</Label>
+                                    <div className="pl-2 space-y-4">
                                         <Button variant="outline" size="sm" onClick={handleAddMealToPlan}>
                                             <PlusCircle className="mr-2 h-4 w-4" />Añadir Comida al Plan
                                         </Button>
-                                    </div>
-                                    {currentActividadFormData.planComidas && currentActividadFormData.planComidas.length > 0 ? (
-                                        <div className="pl-2 space-y-4">
-                                            {currentActividadFormData.planComidas.map((meal, index) => (
+                                        {currentActividadFormData.planComidas && currentActividadFormData.planComidas.length > 0 ? (
+                                            currentActividadFormData.planComidas.map((meal, index) => (
                                                 <Card key={meal.id || index} className="p-4 bg-slate-50 dark:bg-slate-800/50">
                                                     <div className="flex justify-between items-start mb-2">
                                                         <p className="font-medium text-sm">Comida #{index + 1}</p>
@@ -645,11 +647,11 @@ function AdminActividadesPage() {
                                                         </div>
                                                     </div>
                                                 </Card>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <p className="text-sm text-muted-foreground pl-2">No hay comidas definidas para esta actividad.</p>
-                                    )}
+                                            ))
+                                        ) : (
+                                            <p className="text-sm text-muted-foreground">No hay comidas definidas para esta actividad.</p>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Estado de la Actividad */}

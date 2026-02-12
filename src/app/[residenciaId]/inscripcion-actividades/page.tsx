@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/useToast";
-import { Loader2, AlertCircle, Home, CalendarDays, Info, CheckCircle, XCircle, UserPlus, LogOut, MailCheck, MailWarning, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Loader2, AlertCircle, Activity, CalendarDays, Info, CheckCircle, XCircle, UserPlus, LogOut, MailCheck, MailWarning, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 
 // Types from firestore.ts
@@ -32,7 +32,7 @@ import { logClientAction } from '@/lib/utils';
 import {
     InscripcionActividadCreateSchema,
     InscripcionActividadUpdateSchema
-} from '@/../../shared/schemas/actividades';
+} from '@/../shared/schemas/actividades';
 
 const formatActivityDateRange = (fechaInicio: string | Timestamp | undefined, fechaFin: string | Timestamp | undefined): string => {
     if (!fechaInicio || !fechaFin) return 'Fechas no definidas';
@@ -117,7 +117,7 @@ export default function ResidenteActividadesPage() {
             setResidencia(residenciaSnap.data() as Residencia);
 
             const inscriptionsQuery = query(
-                collection(db, "inscripcionesActividad"),
+                collection(db, "inscripcionesActividades"),
                 where("residenciaId", "==", residenciaId),
                 where("userId", "==", currentUser.uid)
             );
@@ -213,7 +213,7 @@ export default function ResidenteActividadesPage() {
             // <<< NEW: Check for maxParticipants before signing up >>>
             if (selectedActivity.maxParticipantes && selectedActivity.maxParticipantes > 0) {
                 const inscriptionsForActivityQuery = query(
-                    collection(db, "inscripcionesActividad"),
+                    collection(db, "inscripcionesActividades"),
                     where("actividadId", "==", selectedActivity.id),
                     where("estadoInscripcion", "in", ['inscrito_directo', 'inscrito_aceptado', 'invitado_pendiente']) // Count active/pending states
                 );
@@ -243,7 +243,7 @@ export default function ResidenteActividadesPage() {
                 fechaHoraCreacion: serverTimestamp() as any,
                 fechaHoraModificacion: serverTimestamp() as any,
             };
-            const docRef = await addDoc(collection(db, "inscripcionesActividad"), newInscriptionData);
+            const docRef = await addDoc(collection(db, "inscripcionesActividades"), newInscriptionData);
             const newInscription = { 
                 ...newInscriptionData, 
                 id: docRef.id, 
@@ -281,7 +281,7 @@ export default function ResidenteActividadesPage() {
             // <<< NEW: Check for maxParticipants before accepting invitation >>>
             if (accept && selectedActivity.maxParticipantes && selectedActivity.maxParticipantes > 0) {
                 const inscriptionsForActivityQuery = query(
-                    collection(db, "inscripcionesActividad"),
+                    collection(db, "inscripcionesActividades"),
                     where("actividadId", "==", selectedActivity.id),
                     where("estadoInscripcion", "in", ['inscrito_directo', 'inscrito_aceptado', 'invitado_pendiente']) 
                 );
@@ -302,7 +302,7 @@ export default function ResidenteActividadesPage() {
             }
             // <<< END NEW >>>
 
-            const inscriptionRef = doc(db, "inscripcionesActividad", currentInscription.id);
+            const inscriptionRef = doc(db, "inscripcionesActividades", currentInscription.id);
             const newEstado: EstadoInscripcionActividad = accept ? 'invitado_aceptado' : 'invitado_rechazado';
             
             // Validar datos de actualización
@@ -345,7 +345,7 @@ export default function ResidenteActividadesPage() {
         }
         setIsProcessing(true);
         try {
-            const inscriptionRef = doc(db, "inscripcionesActividad", inscriptionToCancel.id);
+            const inscriptionRef = doc(db, "inscripcionesActividades", inscriptionToCancel.id);
             const newEstado: EstadoInscripcionActividad = 'cancelado_usuario';
             
             // Validar datos de actualización
@@ -521,14 +521,13 @@ export default function ResidenteActividadesPage() {
                         {residencia?.logoUrl ? (
                             <img src={residencia.logoUrl} alt={`${residencia.nombre} Logo`} className="h-8 w-auto" />
                         ) : (
-                            <Home className="h-7 w-7 text-primary" />
+                            <Activity className="h-7 w-7 text-primary" />
                         )}
                         <div>
                             <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Actividades</h1>
                             <p className="text-xs text-muted-foreground">{residencia?.nombre}</p>
                         </div>
                     </div>
-                     <Button variant="ghost" size="sm" onClick={() => auth.signOut().then(() => router.push('/auth/login'))}><LogOut className="mr-2 h-4 w-4"/>Salir</Button>
                 </div>
             </header>
 
