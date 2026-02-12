@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { FirebaseIdSchema } from './common';
-import { TimeStringSchema, IsoDateStringSchema, DayOfWeekKeySchema } from './fechas';
+import { IsoDateStringSchema, DayOfWeekKeySchema, IsoTimeStringSchema } from './fechas';
 
 export const TiempoComidaSchema = z.object({
   id: FirebaseIdSchema,
@@ -9,7 +9,7 @@ export const TiempoComidaSchema = z.object({
   nombreGrupo: z.string(),
   ordenGrupo: z.number(),
   dia: DayOfWeekKeySchema.nullable().optional(),
-  horaEstimada: TimeStringSchema.nullable().optional(),
+  horaEstimada: IsoTimeStringSchema.nullable().optional(),
   aplicacionOrdinaria: z.boolean(),
   isActive: z.boolean(),
 });

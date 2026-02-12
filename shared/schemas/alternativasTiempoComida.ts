@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { FirebaseIdSchema } from './common';
-import { TimeStringSchema } from './fechas';
+import { IsoTimeStringSchema } from './fechas';
 
 export const AlternativaTiempoComidaSchema = z.object({
   id: FirebaseIdSchema,
@@ -8,9 +8,9 @@ export const AlternativaTiempoComidaSchema = z.object({
   tipo: z.enum(['comedor', 'paraLlevar', 'ayuno']),
   tipoAcceso: z.enum(['abierto', 'autorizado', 'cerrado']),
   requiereAprobacion: z.boolean(),
-  ventanaInicio: TimeStringSchema,
+  ventanaInicio: IsoTimeStringSchema,
   iniciaDiaAnterior: z.boolean().optional(),
-  ventanaFin: TimeStringSchema,
+  ventanaFin: IsoTimeStringSchema,
   terminaDiaSiguiente: z.boolean().optional(),
   horarioSolicitudComidaId: FirebaseIdSchema.nullable().optional(),
   tiempoComidaId: FirebaseIdSchema,

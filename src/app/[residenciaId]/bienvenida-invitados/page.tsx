@@ -12,12 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-    Tooltip, TooltipContent,
-    TooltipProvider, TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 // Firebase
 import { getDocs, collection, query, where, writeBatch, doc, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -32,7 +27,6 @@ import ProgressBar from './components/ProgressBar';
 import {
     TiempoComida,
     AlternativaTiempoComida,
-    DayOfWeekKey,
     ResidenciaId,
     UserProfile,
     UserRole,
@@ -283,12 +277,27 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null {
             });
 
             // Save full comment if exists
-             if (commentText.trim()) {
-                const comentarioDocRef = doc(collection(db, `comentarios`));
-                batch.set(comentarioDocRef, {
-                    usuarioId: authUser.uid, destinatarioId: null, residenciaId: residenciaId, texto: commentText.trim(),
-                    fechaEnvio: serverTimestamp(), leido: false, archivado: false,
-                    relacionadoA: { coleccion: 'usuario', documentoId: authUser.uid }
+            if (commentText.trim()) {
+                const comentarioDocRef = doc(collection(db, 'comentarios'));
+                const newComment = {
+                    id: comentarioDocRef.id,
+                    residenciaId: residenciaId,
+                    autorId: authUser.uid,
+                    fechaHoraCreacion: serverTimestamp(),
+                    texto: commentText.trim(),
+                    categoria: 'comida' as const,
+                    estado: 'nuevo' as const,
+                };
+                batch.set(comentarioDocRef, newComment);
+
+                addLogToBatch(batch, 'COMENTARIO_CREADO', {
+                    residenciaId,
+                    targetId: comentarioDocRef.id,
+                    targetCollection: 'comentarios',
+                    details: {
+                        autorId: authUser.uid,
+                        texto: commentText.trim().substring(0, 100) + '...',
+                    }
                 });
             }
 

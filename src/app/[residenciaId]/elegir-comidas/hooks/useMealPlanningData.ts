@@ -18,6 +18,7 @@ import { db } from '@/lib/firebase';
 import {
   ResidenciaId,
   UserId,
+  ActividadId
 } from '../../../../../shared/models/types';
 import { TiempoComidaSchema } from '../../../../../shared/schemas/tiempoComida';
 import { AusenciaSchema } from '../../../../../shared/schemas/ausencias';
@@ -113,7 +114,7 @@ export const useMealPlanningData = ({
           return result.data;
         };
 
-        const parseArrayResult = <T>(schema: z.ZodSchema<T>, docs: { id: string, [key: string]: any }[]) => {
+        const parseArrayResult = <T>(schema: z.ZodSchema<T>, docs: { id: string, [key: string]: any }[]): T[] => {
             return parseResult(z.array(schema), docs);
         };
 
@@ -133,7 +134,7 @@ export const useMealPlanningData = ({
           fechaHoraCreacion: (d.data() as any).fechaHoraCreacion ?? Date.now(),
           fechaHoraModificacion: (d.data() as any).fechaHoraModificacion ?? Date.now(),
         }));
-        const inscripciones = parseArrayResult(InscripcionActividadSchema, inscripcionesRaw);
+        const inscripciones: InscripcionActividad[] = parseArrayResult(InscripcionActividadSchema, inscripcionesRaw);
 
         const excepcionesRaw = excepcionesSnap.docs.map(d => ({
           id: d.id,
@@ -150,10 +151,11 @@ export const useMealPlanningData = ({
         const actividadIds = [...new Set(inscripciones.map(i => i.actividadId))];
 
         if (actividadIds.length > 0) {
-          const actividadPromises = actividadIds.map(id => 
+          const actividadPromises = actividadIds.map((id: string) => 
             getDoc(doc(db, 'residencias', residenciaId, 'actividades', id))
           );
           const actividadSnaps = await Promise.all(actividadPromises);
+
           const actividadData = actividadSnaps
             .filter(snap => snap.exists())
             .map(snap => ({ id: snap.id, ...snap.data() }));

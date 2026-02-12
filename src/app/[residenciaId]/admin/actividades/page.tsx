@@ -630,22 +630,17 @@ function AdminActividadesPage() {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <Label htmlFor={`meal-descripcion-${index}`}>Descripción (Opcional)</Label>
-                                                            <Textarea 
-                                                                id={`meal-descripcion-${index}`} 
-                                                                value={meal.horaEstimadaMeal || ''}
-                                                                onChange={(e) => handleMealPlanChange(index, 'horaEstimadaMeal', e.target.value)}
-                                                                placeholder="Detalles del menú, ingredientes, etc."
-                                                                rows={2}
-                                                            />
-                                                        </div>
-                                                        <div>
                                                             <Label htmlFor={`meal-hora-${index}`}>Hora Estimada (Opcional)</Label>
                                                             <Input 
                                                                 id={`meal-hora-${index}`} 
                                                                 type="time"
-                                                                value={meal.horaEstimadaMeal || ''}
-                                                                onChange={(e) => handleMealPlanChange(index, 'horaEstimadaMeal', e.target.value)}
+                                                                value={(meal.horaEstimadaMeal || '').substring(0, 5)}
+                                                                onChange={(e) => {
+                                                                    const timeValue = e.target.value; // Format "HH:mm"
+                                                                    // Pad with seconds to match IsoTimeString schema (HH:MM:SS)
+                                                                    const finalValue = timeValue ? `${timeValue}:00` : ''; 
+                                                                    handleMealPlanChange(index, 'horaEstimadaMeal', finalValue);
+                                                                }}
                                                             />
                                                         </div>
                                                     </div>

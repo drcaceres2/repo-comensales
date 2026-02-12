@@ -46,4 +46,3 @@ export const FirestoreTimestampSchema = z.union([
     z.number(),
     z.any(), // Fallback para compatibilidad
 ]).describe("Firestore Timestamp - puede ser { seconds, nanoseconds } o número en ms");
-

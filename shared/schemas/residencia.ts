@@ -44,20 +44,6 @@ export const residenciaSchema = z.object({
     esquemaAdministracion: z.enum(['estricto', 'flexible']),
     ubicacion: UbicacionSchema,
     
-    // Nombres tradicionales para comidas (desayuno, almuerzo, cena)
-    nombreTradicionalDesayuno: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalAlmuerzo: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalCena: CadenaOpcionalLimitada(1, 20),
-    
-    // Nombres tradicionales para días de la semana
-    nombreTradicionalLunes: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalMartes: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalMiercoles: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalJueves: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalViernes: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalSabado: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalDomingo: CadenaOpcionalLimitada(1, 20),
-    
     // Campos personalizables para UserProfile
     camposPersonalizados: z.record(ConfiguracionCampoSchema).optional(),
     
@@ -79,18 +65,6 @@ export const createResidenciaSchema = z.object({
     esquemaAdministracion: z.enum(['estricto', 'flexible']),
     ubicacion: UbicacionSchema,
     
-    nombreTradicionalDesayuno: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalAlmuerzo: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalCena: CadenaOpcionalLimitada(1, 20),
-    
-    nombreTradicionalLunes: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalMartes: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalMiercoles: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalJueves: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalViernes: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalSabado: CadenaOpcionalLimitada(1, 20),
-    nombreTradicionalDomingo: CadenaOpcionalLimitada(1, 20),
-    
     camposPersonalizados: z.record(ConfiguracionCampoSchema).optional(),
     
     configuracionContabilidad: ConfigContabilidadSchema.nullable().optional(),
@@ -110,18 +84,6 @@ export const updateResidenciaSchema = z.object({
     tipoResidencia: z.enum(['estudiantes', 'profesionales', 'gente_mayor']).optional(),
     esquemaAdministracion: z.enum(['estricto', 'flexible']).optional(),
     ubicacion: UbicacionSchema.optional(),
-    
-    nombreTradicionalDesayuno: CadenaOpcionalLimitada(1, 20).nullable().optional(),
-    nombreTradicionalAlmuerzo: CadenaOpcionalLimitada(1, 20).nullable().optional(),
-    nombreTradicionalCena: CadenaOpcionalLimitada(1, 20).nullable().optional(),
-    
-    nombreTradicionalLunes: CadenaOpcionalLimitada(1, 20).nullable().optional(),
-    nombreTradicionalMartes: CadenaOpcionalLimitada(1, 20).nullable().optional(),
-    nombreTradicionalMiercoles: CadenaOpcionalLimitada(1, 20).nullable().optional(),
-    nombreTradicionalJueves: CadenaOpcionalLimitada(1, 20).nullable().optional(),
-    nombreTradicionalViernes: CadenaOpcionalLimitada(1, 20).nullable().optional(),
-    nombreTradicionalSabado: CadenaOpcionalLimitada(1, 20).nullable().optional(),
-    nombreTradicionalDomingo: CadenaOpcionalLimitada(1, 20).nullable().optional(),
     
     camposPersonalizados: z.record(ConfiguracionCampoSchema).optional(),
     

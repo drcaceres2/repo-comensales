@@ -18,7 +18,7 @@ import { logClientAction } from '@/lib/utils'
 
 // --- Auth Hook Import ---
 import { useAuth } from '@/hooks/useAuth';
-import { Recordatorio, RecordatorioId, ResidenciaId, UserId, RecurrenciaRecordatorio, AsistentePermisos, UserProfile, UserRole } from '../../../../shared/models/types';
+import { Recordatorio, RecordatorioId, ResidenciaId, RecurrenciaRecordatorio, UserProfile } from '../../../../shared/models/types';
 
 // UI Components (assuming paths, add actual imports as needed)
 import { Button } from '@/components/ui/button';

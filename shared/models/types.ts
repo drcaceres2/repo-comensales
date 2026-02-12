@@ -15,6 +15,9 @@ export type IsoDateString = string;
 // Formato YYYY-MM-DDTHH:mm:ss
 export type IsoDateTimeString = string;
 
+// Formato THH:MM:SS
+export type IsoTimeString = string;
+
 export type DayOfWeekKey = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
 export const DayOfWeekMap: Record<DayOfWeekKey, string> = {
     lunes: 'Lunes',
@@ -106,8 +109,8 @@ export interface NotificacionPreferencias {
     canalSMS?: boolean; // Optional opt-in for SMS
     tiposPermitidos: NotificacionTipo[]; // e.g., ['info', 'recordatorio']
     notificacionesSilenciadas?: boolean; // Mute non-critical notifications
-    horaMaxima?: string;
-    horaMinima?: string;
+    horaMaxima?: IsoTimeString;
+    horaMinima?: IsoTimeString;
 }
 
 // --- Asistentes ---
@@ -160,7 +163,7 @@ export interface PermisosComidaPorGrupo {
     usoExcepciones: boolean;
     confirmacionAsistencia: boolean;
     confirmacionDiariaElecciones: boolean;
-    horarioConfirmacionDiaria?: string; // Hora en ISO 8601 hh:mm en zona horaria de la residencia
+    horarioConfirmacionDiaria?: IsoTimeString; // Hora en ISO 8601 hh:mm en zona horaria de la residencia
     restriccionAlternativas: boolean;
     alternativasRestringidas?: alternativaRestringidaDetalle[];
     autorizacionLocalizacion: boolean;
@@ -218,7 +221,7 @@ export interface HorarioSolicitudComida {
     residenciaId: ResidenciaId;
     nombre: string; 
     dia: DayOfWeekKey; 
-    horaSolicitud: string; // hora en formato ISO 8601 "HH:mm" en zona horaria de la residencia
+    horaSolicitud: IsoTimeString;
     isPrimary: boolean; 
     isActive: boolean; 
 }
@@ -238,10 +241,19 @@ export interface TiempoComida {
     id: TiempoComidaId;
     nombre: string; 
     residenciaId: ResidenciaId;
-    nombreGrupo: string; 
-    ordenGrupo: number;
+    /*  Los tiempos de comida son como "desayuno lunes, almuerzo lunes,
+        cena lunes, desayuno martes, almuerzo martes, etc."
+        
+        Los grupos en la interfaz son solo para visualización. Los grupos
+        son como "desayuno", "almuerzo", "cena". Son necesarios para
+        conservar el orden en que se muestran los tiempos de comida
+        en la interfaz, manteniendo el nivel de abstracción.
+    */
+    nombreGrupo: string; // Ejemplo: "desayuno, almuerzo, cena"
+    ordenGrupo: number; // Ejemplo: 1, 2, 3 (para orden en la UI)
+
     dia?: DayOfWeekKey | null; // null cuando no es aplicación ordinaria
-    horaEstimada?: string | null; 
+    horaEstimada?: IsoTimeString | null; 
     aplicacionOrdinaria: boolean;
     /*  Aplicación 'ordinaria' está disponible siempre para elegir. 
         Extraordinaria sirve para cuando el director quiere poner 
@@ -257,14 +269,14 @@ export interface AlternativaTiempoComida {
     tipo: TipoAlternativa; 
     tipoAcceso: TipoAccesoAlternativa; 
     requiereAprobacion: boolean; 
-    ventanaInicio: string; // hora en formato ISO 8601 "HH:mm" en zona horaria de la residencia
+    ventanaInicio: IsoTimeString;
     iniciaDiaAnterior?: boolean; 
-    ventanaFin: string; // hora en formato ISO 8601 "HH:mm" en zona horaria de la residencia
+    ventanaFin: IsoTimeString;
     terminaDiaSiguiente?: boolean; 
     horarioSolicitudComidaId?: HorarioSolicitudComidaId | null; 
     tiempoComidaId: TiempoComidaId; 
+    comedorId?: ComedorId | null; 
     residenciaId: ResidenciaId;
-    comedorId?: ComedorId; 
     esPrincipal: boolean; // La alternativa principal servirá para alimentar el formulario de invitados, actividades y otro. Debe haber una alternativa principal por TiempoComida
     isActive: boolean;
 }
@@ -290,7 +302,7 @@ export interface TiempoComidaMod {
     nombreGrupo?: string | null; // Si tipoAlteracion='agregar', entonces nombreGrupo debe existir, de lo contrario debe ser null
     ordenGrupo?: number | null;  // Si tipoAlteracion='agregar', entonces nombreGrupo debe existir, de lo contrario debe ser null
     dia?: DayOfWeekKey | null;   // Si tipoAlteracion='agregar', entonces nombreGrupo debe existir, de lo contrario debe ser null
-    horaEstimada?: string | null; 
+    horaEstimada?: IsoTimeString | null; 
 }
 export type AlternativaTiempoComidaModId = string;
 export interface AlternativaTiempoComidaMod {
@@ -569,8 +581,8 @@ export interface TiempoComidaAlternativaUnicaActividad {
     nombreTiempoComida_AlternativaUnica: string; 
     nombreGrupoTiempoComida: string;
     ordenGrupoTiempoComida: number;
-    fecha: IsoDateString;  // Timestamp stored as ISO string 
-    horaEstimadaMeal?: string; 
+    fecha: IsoDateString;  
+    horaEstimadaMeal?: IsoTimeString; 
 }
 
 // --- Notificaciones ---
@@ -671,6 +683,7 @@ export type LogActionType =
     | 'TIEMPO_COMIDA_CREADO' | 'TIEMPO_COMIDA_ACTUALIZADO' | 'TIEMPO_COMIDA_ELIMINADO'
     // Alternativas de tiempo de comida
     | 'ALTERNATIVA_TIEMPO_COMIDA_CREADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ACTUALIZADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ELIMINADA'
+    // La carga masiva de horarios incluye horarios de solicitud comida, tiempos de comida y alternativas
     | 'CARGA_MASIVA_HORARIOS'
     // Semanarios
     | 'SEMANARIO_CREADO' | 'SEMANARIO_ACTUALIZADO' | 'SEMANARIO_ELIMINADO'
@@ -720,5 +733,3 @@ export interface Feedback {
     viewportSize?: string; 
     status?: 'nuevo' | 'leido' | 'procesado'; 
 }
-    
-// --- Otros ---

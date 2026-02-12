@@ -22,11 +22,26 @@ const isValidTimeZone = (tz: string) => {
 
 // 1. Tipos de fecha base
 
-// Formato HH:mm (24 horas)
-export const TimeStringSchema = z.string().regex(
-  /^([01]\d|2[0-3]):([0-5]\d)$/, 
-  "Formato HH:mm requerido (00:00 - 23:59)"
-);
+// Regex para validar el formato T-hh:mm o T-hh:mm:ss
+const isoTimeRegex = /^T([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/;
+
+// Regex para validar el formato hh:mm o hh:mm:ss
+const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/;
+
+export const IsoTimeStringSchema = z.string().transform((val, ctx) => {
+  if (isoTimeRegex.test(val)) {
+    return val;
+  }
+  if (timeRegex.test(val)) {
+    return `T${val}`;
+  }
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: 'La hora debe estar en formato "T-hh:mm", "T-hh:mm:ss", "hh:mm" o "hh:mm:ss"',
+  });
+  return z.NEVER;
+});
+
 
 // Formato YYYY-MM-DD
 // Modificado para ser más estricto con el formato ISO Date

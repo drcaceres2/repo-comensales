@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CadenaOpcionalLimitada, FirestoreTimestampSchema } from './common';
-import { IsoDateStringSchema } from './fechas';
+import { IsoDateStringSchema, IsoTimeStringSchema } from './fechas';
 
 
 // Esquema para el enum ActividadEstado
@@ -51,8 +51,8 @@ export const ActividadSchema = z.object({
   comensalesNoUsuarios: z.number().int().min(1).max(1000).optional(),
   fechaInicio: IsoDateStringSchema,
   fechaFin: IsoDateStringSchema,
-  ultimoTiempoComidaAntes: z.string(),
-  primerTiempoComidaDespues: z.string(),
+  ultimoTiempoComidaAntes: IsoTimeStringSchema,
+  primerTiempoComidaDespues: IsoTimeStringSchema,
   planComidas: z.array(z.any()), // Se puede detallar más si es necesario
   tipoSolicitudComidas: TipoSolicitudComidasActividadEnum,
   estadoSolicitudAdministracion: z.enum(['no_solicitado', 'solicitud_inicial_realizada', 'completada']),

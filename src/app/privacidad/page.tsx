@@ -1,10 +1,9 @@
 'use client';
 
-import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, Info, Home, FileText, UserCog, LocateFixed } from 'lucide-react';
+import { ShieldCheck, Home, FileText, UserCog, LocateFixed } from 'lucide-react';
 
 export default function PrivacyPolicyPage() {
   const router = useRouter();

@@ -58,8 +58,30 @@ import {
     clientCreateUserFormSchema,
     clientUpdateUserFormSchema,
     type ClientCreateUserForm,
-    type ClientUpdateUserForm
+    type ClientUpdateUserForm,
+    type AsistentePermisos,
+    type AsistentePermisosDetalle,
 } from '../../../../shared/schemas/usuarios';
+
+const defaultPermisoDetalle: AsistentePermisosDetalle = {
+    nivelAcceso: 'Ninguna',
+    restriccionTiempo: false,
+    fechaInicio: null,
+    fechaFin: null,
+};
+
+const defaultAsistentePermisos: AsistentePermisos = {
+    usuariosAsistidos: [],
+    gestionUsuarios: false,
+    gestionActividades: { ...defaultPermisoDetalle },
+    gestionInvitados: { ...defaultPermisoDetalle },
+    gestionRecordatorios: { ...defaultPermisoDetalle },
+    gestionDietas: { ...defaultPermisoDetalle },
+    gestionAtenciones: { ...defaultPermisoDetalle },
+    gestionAsistentes: { ...defaultPermisoDetalle },
+    gestionGrupos: { ...defaultPermisoDetalle },
+    solicitarComensales: { ...defaultPermisoDetalle },
+};
 
 function UserManagementPage(): JSX.Element | null {
     const ALL_RESIDENCIAS_FILTER_KEY = 'all_residencias';
@@ -72,8 +94,8 @@ function UserManagementPage(): JSX.Element | null {
     const deleteUserCallable = httpsCallable(functionsInstance, 'deleteUser');
 
     type UserFormData = Partial<Omit<UserProfile, 'id' | 'roles' | 'fechaDeNacimiento' | 'asistentePermisos' | 'nombreCorto' | 'fotoPerfil'>> & {
-        nombreCorto?: string; // ADDED
-        fotoPerfil?: string | null; // ADDED
+        nombreCorto?: string;
+        fotoPerfil?: string | null;
         roles: UserRole[];
         residenciaId?: ResidenciaId | '';
         dietaId?: DietaId | '';
@@ -88,7 +110,7 @@ function UserManagementPage(): JSX.Element | null {
         telefonoMovil?: string;
         fechaDeNacimiento?: string;
         camposPersonalizados?: { [key: string]: string };
-        asistentePermisos: null; // MODIFIED: Explicitly null
+        asistentePermisos?: AsistentePermisos | null;
         tieneAutenticacion: true;
     };
 
@@ -569,7 +591,9 @@ function UserManagementPage(): JSX.Element | null {
                 dietaId = '';
             }
 
-            return { ...prev, roles: updatedRoles, dietaId, residenciaId };
+            const newAsistentePermisos = updatedRoles.includes('asistente') ? (prev.asistentePermisos || defaultAsistentePermisos) : null;
+
+            return { ...prev, roles: updatedRoles, dietaId, residenciaId, asistentePermisos: newAsistentePermisos };
         });
     };
 
@@ -611,9 +635,6 @@ function UserManagementPage(): JSX.Element | null {
             
             if (dataForValidation.puedeTraerInvitados === null) {
                 dataForValidation.puedeTraerInvitados = undefined;
-            }
-            if (dataForValidation.asistentePermisos === null) {
-                dataForValidation.asistentePermisos = undefined;
             }
     
         if (adminUserProfile && !adminUserProfile.roles.includes('master') && adminUserProfile.residenciaId && isResidenciaConditionallyRequired) {
@@ -703,7 +724,7 @@ function UserManagementPage(): JSX.Element | null {
                 universidad: validatedData.universidad?.trim() || undefined,
                 carrera: validatedData.carrera?.trim() || undefined,
                 puedeTraerInvitados: validatedData.puedeTraerInvitados || 'no',
-                asistentePermisos: null,
+                asistentePermisos: validatedData.asistentePermisos || null,
                 notificacionPreferencias: (validatedData.notificacionPreferencias as any) || undefined,
                 centroCostoPorDefectoId: validatedData.centroCostoPorDefectoId || undefined,
                 camposPersonalizados: validatedData.camposPersonalizados || {},
@@ -787,7 +808,7 @@ function UserManagementPage(): JSX.Element | null {
         centroCostoPorDefectoId: userToEdit.centroCostoPorDefectoId || '',
         puedeTraerInvitados: userToEdit.puedeTraerInvitados || 'no',
         camposPersonalizados: userToEdit.camposPersonalizados || {},
-        asistentePermisos: null,
+        asistentePermisos: userToEdit.asistentePermisos || null,
         tieneAutenticacion: true,
         notificacionPreferencias: userToEdit.notificacionPreferencias || undefined,
     });
@@ -950,7 +971,7 @@ function UserManagementPage(): JSX.Element | null {
                 universidad: validatedData.universidad?.trim() || undefined,
                 carrera: validatedData.carrera?.trim() || undefined,
                 puedeTraerInvitados: validatedData.puedeTraerInvitados || undefined,
-                asistentePermisos: null,
+                asistentePermisos: validatedData.asistentePermisos || null,
                 notificacionPreferencias: (validatedData.notificacionPreferencias as any) || undefined,
                 centroCostoPorDefectoId: validatedData.centroCostoPorDefectoId,
                 camposPersonalizados: validatedData.camposPersonalizados || {},
@@ -995,7 +1016,7 @@ function UserManagementPage(): JSX.Element | null {
                     universidad: validatedData.universidad?.trim() || undefined,
                     carrera: validatedData.carrera?.trim() || undefined,
                     puedeTraerInvitados: validatedData.puedeTraerInvitados || 'no',
-                    asistentePermisos: null,
+                    asistentePermisos: validatedData.asistentePermisos || null,
                     notificacionPreferencias: (validatedData.notificacionPreferencias as any) || undefined,
                     centroCostoPorDefectoId: validatedData.centroCostoPorDefectoId || undefined,
                     camposPersonalizados: validatedData.camposPersonalizados || {},

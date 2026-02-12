@@ -19,6 +19,7 @@ import { z } from 'zod';
 
 import { Loader2, AlertCircle, Upload, Download } from 'lucide-react';
 import { Button } from "@/components/ui/button";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -262,7 +263,7 @@ function CargaMasivaHorariosPage() {
           "tempId": "h1",
           "nombre": "Solicitud General",
           "dia": "lunes",
-          "horaSolicitud": "10:00",
+          "horaSolicitud": "T10:00",
           "isPrimary": true,
           "isActive": true
         }
@@ -274,7 +275,7 @@ function CargaMasivaHorariosPage() {
           "nombreGrupo": "Comidas Principales",
           "ordenGrupo": 1,
           "dia": "lunes",
-          "horaEstimada": "08:00",
+          "horaEstimada": "T08:00",
           "aplicacionOrdinaria": true,
           "isActive": true
         },
@@ -284,7 +285,7 @@ function CargaMasivaHorariosPage() {
           "nombreGrupo": "Comidas Principales",
           "ordenGrupo": 2,
           "dia": "lunes",
-          "horaEstimada": "13:00",
+          "horaEstimada": "T13:00",
           "aplicacionOrdinaria": true,
           "isActive": true
         }
@@ -297,9 +298,9 @@ function CargaMasivaHorariosPage() {
           "tipo": "comedor",
           "tipoAcceso": "abierto",
           "requiereAprobacion": false,
-          "ventanaInicio": "07:00",
+          "ventanaInicio": "T07:00",
           "iniciaDiaAnterior": false,
-          "ventanaFin": "09:00",
+          "ventanaFin": "T09:00",
           "terminaDiaSiguiente": false,
           "comedorId": "ID_DEL_COMEDOR_EXISTENTE",
           "esPrincipal": true,
@@ -312,9 +313,9 @@ function CargaMasivaHorariosPage() {
           "tipo": "paraLlevar",
           "tipoAcceso": "autorizado",
           "requiereAprobacion": true,
-          "ventanaInicio": "12:00",
+          "ventanaInicio": "T12:00",
           "iniciaDiaAnterior": false,
-          "ventanaFin": "14:00",
+          "ventanaFin": "T14:00",
           "terminaDiaSiguiente": false,
           "comedorId": "ID_DEL_COMEDOR_EXISTENTE",
           "esPrincipal": false,

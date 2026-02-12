@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
@@ -11,13 +11,9 @@ import {
   Comedor,
   HorarioSolicitudComida,
   AlternativaTiempoComida,
-  UserRole,
   DayOfWeekKey,
   DayOfWeekMap,
-  CentroCosto,
-  LogActionType,
-  UserId,
-  ResidenciaId
+  CentroCosto
 } from '../../../../shared/models/types';
 import {
   doc,
@@ -79,13 +75,14 @@ const getNewHorarioDefaults = (residenciaId: string): Omit<HorarioSolicitudComid
     nombre: '',
     residenciaId: residenciaId,
     dia: 'lunes',
-    horaSolicitud: '12:00',
+    horaSolicitud: 'T12:00',
     isPrimary: false,
     isActive: true,
 });
 
 function ResidenciaHorariosComedoresPage() {
   const router = useRouter();
+  const params = useParams();
   // const searchParams = useSearchParams(); // For master to potentially get residenciaId from query
   const { toast } = useToast();
   const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
@@ -108,6 +105,7 @@ function ResidenciaHorariosComedoresPage() {
   const [currentComedor, setCurrentComedor] = useState<Partial<Comedor>>({});
   const [isEditingComedor, setIsEditingComedor] = useState<boolean>(false);
   const [formLoadingComedor, setFormLoadingComedor] = useState<boolean>(false);
+  const [comedorFormErrors, setComedorFormErrors] = useState<Record<string, string[]>>({});
 
   // HorarioSolicitudComida States
   const [horarios, setHorarios] = useState<HorarioSolicitudComida[]>([]);
@@ -131,179 +129,105 @@ function ResidenciaHorariosComedoresPage() {
   // Server Action state for horario form
   const [horarioState, horarioFormAction, isHorarioFormPending] = useActionState(horarioServerAction, { result: null, error: null } as HorarioActionState);
 
-  useEffect(() => {
-    if (horarioState.error) {
-      console.error('Error from horarioAction:', horarioState.error);
-      const errorMsg = typeof horarioState.error === 'string' ? horarioState.error : (horarioState.error as any).message || String(horarioState.error);
-      toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
-    }
-    if (horarioState.result) {
-      toast({ title: 'Éxito', description: horarioState.result.action === 'created' ? 'Horario creado' : 'Horario actualizado' });
-      setShowHorarioForm(false);
-      fetchHorarios();
-    }
-  }, [horarioState, toast]);
+  const [timezoneWarningShown, setTimezoneWarningShown] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (comedorState.error) {
-      console.error('Error from comedorAction:', comedorState.error);
-      const errorMsg = typeof comedorState.error === 'string' ? comedorState.error : (comedorState.error as any).message || String(comedorState.error);
-      toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
-    }
-    if (comedorState.result) {
-      // On success, close form and refresh list
-      toast({ title: 'Éxito', description: comedorState.result.action === 'created' ? 'Comedor creado' : 'Comedor actualizado' });
-      setShowComedorForm(false);
-      fetchComedores();
-    }
-  }, [comedorState, toast]);
-
-  // ...
-  const [timezoneWarningShown, setTimezoneWarningShown] = useState<boolean>(false); // To show warning only once
-
-    // ... (isLoadingCentrosCostoResidencia state) ...
-
-  // ADDED: Form Data State for Residencia Details
-  const [residenciaFormData, setResidenciaFormData] = useState<Partial<Residencia>>({
-    nombre: '',
-    direccion: '',
-    logoUrl: '',
-    antelacionActividadesDefault: 0,
-    textProfile: '',
-    tipoResidencia: 'estudiantes', // Default value
-    esquemaAdministracion: 'estricto', // Default value
-    camposPersonalizados: {},
-    configuracionContabilidad: null,
-    // centroCostoPorDefectoId will be handled as a separate field for now,
-    // as it's part of Comedor, not directly Residencia in your current model.
-    // If Residencia should have a *default* CentroCostoId, it needs to be added to Residencia interface first.
-    // For now, we are adding the input to pick a default CC for the Residencia *itself*.
-    // Let's assume you will add `defaultCentroCostoId?: CentroCostoId;` to your Residencia interface.
-    // If so, add it here:
-    // defaultCentroCostoId: '', 
-  });
-  const [isSavingResidencia, setIsSavingResidencia] = useState<boolean>(false);
-
-
-  // --- useEffect: Handle Auth State & Fetch Profile ---
+  // --- useEffect to fetch user profile ---
   useEffect(() => {
     if (authFirebaseLoading) {
       setProfileLoading(true);
       return;
     }
-    if (authFirebaseError) {
-      toast({ title: "Error de Autenticación", description: authFirebaseError.message, variant: "destructive" });
-      setProfileLoading(false); setUserProfile(null); setProfileError(authFirebaseError.message);
-      setIsAuthorizedForPage(false);
-      return;
-    }
     if (!authUser) {
-      setProfileLoading(false); setUserProfile(null); setProfileError(null);
-      setIsAuthorizedForPage(false);
-      // Redirection handled by render logic or another effect
+      setUserProfile(null);
+      setProfileLoading(false);
       return;
     }
-
-    const userDocRef = doc(db, "users", authUser.uid);
-    getDoc(userDocRef)
-      .then((docSnap) => {
+    const profileDocRef = doc(db, 'users', authUser.uid);
+    getDoc(profileDocRef)
+      .then(docSnap => {
         if (docSnap.exists()) {
-          const profile = docSnap.data() as UserProfile;
-          setUserProfile(profile);
-          setProfileError(null);
-          
-          const roles = profile.roles || [];
-          const canAccess = roles.includes('master') || roles.includes('admin') || roles.includes('director');
-          setIsAuthorizedForPage(canAccess);
-
-          if (!canAccess) {
-            toast({ title: "Acceso Denegado", description: "No tienes permisos (master, admin, o director).", variant: "destructive" });
-            return;
-          }
-
-          // Determine targetResidenciaId and edit permissions
-          if (roles.includes('admin')) {
-            if (profile.residenciaId) {
-              setTargetResidenciaId(profile.residenciaId);
-              setCanEdit(true);
-            } else {
-              toast({ title: "Admin sin Residencia", description: "Tu perfil de admin no está asignado a una residencia.", variant: "default" });
-              setIsAuthorizedForPage(false); // Or handle differently, e.g. show a message
-            }
-          } else if (roles.includes('director')) {
-             if (profile.residenciaId) {
-              setTargetResidenciaId(profile.residenciaId);
-              setCanEdit(false); // Directors have read-only access here
-            } else {
-              toast({ title: "Director sin Residencia", description: "Tu perfil de director no está asignado a una residencia.", variant: "default" });
-              setIsAuthorizedForPage(false);
-            }
-          } else if (roles.includes('master')) {
-            setCanEdit(false); // Master users have read-only access on this specific page.
-            // For master users, targetResidenciaId would ideally come from query params or a selection.
-            // const residenciaQueryParam = searchParams.get('residenciaId');
-            // if (residenciaQueryParam) {
-            //   setTargetResidenciaId(residenciaQueryParam);
-            // } else {
-            //   // No specific residenciaId for master, they might need to select one.
-            //   // For now, they won't see data unless it's provided.
-            //   toast({title: "Master User", description: "Selecciona una residencia para ver sus detalles.", variant: "default"})
-            // }
-            // For this iteration, if a master has a residenciaId in their profile (unusual), use it.
-            if (profile.residenciaId) {
-                setTargetResidenciaId(profile.residenciaId);
-            } else {
-                toast({ title: "Seleccionar Residencia", description: "Como master, necesitas especificar una residencia.", variant: "default"});
-                // setIsAuthorizedForPage(false); // Or rather, show a selector or message
-            }
-          }
+          setUserProfile({ id: docSnap.id, ...docSnap.data() } as UserProfile);
         } else {
-          setUserProfile(null); setProfileError("Perfil de usuario no encontrado.");
-          toast({ title: "Error de Perfil", description: "No se encontró tu perfil de usuario.", variant: "destructive" });
-          setIsAuthorizedForPage(false);
+          setProfileError("Tu perfil de usuario no fue encontrado en la base de datos.");
         }
       })
-      .catch((error) => {
-        setUserProfile(null); setProfileError(`Error al cargar el perfil: ${error.message}`);
-        toast({ title: "Error al Cargar Perfil", description: `No se pudo cargar tu perfil: ${error.message}`, variant: "destructive" });
-        setIsAuthorizedForPage(false);
+      .catch(error => {
+        console.error("Error fetching user profile:", error);
+        setProfileError("Ocurrió un error al cargar tu perfil.");
       })
       .finally(() => {
         setProfileLoading(false);
       });
-  }, [authUser, authFirebaseLoading, authFirebaseError, toast]); // removed: router, searchParams
+  }, [authUser, authFirebaseLoading]);
 
-  // --- Redirect if not authenticated after loading ---
+  // --- useEffect for Authorization and setting target Residencia ---
   useEffect(() => {
-      if (!authFirebaseLoading && !profileLoading && !authUser) {
-          router.replace('/');
-      }
-  }, [authFirebaseLoading, profileLoading, authUser, router]);
+    const residenciaIdFromUrl = params.residenciaId as string;
 
-  // --- Fetch Residencia Details ---
+    if (!userProfile) {
+      setIsAuthorizedForPage(false);
+      setCanEdit(false);
+      setTargetResidenciaId(null);
+      return;
+    }
+
+    const { roles, residenciaId: profileResidenciaId } = userProfile;
+    const isMaster = roles?.includes('master');
+    const isAdmin = roles?.includes('admin');
+    const isDirector = roles?.includes('director');
+
+    const authorized = isMaster || isAdmin || isDirector;
+
+    if (!authorized) {
+        setIsAuthorizedForPage(false);
+        setCanEdit(false);
+        setTargetResidenciaId(null);
+        return;
+    }
+
+    setIsAuthorizedForPage(true);
+
+    if (isMaster) {
+        setCanEdit(true);
+        setTargetResidenciaId(residenciaIdFromUrl);
+    } else if (isAdmin || isDirector) {
+        if (profileResidenciaId && profileResidenciaId === residenciaIdFromUrl) {
+            setTargetResidenciaId(profileResidenciaId);
+            setCanEdit(isAdmin);
+        } else {
+            setIsAuthorizedForPage(false);
+            setTargetResidenciaId(null);
+            setProfileError("No tienes permiso para acceder a esta residencia.");
+        }
+    }
+  }, [userProfile, params]);
+
+  // --- useEffect to load Residencia Details ---
   useEffect(() => {
     if (targetResidenciaId) {
       setLoadingResidenciaDetails(true);
-      const residenciaRef = doc(db, 'residencias', targetResidenciaId);
-      getDoc(residenciaRef).then(docSnap => {
-        if (docSnap.exists()) {
-          setResidenciaDetails({ id: docSnap.id, ...docSnap.data() } as Residencia);
-        } else {
-          setResidenciaDetails(null);
-          toast({ title: "Error", description: `No se encontró la residencia con ID: ${targetResidenciaId}`, variant: "destructive" });
-          // Potentially clear targetResidenciaId or redirect if critical
-        }
-      }).catch(error => {
-        console.error("Error fetching residencia details:", error);
-        toast({ title: "Error", description: "No se pudieron cargar los detalles de la residencia.", variant: "destructive" });
-        setResidenciaDetails(null);
-      }).finally(() => {
-        setLoadingResidenciaDetails(false);
-      });
+      const residenciaDocRef = doc(db, 'residencias', targetResidenciaId);
+      getDoc(residenciaDocRef)
+        .then((docSnap) => {
+          if (docSnap.exists()) {
+            setResidenciaDetails({ id: docSnap.id, ...docSnap.data() } as Residencia);
+          } else {
+            setProfileError(`La residencia con ID ${targetResidenciaId} no fue encontrada.`);
+            setResidenciaDetails(null);
+          }
+        })
+        .catch((error) => {
+          console.error("Error fetching residencia details: ", error);
+          setProfileError("Error cargando los detalles de la residencia.");
+        })
+        .finally(() => {
+          setLoadingResidenciaDetails(false);
+        });
     } else {
-      setResidenciaDetails(null); // Clear if no target ID
+      setResidenciaDetails(null);
+      setLoadingResidenciaDetails(false);
     }
-  }, [targetResidenciaId, toast]);
+  }, [targetResidenciaId]);
 
   // --- Fetch Comedores ---
   const fetchComedores = useCallback(async () => {
@@ -393,6 +317,44 @@ function ResidenciaHorariosComedoresPage() {
   }, [targetResidenciaId, toast]);
 
   useEffect(() => {
+    if (horarioState.error) {
+      console.error('Error from horarioAction:', horarioState.error);
+      const errorMsg = typeof horarioState.error === 'string' ? horarioState.error : (horarioState.error as any).message || String(horarioState.error);
+      toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
+    }
+    if (horarioState.result) {
+      toast({ title: 'Éxito', description: horarioState.result.action === 'created' ? 'Horario creado' : 'Horario actualizado' });
+      setShowHorarioForm(false);
+      fetchHorarios();
+    }
+  }, [horarioState, toast, fetchHorarios]);
+
+  useEffect(() => {
+    if (comedorState?.error) {
+      // Check if it's a ZodError by looking for the flatten method
+      if (typeof comedorState.error === 'object' && comedorState.error && 'flatten' in comedorState.error) {
+        const flattenedErrors = (comedorState.error as any).flatten().fieldErrors;
+        setComedorFormErrors(flattenedErrors);
+        toast({
+          title: 'Error de Validación',
+          description: 'Por favor, revisa los campos marcados.',
+          variant: 'destructive',
+        });
+      } else {
+        // It's a string error or another type of error
+        toast({ title: 'Error', description: String(comedorState.error), variant: 'destructive' });
+        setComedorFormErrors({}); // Clear any previous field-specific errors
+      }
+    } else if (comedorState?.result) {
+      // On success, close form, refresh list, and clear errors
+      toast({ title: 'Éxito', description: comedorState.result.action === 'created' ? 'Comedor creado' : 'Comedor actualizado' });
+      setShowComedorForm(false);
+      fetchComedores();
+      setComedorFormErrors({});
+    }
+  }, [comedorState, toast, fetchComedores]);
+
+  useEffect(() => {
     if (targetResidenciaId && isAuthorizedForPage) {
       fetchComedores();
       fetchHorarios();
@@ -440,12 +402,14 @@ function ResidenciaHorariosComedoresPage() {
     setCurrentComedor(getNewComedorDefaults(targetResidenciaId));
     setIsEditingComedor(false);
     setShowComedorForm(true);
+    setComedorFormErrors({});
   };
 
   const handleEditComedor = (comedor: Comedor) => {
     setCurrentComedor(comedor);
     setIsEditingComedor(true);
     setShowComedorForm(true);
+    setComedorFormErrors({});
   };
 
   const handleSubmitComedorForm = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -995,6 +959,9 @@ function ResidenciaHorariosComedoresPage() {
                       disabled={formLoadingComedor || isComedorFormPending}
                       maxLength={100}
                     />
+                    {comedorFormErrors.nombre && (
+                        <p className="text-sm text-destructive mt-1">{comedorFormErrors.nombre.join(', ')}</p>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="comedorDescripcion">Descripción</Label>
@@ -1019,6 +986,9 @@ function ResidenciaHorariosComedoresPage() {
                       disabled={formLoadingComedor || isComedorFormPending}
                       min="0"
                     />
+                    {comedorFormErrors.capacidad && (
+                        <p className="text-sm text-destructive mt-1">{comedorFormErrors.capacidad.join(', ')}</p>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="comedorCentroCostoDefault">
@@ -1061,11 +1031,10 @@ function ResidenciaHorariosComedoresPage() {
                     </p>
                   </div>
                 </CardContent>
-                <CardFooter className="flex justify-end space-x-2">
-                    <Button type="button" variant="outline" onClick={() => setShowComedorForm(false)} disabled={formLoadingComedor || isComedorFormPending}>
-                    Cancelar
-                  </Button>
-                    <input type="hidden" name="isEditing" value={isEditingComedor ? 'true' : 'false'} />
+                                  <CardFooter className="flex justify-end space-x-2">
+                                    <Button type="button" variant="outline" onClick={() => { setShowComedorForm(false); setComedorFormErrors({}); }} disabled={formLoadingComedor || isComedorFormPending}>
+                                    Cancelar
+                                  </Button>                    <input type="hidden" name="isEditing" value={isEditingComedor ? 'true' : 'false'} />
                     <input type="hidden" name="id" value={currentComedor.id || ''} />
                     <input type="hidden" name="residenciaId" value={targetResidenciaId || ''} />
                     <input type="hidden" name="actorUserId" value={authUser?.uid || ''} />
@@ -1194,7 +1163,7 @@ function ResidenciaHorariosComedoresPage() {
                         id="horarioHoraSolicitud"
                         name="horaSolicitud"
                         type="time" // Using type="time" for better UX on supported browsers
-                        value={currentHorario.horaSolicitud || '12:00'}
+                        value={(currentHorario.horaSolicitud || 'T12:00').replace(/^T/, '')}
                         onChange={handleInputChangeHorario}
                         required
                         disabled={formLoadingHorario || isHorarioFormPending}
@@ -1271,7 +1240,7 @@ function ResidenciaHorariosComedoresPage() {
                 {horarios.map(horario => (
                     <div key={horario.id} className="p-3 border rounded-md flex justify-between items-center">
                         <div>
-                            <p className="font-medium">{horario.nombre} ({DayOfWeekMap[horario.dia]} a las {horario.horaSolicitud})</p>
+                            <p className="font-medium">{horario.nombre} ({DayOfWeekMap[horario.dia]} a las {horario.horaSolicitud.replace(/^T/, '')})</p>
                             <p className="text-sm text-muted-foreground">
                                 Primario: {horario.isPrimary ? 'Sí' : 'No'} - Activo: {horario.isActive ? 'Sí' : 'No'}
                             </p>

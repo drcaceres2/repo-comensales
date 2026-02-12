@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import {FirebaseIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema, FirestoreTimestampSchema } from './common';
-import { IsoDateStringSchema, OptionalIsoDateStringSchema } from './fechas';
+import { FirebaseIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema, FirestoreTimestampSchema } from './common';
+import { IsoDateStringSchema, OptionalIsoDateStringSchema, IsoTimeStringSchema } from './fechas';
 
 // ============================================
 // Esquemas para campos complejos de UserProfile
@@ -39,8 +39,8 @@ export const NotificacionPreferenciasSchema = z.object({
     canalSMS: z.boolean().optional(),
     tiposPermitidos: z.array(z.string()),
     notificacionesSilenciadas: z.boolean().optional(),
-    horaMaxima: z.string().optional(),
-    horaMinima: z.string().optional(),
+    horaMaxima: IsoTimeStringSchema.optional(),
+    horaMinima: IsoTimeStringSchema.optional(),
 }).strict();
 
 // ============================================
@@ -52,8 +52,8 @@ export const userProfileSchema = z.object({
     nombre: z.string().min(2).max(100),
     apellido: z.string().min(2).max(255),
     nombreCorto: z.string().min(2).max(15),
-    fotoPerfil: z.string().nullable().optional(),
     email: z.string().email(),
+    fotoPerfil: z.string().nullable().optional(),
     roles: z.array(z.enum(['residente', 'director', 'admin', 'master', 'invitado', 'asistente', 'contador'])),
     isActive: z.boolean(),
     residenciaId: FirebaseIdSchema.nullable().optional(),
@@ -63,17 +63,19 @@ export const userProfileSchema = z.object({
     universidad: CadenaOpcionalLimitada(2,150).optional(),
     carrera: CadenaOpcionalLimitada(2,50).optional(),
     identificacion: CadenaOpcionalLimitada().optional(),
+    telefonoMovil: TelefonoOpcionalSchema.optional(),
     fechaDeNacimiento: OptionalIsoDateStringSchema,
+    asistentePermisos: AsistentePermisosSchema.nullable().optional(),
     centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable(),
-    camposPersonalizados: z.record(z.string()).optional(),
-    telefonoMovil: TelefonoOpcionalSchema.optional(),
-    asistentePermisos: AsistentePermisosSchema.nullable().optional(),
     notificacionPreferencias: NotificacionPreferenciasSchema.nullable().optional(),
     tieneAutenticacion: z.boolean(),
+    
     fechaHoraCreacion: FirestoreTimestampSchema.nullable().optional(),
     ultimaActualizacion: FirestoreTimestampSchema.nullable().optional(),
     lastLogin: FirestoreTimestampSchema.nullable().optional(),
+
+    camposPersonalizados: z.record(z.string()).optional(),
 }).strict();
 
 // ============================================
@@ -134,26 +136,27 @@ const createUserProfileObject = z.object({
     nombre: z.string().min(2).max(100),
     apellido: z.string().min(2).max(255),
     nombreCorto: z.string().min(2).max(15),
-    fotoPerfil: z.string().nullable().optional(),
     email: z.string().email(),
+    fotoPerfil: z.string().nullable().optional(),
     roles: z.array(z.enum(['residente', 'director', 'admin', 'master', 'invitado', 'asistente', 'contador']), {
         required_error: "Es necesario agregar al menos un rol"}),
+    isActive: z.boolean().default(true),
+    residenciaId: FirebaseIdSchema.nullable().optional(),
+    dietaId: FirebaseIdSchema.nullable().optional(),
     numeroDeRopa: z.string().max(10).optional(),
     habitacion: z.string().max(10).optional(),
     universidad: z.string().max(150).optional(),
     carrera: CadenaOpcionalLimitada().optional(),
     identificacion: CadenaOpcionalLimitada().optional(),
+    telefonoMovil: TelefonoOpcionalSchema.optional(),
     fechaDeNacimiento: OptionalIsoDateStringSchema.nullable(),
-    residenciaId: FirebaseIdSchema.nullable().optional(),
-    dietaId: FirebaseIdSchema.nullable().optional(),
+    asistentePermisos: AsistentePermisosSchema.nullable().optional(),
     centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().optional(),
-    camposPersonalizados: z.record(z.string()).optional(),
-    telefonoMovil: TelefonoOpcionalSchema.optional(),
-    asistentePermisos: AsistentePermisosSchema.nullable().optional(),
     notificacionPreferencias: NotificacionPreferenciasSchema.nullable().optional(),
     tieneAutenticacion: z.boolean().default(true),
-    isActive: z.boolean().default(true),
+
+    camposPersonalizados: z.record(z.string()).optional()
 }).strict();
 
 export const createUserProfileSchema = createUserProfileObject.superRefine(userRoleRefinement);
@@ -176,14 +179,15 @@ const updateUserProfileObject = z.object({
     universidad: z.string().max(150).optional(),
     carrera: CadenaOpcionalLimitada().optional(),
     identificacion: CadenaOpcionalLimitada().optional(),
+    telefonoMovil: TelefonoOpcionalSchema.optional(),
     fechaDeNacimiento: OptionalIsoDateStringSchema,
+    asistentePermisos: AsistentePermisosSchema.nullable().optional(),
     centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().optional(),
-    camposPersonalizados: z.record(z.string()).optional(),
-    telefonoMovil: TelefonoOpcionalSchema.optional(),
-    asistentePermisos: AsistentePermisosSchema.nullable().optional(),
     notificacionPreferencias: NotificacionPreferenciasSchema.nullable().optional(),
     tieneAutenticacion: z.boolean().optional(),
+
+    camposPersonalizados: z.record(z.string()).optional()
 }).strict();
 
 export const updateUserProfileSchema = updateUserProfileObject.superRefine(userRoleRefinement);
@@ -224,6 +228,7 @@ export type UserProfile = z.infer<typeof userProfileSchema>;
 export type CreateUserProfile = z.infer<typeof createUserProfileSchema>;
 export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
 export type AsistentePermisos = z.infer<typeof AsistentePermisosSchema>;
+export type AsistentePermisosDetalle = z.infer<typeof AsistentePermisosDetalleSchema>;
 export type NotificacionPreferencias = z.infer<typeof NotificacionPreferenciasSchema>;
 export type ClientCreateUserForm = z.infer<typeof clientCreateUserFormSchema>;
 export type ClientUpdateUserForm = z.infer<typeof clientUpdateUserFormSchema>;

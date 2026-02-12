@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { FirebaseIdSchema, FirestoreTimestampSchema } from './common';
 
+/**
+ * Esquema base para Semanario (lectura)
+ */
 export const SemanarioSchema = z.object({
   id: FirebaseIdSchema.optional(),
   userId: FirebaseIdSchema,

@@ -30,10 +30,10 @@ const storage = getStorage(app);
 // Use forwarded URLs from env variables if available (for web preview), otherwise use direct IP.
 
 // Use environment variables for emulator hosts if defined, otherwise fallback to 127.0.0.1
-const authEmulatorHost = process.env.NEXT_PUBLIC_AUTH_EMULATOR_HOST; // Expected format: http://hostname:port or https://hostname:port
-const firestoreEmulatorHost = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST; // Expected format: hostname or hostname:port or http://hostname:port or https://hostname:port
-const functionsEmulatorHost = process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_HOST; // Expected format: hostname or hostname:port or http://hostname:port or https://hostname:port
-const storageEmulatorHost = process.env.NEXT_PUBLIC_STORAGE_EMULATOR_HOST; // Expected format: hostname or hostname:port or http://hostname:port or https://hostname:port
+const authEmulatorHost = process.env.NEXT_PUBLIC_AUTH_EMULATOR_HOST;            // Expected format: http://hostname:port or https://hostname:port
+const firestoreEmulatorHost = process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST;  // Expected format: hostname or hostname:port or http://hostname:port or https://hostname:port
+const functionsEmulatorHost = process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_HOST;  // Expected format: hostname or hostname:port or http://hostname:port or https://hostname:port
+const storageEmulatorHost = process.env.NEXT_PUBLIC_STORAGE_EMULATOR_HOST;      // Expected format: hostname or hostname:port or http://hostname:port or https://hostname:port
 
 const useEmulators = true; // Keep forcing emulator connection for now
 

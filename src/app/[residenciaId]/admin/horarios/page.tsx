@@ -176,7 +176,7 @@ function AlternativaForm({
                 >
                     <SelectTrigger id="alt-horario-solicitud"><SelectValue placeholder="Seleccione un horario..." /></SelectTrigger>
                     <SelectContent>
-                        {availableHorarios.length === 0 ? (<SelectItem value="-" disabled>No hay horarios de solicitud</SelectItem>) : (availableHorarios.map(h => (<SelectItem key={h.id} value={h.id}>{h.nombre} ({DayOfWeekMap[h.dia]} {h.horaSolicitud})</SelectItem>)))}
+                        {availableHorarios.length === 0 ? (<SelectItem value="-" disabled>No hay horarios de solicitud</SelectItem>) : (availableHorarios.map(h => (<SelectItem key={h.id} value={h.id}>{h.nombre} ({DayOfWeekMap[h.dia]} {h.horaSolicitud.replace(/^T/, '')})</SelectItem>)))}
                     </SelectContent>
                 </Select>
                 {availableHorarios.length === 0 && <p className="text-xs text-red-500 mt-1">Defina (y active) horarios de solicitud en la config. general.</p>}
@@ -524,7 +524,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             residenciaId: residenciaId,
             nombre: trimmedNombreEspecifico,
             dia: newAplicacionOrdinaria ? newTiempoComidaDia : null,
-            horaEstimada: newTiempoComidaHoraEstimada || null,
+            horaEstimada: newTiempoComidaHoraEstimada ? `T${newTiempoComidaHoraEstimada}` : null,
             nombreGrupo: trimmedNombreGrupo,
             ordenGrupo: ordenGrupoNum,
             aplicacionOrdinaria: newAplicacionOrdinaria,
@@ -594,7 +594,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
         const updatedTiempoData: Partial<TiempoComida> = {
             nombre: trimmedEditNombreEspecifico,
             dia: editAplicacionOrdinaria ? editTiempoComidaDia : null,
-            horaEstimada: editTiempoComidaHoraEstimada || undefined,
+            horaEstimada: editTiempoComidaHoraEstimada ? `T${editTiempoComidaHoraEstimada}` : undefined,
             nombreGrupo: trimmedEditNombreGrupo,
             ordenGrupo: ordenGrupoNum,
             aplicacionOrdinaria: editAplicacionOrdinaria,
@@ -739,8 +739,8 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             tipo: tipoSeleccionado!,
             tipoAcceso: isAyuno ? 'abierto' : (alternativeFormData.tipoAcceso || 'abierto'),
             requiereAprobacion: isAyuno ? false : (alternativeFormData.requiereAprobacion ?? false),
-            ventanaInicio: isAyuno ? '00:00' : alternativeFormData.ventanaInicio!,
-            ventanaFin: isAyuno ? '00:00' : alternativeFormData.ventanaFin!,
+            ventanaInicio: isAyuno ? 'T00:00' : `T${alternativeFormData.ventanaInicio!}`,
+            ventanaFin: isAyuno ? 'T00:00' : `T${alternativeFormData.ventanaFin!}`,
             horarioSolicitudComidaId: tiempo.aplicacionOrdinaria ? alternativeFormData.horarioSolicitudComidaId! : ( alternativeFormData.horarioSolicitudComidaId ?? null ),
             isActive: true, // Default to active
             iniciaDiaAnterior: isAyuno ? false : (alternativeFormData.iniciaDiaAnterior ?? false),
@@ -831,8 +831,8 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
             tipo: tipoSeleccionado,
             tipoAcceso: isAyuno ? 'abierto' : (alternativeFormData.tipoAcceso || 'abierto'),
             requiereAprobacion: isAyuno ? false : (alternativeFormData.requiereAprobacion),
-            ventanaInicio: isAyuno ? '00:00' : alternativeFormData.ventanaInicio!,
-            ventanaFin: isAyuno ? '00:00' : alternativeFormData.ventanaFin!,
+            ventanaInicio: isAyuno ? 'T00:00' : `T${alternativeFormData.ventanaInicio!}`,
+            ventanaFin: isAyuno ? 'T00:00' : `T${alternativeFormData.ventanaFin!}`,
             horarioSolicitudComidaId: tiempo.aplicacionOrdinaria ? alternativeFormData.horarioSolicitudComidaId! : ( alternativeFormData.horarioSolicitudComidaId ?? null ),
             isActive: alternativeFormData.isActive === undefined ? originalAlt?.isActive ?? true : alternativeFormData.isActive,
             iniciaDiaAnterior: isAyuno ? false : (alternativeFormData.iniciaDiaAnterior ?? false),
@@ -1021,17 +1021,23 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
     const handleOpenEditAlternativaForm = (alternativa: AlternativaTiempoComida) => {
         setEditingAlternativaId(alternativa.id);
         setAddingAlternativaTo(null);
-        setAlternativeFormData({ ...alternativa });
+        setAlternativeFormData({ 
+            ...alternativa,
+            ventanaInicio: (alternativa.ventanaInicio || '').replace(/^T/, ''),
+            ventanaFin: (alternativa.ventanaFin || '').replace(/^T/, ''),
+        });
         console.log("Opening Edit form for Alternativa ID:", alternativa.id);
     };
     const handleEditTiempoComida = (tiempo: TiempoComida) => {
         setEditingTiempoComidaId(tiempo.id);
         setEditTiempoComidaName(tiempo.nombre);
         setEditTiempoComidaDia(tiempo.dia ?? null);
-        setEditTiempoComidaHoraEstimada(tiempo.horaEstimada || '');
+        setEditTiempoComidaHoraEstimada((tiempo.horaEstimada || '').replace(/^T/, ''));
         // <<< Populate group edit state >>>
         setEditTiempoComidaNombreGrupo(tiempo.nombreGrupo);
         setEditTiempoComidaOrdenGrupo(tiempo.ordenGrupo);
+        setEditAplicacionOrdinaria(tiempo.aplicacionOrdinaria);
+        setEditTiempoComidaIsActive(tiempo.isActive);
     };
     const handleCancelEdit = () => {
         setEditingTiempoComidaId(null);
@@ -1237,7 +1243,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                 <div className='flex-grow'>
                                     <span className="font-semibold text-lg">{tiempo.nombre}</span>
                                     <span className="block text-sm text-muted-foreground">
-                                        Grupo: {tiempo.nombreGrupo} (Orden: {tiempo.ordenGrupo}) | Día: {tiempo.dia ? DayOfWeekMap[tiempo.dia] : "Dia no definido"} {tiempo.horaEstimada && `| Hora: ~${tiempo.horaEstimada}`}
+                                        Grupo: {tiempo.nombreGrupo} (Orden: {tiempo.ordenGrupo}) | Día: {tiempo.dia ? DayOfWeekMap[tiempo.dia] : "Dia no definido"} {tiempo.horaEstimada && `| Hora: ~${tiempo.horaEstimada.replace(/^T/, '')}`}
                                     </span>
                                     <span className="font-semibold text-lg">{tiempo.aplicacionOrdinaria ? "Tiempo ordinario" : "Tiempo extraordinario"}</span>
                                 </div>
@@ -1419,7 +1425,7 @@ function HorariosResidenciaPage(): JSX.Element | null { // Allow null return
                                                     <Badge variant="outline" className="capitalize">{alt.tipoAcceso}</Badge>
                                                 </div>
                                                 <p className="text-sm text-muted-foreground mt-1">
-                                                    Ventana: {alt.ventanaInicio}{alt.iniciaDiaAnterior ? ' (d. ant.)' : ''} - {alt.ventanaFin}{alt.terminaDiaSiguiente ? ' (d. sig.)' : ''}
+                                                    Ventana: {(alt.ventanaInicio || '').replace(/^T/, '')}{alt.iniciaDiaAnterior ? ' (d. ant.)' : ''} - {(alt.ventanaFin || '').replace(/^T/, '')}{alt.terminaDiaSiguiente ? ' (d. sig.)' : ''}
                                                     {alt.comedorId && ` | ${comedores.find(c => c.id === alt.comedorId)?.nombre || '?'}`} | Horario:
                                                     <span className="italic"> {horariosSolicitud.find(h => h.id === alt.horarioSolicitudComidaId)?.nombre || 'N/A'}</span>
                                                 </p>

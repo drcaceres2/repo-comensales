@@ -20,9 +20,7 @@ import {
 import {
   UserProfile,
   LogEntry,
-  LogActionType,
   LogPayload,
-  UserId,
   Residencia,
   Dieta,
 } from "../../shared/models/types";
