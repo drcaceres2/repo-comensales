@@ -2,7 +2,7 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp, collection, addDoc, serverTimestamp, WriteBatch } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { UserProfile, LogActionType, UserId, campoFechaConZonaHoraria } from '../../shared/models/types';
+import { UserProfile, LogActionType } from '../../shared/models/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { type Toast } from "@/hooks/useToast";
@@ -170,20 +170,6 @@ export const addLogToBatch = (
 
   // 3. Insertamos en el batch (Set)
   batch.set(logRef, logData);
-};
-
-
-
-export const formatFCZHToMonthYear = (fczh: campoFechaConZonaHoraria | null | undefined): string => {
-  if (!fczh || !fczh.fecha) {
-    return 'N/A';
-  }
-  try {
-    return format(fczh.fecha, 'MMM-yy', { locale: es }); // e.g., "ene-25"
-  } catch (error) {
-    console.error("Error formatting FCZH to MonthYear:", error, fczh);
-    return fczh.fecha; // Fallback to original string on error
-  }
 };
 
 interface TimezoneDetail {

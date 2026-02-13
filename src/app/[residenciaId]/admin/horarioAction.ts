@@ -4,9 +4,12 @@ import { db } from '../../../lib/firebaseAdmin';
 import { HorarioSolicitudComidaSchema } from '@/../shared/schemas/horariosSolicitudComida';
 import { ZodError } from 'zod';
 import { Comedor, HorarioSolicitudComida } from '@/../shared/models/types';
+import { requireAuth } from '../../../lib/serverAuth';
 
-export async function getCatalogosParaCargaHorarios(residenciaId: string): Promise<{ comedores: Comedor[], horarios: HorarioSolicitudComida[] }> {
+export async function getCatalogosParaCargaHorarios(): Promise<{ comedores: Comedor[], horarios: HorarioSolicitudComida[] }> {
   try {
+    const { residenciaId } = await requireAuth();
+
     if (!residenciaId) {
       throw new Error("residenciaId no fue provisto");
     }
@@ -63,10 +66,10 @@ export const horarioServerAction = async (
   formData: FormData
 ): Promise<HorarioActionState> => {
   try {
-    const residenciaId = formData.get('residenciaId') as string;
+    const { residenciaId, uid, email } = await requireAuth();
+    
     const id = formData.get('id') as string | '';
     const isEditing = formData.get('isEditing') === 'true';
-    const actorUserId = formData.get('actorUserId') as string | null;
 
     const rawData: Partial<Payload> = {
       residenciaId,
@@ -117,8 +120,8 @@ export const horarioServerAction = async (
 
           // Log the update
           await db.collection('logs').add({
-            userId: actorUserId || 'SYSTEM',
-            userEmail: actorUserId ? 'user@comensales' : 'system@internal',
+            userId: uid,
+            userEmail: email,
             action: 'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO',
             targetId: id,
             targetCollection: 'horariosSolicitudComida',
@@ -137,8 +140,8 @@ export const horarioServerAction = async (
 
           // Log the creation
           await db.collection('logs').add({
-            userId: actorUserId || 'SYSTEM',
-            userEmail: actorUserId ? 'user@comensales' : 'system@internal',
+            userId: uid,
+            userEmail: email,
             action: 'HORARIO_SOLICITUD_COMIDA_CREADO',
             targetId: newRef.id,
             targetCollection: 'horariosSolicitudComida',
@@ -157,8 +160,8 @@ export const horarioServerAction = async (
 
           // Log the update
           await db.collection('logs').add({
-            userId: actorUserId || 'SYSTEM',
-            userEmail: actorUserId ? 'user@comensales' : 'system@internal',
+            userId: uid,
+            userEmail: email,
             action: 'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO',
             targetId: id,
             targetCollection: 'horariosSolicitudComida',
@@ -174,8 +177,8 @@ export const horarioServerAction = async (
 
           // Log the creation
           await db.collection('logs').add({
-            userId: actorUserId || 'SYSTEM',
-            userEmail: actorUserId ? 'user@comensales' : 'system@internal',
+            userId: uid,
+            userEmail: email,
             action: 'HORARIO_SOLICITUD_COMIDA_CREADO',
             targetId: ref.id,
             targetCollection: 'horariosSolicitudComida',

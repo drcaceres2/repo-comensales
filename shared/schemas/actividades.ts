@@ -33,6 +33,17 @@ const EstadoInscripcionActividadEnum = z.enum([
   'cancelado_admin',
 ]);
 
+// --- Schema for nested object ---
+export const TiempoComidaAlternativaUnicaActividadSchema = z.object({
+  id: FirebaseIdSchema.optional(),
+  nombreTiempoComida_AlternativaUnica: z.string(),
+  nombreGrupoTiempoComida: z.string(),
+  ordenGrupoTiempoComida: z.number(),
+  fecha: z.string(), // ISO Date String
+  horaEstimada: z.string().optional(), // ISO Time String
+});
+
+
 // --- Base Schema ---
 
 const ActividadBaseSchema = z.object({
@@ -50,7 +61,7 @@ const ActividadBaseSchema = z.object({
   fechaFin: z.string(), // ISO 8601 "YYYY-MM-DD"
   tiempoComidaInicial: FirebaseIdSchema,
   tiempoComidaFinal: FirebaseIdSchema,
-  planComidas: z.array(z.any()), // Can be refined if TiempoComidaAlternativaUnicaActividad has a schema
+  planComidas: z.array(TiempoComidaAlternativaUnicaActividadSchema), // Refined with specific schema
   comedorActividad: FirebaseIdSchema.nullable().optional(),
   modoAtencionActividad: z.enum(['residencia', 'externa']),
 

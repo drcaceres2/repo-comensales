@@ -1,9 +1,8 @@
 'use server';
 
-import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { db, auth as adminAuth } from '@/lib/firebaseAdmin';
-import { getSessionUser } from '@/lib/serverAuth';
+import { requireAuth } from '@/lib/serverAuth';
 import { logServerAction } from '@/lib/serverLogs';
 import { 
     ActividadCreateSchema, 
@@ -46,34 +45,27 @@ export async function createActividad(
     residenciaId: ResidenciaId,
     data: unknown
 ) {
-    console.log("createActividad (server) triggered with data:", JSON.stringify(data, null, 2));
-    const user = await getSessionUser();
-    console.log("Auth session user on server:", user?.uid || 'NONE');
-    
-    if (!user) {
-        console.error("createActividad: No authenticated session found.");
-        return { success: false, error: 'Usuario no autenticado en el servidor. Reintenta o inicia sesión de nuevo.' };
-    }
-
-    const validationResult = ActividadCreateSchema.safeParse(data);
-    if (!validationResult.success) {
-        console.warn("Validation failed for createActividad:", JSON.stringify(validationResult.error.format(), null, 2));
-        return { success: false, error: validationResult.error.flatten() };
-    }
-
-    const { tiempoComidaInicial, tiempoComidaFinal, fechaInicio, fechaFin, ...restData } = validationResult.data;
-
-    // Server-side validation for dates and meal times
-    const initialMealValidation = await validateTiempoComida(tiempoComidaInicial, fechaInicio, residenciaId);
-    if (!initialMealValidation.valid) {
-        return { success: false, error: { fieldErrors: { tiempoComidaInicial: [initialMealValidation.message] } } };
-    }
-    const finalMealValidation = await validateTiempoComida(tiempoComidaFinal, fechaFin, residenciaId);
-    if (!finalMealValidation.valid) {
-        return { success: false, error: { fieldErrors: { tiempoComidaFinal: [finalMealValidation.message] } } };
-    }
-
     try {
+        const user = await requireAuth();
+        console.log("createActividad (server) triggered by user:", user.uid);
+
+        const validationResult = ActividadCreateSchema.safeParse(data);
+        if (!validationResult.success) {
+            console.warn("Validation failed for createActividad:", JSON.stringify(validationResult.error.format(), null, 2));
+            return { success: false, error: validationResult.error.flatten() };
+        }
+
+        const { tiempoComidaInicial, tiempoComidaFinal, fechaInicio, fechaFin, ...restData } = validationResult.data;
+
+        const initialMealValidation = await validateTiempoComida(tiempoComidaInicial, fechaInicio, residenciaId);
+        if (!initialMealValidation.valid) {
+            return { success: false, error: { fieldErrors: { tiempoComidaInicial: [initialMealValidation.message] } } };
+        }
+        const finalMealValidation = await validateTiempoComida(tiempoComidaFinal, fechaFin, residenciaId);
+        if (!finalMealValidation.valid) {
+            return { success: false, error: { fieldErrors: { tiempoComidaFinal: [finalMealValidation.message] } } };
+        }
+
         const docRef = await db.collection('actividades').add({
             ...restData,
             residenciaId,
@@ -96,8 +88,11 @@ export async function createActividad(
         revalidatePath(`/`); 
         return { success: true, data: { id: docRef.id, ...validationResult.data } };
     } catch (error) {
-        console.error("Error creating actividad:", error);
-        return { success: false, error: 'No se pudo crear la actividad en la base de datos.' };
+        console.error("Error creatingividad:", error);
+        if (error instanceof Error && error.message.includes('UNAUTHORIZED')) {
+            return { success: false, error: 'Usuario no autenticado. Inicia sesión de nuevo.' };
+        }
+        return { success: false, error: 'No se pudo crear la actividad.' };
     }
 }
 
@@ -106,77 +101,74 @@ export async function updateActividad(
     residenciaId: ResidenciaId,
     data: unknown
 ) {
-    const user = await getSessionUser();
-    if (!user) {
-        return { success: false, error: 'Usuario no autenticado.' };
-    }
-
-    const activityRef = db.collection('actividades').doc(actividadId);
-    const activitySnap = await activityRef.get();
-    if (!activitySnap.exists) {
-        return { success: false, error: 'Actividad no encontrada.' };
-    }
-    const activity = activitySnap.data() as Actividad;
-
-    const validationResult = ActividadUpdateSchema.safeParse(data);
-    if (!validationResult.success) {
-        console.warn("Validation failed for updateActividad:", JSON.stringify(validationResult.error.format(), null, 2));
-        return { success: false, error: validationResult.error.flatten() };
-    }
-    
-    const updateData = validationResult.data;
-
-    // --- State-based Editability Validation ---
-
-    // comensalesNoUsuarios solo se puede modificar en "inscripcion_abierta"
-    if (updateData.comensalesNoUsuarios !== undefined && activity.estado !== 'inscripcion_abierta') {
-        if (updateData.comensalesNoUsuarios !== activity.comensalesNoUsuarios) {
-            return { success: false, error: 'comensalesNoUsuarios solo se puede modificar en estado "inscripcion_abierta".' };
+    try {
+        const user = await requireAuth();
+        
+        const activityRef = db.collection('actividades').doc(actividadId);
+        const activitySnap = await activityRef.get();
+        if (!activitySnap.exists) {
+            return { success: false, error: 'Actividad no encontrada.' };
         }
-    }
+        const activity = activitySnap.data() as Actividad;
 
-    // TipoSolicitudComidasActividad no se puede modificar en "solicitada_administracion" o "cancelada"
-    if (updateData.tipoSolicitudComidas !== undefined && ['solicitada_administracion', 'cancelada'].includes(activity.estado)) {
-        if (updateData.tipoSolicitudComidas !== activity.tipoSolicitudComidas) {
-            return { success: false, error: 'TipoSolicitudComidas no se puede modificar en este estado.' };
+        const validationResult = ActividadUpdateSchema.safeParse(data);
+        if (!validationResult.success) {
+            console.warn("Validation failed for updateActividad:", JSON.stringify(validationResult.error.format(), null, 2));
+            return { success: false, error: validationResult.error.flatten() };
         }
-    }
+        
+        const updateData = validationResult.data;
 
-    // Operational fields only editable in "borrador"
-    const operationalFields: (keyof ActividadUpdate)[] = [
-        'fechaInicio', 'fechaFin', 'tiempoComidaInicial', 'tiempoComidaFinal', 
-        'planComidas', 'comedorActividad', 'modoAtencionActividad', 
-        'tipoAccesoResidentes', 'tipoAccesoInvitados'
-    ];
+        // --- State-based Editability Validation ---
 
-    if (activity.estado !== 'borrador') {
-        const activityAny = activity as any;
-        const updateDataAny = updateData as any;
-        for (const field of operationalFields) {
-            if (updateDataAny[field] !== undefined && updateDataAny[field] !== activityAny[field]) {
-                return { success: false, error: `El campo ${field} solo se puede modificar en estado "borrador".` };
+        // comensalesNoUsuarios solo se puede modificar en "inscripcion_abierta"
+        if (updateData.comensalesNoUsuarios !== undefined && activity.estado !== 'inscripcion_abierta') {
+            if (updateData.comensalesNoUsuarios !== activity.comensalesNoUsuarios) {
+                return { success: false, error: 'comensalesNoUsuarios solo se puede modificar en estado "inscripcion_abierta".' };
             }
         }
-    }
 
-    // --- Additional Validations ---
-    if (updateData.fechaInicio || updateData.fechaFin || updateData.tiempoComidaInicial || updateData.tiempoComidaFinal) {
-        const fechaIni = updateData.fechaInicio || activity.fechaInicio;
-        const fechaF = updateData.fechaFin || activity.fechaFin;
-        const tcIni = updateData.tiempoComidaInicial || activity.tiempoComidaInicial;
-        const tcF = updateData.tiempoComidaFinal || activity.tiempoComidaFinal;
-
-        if (updateData.tiempoComidaInicial) {
-            const v = await validateTiempoComida(tcIni, fechaIni, residenciaId);
-            if (!v.valid) return { success: false, error: { fieldErrors: { tiempoComidaInicial: [v.message] } } };
+        // TipoSolicitudComidasActividad no se puede modificar en "solicitada_administracion" o "cancelada"
+        if (updateData.tipoSolicitudComidas !== undefined && ['solicitada_administracion', 'cancelada'].includes(activity.estado)) {
+            if (updateData.tipoSolicitudComidas !== activity.tipoSolicitudComidas) {
+                return { success: false, error: 'TipoSolicitudComidas no se puede modificar en este estado.' };
+            }
         }
-        if (updateData.tiempoComidaFinal) {
-            const v = await validateTiempoComida(tcF, fechaF, residenciaId);
-            if (!v.valid) return { success: false, error: { fieldErrors: { tiempoComidaFinal: [v.message] } } };
-        }
-    }
 
-    try {
+        // Operational fields only editable in "borrador"
+        const operationalFields: (keyof ActividadUpdate)[] = [
+            'fechaInicio', 'fechaFin', 'tiempoComidaInicial', 'tiempoComidaFinal', 
+            'planComidas', 'comedorActividad', 'modoAtencionActividad', 
+            'tipoAccesoResidentes', 'tipoAccesoInvitados'
+        ];
+
+        if (activity.estado !== 'borrador') {
+            const activityAny = activity as any;
+            const updateDataAny = updateData as any;
+            for (const field of operationalFields) {
+                if (updateDataAny[field] !== undefined && updateDataAny[field] !== activityAny[field]) {
+                    return { success: false, error: `El campo ${field} solo se puede modificar en estado "borrador".` };
+                }
+            }
+        }
+
+        // --- Additional Validations ---
+        if (updateData.fechaInicio || updateData.fechaFin || updateData.tiempoComidaInicial || updateData.tiempoComidaFinal) {
+            const fechaIni = updateData.fechaInicio || activity.fechaInicio;
+            const fechaF = updateData.fechaFin || activity.fechaFin;
+            const tcIni = updateData.tiempoComidaInicial || activity.tiempoComidaInicial;
+            const tcF = updateData.tiempoComidaFinal || activity.tiempoComidaFinal;
+
+            if (updateData.tiempoComidaInicial) {
+                const v = await validateTiempoComida(tcIni, fechaIni, residenciaId);
+                if (!v.valid) return { success: false, error: { fieldErrors: { tiempoComidaInicial: [v.message] } } };
+            }
+            if (updateData.tiempoComidaFinal) {
+                const v = await validateTiempoComida(tcF, fechaF, residenciaId);
+                if (!v.valid) return { success: false, error: { fieldErrors: { tiempoComidaFinal: [v.message] } } };
+            }
+        }
+
         const finalUpdate = {
             ...updateData,
             fechaHoraModificacion: admin.firestore.FieldValue.serverTimestamp(),
@@ -193,18 +185,18 @@ export async function updateActividad(
         revalidatePath(`/`);
         return { success: true, data: updateData };
     } catch (error) {
-        console.error("Error updating actividad:", error);
+        console.error("Error updatingividad:", error);
+        if (error instanceof Error && error.message.includes('UNAUTHORIZED')) {
+            return { success: false, error: 'Usuario no autenticado. Inicia sesión de nuevo.' };
+        }
         return { success: false, error: 'No se pudo actualizar la actividad.' };
     }
 }
 
 export async function deleteActividad(actividadId: ActividadId, residenciaId: ResidenciaId) {
-    const user = await getSessionUser();
-    if (!user) {
-        return { success: false, error: 'Usuario no autenticado.' };
-    }
-    
     try {
+        const user = await requireAuth();
+        
         await db.collection('actividades').doc(actividadId).delete();
         await logServerAction(user.uid, user.email, 'ACTIVIDAD_ELIMINADA', {
             targetId: actividadId,
@@ -215,7 +207,10 @@ export async function deleteActividad(actividadId: ActividadId, residenciaId: Re
         revalidatePath(`/`);
         return { success: true };
     } catch (error) {
-        console.error("Error deleting actividad:", error);
+        console.error("Error deletingividad:", error);
+        if (error instanceof Error && error.message.includes('UNAUTHORIZED')) {
+            return { success: false, error: 'Usuario no autenticado. Inicia sesión de nuevo.' };
+        }
         return { success: false, error: 'No se pudo eliminar la actividad.' };
     }
 }
@@ -226,19 +221,16 @@ export async function updateActividadEstado(
     residenciaId: ResidenciaId,
     nuevoEstado: ActividadEstado
 ) {
-    const user = await getSessionUser();
-    if (!user) {
-        return { success: false, error: 'Usuario no autenticado.' };
-    }
-
-    const validationResult = ActividadEstadoUpdateSchema.safeParse({ estado: nuevoEstado });
-    if (!validationResult.success) {
-        return { success: false, error: validationResult.error.flatten() };
-    }
-
-    const actividadRef = db.collection('actividades').doc(actividadId);
-    
     try {
+        const user = await requireAuth();
+
+        const validationResult = ActividadEstadoUpdateSchema.safeParse({ estado: nuevoEstado });
+        if (!validationResult.success) {
+            return { success: false, error: validationResult.error.flatten() };
+        }
+
+        const actividadRef = db.collection('actividades').doc(actividadId);
+    
         const actividadSnap = await actividadRef.get();
         if (!actividadSnap.exists) {
             return { success: false, error: "La actividad no existe." };
@@ -293,6 +285,9 @@ export async function updateActividadEstado(
         return { success: true };
     } catch (error) {
         console.error("Error updating activity state:", error);
+        if (error instanceof Error && error.message.includes('UNAUTHORIZED')) {
+            return { success: false, error: 'Usuario no autenticado. Inicia sesión de nuevo.' };
+        }
         return { success: false, error: 'No se pudo actualizar el estado de la actividad.' };
     }
 }
