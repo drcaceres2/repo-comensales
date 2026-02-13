@@ -1,31 +1,32 @@
 'use server';
 
-export async function submitFeedback(formData: FormData) {
-  const text = formData.get('text')?.toString() || '';
-  if (!text.trim()) throw new Error('El feedback no puede estar vacío.');
+import { db, admin } from '@/lib/firebaseAdmin';
 
-  const payload = {
-    text,
-    page: formData.get('page')?.toString() || undefined,
-    userAgent: formData.get('userAgent')?.toString() || undefined,
-    screenResolution: formData.get('screenResolution')?.toString() || undefined,
-    viewportSize: formData.get('viewportSize')?.toString() || undefined,
-    userId: formData.get('userId')?.toString() || undefined,
-    userEmail: formData.get('userEmail')?.toString() || undefined,
-    residenciaId: formData.get('residenciaId')?.toString() || undefined,
-    status: 'nuevo',
-  };
+export async function submitFeedback(prevState: any, formData: FormData) {
+  try {
+    const text = formData.get('text')?.toString() || '';
+    if (!text.trim()) {
+      return { error: 'El feedback no puede estar vacío.' };
+    }
 
-  const res = await fetch('/api/feedback', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+    const payload = {
+      text,
+      page: formData.get('page')?.toString() || null,
+      userAgent: formData.get('userAgent')?.toString() || null,
+      screenResolution: formData.get('screenResolution')?.toString() || null,
+      viewportSize: formData.get('viewportSize')?.toString() || null,
+      userId: formData.get('userId')?.toString() || null,
+      userEmail: formData.get('userEmail')?.toString() || null,
+      residenciaId: formData.get('residenciaId')?.toString() || null,
+      status: 'nuevo',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error || `Error en servidor: ${res.status}`);
+    await db.collection('feedback').add(payload);
+
+    return { message: 'Tu feedback ha sido enviado correctamente. ¡Gracias!' };
+  } catch (err) {
+    console.error('Error submitting feedback action:', err);
+    return { error: err instanceof Error ? err.message : 'Error desconocido al enviar el feedback.' };
   }
-
-  return res.json();
 }

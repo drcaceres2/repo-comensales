@@ -21,8 +21,6 @@ import {
     UserProfile,
     ResidenciaId,
     ActividadId,
-    UserId,
-    LogActionType,
     EstadoInscripcionActividad,
     UserRole // Ensure UserRole is imported
 } from '../../../../shared/models/types';
@@ -132,7 +130,7 @@ export default function ResidenteActividadesPage() {
             const openActivitiesQuery = query(
                 collection(db, "actividades"),
                 where("residenciaId", "==", residenciaId),
-                where("estado", "==", "abierta_inscripcion"),
+                where("estado", "==", "inscripcion_abierta"),
                 orderBy("fechaInicio", "asc")
             );
             const openActivitiesSnap = await getDocs(openActivitiesQuery);
@@ -141,7 +139,7 @@ export default function ResidenteActividadesPage() {
             activitiesToShow = activitiesToShow.filter(act => {
                 const inscription = inscriptionsMap.get(act.id);
                 if (inscription?.estadoInscripcion === 'invitado_pendiente') return true; 
-                if (act.tipoAccesoActividad === 'abierta' || act.tipoAccesoActividad === 'opcion_unica') return true; 
+                if (act.tipoAccesoResidentes === 'abierta' || act.tipoAccesoResidentes === 'opcion_unica') return true; 
                 return false; 
             });
             
@@ -165,7 +163,7 @@ export default function ResidenteActividadesPage() {
                 const pastActivitiesQuery = query(
                     collection(db, "actividades"),
                     where("residenciaId", "==", residenciaId),
-                    where("estado", "in", ["confirmada_finalizada", "cancelada"]),
+                    where("estado", "in", ["solicitada_administracion", "cancelada"]),
                     where("fechaFin", "<", Timestamp.now()), 
                     orderBy("fechaFin", "desc"),
                     limit(3) 
@@ -427,7 +425,7 @@ export default function ResidenteActividadesPage() {
     
     const renderActivityCardActions = (activity: Actividad) => {
         const inscription = userInscriptionsMap.get(activity.id);
-        const isActivityOpenForInscriptions = activity.estado === 'abierta_inscripcion';
+        const isActivityOpenForInscriptions = activity.estado === 'inscripcion_abierta';
 
         if (inscription) {
             switch (inscription.estadoInscripcion) {
@@ -463,10 +461,10 @@ export default function ResidenteActividadesPage() {
             // const isFull = activity.maxParticipantes && (SOME_COUNT_HERE >= activity.maxParticipantes);
             // if (isFull) return <Button className="w-full" disabled>Plazas Completas</Button>;
 
-            if (activity.tipoAccesoActividad === 'abierta' || activity.tipoAccesoActividad === 'opcion_unica') {
+            if (activity.tipoAccesoResidentes === 'abierta' || activity.tipoAccesoResidentes === 'opcion_unica') {
                 return <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleViewDetails(activity)}>Ver y Apuntarme <Info className="ml-2 h-4 w-4"/></Button>;
             }
-            if (activity.tipoAccesoActividad === 'invitacion_requerida') {
+            if (activity.tipoAccesoResidentes === 'invitacion_requerida') {
                 return <Badge variant="outline">Requiere Invitación Específica</Badge>; 
             }
         }
@@ -475,7 +473,7 @@ export default function ResidenteActividadesPage() {
     
     const renderModalActions = (activity: Actividad) => {
         const inscription = userInscriptionsMap.get(activity.id);
-        const isActivityOpenForInscriptions = activity.estado === 'abierta_inscripcion';
+        const isActivityOpenForInscriptions = activity.estado === 'inscripcion_abierta';
         // Note: canStillAct (deadline logic) is simplified to isActivityOpenForInscriptions for now
 
         if (inscription) {
@@ -501,7 +499,7 @@ export default function ResidenteActividadesPage() {
             
             // The actual disabling/toast due to being full will happen in handleSignUpDirectly.
             // Here, we just render the button if the activity is open.
-            if (activity.tipoAccesoActividad === 'abierta' || activity.tipoAccesoActividad === 'opcion_unica') {
+            if (activity.tipoAccesoResidentes === 'abierta' || activity.tipoAccesoResidentes === 'opcion_unica') {
                 return (
                     <Button onClick={handleSignUpDirectly} className="bg-green-600 hover:bg-green-700 text-white" disabled={isProcessing}>
                         {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
@@ -555,20 +553,20 @@ export default function ResidenteActividadesPage() {
                                 <CardDescription className="text-sm text-muted-foreground">
                                     {formatActivityDateRange(act.fechaInicio, act.fechaFin)}
                                 </CardDescription>
-                                { (act.estado !== 'abierta_inscripcion' && act.estado !== 'borrador' && !noActivitiesMessage?.includes("recientes")) &&
+                                { (act.estado !== 'inscripcion_abierta' && act.estado !== 'borrador' && !noActivitiesMessage?.includes("recientes")) &&
                                   <Badge variant="outline" className={`mt-1 ${act.estado === 'cancelada' ? 'border-red-500 text-red-500 bg-red-50 dark:bg-red-900/30' : 'border-slate-400 text-slate-500 dark:border-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/30'}`}>
-                                    {act.estado === 'confirmada_finalizada' ? 'Finalizada' : act.estado.replace(/_/g, ' ').toUpperCase()}
+                                    {act.estado === 'solicitada_administracion' ? 'Finalizada' : act.estado.replace(/_/g, ' ').toUpperCase()}
                                   </Badge>
                                 }
-                                { (noActivitiesMessage?.includes("recientes") && (act.estado === 'confirmada_finalizada' || act.estado === 'cancelada') ) && 
+                                { (noActivitiesMessage?.includes("recientes") && (act.estado === 'solicitada_administracion' || act.estado === 'cancelada') ) && 
                                     <Badge variant="outline" className={`mt-1 ${act.estado === 'cancelada' ? 'border-red-500 text-red-500 bg-red-50 dark:bg-red-900/30' : 'border-slate-400 text-slate-500 dark:border-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/30'}`}>
-                                        {act.estado === 'confirmada_finalizada' ? 'Finalizada' : 'Cancelada'}
+                                        {act.estado === 'solicitada_administracion' ? 'Finalizada' : 'Cancelada'}
                                     </Badge>
                                 }
                             </CardHeader>
                             <CardContent className="flex-grow space-y-2">
                                 <p className="text-sm text-slate-700 dark:text-slate-300 line-clamp-3">
-                                    {act.descripcionGeneral || "No hay descripción detallada."}
+                                    {act.descripcion || "No hay descripción detallada."}
                                 </p>
                             </CardContent>
                             <CardFooter className="border-t pt-4 min-h-[70px] flex items-center justify-center bg-slate-50 dark:bg-slate-800/30">
@@ -593,7 +591,7 @@ export default function ResidenteActividadesPage() {
                                 </Button>
                             </CardHeader>
                             <CardContent className="py-6 px-6 space-y-4 overflow-y-auto flex-grow">
-                                <p className="text-sm text-slate-600 dark:text-slate-300">{selectedActivity.descripcionGeneral || "Sin descripción detallada."}</p>
+                                <p className="text-sm text-slate-600 dark:text-slate-300">{selectedActivity.descripcion || "Sin descripción detallada."}</p>
                                 
                                 {selectedActivity.planComidas && selectedActivity.planComidas.length > 0 && (
                                     <div>
@@ -613,8 +611,8 @@ export default function ResidenteActividadesPage() {
                                     <p className="text-sm text-muted-foreground">Esta actividad no tiene un plan de comidas específico detallado.</p>
                                 )}
                                  <p className="text-xs text-muted-foreground mt-3">
-                                    Acceso: {selectedActivity.tipoAccesoActividad === 'abierta' ? 'Abierta a todos los participantes elegibles.' : 
-                                             selectedActivity.tipoAccesoActividad === 'opcion_unica' ? 'Opción única (participación gestionada).' :
+                                    Acceso: {selectedActivity.tipoAccesoResidentes === 'abierta' ? 'Abierta a todos los participantes elegibles.' : 
+                                             selectedActivity.tipoAccesoResidentes === 'opcion_unica' ? 'Opción única (participación gestionada).' :
                                              'Requiere invitación.'}
                                     {selectedActivity.maxParticipantes && ` Plazas limitadas a ${selectedActivity.maxParticipantes} participantes.`}
                                 </p>

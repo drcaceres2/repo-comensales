@@ -151,7 +151,7 @@ export default function BienvenidaInvitadosPage(): JSX.Element | null {
 
                     // Fetch Alternativas (Only Principales)
                     const alternativasSnap = await getDocs(query(
-                        collection(db, `alternativas`), 
+                        collection(db, `alternativasTiempoComida`), 
                         where("residenciaId", "==", residenciaId), 
                         where('isActive', '==', true),
                         where('esPrincipal', '==', true)

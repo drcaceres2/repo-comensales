@@ -1,738 +1,331 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useTransition } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { 
-    collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, 
+    collection, doc, getDoc, getDocs,
     query, where, orderBy
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
-import { ActividadSchema } from '@/../shared/schemas/actividades';
 
 // UI Components
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"; // Added CardFooter
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Badge } from '@/components/ui/badge';
 import { useToast } from "@/hooks/useToast";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogTrigger,
     AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
     AlertDialogContent, AlertDialogDescription 
 } from "@/components/ui/alert-dialog";
-import { Loader2, PlusCircle, Trash2, Edit, AlertCircle, CalendarIcon, XIcon, Activity } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Edit, AlertCircle, Hourglass, Users, XCircle, ArrowRight, Play, Undo, Calendar, Ban } from 'lucide-react';
 
-// Types from types.ts
+// Types and Schemas
 import {
-    Residencia,
-    Actividad,
-    ActividadId,
-    TiempoComidaAlternativaUnicaActividad as ActividadMealDefinition,
-    TiempoComidaAlternativaUnicaActividadId as ActividadMealDefinitionId,
-    ActividadEstado,
-    TipoAccesoActividad,
-    CentroCosto,
-    TiempoComida,
-    UserProfile,
-    ResidenciaId,
-    CentroCostoId,
-    TiempoComidaId,
-    DayOfWeekMap, 
-    UserId 
+    Residencia, Actividad, ActividadId, CentroCosto, TiempoComida,
+    UserProfile, ResidenciaId, InscripcionActividad, ActividadEstado, Comedor
 } from '@/../shared/models/types';
-import { logClientAction } from '@/lib/utils';
+import { ActivityForm } from './ActivityForm';
+import { deleteActividad, updateActividadEstado } from './actions';
 
-const getDefaultMealDefinition = (): Partial<ActividadMealDefinition> => ({
-    nombreTiempoComida_AlternativaUnica: '',
-    nombreGrupoTiempoComida: '',
-    ordenGrupoTiempoComida: 0,
-    fecha: new Date().toISOString(),
-    horaEstimadaMeal: '12:00:00', 
-});
-
-const getDefaultActividad = (residenciaId: ResidenciaId, organizadorUserId: UserId, antelacionDefault?: number): Partial<Actividad> => {
-    const now = new Date();
-    now.setMinutes(0, 0, 0);
-    // Format YYYY-MM-DDTHH:mm (local time)
-    const tzOffset = now.getTimezoneOffset() * 60000;
-    const localISO = new Date(now.getTime() - tzOffset).toISOString().slice(0, 16);
-    
-    return {
-        residenciaId,
-        nombre: '',
-        descripcionGeneral: '',
-        fechaInicio: localISO,
-        fechaFin: localISO,
-        ultimoTiempoComidaAntes: undefined,
-        primerTiempoComidaDespues: undefined,
-        planComidas: [getDefaultMealDefinition() as ActividadMealDefinition], 
-        requiereInscripcion: true,
-        tipoAccesoActividad: 'abierta',
-        maxParticipantes: undefined,
-        diasAntelacionCierreInscripcion: antelacionDefault ?? 7, 
-        defaultCentroCostoId: undefined,
-        estado: 'borrador',
-        organizadorUserId
-    };
+// Helper to get inscriptions count
+const getInscripcionesCount = (inscripciones: InscripcionActividad[], actividadId: ActividadId) => {
+    return inscripciones.filter(i => 
+        i.actividadId === actividadId && 
+        (i.estadoInscripcion === 'inscrito_directo' || i.estadoInscripcion === 'invitado_aceptado')
+    ).length;
 };
+const getInvitacionesCount = (inscripciones: InscripcionActividad[], actividadId: ActividadId) => {
+    return inscripciones.filter(i => 
+        i.actividadId === actividadId && 
+        i.estadoInscripcion === 'invitado_pendiente'
+    ).length;
+};
+
 
 function AdminActividadesPage() {
     const params = useParams();
     const router = useRouter();
     const residenciaId = params.residenciaId as ResidenciaId;
     const { toast } = useToast();
+    const { user: authUser, loading: authLoading } = useAuth();
+    const [isPending, startTransition] = useTransition();
 
-    const { user: authUser, loading: authLoading, error: authError } = useAuth();
-    const [adminUserProfile, setAdminUserProfile] = useState<UserProfile | null>(null);
-    const [adminProfileLoading, setAdminProfileLoading] = useState(true);
-    const [adminProfileError, setAdminProfileError] = useState<string | null>(null);
-    const [isAuthorized, setIsAuthorized] = useState(false);
-
+    // Data State
     const [residencia, setResidencia] = useState<Residencia | null>(null);
     const [actividades, setActividades] = useState<Actividad[]>([]);
+    const [inscripciones, setInscripciones] = useState<InscripcionActividad[]>([]);
     const [centroCostosList, setCentroCostosList] = useState<CentroCosto[]>([]);
     const [tiemposComidaList, setTiemposComidaList] = useState<TiempoComida[]>([]);
+    const [comedoresList, setComedoresList] = useState<Comedor[]>([]);
 
+    // UI State
     const [isLoadingPageData, setIsLoadingPageData] = useState(true);
     const [pageError, setPageError] = useState<string | null>(null);
-
     const [showActivityForm, setShowActivityForm] = useState(false);
     const [editingActividad, setEditingActividad] = useState<Actividad | null>(null);
-    const [currentActividadFormData, setCurrentActividadFormData] = useState<Partial<Actividad>>(
-        {} // Will be initialized by open form handlers
-    );
-    const [isSavingActividad, setIsSavingActividad] = useState(false);
-    const [validationError, setValidationError] = useState<string | null>(null);
 
-    // --- Authorization (useEffect hooks as before) ---
-    useEffect(() => {
-        // ... authUser, authLoading, authError handling ...
-        if (authLoading) {
-            setAdminProfileLoading(true);
-            return;
-        }
-        if (authError) {
-            toast({ title: "Error de Autenticación", description: authError.message, variant: "destructive" });
-            setAdminProfileLoading(false);
-            router.replace('/'); 
-            return;
-        }
-        if (!authUser) {
-            setAdminProfileLoading(false);
-            router.replace('/'); 
-            return;
-        }
-
-        setAdminProfileLoading(true);
-        const adminDocRef = doc(db, "users", authUser.uid);
-        getDoc(adminDocRef)
-            .then((docSnap) => {
-                if (docSnap.exists()) {
-                    setAdminUserProfile(docSnap.data() as UserProfile);
-                } else {
-                    setAdminProfileError("Perfil de administrador no encontrado.");
-                }
-            })
-            .catch((error) => {
-                console.error("Error fetching admin profile:", error);
-                setAdminProfileError(`Error cargando perfil: ${error.message}`);
-            })
-            .finally(() => setAdminProfileLoading(false));
-    }, [authUser, authLoading, authError, router, toast]);
-
-    useEffect(() => {
-        // ... isAuthorized logic based on adminUserProfile ...
-        if (adminProfileLoading || !adminUserProfile) {
-            setIsAuthorized(false);
-            return;
-        }
-        const userRoles = adminUserProfile.roles || [];
-        const canManage = userRoles.includes('master') || userRoles.includes('admin') ||
-                         (userRoles.includes('director') && adminUserProfile.residenciaId === residenciaId) ||
-                         (userRoles.includes('asistente') /* && check for specific 'manage_activities' permission if you have granular perms */);
-        
-        setIsAuthorized(canManage);
-        if (!canManage) {
-            setPageError("No tienes permiso para gestionar actividades en esta residencia.");
-            setIsLoadingPageData(false); 
-        }
-    }, [adminUserProfile, adminProfileLoading, residenciaId]);
-
-    // --- Initial Data Fetching (fetchData and its useEffect as before) ---
     const fetchData = useCallback(async () => {
-        // ... fetchData logic as before ...
-        if (!isAuthorized || !residenciaId) {
-            setIsLoadingPageData(false);
-            return;
-        }
+        if (!residenciaId || !authUser?.uid) return;
         setIsLoadingPageData(true);
         setPageError(null);
         try {
             const residenciaRef = doc(db, "residencias", residenciaId);
             const residenciaSnap = await getDoc(residenciaRef);
             if (!residenciaSnap.exists()) throw new Error("Residencia no encontrada.");
-            const residenciaData = residenciaSnap.data() as Residencia;
-            setResidencia(residenciaData);
+            setResidencia(residenciaSnap.data() as Residencia);
 
-            const [actividadesSnap, centroCostosSnap, tiemposComidaSnap] = await Promise.all([
+            const [actividadesSnap, centroCostosSnap, tiemposComidaSnap, inscripcionesSnap, comedoresSnap] = await Promise.all([
                 getDocs(query(collection(db, "actividades"), where("residenciaId", "==", residenciaId), orderBy("fechaInicio", "desc"))),
                 getDocs(query(collection(db, "centrosCosto"), where("residenciaId", "==", residenciaId), where("isActive", "==", true), orderBy("nombre"))),
-                getDocs(query(collection(db, "tiemposComida"), where("residenciaId", "==", residenciaId), orderBy("ordenGrupo"), orderBy("nombre"))), 
+                getDocs(query(collection(db, "tiemposComida"), where("residenciaId", "==", residenciaId), orderBy("ordenGrupo"))), 
+                getDocs(query(collection(db, 'inscripcionesActividades'), where('residenciaId', '==', residenciaId))),
+                getDocs(query(collection(db, "comedores"), where("residenciaId", "==", residenciaId)))
             ]);
             setActividades(actividadesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Actividad)));
             setCentroCostosList(centroCostosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CentroCosto)));
             setTiemposComidaList(tiemposComidaSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TiempoComida)));
+            setInscripciones(inscripcionesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as InscripcionActividad)));
+            setComedoresList(comedoresSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comedor)));
+
         } catch (err) {
             console.error("Error fetching admin activities data:", err);
             setPageError(err instanceof Error ? err.message : "Error desconocido al cargar datos.");
         } finally {
             setIsLoadingPageData(false);
         }
-    }, [isAuthorized, residenciaId, authUser?.uid]);
+    }, [residenciaId, authUser?.uid]);
 
     useEffect(() => {
-        if (isAuthorized && residenciaId) {
+        if (!authLoading && authUser) {
             fetchData();
+        } else if (!authLoading && !authUser) {
+             router.replace('/');
         }
-    }, [isAuthorized, residenciaId, fetchData]);
-
+    }, [authLoading, authUser, fetchData, router]);
+    
     // --- FORM MANAGEMENT ---
     const handleOpenAddForm = () => {
         setEditingActividad(null);
-        setCurrentActividadFormData(getDefaultActividad(residenciaId, authUser!.uid, residencia?.antelacionActividadesDefault));
         setShowActivityForm(true);
     };
-
     const handleOpenEditForm = (actividad: Actividad) => {
         setEditingActividad(actividad);
-        setCurrentActividadFormData({
-            ...actividad,
-            fechaInicio: new Date(actividad.fechaInicio).toISOString().slice(0, 16),
-            fechaFin: new Date(actividad.fechaFin).toISOString().slice(0, 16),
-        });
         setShowActivityForm(true);
     };
-
     const handleCloseForm = () => {
         setShowActivityForm(false);
         setEditingActividad(null);
-        setValidationError(null);
-        // No need to reset currentActividadFormData here, it will be reset on next open
+        fetchData(); // Refetch data on close
     };
 
-    const handleFormInputChange = (field: keyof Actividad, value: any) => {
-        setCurrentActividadFormData(prev => ({ ...prev, [field]: value }));
-        if (validationError) setValidationError(null);
-    };
-    
-    // Specific handler for date/time inputs if needed, but often direct value from event.target.value works for datetime-local
-    // For example, if using a custom date picker component:
-    // const handleDateChange = (field: 'fechaInicio' | 'fechaFin', date: Date | null) => {
-    //    setCurrentActividadFormData(prev => ({ ...prev, [field]: date ? date.toISOString() : undefined }));
-    // };
-
-
-    const handleMealPlanChange = (index: number, field: keyof ActividadMealDefinition, value: any) => {
-        setCurrentActividadFormData(prev => {
-            const newPlanComidas = [...(prev.planComidas || [])];
-            newPlanComidas[index] = { ...newPlanComidas[index], [field]: value };
-            return { ...prev, planComidas: newPlanComidas };
+    // --- ACTIONS ---
+    const handleStateChange = (actividadId: ActividadId, newState: ActividadEstado) => {
+        startTransition(async () => {
+            const result = await updateActividadEstado(actividadId, residenciaId, newState);
+             if (result.success) {
+                toast({ title: 'Estado de la actividad actualizado' });
+                fetchData();
+            } else {
+                const errorMsg = typeof result.error === 'string' ? result.error : 'Error de validación';
+                toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
+            }
         });
     };
+    
+    const getStateButtonStyle = (actividad: Actividad) => {
+        const now = new Date();
+        const fechaFin = new Date(actividad.fechaFin);
 
-    const handleAddMealToPlan = () => {
-        setCurrentActividadFormData(prev => ({
-            ...prev,
-            planComidas: [...(prev.planComidas || []), getDefaultMealDefinition() as ActividadMealDefinition]
-        }));
-    };
-
-    const handleRemoveMealFromPlan = (index: number) => {
-        setCurrentActividadFormData(prev => ({
-            ...prev,
-            planComidas: (prev.planComidas || []).filter((_, i) => i !== index)
-        }));
-    };
-
-    // --- CRUD Operations ---
-    const handleSubmitActividad = async () => {
-        setValidationError(null);
-        console.log("Submitting Actividad form data:", currentActividadFormData);
-
-        if (!authUser) {
-            console.error("No authenticated user found during submission");
-            toast({ title: "Error", description: "Debes estar autenticado para realizar esta acción.", variant: "destructive" });
-            return;
-        }
-
-        const dataToValidate = {
-            ...currentActividadFormData,
-            residenciaId: residenciaId,
-            organizadorUserId: currentActividadFormData.organizadorUserId || authUser.uid,
-            // Ensure values required by schema are at least defined
-            estado: currentActividadFormData.estado || 'borrador',
-            tipoSolicitudComidas: currentActividadFormData.tipoSolicitudComidas || 'ninguna',
-            estadoSolicitudAdministracion: currentActividadFormData.estadoSolicitudAdministracion || 'no_solicitado',
-            modoAtencionActividad: currentActividadFormData.modoAtencionActividad || 'residencia',
-            requiereInscripcion: currentActividadFormData.requiereInscripcion ?? true,
-            tipoAccesoActividad: currentActividadFormData.tipoAccesoActividad || 'abierta',
-            aceptaResidentes: currentActividadFormData.aceptaResidentes ?? true,
-            aceptaInvitados: currentActividadFormData.aceptaInvitados || 'no',
-        };
-
-        console.log("Data being validated by Zod:", dataToValidate);
-
-        const validationResult = ActividadSchema.partial().safeParse(dataToValidate);
-
-        if (!validationResult.success) {
-            console.error("Zod Validation Errors:", validationResult.error.format());
-            const firstError = validationResult.error.errors[0];
-            const errorMsg = `${firstError.path.join('.')} - ${firstError.message}`;
-            setValidationError(errorMsg);
-            toast({
-                title: "Error de Validación",
-                description: errorMsg,
-                variant: "destructive",
-            });
-            return;
-        }
-
-        setIsSavingActividad(true);
-        
-        // Transform dates only if they exist and are valid
-        const dataToSave = {
-            ...validationResult.data,
-            fechaInicio: validationResult.data.fechaInicio ? new Date(validationResult.data.fechaInicio).toISOString() : new Date().toISOString(),
-            fechaFin: validationResult.data.fechaFin ? new Date(validationResult.data.fechaFin).toISOString() : new Date().toISOString(),
-        };
-
-        console.log("Data to be saved to Firestore:", dataToSave);
-
-        try {
-            if (editingActividad) { // Update
-                const actividadRef = doc(db, "actividades", editingActividad.id);
-                await updateDoc(actividadRef, dataToSave as any);
-                setActividades(prev => prev.map(act => act.id === editingActividad.id ? { ...act, ...dataToSave } as Actividad : act).sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
-                toast({ title: "Actividad Actualizada", description: `"${dataToSave.nombre}" ha sido actualizada.` });
-                await logClientAction(
-                    'ACTIVIDAD_ACTUALIZADA', 
-                    {   targetId: editingActividad.id, 
-                        targetCollection: 'actividades',
-                        residenciaId: residenciaId,
-                        details: {message: `Actividad actualizada: ${dataToSave.nombre} actividadRef.path: ${actividadRef.path}`}
-                    }
-                );
-            } else { // Create
-                const docRef = await addDoc(collection(db, "actividades"), { ...dataToSave });
-                const newActividad = { id: docRef.id, ...dataToSave, residenciaId: residenciaId } as Actividad;
-                setActividades(prev => [newActividad, ...prev].sort((a,b) => new Date(b.fechaInicio).getTime() - new Date(a.fechaInicio).getTime()));
-                toast({ title: "Actividad Creada", description: `"${dataToSave.nombre}" ha sido creada.` });
-                await logClientAction(
-                    'ACTIVIDAD_CREADA', 
-                    {   targetId: docRef.id, 
-                        targetCollection: 'actividades',
-                        residenciaId: residenciaId,
-                        details: {message: `Actividad creada: ${dataToSave.nombre} actividadRef.path: ${docRef.path}`}
-                    }
-                );
-            }
-            handleCloseForm();
-        } catch (error) {
-            console.error("Error saving actividad:", error);
-            const errorMsg = `No se pudo guardar la actividad. ${error instanceof Error ? error.message : ''}`;
-            setValidationError(errorMsg);
-            toast({ title: "Error al Guardar", description: errorMsg, variant: "destructive" });
-        } finally {
-            setIsSavingActividad(false);
-        }
-    };
-
-    const handleDeleteActividad = async (actividadId: ActividadId, actividadNombre: string) => {
-        // TODO: Check for inscriptions before deleting, or handle cascading deletes (complex)
-        // For now, direct delete:
-        setIsLoadingPageData(true); // Use a general loading indicator or specific one
-        try {
-            const actividadRef = doc(db, "actividades", actividadId);
-            await deleteDoc(actividadRef);
-            setActividades(prev => prev.filter(act => act.id !== actividadId));
-            toast({ title: "Actividad Eliminada", description: `"${actividadNombre}" ha sido eliminada.`, variant: "destructive" });
-            await logClientAction(
-                'ACTIVIDAD_ELIMINADA', 
-                {   targetId: actividadId, 
-                    targetCollection: 'actividades',
-                    residenciaId: residenciaId,
-                    details: {message: `Actividad eliminada: ${actividadNombre} actividadRef.path: ${actividadRef.path}`}
+        switch(actividad.estado) {
+            case 'borrador': return { label: 'Abrir Inscripción', icon: Play, nextState: 'inscripcion_abierta' as ActividadEstado };
+            case 'inscripcion_abierta': 
+                if (now > fechaFin) {
+                    return { label: 'Confirmar Administración', icon: ArrowRight, nextState: 'solicitada_administracion' as ActividadEstado };
                 }
-            );
-        } catch (error) {
-            console.error("Error deleting actividad:", error);
-            toast({ title: "Error al Eliminar", description: `No se pudo eliminar la actividad. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
-        } finally {
-            setIsLoadingPageData(false);
+                return { label: 'Cerrar Inscripción', icon: XCircle, nextState: 'inscripcion_cerrada' as ActividadEstado };
+            case 'inscripcion_cerrada': return { label: 'Confirmar Administración', icon: ArrowRight, nextState: 'solicitada_administracion' as ActividadEstado };
+            case 'cancelada': return { label: 'Reactivar', icon: Undo, nextState: 'borrador' as ActividadEstado };
+            default: return null;
         }
-    };
+    }
 
-    // --- Render Logic (authLoading, !isAuthorized, isLoadingPageData, pageError as before) ---
-    if (authLoading || adminProfileLoading) { /* ... */ }
-    if (!isAuthorized || adminProfileError) { /* ... */ }
-    if (isLoadingPageData && !actividades.length) { /* ... */ }
-    if (pageError) { /* ... */ }
-
+    if (isLoadingPageData) { return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin" /></div>; }
+    if (pageError) { return <div className="text-destructive text-center mt-8">{pageError}</div>; }
 
     return (
         <div className="container mx-auto p-4 space-y-6">
-            <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                    <Activity className="h-8 w-8 text-primary" />
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Gestionar Actividades</h1>
-                        {residencia && <p className="text-muted-foreground">para <span className="font-semibold text-primary">{residencia.nombre}</span></p>}
-                    </div>
+            <div className="flex flex-col md:flex-row md:justify-between md:items-start space-y-4 md:space-y-0">
+                 <div>
+                    <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Gestionar Actividades</h1>
+                    {residencia && <p className="text-muted-foreground italic">para <span className="font-semibold text-primary">{residencia.nombre}</span></p>}
                 </div>
-                <Button onClick={handleOpenAddForm}>
-                    <PlusCircle className="mr-2 h-5 w-5" /> Añadir Nueva Actividad
+                <Button onClick={handleOpenAddForm} disabled={isPending} className="w-full md:w-auto">
+                    <PlusCircle className="mr-2 h-5 w-5" /> Añadir Actividad
                 </Button>
             </div>
             
-            {/* LIST OF ACTIVITIES - (Card rendering as before, but wire up edit/delete) */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Lista de Actividades</CardTitle>
-                    <CardDescription>Aquí puedes ver y gestionar todas las actividades programadas para la residencia.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {/* ... loading/empty states for list ... */}
-                    {actividades.length > 0 && (
-                        <div className="space-y-4">
-                            {actividades.map(act => (
-                                <Card key={act.id} className="shadow-md">
-                                    <CardHeader>
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <CardTitle className="text-xl">{act.nombre}</CardTitle>
-                                                <CardDescription>
-                                                    {act.fechaInicio && act.fechaFin ? 
-                                                        `${new Date(act.fechaInicio).toLocaleDateString()} - ${new Date(act.fechaFin).toLocaleDateString()}`
-                                                        : 'Fechas no definidas'}
-                                                </CardDescription>
-                                            </div>
-                                            <div className="flex space-x-2">
-                                                <Button variant="outline" size="sm" onClick={() => handleOpenEditForm(act)}>
-                                                    <Edit className="mr-1 h-4 w-4" /> Editar
-                                                </Button>
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <Button variant="destructive" size="sm">
-                                                            <Trash2 className="mr-1 h-4 w-4" /> Eliminar
-                                                        </Button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
-                                                            <AlertDialogDescription>Se eliminará la actividad "{act.nombre}". Esta acción no se puede deshacer.</AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => handleDeleteActividad(act.id, act.nombre)}>
-                                                                Sí, Eliminar
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <p className="text-sm text-muted-foreground mb-2">{act.descripcionGeneral || "Sin descripción general."}</p>
-                                        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-                                            <span><strong>Estado:</strong> <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${act.estado === 'abierta_inscripcion' ? 'bg-green-100 text-green-700' : act.estado === 'borrador' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>{act.estado}</span></span>
-                                            <span><strong>Acceso:</strong> {act.tipoAccesoActividad}</span>
-                                            {act.maxParticipantes && <span><strong>Plazas:</strong> {act.maxParticipantes}</span>}
-                                            {/* More details can be added here */}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {actividades.map((act) => {
+                    const stateButton = getStateButtonStyle(act);
+                    const inscritos = getInscripcionesCount(inscripciones, act.id);
+                    const invitados = getInvitacionesCount(inscripciones, act.id);
+                    const dateRange = `${new Date(act.fechaInicio).toLocaleDateString()} ${act.fechaInicio !== act.fechaFin ? `- ${new Date(act.fechaFin).toLocaleDateString()}` : ''}`;
 
-            {/* FORM MODAL */}
-            {showActivityForm && (
-                 <>
-                    <div className="fixed inset-0 bg-black/50 z-40" onClick={handleCloseForm}></div>
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col"> {/* Flex column for sticky footer */}
-                            <CardHeader className="flex-shrink-0">
-                                <CardTitle>{editingActividad ? "Editar Actividad" : "Crear Nueva Actividad"}</CardTitle>
-                                <Button variant="ghost" size="icon" className="absolute top-4 right-4" onClick={handleCloseForm}>
-                                    <XIcon className="h-5 w-5" />
-                                </Button>
-                            </CardHeader>
-                            <CardContent className="space-y-6 py-4 flex-grow"> {/* Added more spacing and py-4 */}
-                                {/* Basic Information */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="act-nombre" className="text-base font-semibold">Información Básica</Label>
-                                    <div className="pl-2 space-y-3">
-                                        <div>
-                                            <Label htmlFor="act-nombre">Nombre de la Actividad *</Label>
-                                            <Input 
-                                                id="act-nombre" 
-                                                value={currentActividadFormData.nombre || ''} 
-                                                onChange={(e) => handleFormInputChange('nombre', e.target.value)} 
-                                            />
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="act-descripcion">Descripción General</Label>
-                                            <Textarea 
-                                                id="act-descripcion" 
-                                                value={currentActividadFormData.descripcionGeneral || ''} 
-                                                onChange={(e) => handleFormInputChange('descripcionGeneral', e.target.value)}
-                                                placeholder="Detalles sobre la actividad, qué esperar, etc."
-                                            />
+                    return (
+                        <Card 
+                            key={act.id} 
+                            className={`flex flex-col relative transition-all duration-300 hover:shadow-lg ${
+                                act.estado === 'cancelada' ? 'opacity-60 grayscale-[0.5] bg-muted/20' : ''
+                            }`}
+                        >
+                            <CardHeader className="pb-2">
+                                <div className="flex justify-between items-start">
+                                    <div className="space-y-1">
+                                        <CardTitle className="text-xl font-bold line-clamp-1">{act.nombre}</CardTitle>
+                                        <div className="flex items-center text-sm text-muted-foreground">
+                                            <Calendar className="mr-1 h-3 w-3" />
+                                            {dateRange}
                                         </div>
                                     </div>
-                                </div>
-                                
-                                {/* Fechas y Horas */}
-                                <div className="space-y-2">
-                                     <Label className="text-base font-semibold">Fechas y Horas</Label>
-                                     <div className="pl-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <Label htmlFor="act-fechaInicio">Fecha y Hora de Inicio *</Label>
-                                            <Input 
-                                                id="act-fechaInicio" 
-                                                type="datetime-local"
-                                                value={currentActividadFormData.fechaInicio}
-                                                onChange={(e) => handleFormInputChange('fechaInicio', e.target.value)}
-                                            />
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="act-fechaFin">Fecha y Hora de Fin *</Label>
-                                            <Input 
-                                                id="act-fechaFin" 
-                                                type="datetime-local"
-                                                value={currentActividadFormData.fechaFin}
-                                                onChange={(e) => handleFormInputChange('fechaFin', e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Configuración de Inscripción */}
-                                <div className="space-y-2">
-                                    <Label className="text-base font-semibold">Configuración de Inscripción</Label>
-                                    <div className="pl-2 space-y-3">
-                                        <div className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id="act-requiereInscripcion"
-                                                checked={currentActividadFormData.requiereInscripcion || false}
-                                                onCheckedChange={(checked) => handleFormInputChange('requiereInscripcion', Boolean(checked))}
-                                            />
-                                            <Label htmlFor="act-requiereInscripcion" className="font-normal">Requiere Inscripción</Label>
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="act-tipoAcceso">Tipo de Acceso</Label>
-                                            <Select
-                                                value={currentActividadFormData.tipoAccesoActividad || 'abierta'}
-                                                onValueChange={(value: TipoAccesoActividad) => handleFormInputChange('tipoAccesoActividad', value)}
-                                            >
-                                                <SelectTrigger id="act-tipoAcceso"><SelectValue placeholder="Seleccionar tipo..." /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="abierta">Abierta a Todos</SelectItem>
-                                                    <SelectItem value="invitacion_requerida">Por Invitación</SelectItem>
-                                                    <SelectItem value="opcion_unica">Opción Única (Participación gestionada por admin)</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <Label htmlFor="act-maxParticipantes">Máximo de Participantes</Label>
-                                                <Input 
-                                                    id="act-maxParticipantes" 
-                                                    type="number"
-                                                    min="0" 
-                                                    value={currentActividadFormData.maxParticipantes === undefined ? '' : currentActividadFormData.maxParticipantes}
-                                                    onChange={(e) => handleFormInputChange('maxParticipantes', e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
-                                                    placeholder="Opcional"
-                                                />
+                                    <div className="flex flex-col items-end space-y-2">
+                                        <Badge 
+                                            variant={
+                                                act.estado === 'borrador' ? 'outline' : 
+                                                act.estado === 'cancelada' ? 'destructive' : 'default'
+                                            }
+                                            className="px-2 py-0.5"
+                                        >
+                                            {act.estado === 'borrador' && <Hourglass className="mr-1 h-3 w-3 inline" />}
+                                            {act.estado === 'cancelada' && <XCircle className="mr-1 h-3 w-3 inline" />}
+                                            {act.estado.replace('_', ' ').charAt(0).toUpperCase() + act.estado.replace('_', ' ').slice(1)}
+                                        </Badge>
+                                        
+                                        {/* Inscription Badges */}
+                                        {['inscripcion_abierta', 'inscripcion_cerrada', 'solicitada_administracion'].includes(act.estado) && (
+                                            <div className="flex space-x-1">
+                                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                    <Users className="mr-1 h-3 w-3" />
+                                                    {inscritos}
+                                                </Badge>
+                                                {act.maxParticipantes && (
+                                                     <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                                                        / {act.maxParticipantes}
+                                                     </Badge>
+                                                )}
                                             </div>
-                                            <div>
-                                                <Label htmlFor="act-diasAntelacion">Días Antelación Cierre Inscrip.</Label>
-                                                <Input 
-                                                    id="act-diasAntelacion" 
-                                                    type="number" 
-                                                    min="0"
-                                                    value={currentActividadFormData.diasAntelacionCierreInscripcion === undefined ? '' : currentActividadFormData.diasAntelacionCierreInscripcion}
-                                                    onChange={(e) => handleFormInputChange('diasAntelacionCierreInscripcion', e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
-                                                    placeholder={`Defecto: ${residencia?.antelacionActividadesDefault ?? 'N/A'}`}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {/* Configuración de Comidas y Contabilidad */}
-                                <div className="space-y-2">
-                                    <Label className="text-base font-semibold">Comidas y Contabilidad</Label>
-                                     <div className="pl-2 space-y-3">
-                                        <div>
-                                            <Label htmlFor="act-defaultCentroCosto">Centro de Costo por Defecto</Label>
-                                            <Select
-                                                value={currentActividadFormData.defaultCentroCostoId || ''}
-                                                onValueChange={(value: CentroCostoId) => handleFormInputChange('defaultCentroCostoId', value === 'none' ? undefined : value)}
-                                            >
-                                                <SelectTrigger id="act-defaultCentroCosto"><SelectValue placeholder="Seleccionar centro de costo..." /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="none">Ninguno</SelectItem>
-                                                    {centroCostosList.map(cc => (
-                                                        <SelectItem key={cc.id} value={cc.id}>{cc.nombre}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="act-ultimoAntes">Última Comida Estándar ANTES de la Actividad</Label>
-                                            <Select
-                                                value={currentActividadFormData.ultimoTiempoComidaAntes || ''}
-                                                onValueChange={(value: TiempoComidaId) => handleFormInputChange('ultimoTiempoComidaAntes', value === 'none' ? undefined : value)}
-                                            >
-                                                <SelectTrigger id="act-ultimoAntes"><SelectValue placeholder="Opcional: Seleccionar tiempo..." /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="none">Ninguno / No aplica</SelectItem>
-                                                    {tiemposComidaList.map(tc => (
-                                                        <SelectItem key={tc.id} value={tc.id}>{tc.nombreGrupo} - {tc.nombre} ({tc.dia ? DayOfWeekMap[tc.dia] : ''})</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <p className="text-xs text-muted-foreground mt-1">Define el límite para el plan de comidas de la actividad.</p>
-                                        </div>
-                                        <div>
-                                            <Label htmlFor="act-primeroDespues">Primera Comida Estándar DESPUÉS de la Actividad</Label>
-                                            <Select
-                                                value={currentActividadFormData.primerTiempoComidaDespues || ''}
-                                                onValueChange={(value: TiempoComidaId) => handleFormInputChange('primerTiempoComidaDespues', value === 'none' ? undefined : value)}
-                                            >
-                                                <SelectTrigger id="act-primeroDespues"><SelectValue placeholder="Opcional: Seleccionar tiempo..." /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="none">Ninguno / No aplica</SelectItem>
-                                                    {tiemposComidaList.map(tc => (
-                                                        <SelectItem key={tc.id} value={tc.id}>{tc.nombreGrupo} - {tc.nombre} ({tc.dia ? DayOfWeekMap[tc.dia] : ''})</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Plan de Comidas de la Actividad */}
-                                <div className="space-y-2">
-                                    <Label className="text-base font-semibold">Plan de Comidas de la Actividad</Label>
-                                    <div className="pl-2 space-y-4">
-                                        <Button variant="outline" size="sm" onClick={handleAddMealToPlan}>
-                                            <PlusCircle className="mr-2 h-4 w-4" />Añadir Comida al Plan
-                                        </Button>
-                                        {currentActividadFormData.planComidas && currentActividadFormData.planComidas.length > 0 ? (
-                                            currentActividadFormData.planComidas.map((meal, index) => (
-                                                <Card key={meal.id || index} className="p-4 bg-slate-50 dark:bg-slate-800/50">
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <p className="font-medium text-sm">Comida #{index + 1}</p>
-                                                        <Button 
-                                                            variant="ghost" 
-                                                            size="icon" 
-                                                            className="text-destructive hover:text-destructive/90 h-7 w-7"
-                                                            onClick={() => handleRemoveMealFromPlan(index)}
-                                                            disabled={(currentActividadFormData.planComidas?.length || 0) <= 1} // Prevent deleting last meal
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <div>
-                                                            <Label htmlFor={`meal-grupo-${index}`}>Grupo de Comida (Ej: Almuerzo Día 1)</Label>
-                                                            <Input 
-                                                                id={`meal-grupo-${index}`} 
-                                                                value={meal.nombreGrupoTiempoComida}
-                                                                onChange={(e) => handleMealPlanChange(index, 'nombreGrupoTiempoComida', e.target.value)}
-                                                                placeholder="Ej: Almuerzo Día 1, Cena Especial"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <Label htmlFor={`meal-nombre-${index}`}>Nombre Específico (Ej: Menú Excursión)</Label>
-                                                            <Input 
-                                                                id={`meal-nombre-${index}`} 
-                                                                value={meal.nombreTiempoComida_AlternativaUnica}
-                                                                onChange={(e) => handleMealPlanChange(index, 'nombreTiempoComida_AlternativaUnica', e.target.value)}
-                                                                placeholder="Ej: Picnic en el campo"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <Label htmlFor={`meal-hora-${index}`}>Hora Estimada (Opcional)</Label>
-                                                            <Input 
-                                                                id={`meal-hora-${index}`} 
-                                                                type="time"
-                                                                value={(meal.horaEstimadaMeal || '').substring(0, 5)}
-                                                                onChange={(e) => {
-                                                                    const timeValue = e.target.value; // Format "HH:mm"
-                                                                    // Pad with seconds to match IsoTimeString schema (HH:MM:SS)
-                                                                    const finalValue = timeValue ? `${timeValue}:00` : ''; 
-                                                                    handleMealPlanChange(index, 'horaEstimadaMeal', finalValue);
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </Card>
-                                            ))
-                                        ) : (
-                                            <p className="text-sm text-muted-foreground">No hay comidas definidas para esta actividad.</p>
                                         )}
                                     </div>
                                 </div>
-
-                                {/* Estado de la Actividad */}
-                                <div className="space-y-2">
-                                    <Label className="text-base font-semibold">Estado</Label>
-                                    <div className="pl-2">
-                                        <Label htmlFor="act-estado">Estado de la Actividad</Label>
-                                        <Select
-                                            value={currentActividadFormData.estado || 'borrador'}
-                                            onValueChange={(value: ActividadEstado) => handleFormInputChange('estado', value)}
-                                        >
-                                            <SelectTrigger id="act-estado"><SelectValue placeholder="Seleccionar estado..." /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="borrador">Borrador</SelectItem>
-                                                <SelectItem value="abierta_inscripcion">Abierta para Inscripción</SelectItem>
-                                                <SelectItem value="cerrada_inscripcion">Inscripción Cerrada</SelectItem>
-                                                <SelectItem value="confirmada_finalizada">Confirmada / Finalizada</SelectItem>
-                                                <SelectItem value="cancelada">Cancelada</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                            </CardHeader>
+                            <CardContent className="flex-grow py-2">
+                                <p className="text-sm text-muted-foreground line-clamp-3 min-h-[3rem]">
+                                    {act.descripcion || "Sin descripción"}
+                                </p>
+                                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                                     <div className="flex flex-col p-2 bg-muted/40 rounded">
+                                        <span className="text-muted-foreground uppercase font-semibold">Tipo Acceso</span>
+                                        <span className="font-medium">{act.requiereInscripcion ? 'Inscripción' : 'Directo'}</span>
+                                    </div>
+                                    <div className="flex flex-col p-2 bg-muted/40 rounded">
+                                        <span className="text-muted-foreground uppercase font-semibold">Comedor</span>
+                                        <span className="font-medium truncate">{act.comedorActividad === 'comensal' ? 'Mi Comedor' : act.comedorActividad}</span>
                                     </div>
                                 </div>
                             </CardContent>
-                            <CardFooter className="flex-shrink-0 flex flex-col items-end space-y-2 sticky bottom-0 bg-background py-4 border-t">
-                                {validationError && (
-                                    <div className="w-full flex items-center gap-2 text-destructive text-sm font-medium mb-2 px-1">
-                                        <AlertCircle className="h-4 w-4" />
-                                        <span>{validationError}</span>
-                                    </div>
-                                )}
-                                <div className="flex justify-end space-x-2 w-full">
-                                    <Button variant="outline" onClick={handleCloseForm} disabled={isSavingActividad}>Cancelar</Button>
-                                    <Button onClick={handleSubmitActividad} disabled={isSavingActividad}>
-                                        {isSavingActividad && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        {editingActividad ? "Guardar Cambios" : "Crear Actividad"}
+                            <CardFooter className="pt-2 pb-4 border-t mt-auto flex flex-col gap-2">
+                                {/* First row: Edit and Cancel */}
+                                <div className="flex gap-2 w-full">
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="flex-1"
+                                        onClick={() => handleOpenEditForm(act)}
+                                        disabled={isPending || (act.estado !== 'borrador' && act.estado !== 'inscripcion_abierta')}
+                                    >
+                                        <Edit className="mr-2 h-4 w-4" /> Editar
                                     </Button>
+
+                                    {act.estado !== 'cancelada' && act.estado !== 'solicitada_administracion' && (
+                                         <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button 
+                                                    variant="secondary" 
+                                                    size="sm" 
+                                                    className="flex-1 text-destructive hover:bg-destructive/10"
+                                                    disabled={isPending}
+                                                >
+                                                    <XCircle className="mr-2 h-4 w-4" /> Cancelar
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Está seguro de cancelar?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Se cancelará la actividad "{act.nombre}". 
+                                                        {inscritos > 0 && ` Se notificarán a los ${inscritos} inscritos.`}
+                                                        {invitados > 0 && ` Se cancelarán las ${invitados} invitaciones pendientes.`}
+                                                        Esta acción no se puede deshacer fácilmente.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>No, volver</AlertDialogCancel>
+                                                    <AlertDialogAction 
+                                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                        onClick={() => handleStateChange(act.id!, 'cancelada')}
+                                                    >
+                                                        Sí, Cancelar Actividad
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    )}
+                                </div>
+
+                                {/* Second row (or third col in MD): State Action */}
+                                <div className="w-full">
+                                    {stateButton && act.estado !== 'cancelada' && (
+                                        <Button 
+                                            variant="default" 
+                                            size="sm" 
+                                            className="w-full bg-blue-600 hover:bg-blue-700 h-9"
+                                            onClick={() => handleStateChange(act.id!, stateButton.nextState)}
+                                            disabled={isPending}
+                                        >
+                                            <stateButton.icon className="mr-2 h-4 w-4" />
+                                            {stateButton.label}
+                                        </Button>
+                                    )}
+                                    
+                                    {act.estado === 'cancelada' && stateButton && (
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            className="w-full h-9"
+                                            onClick={() => handleStateChange(act.id!, stateButton.nextState)}
+                                            disabled={isPending}
+                                        >
+                                            <stateButton.icon className="mr-2 h-4 w-4" />
+                                            {stateButton.label}
+                                        </Button>
+                                    )}
                                 </div>
                             </CardFooter>
                         </Card>
-                    </div>
-                </>
+                    );
+                })}
+            </div>
+
+            {showActivityForm && (
+                <ActivityForm 
+                    residenciaId={residenciaId}
+                    onClose={handleCloseForm}
+                    actividad={editingActividad}
+                    tiemposComidaList={tiemposComidaList}
+                    centroCostosList={centroCostosList}
+                    comedoresList={comedoresList}
+                />
             )}
         </div>
     );

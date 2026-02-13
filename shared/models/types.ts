@@ -247,7 +247,7 @@ export interface TiempoComida {
         Los grupos en la interfaz son solo para visualización. Los grupos
         son como "desayuno", "almuerzo", "cena". Son necesarios para
         conservar el orden en que se muestran los tiempos de comida
-        en la interfaz, manteniendo el nivel de abstracción.
+        en la UI, manteniendo el nivel de abstracción.
     */
     nombreGrupo: string; // Ejemplo: "desayuno, almuerzo, cena"
     ordenGrupo: number; // Ejemplo: 1, 2, 3 (para orden en la UI)
@@ -537,7 +537,7 @@ export interface Actividad {
     tiempoComidaFinal: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
     planComidas: TiempoComidaAlternativaUnicaActividad[]; 
     comedorActividad?: ComedorId | null;
-    modoAtencionActividad: 'residencia' | 'externa'; // En la solicitud de comidas que lee el director, si es "residencia" lo verá con todos los demás comensales. Si es "externa" lo verá en la sección de actividades
+    modoAtencionActividad: 'residencia' | 'externa'; // En la solicitud de comidas que lee el director, si es "residencia" lo verá con todos los demás comensales o al menos en los comedores de la casa. Si es "externa" lo verá en la sección de actividades
 
     // Campos de lógica de inscripción
     maxParticipantes?: number;
@@ -604,7 +604,24 @@ export interface TiempoComidaAlternativaUnicaActividad {
     nombreGrupoTiempoComida: string;
     ordenGrupoTiempoComida: number;
     fecha: IsoDateString;  
-    horaEstimadaMeal?: IsoTimeString; 
+    horaEstimada?: IsoTimeString; 
+}
+
+/*
+ * Atenciones
+ * Solicitudes extra a la administración que requiere registro y seguimiento, tales como:
+ * aperitivos, coffee-break, flores para actividad académica, etc.
+ */
+export type AtencionId = string;
+export interface Atencion {
+    id: AtencionId;
+    residenciaId: ResidenciaId;
+    usuarioId: UserId;
+    nombre: string;
+    descripcion?: string;
+    fechaSolicitud: IsoDateString;
+    estado: 'pendiente' | 'solicitado' | 'cancelado';
+    centroCostoId?: CentroCostoId;
 }
 
 // --- Notificaciones ---

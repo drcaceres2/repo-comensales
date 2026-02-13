@@ -1,35 +1,29 @@
 import { z } from 'zod';
-import { CadenaOpcionalLimitada, FirestoreTimestampSchema } from './common';
-import { IsoDateStringSchema, IsoTimeStringSchema } from './fechas';
+import { FirebaseIdSchema, FirestoreTimestampSchema } from './common';
 
+// --- Enums from types.ts ---
 
-// Esquema para el enum ActividadEstado
 const ActividadEstadoEnum = z.enum([
   'borrador',
-  'abierta_inscripcion',
-  'cerrada_inscripcion',
-  'confirmada_finalizada',
+  'inscripcion_abierta',
+  'inscripcion_cerrada',
+  'solicitada_administracion',
   'cancelada',
 ]);
 
-// Esquema para el enum TipoAccesoActividad
 const TipoAccesoActividadEnum = z.enum([
   'abierta',
   'invitacion_requerida',
   'opcion_unica',
 ]);
 
-// Esquema para el enum TipoSolicitudComidasActividad
 const TipoSolicitudComidasActividadEnum = z.enum([
   'ninguna',
   'solicitud_unica',
-  'diario_externo',
-  'diario_residencia',
-  'solicitud_inicial_mas_confirmacion_diaria_residencia',
-  'solicitud_inicial_mas_confirmacion_diaria_externa',
+  'solicitud_diaria',
+  'solicitud_inicial_mas_confirmacion_diaria',
 ]);
 
-// Esquema para el enum EstadoInscripcionActividad
 const EstadoInscripcionActividadEnum = z.enum([
   'invitado_pendiente',
   'invitado_rechazado',
@@ -39,66 +33,160 @@ const EstadoInscripcionActividadEnum = z.enum([
   'cancelado_admin',
 ]);
 
-// Esquema para Actividad
-export const ActividadSchema = z.object({
-  id: z.string(),
-  residenciaId: z.string(),
-  nombre: z.string().min(1, 'El nombre debe tener al menos 1 caracter').max(100, 'El nombre no puede tener más de 100 caracteres'),
-  descripcionGeneral: z.string().max(500, 'La descripción es muy larga').optional(),
-  maxParticipantes: z.number().int().min(1).max(1000).optional(),
-  estado: ActividadEstadoEnum.default('borrador'),
-  organizadorUserId: z.string(),
-  comensalesNoUsuarios: z.number().int().min(0).max(1000).optional(),
-  fechaInicio: z.string(), 
-  fechaFin: z.string(),
-  ultimoTiempoComidaAntes: z.string().optional(), 
-  primerTiempoComidaDespues: z.string().optional(), 
-  planComidas: z.array(z.any()).default([]),
-  tipoSolicitudComidas: TipoSolicitudComidasActividadEnum.default('ninguna'),
-  estadoSolicitudAdministracion: z.enum(['no_solicitado', 'solicitud_inicial_realizada', 'completada']).default('no_solicitado'),
-  comedorActividad: z.string().optional(),
-  modoAtencionActividad: z.enum(['residencia', 'externa']).default('residencia'),
-  requiereInscripcion: z.boolean().default(true),
-  diasAntelacionCierreInscripcion: z.number().optional(),
-  tipoAccesoActividad: TipoAccesoActividadEnum.default('abierta'),
-  aceptaResidentes: z.boolean().default(true),
-  aceptaInvitados: z.enum(['no', 'por_invitacion', 'invitacion_libre']).default('no'),
-  defaultCentroCostoId: z.string().optional(),
+// --- Base Schema ---
+
+const ActividadBaseSchema = z.object({
+  // Campos generales
+  id: FirebaseIdSchema,
+  residenciaId: FirebaseIdSchema,
+  organizadorId: FirebaseIdSchema,
+  nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(25, 'El nombre no puede exceder los 25 caracteres'),
+  descripcion: z.string().trim().max(255, 'La descripción no puede exceder los 255 caracteres').optional(),
+  estado: ActividadEstadoEnum,
+  tipoSolicitudComidas: TipoSolicitudComidasActividadEnum,
+
+  // Campos de cálculo de comidas
+  fechaInicio: z.string(), // ISO 8601 "YYYY-MM-DD"
+  fechaFin: z.string(), // ISO 8601 "YYYY-MM-DD"
+  tiempoComidaInicial: FirebaseIdSchema,
+  tiempoComidaFinal: FirebaseIdSchema,
+  planComidas: z.array(z.any()), // Can be refined if TiempoComidaAlternativaUnicaActividad has a schema
+  comedorActividad: FirebaseIdSchema.nullable().optional(),
+  modoAtencionActividad: z.enum(['residencia', 'externa']),
+
+  // Campos de lógica de inscripción
+  maxParticipantes: z.number().int('Debe ser un número entero').min(2, 'El máximo de participantes debe ser al menos 2').optional(),
+  comensalesNoUsuarios: z.number().int('Debe ser un número entero').nonnegative('Debe ser un número positivo o cero'),
+  requiereInscripcion: z.boolean(),
+  diasAntelacionSolicitudAdministracion: z.number().int().nonnegative(),
+  tipoAccesoResidentes: TipoAccesoActividadEnum.optional(),
+  tipoAccesoInvitados: TipoAccesoActividadEnum.optional(),
+  
+  // Campos de costo
+  defaultCentroCostoId: FirebaseIdSchema.nullable().optional(),
 });
 
-// Esquema para InscripcionActividad (lectura desde Firestore)
+// --- Create Schema ---
+
+export const ActividadCreateSchema = ActividadBaseSchema.omit({ 
+    id: true, 
+    residenciaId: true, 
+    organizadorId: true,
+    estado: true,
+    comensalesNoUsuarios: true,
+  }).extend({
+    estado: ActividadEstadoEnum.default('borrador'),
+    comensalesNoUsuarios: z.number().int().nonnegative().default(0),
+  }).refine(data => data.fechaFin >= data.fechaInicio, {
+    message: "La fecha de finalización no puede ser anterior a la fecha de inicio",
+    path: ["fechaFin"],
+  })
+  .superRefine((data, ctx) => {
+    if (data.requiereInscripcion) {
+      if (!data.tipoAccesoResidentes) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['tipoAccesoResidentes'],
+          message: 'El tipo de acceso para residentes es obligatorio si se requiere inscripción.',
+        });
+      }
+    } else {
+      // If requiresInscripcion is false, these shouldn't be set (though they are optional in base)
+    }
+  }).superRefine((data, ctx) => {
+    if (data.modoAtencionActividad === 'residencia' && !data.comedorActividad) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['comedorActividad'],
+            message: 'El comedor es obligatorio cuando el modo de atención es "residencia".',
+        });
+    }
+});
+
+// --- Update Schema ---
+
+export const ActividadUpdateSchema = ActividadBaseSchema.omit({
+    id: true,
+    residenciaId: true,
+    organizadorId: true,
+}).partial().refine(data => {
+    if (data.fechaInicio && data.fechaFin) {
+        return data.fechaFin >= data.fechaInicio;
+    }
+    return true;
+}, {
+    message: "La fecha de finalización no puede ser anterior a la fecha de inicio",
+    path: ["fechaFin"],
+})
+.superRefine((data, ctx) => {
+    // Note: State-based field restriction enforcement should be done in the server action 
+    // because Zod schemas don't have access to the *current* state of the document in DB.
+    // However, if the state is being updated in the same transaction, we can check it.
+    
+    if (data.estado === 'borrador' && data.comensalesNoUsuarios !== undefined && data.comensalesNoUsuarios !== 0) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['comensalesNoUsuarios'],
+            message: 'Los comensales no usuarios deben ser 0 en estado "borrador".',
+        });
+    }
+
+    if (data.requiereInscripcion === true && !data.tipoAccesoResidentes) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['tipoAccesoResidentes'],
+          message: 'El tipo de acceso para residentes es obligatorio si se requiere inscripción.',
+        });
+    }
+}).superRefine((data, ctx) => {
+    if (data.modoAtencionActividad === 'residencia' && !data.comedorActividad) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['comedorActividad'],
+            message: 'El comedor es obligatorio cuando el modo de atención es "residencia".',
+        });
+    }
+});
+
+
+export const ActividadEstadoUpdateSchema = z.object({
+    estado: ActividadEstadoEnum,
+});
+
+export const ActividadSchema = ActividadBaseSchema;
+
+// --- Inscripciones Schemas ---
+
 export const InscripcionActividadSchema = z.object({
-  id: z.string(),
-  actividadId: z.string(),
-  userId: z.string(),
-  residenciaId: z.string(),
+  id: FirebaseIdSchema,
+  actividadId: FirebaseIdSchema,
+  userId: FirebaseIdSchema,
+  residenciaId: FirebaseIdSchema,
   estadoInscripcion: EstadoInscripcionActividadEnum,
-  invitadoPorUserId: z.string().optional(),
-  nombreInvitadoNoAutenticado: CadenaOpcionalLimitada(1, 100),
-  fechaInvitacionOriginal: IsoDateStringSchema.nullable().optional(),
+  invitadoPorUserId: FirebaseIdSchema.optional(),
+  nombreInvitadoNoAutenticado: z.string().trim().optional(),
+  fechaInvitacionOriginal: z.string().nullable().optional(),
   fechaHoraCreacion: FirestoreTimestampSchema,
   fechaHoraModificacion: FirestoreTimestampSchema,
 });
 
-// Esquema para crear InscripcionActividad (sin id, pues se asigna en Firestore)
-export const InscripcionActividadCreateSchema = z.object({
-  actividadId: z.string().min(1, 'ID de actividad requerido'),
-  userId: z.string().min(1, 'ID de usuario requerido'),
-  residenciaId: z.string().min(1, 'ID de residencia requerido'),
-  estadoInscripcion: EstadoInscripcionActividadEnum,
-  invitadoPorUserId: z.string().optional(),
-  nombreInvitadoNoAutenticado: CadenaOpcionalLimitada(1, 100),
-  fechaInvitacionOriginal: IsoDateStringSchema.nullable().optional(),
-  // fechaHoraCreacion y fechaHoraModificacion se asignan con serverTimestamp()
+export const InscripcionActividadCreateSchema = InscripcionActividadSchema.omit({
+  id: true,
+  fechaHoraCreacion: true,
+  fechaHoraModificacion: true,
+}).extend({
+  fechaHoraCreacion: FirestoreTimestampSchema.optional(),
+  fechaHoraModificacion: FirestoreTimestampSchema.optional(),
 });
 
-// Esquema para actualizar InscripcionActividad
-export const InscripcionActividadUpdateSchema = z.object({
-  estadoInscripcion: EstadoInscripcionActividadEnum,
-  // fechaHoraModificacion se asigna con serverTimestamp()
-});
+export const InscripcionActividadUpdateSchema = InscripcionActividadSchema.omit({
+  id: true,
+  actividadId: true,
+  userId: true,
+  residenciaId: true,
+}).partial();
 
-export type Actividad = z.infer<typeof ActividadSchema>;
+export type Actividad = z.infer<typeof ActividadBaseSchema>;
+export type ActividadCreate = z.infer<typeof ActividadCreateSchema>;
+export type ActividadUpdate = z.infer<typeof ActividadUpdateSchema>;
 export type InscripcionActividad = z.infer<typeof InscripcionActividadSchema>;
-export type InscripcionActividadCreate = z.infer<typeof InscripcionActividadCreateSchema>;
-export type InscripcionActividadUpdate = z.infer<typeof InscripcionActividadUpdateSchema>;

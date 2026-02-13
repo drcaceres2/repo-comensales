@@ -124,6 +124,7 @@ export default function RootLayout({
         <SidebarProvider>
           <AppShell>{children}</AppShell>
         </SidebarProvider>
+        <div id="modal-root"></div>
       </body>
     </html>
   );

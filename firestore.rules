@@ -70,7 +70,7 @@ service cloud.firestore {
     // --- COLECCIONES DE GRUPOS ---
     match /usuariosGrupos/{docId} {
       allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['master', 'admin', 'director', 'asistente', 'contador']);
+      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'asistente', 'contador']);
       allow create: if isMaster() || checkCreate(['admin']);
       allow update: if isMaster() || check(['admin']);
       allow delete: if isMaster() || check(['admin']);
@@ -78,7 +78,7 @@ service cloud.firestore {
 
     match /gruposUsuarios/{docId} {
       allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['master', 'admin', 'director', 'asistente', 'contador']);
+      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'asistente', 'contador']);
       allow create: if isMaster() || checkCreate(['admin']);
       allow update: if isMaster() || check(['admin']);
       allow delete: if isMaster() || check(['admin']);
@@ -86,7 +86,7 @@ service cloud.firestore {
 
     match /permisosComidaPorGrupo/{docId} {
       allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['master', 'admin', 'director', 'asistente', 'contador']);
+      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'asistente', 'contador']);
       allow create: if isMaster() || checkCreate(['admin']);
       allow update: if isMaster() || check(['admin']);
       allow delete: if isMaster() || check(['admin']);
@@ -109,7 +109,7 @@ service cloud.firestore {
     // --- COLECCIÓN: DIETAS ---
     match /dietas/{docId} {
       allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['master', 'admin', 'director', 'asistente', 'contador']);
+      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'asistente', 'contador']);
       allow create: if isMaster() || checkCreate(['admin', 'director', 'asistente']);
       allow update: if isMaster() || check(['admin', 'director', 'asistente']);
       allow delete: if isMaster(); 
@@ -118,7 +118,7 @@ service cloud.firestore {
     // --- COLECCIÓN: COMEDORES ---
     match /comedores/{docId} {
       allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
+      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
       allow create: if isMaster() || checkCreate(['admin']);
       allow update: if isMaster() || check(['admin']);
       allow delete: if isMaster() || check(['admin']);
@@ -127,7 +127,7 @@ service cloud.firestore {
     // --- COLECCIÓN: CENTRO COSTOS ---
     match /centrosCosto/{docId} {
       allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['master', 'admin', 'director', 'asistente', 'contador']);
+      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'asistente', 'contador']);
       allow create: if isMaster() || checkCreate(['admin', 'director', 'asistente', 'contador']);
       allow update: if isMaster() || check(['admin', 'director', 'asistente', 'contador']);
       allow delete: if isMaster() || check(['contador']);
@@ -141,7 +141,7 @@ service cloud.firestore {
       }
 
       allow get:    if isCommonOpCollection() && (isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']));
-      allow list:   if isCommonOpCollection() && (isMaster() || checkRolesOnly(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador']));
+      allow list:   if isCommonOpCollection() && (isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']));
       allow create: if isCommonOpCollection() && (isMaster() || checkCreate(['admin', 'director', 'asistente']));
       allow update: if isCommonOpCollection() && (isMaster() || check(['admin', 'director', 'asistente']));
       allow delete: if isCommonOpCollection() && (isMaster());
@@ -154,7 +154,7 @@ service cloud.firestore {
       }
 
       allow get:    if isDirectorOps() && (isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']));
-      allow list:   if isDirectorOps() && (isMaster() || checkRolesOnly(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador']));
+      allow list:   if isDirectorOps() && (isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']));
       allow create: if isDirectorOps() && (isMaster() || checkCreate(['director', 'asistente']));
       allow update: if isDirectorOps() && (isMaster() || check(['director', 'asistente']));
       allow delete: if isDirectorOps() && isMaster();
@@ -163,7 +163,7 @@ service cloud.firestore {
     // --- COLECCIÓN: INSCRIPCIONES ---
     match /inscripcionesActividades/{docId} {
       allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
+      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
       allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
       allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
       allow delete: if isMaster();
@@ -172,33 +172,49 @@ service cloud.firestore {
     // --- COLECCIÓN: SEMANARIOS ---
     match /semanarios/{docId} {
       allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['master', 'admin', 'director', 'residente', 'asistente', 'contador']);
+      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'asistente', 'contador']);
       allow create: if isMaster() || checkCreate(['director', 'residente', 'asistente']);
       allow update: if isMaster() || check(['director', 'residente', 'asistente']);
       allow delete: if isMaster();
     }
 
-    match /elecciones/{docId} {
+    /* match /elecciones/{docId} {
       allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente', 'master']);
-      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente', 'master']);
+      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
+      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
+      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
+      allow delete: if isMaster();
+    } */
+
+    match /excepciones/{docId} {
+      allow get:    if isMaster() || check(['director', 'residente', 'invitado', 'asistente', 'contador']);
+      allow list:   if isMaster() || checkRolesOnly(['director', 'residente', 'invitado', 'asistente', 'contador']);
+      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
+      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
+      allow delete: if isMaster();
+    }
+
+    match /comensalesSolicitados/{docId} {
+      allow get:    if isMaster() || check(['director', 'residente', 'invitado', 'asistente', 'contador']);
+      allow list:   if isMaster() || checkRolesOnly(['director', 'residente', 'invitado', 'asistente', 'contador']);
+      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
+      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
       allow delete: if isMaster();
     }
 
     match /ausencias/{docId} {
       allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
       allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente', 'master']);
-      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente', 'master']);
+      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
+      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
       allow delete: if isMaster();
     }
 
     match /comentarios/{docId} {
       allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
       allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente', 'master']);
-      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente', 'master']);
+      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
+      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
       allow delete: if isMaster();
     }
 

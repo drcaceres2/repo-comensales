@@ -11,6 +11,7 @@ import {
   getDocs,
   getDoc,
   doc,
+  orderBy,
 } from 'firebase/firestore';
 import { startOfWeek, endOfWeek, subDays, addDays, format } from 'date-fns';
 import { z } from 'zod';
@@ -94,10 +95,10 @@ export const useMealPlanningData = ({
           inscripcionesSnap,
           excepcionesSnap,
         ] = await Promise.all([
-          getDocs(collection(db, 'residencias', residenciaId, 'tiemposComida')),
+          getDocs(query(collection(db, 'tiemposComida'), where('residenciaId', '==', residenciaId), orderBy('ordenGrupo'))),
           getDoc(doc(db, 'residencias', residenciaId, 'semanarios', userId)),
           getDocs(query(collection(db, 'residencias', residenciaId, 'ausencias'), where('userId', '==', userId))),
-          getDocs(query(collection(db, 'residencias', residenciaId, 'inscripciones'), where('userId', '==', userId))),
+          getDocs(query(collection(db, 'inscripcionesActividades'), where('residenciaId', '==', residenciaId), where('userId', '==', userId))),
           getDocs(query(collection(db, 'residencias', residenciaId, 'excepciones'), 
             where('usuarioId', '==', userId), 
             where('fecha', '>=', startDateString), 
@@ -148,11 +149,11 @@ export const useMealPlanningData = ({
           : null;
 
         let actividades: Actividad[] = [];
-        const actividadIds = [...new Set(inscripciones.map(i => i.actividadId))];
+        const actividadIds: string[] = [...new Set(inscripciones.map(i => i.actividadId))];
 
         if (actividadIds.length > 0) {
           const actividadPromises = actividadIds.map((id: string) => 
-            getDoc(doc(db, 'residencias', residenciaId, 'actividades', id))
+            getDoc(doc(db, 'actividades', id))
           );
           const actividadSnaps = await Promise.all(actividadPromises);
 
