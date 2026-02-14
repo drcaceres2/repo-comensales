@@ -181,8 +181,8 @@ function AdminActividadesPage() {
                             }`}
                         >
                             <CardHeader className="pb-2">
-                                <div className="flex justify-between items-start">
-                                    <div className="space-y-1">
+                                <div className="flex flex-wrap justify-between items-start gap-x-4 gap-y-2">
+                                    <div className="space-y-1 flex-grow">
                                         <CardTitle className="text-xl font-bold line-clamp-1">{act.nombre}</CardTitle>
                                         <div className="flex items-center text-sm text-muted-foreground">
                                             <Calendar className="mr-1 h-3 w-3" />

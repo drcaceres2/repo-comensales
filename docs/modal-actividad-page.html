@@ -1,0 +1,724 @@
+<div
+  role="dialog"
+  id="radix-_r_cv_"
+  aria-describedby="radix-_r_d1_"
+  aria-labelledby="radix-_r_d0_"
+  data-state="open"
+  class="fixed left-[50%] top-[50%] z-[100] translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg w-full max-w-[95vw] sm:max-w-4xl max-h-[90vh] flex flex-col p-0"
+  tabindex="-1"
+  style="pointer-events: auto"
+>
+  <div class="flex flex-col space-y-1.5 text-center sm:text-left p-6 pb-4">
+    <h2
+      id="radix-_r_d0_"
+      class="text-lg font-semibold leading-none tracking-tight"
+    >
+      Crear Nueva Actividad
+    </h2>
+    <button
+      class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground h-10 w-10 absolute top-4 right-4"
+      type="button"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="lucide lucide-x h-5 w-5"
+      >
+        <path d="M18 6 6 18"></path>
+        <path d="m6 6 12 12"></path>
+      </svg>
+    </button>
+  </div>
+  <div class="flex-grow overflow-y-auto px-6">
+    <form id="activity-form" class="space-y-6">
+      <div class="space-y-4">
+        <h3 class="text-lg font-semibold border-b pb-2">Campos generales</h3>
+        <div class="space-y-2">
+          <label
+            class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            for="_r_d5_-form-item"
+            >Nombre</label
+          ><input
+            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+            placeholder="Nombre de la actividad"
+            id="_r_d5_-form-item"
+            aria-describedby="_r_d5_-form-item-description"
+            aria-invalid="false"
+            value=""
+            name="nombre"
+          />
+        </div>
+        <div class="space-y-2">
+          <label
+            class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            for="_r_d6_-form-item"
+            >Descripción (opcional)</label
+          ><textarea
+            class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+            placeholder="Breve descripción de la actividad"
+            name="descripcion"
+            id="_r_d6_-form-item"
+            aria-describedby="_r_d6_-form-item-description"
+            aria-invalid="false"
+          ></textarea>
+        </div>
+      </div>
+      <div class="space-y-4">
+        <h3 class="text-lg font-semibold border-b pb-2">
+          Campos de cálculo de comidas
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label
+              class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              for="_r_d7_-form-item"
+              >Fecha de Inicio</label
+            ><input
+              class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              id="_r_d7_-form-item"
+              aria-describedby="_r_d7_-form-item-description"
+              aria-invalid="false"
+              type="date"
+              value="2026-02-14"
+              name="fechaInicio"
+            />
+          </div>
+          <div class="space-y-2">
+            <label
+              class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              for="_r_d8_-form-item"
+              >Fecha de Fin</label
+            ><input
+              class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              id="_r_d8_-form-item"
+              aria-describedby="_r_d8_-form-item-description"
+              aria-invalid="false"
+              type="date"
+              value="2026-02-14"
+              name="fechaFin"
+            />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label
+              class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              for="_r_d9_-form-item"
+              >Primer tiempo excluido</label
+            ><button
+              type="button"
+              role="combobox"
+              aria-controls="radix-_r_da_"
+              aria-expanded="false"
+              aria-autocomplete="none"
+              dir="ltr"
+              data-state="closed"
+              data-placeholder=""
+              class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&amp;&gt;span]:line-clamp-1"
+              id="_r_d9_-form-item"
+              aria-describedby="_r_d9_-form-item-description"
+              aria-invalid="false"
+            >
+              <span style="pointer-events: none">Seleccionar...</span
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-chevron-down h-4 w-4 opacity-50"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6"></path>
+              </svg></button
+            ><select
+              aria-hidden="true"
+              tabindex="-1"
+              style="
+                position: absolute;
+                border: 0px;
+                width: 1px;
+                height: 1px;
+                padding: 0px;
+                margin: -1px;
+                overflow: hidden;
+                clip: rect(0px, 0px, 0px, 0px);
+                white-space: nowrap;
+                overflow-wrap: normal;
+              "
+            >
+              <option value="2tOzUjExEJUWmc9drCEV">
+                Desayuno viernes (Viernes)
+              </option>
+              <option value="DmfIdsV65CO23agq9xE2">
+                Desayuno martes (Martes)
+              </option>
+              <option value="QY48exYVe9fpAtT2xWij">
+                Desayuno lunes (Lunes)
+              </option>
+              <option value="XbSogoaFTvI0R3z2X5xu">
+                Desayuno domingo (Domingo)
+              </option>
+              <option value="acMqCrFxlFo4Esj4DP3j">
+                Desayuno sábado (Sábado)
+              </option>
+              <option value="jqmRaDaH08pKVKbGBDqf">
+                Desayuno jueves (Jueves)
+              </option>
+              <option value="kcRZsFziY8s1gOEvT5so">
+                Desayuno miércoles (Miércoles)
+              </option>
+              <option value="FrI7FHBopO8F6HK2Yg0Q">
+                Almuerzo martes (Martes)
+              </option>
+              <option value="K8Co0eAHtixuOB0L94RE">
+                Almuerzo domingo (Domingo)
+              </option>
+              <option value="Q96sjMF5ixGzVk4uT5Ek">
+                Almuerzo sábado (Sábado)
+              </option>
+              <option value="ek24OqHUMFXNOwrIE9Sr">
+                Almuerzo viernes (Viernes)
+              </option>
+              <option value="nkGu4YPoKgCdfEzPyNDY">
+                Almuerzo miércoles (Miércoles)
+              </option>
+              <option value="uJKjX3I7rXcaW1GtdzzN">
+                Almuerzo jueves (Jueves)
+              </option>
+              <option value="uiFCakFGinaqfy2Euv0P">
+                Almuerzo lunes (Lunes)
+              </option>
+              <option value="9l27Vay5tbwdLCNtFSWM">
+                Cena domingo (Domingo)
+              </option>
+              <option value="M2Lhsm8nv2mapYYh3WnA">Cena jueves (Jueves)</option>
+              <option value="nMpncdunK55q3GLGWnM0">Cena martes (Martes)</option>
+              <option value="oy9NettWExEISNHflLYV">
+                Cena miércoles (Miércoles)
+              </option>
+              <option value="sgatArgZCZIOnQOxwVQw">
+                Cena viernes (Viernes)
+              </option>
+              <option value="sz0A3iRASApkluwvY3Wj">Cena lunes (Lunes)</option>
+              <option value="wwHWBsuwqrXnRAp7aMzu">Cena sábado (Sábado)</option>
+            </select>
+          </div>
+          <div class="space-y-2">
+            <label
+              class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              for="_r_db_-form-item"
+              >Último tiempo excluido</label
+            ><button
+              type="button"
+              role="combobox"
+              aria-controls="radix-_r_dc_"
+              aria-expanded="false"
+              aria-autocomplete="none"
+              dir="ltr"
+              data-state="closed"
+              data-placeholder=""
+              class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&amp;&gt;span]:line-clamp-1"
+              id="_r_db_-form-item"
+              aria-describedby="_r_db_-form-item-description"
+              aria-invalid="false"
+            >
+              <span style="pointer-events: none">Seleccionar...</span
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-chevron-down h-4 w-4 opacity-50"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6"></path>
+              </svg></button
+            ><select
+              aria-hidden="true"
+              tabindex="-1"
+              style="
+                position: absolute;
+                border: 0px;
+                width: 1px;
+                height: 1px;
+                padding: 0px;
+                margin: -1px;
+                overflow: hidden;
+                clip: rect(0px, 0px, 0px, 0px);
+                white-space: nowrap;
+                overflow-wrap: normal;
+              "
+            >
+              <option value="2tOzUjExEJUWmc9drCEV">
+                Desayuno viernes (Viernes)
+              </option>
+              <option value="DmfIdsV65CO23agq9xE2">
+                Desayuno martes (Martes)
+              </option>
+              <option value="QY48exYVe9fpAtT2xWij">
+                Desayuno lunes (Lunes)
+              </option>
+              <option value="XbSogoaFTvI0R3z2X5xu">
+                Desayuno domingo (Domingo)
+              </option>
+              <option value="acMqCrFxlFo4Esj4DP3j">
+                Desayuno sábado (Sábado)
+              </option>
+              <option value="jqmRaDaH08pKVKbGBDqf">
+                Desayuno jueves (Jueves)
+              </option>
+              <option value="kcRZsFziY8s1gOEvT5so">
+                Desayuno miércoles (Miércoles)
+              </option>
+              <option value="FrI7FHBopO8F6HK2Yg0Q">
+                Almuerzo martes (Martes)
+              </option>
+              <option value="K8Co0eAHtixuOB0L94RE">
+                Almuerzo domingo (Domingo)
+              </option>
+              <option value="Q96sjMF5ixGzVk4uT5Ek">
+                Almuerzo sábado (Sábado)
+              </option>
+              <option value="ek24OqHUMFXNOwrIE9Sr">
+                Almuerzo viernes (Viernes)
+              </option>
+              <option value="nkGu4YPoKgCdfEzPyNDY">
+                Almuerzo miércoles (Miércoles)
+              </option>
+              <option value="uJKjX3I7rXcaW1GtdzzN">
+                Almuerzo jueves (Jueves)
+              </option>
+              <option value="uiFCakFGinaqfy2Euv0P">
+                Almuerzo lunes (Lunes)
+              </option>
+              <option value="9l27Vay5tbwdLCNtFSWM">
+                Cena domingo (Domingo)
+              </option>
+              <option value="M2Lhsm8nv2mapYYh3WnA">Cena jueves (Jueves)</option>
+              <option value="nMpncdunK55q3GLGWnM0">Cena martes (Martes)</option>
+              <option value="oy9NettWExEISNHflLYV">
+                Cena miércoles (Miércoles)
+              </option>
+              <option value="sgatArgZCZIOnQOxwVQw">
+                Cena viernes (Viernes)
+              </option>
+              <option value="sz0A3iRASApkluwvY3Wj">Cena lunes (Lunes)</option>
+              <option value="wwHWBsuwqrXnRAp7aMzu">Cena sábado (Sábado)</option>
+            </select>
+          </div>
+        </div>
+        <div class="space-y-2">
+          <label
+            class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            for="_r_dd_-form-item"
+            >Modo de Atención</label
+          ><button
+            type="button"
+            role="combobox"
+            aria-controls="radix-_r_de_"
+            aria-expanded="false"
+            aria-autocomplete="none"
+            dir="ltr"
+            data-state="closed"
+            class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&amp;&gt;span]:line-clamp-1"
+            id="_r_dd_-form-item"
+            aria-describedby="_r_dd_-form-item-description"
+            aria-invalid="false"
+          >
+            <span style="pointer-events: none"
+              >Externa (Se muestra por separado)</span
+            ><svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="lucide lucide-chevron-down h-4 w-4 opacity-50"
+              aria-hidden="true"
+            >
+              <path d="m6 9 6 6 6-6"></path>
+            </svg></button
+          ><select
+            aria-hidden="true"
+            tabindex="-1"
+            style="
+              position: absolute;
+              border: 0px;
+              width: 1px;
+              height: 1px;
+              padding: 0px;
+              margin: -1px;
+              overflow: hidden;
+              clip: rect(0px, 0px, 0px, 0px);
+              white-space: nowrap;
+              overflow-wrap: normal;
+            "
+          >
+            <option value="residencia">
+              Residencia (Se suma a los comensales normales)
+            </option>
+            <option value="externa" selected="">
+              Externa (Se muestra por separado)
+            </option>
+          </select>
+        </div>
+        <div class="space-y-3 p-4 border rounded-lg bg-muted/30">
+          <div class="flex justify-between items-center">
+            <h3 class="text-base font-semibold">
+              Plan de Comidas de la Actividad
+            </h3>
+            <button
+              class="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3"
+              type="button"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-circle-plus mr-2 h-4 w-4"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M8 12h8"></path>
+                <path d="M12 8v8"></path></svg
+              >Añadir Comida
+            </button>
+          </div>
+          <div class="space-y-3"></div>
+        </div>
+      </div>
+      <div class="space-y-4">
+        <h3 class="text-lg font-semibold border-b pb-2">
+          Campos de lógica de inscripción
+        </h3>
+        <div
+          class="space-y-2 flex items-center space-x-2 p-2 border rounded-md bg-muted/20"
+        >
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked="true"
+            data-state="checked"
+            value="on"
+            class="peer h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+            id="_r_df_-form-item"
+            aria-describedby="_r_df_-form-item-description"
+            aria-invalid="false"
+          >
+            <span
+              data-state="checked"
+              class="flex items-center justify-center text-current"
+              style="pointer-events: none"
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-check h-4 w-4"
+              >
+                <path d="M20 6 9 17l-5-5"></path></svg
+            ></span></button
+          ><input
+            aria-hidden="true"
+            tabindex="-1"
+            type="checkbox"
+            value="on"
+            checked=""
+            style="
+              position: absolute;
+              pointer-events: none;
+              opacity: 0;
+              margin: 0px;
+              transform: translateX(-100%);
+              width: 16px;
+              height: 16px;
+            "
+          /><label
+            class="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer font-medium !mt-0"
+            for="_r_df_-form-item"
+            >¿Requiere Inscripción Voluntaria?</label
+          >
+        </div>
+        <div
+          class="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300"
+        >
+          <div class="space-y-2">
+            <label
+              class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              for="_r_dg_-form-item"
+              >Acceso para Residentes</label
+            ><button
+              type="button"
+              role="combobox"
+              aria-controls="radix-_r_dh_"
+              aria-expanded="false"
+              aria-autocomplete="none"
+              dir="ltr"
+              data-state="closed"
+              data-placeholder=""
+              class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&amp;&gt;span]:line-clamp-1"
+              id="_r_dg_-form-item"
+              aria-describedby="_r_dg_-form-item-description"
+              aria-invalid="false"
+            >
+              <span style="pointer-events: none">Seleccionar...</span
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-chevron-down h-4 w-4 opacity-50"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6"></path>
+              </svg></button
+            ><select
+              aria-hidden="true"
+              tabindex="-1"
+              style="
+                position: absolute;
+                border: 0px;
+                width: 1px;
+                height: 1px;
+                padding: 0px;
+                margin: -1px;
+                overflow: hidden;
+                clip: rect(0px, 0px, 0px, 0px);
+                white-space: nowrap;
+                overflow-wrap: normal;
+              "
+            >
+              <option value=""></option>
+              <option value="abierta">Abierta (Inscripción libre)</option>
+              <option value="invitacion_requerida">
+                Por Invitación (Admin invita)
+              </option>
+              <option value="opcion_unica">
+                Opción Única (No hay otra comida)
+              </option>
+            </select>
+          </div>
+          <div class="space-y-2">
+            <label
+              class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              for="_r_di_-form-item"
+              >Acceso para Invitados Exteriores</label
+            ><button
+              type="button"
+              role="combobox"
+              aria-controls="radix-_r_dj_"
+              aria-expanded="false"
+              aria-autocomplete="none"
+              dir="ltr"
+              data-state="closed"
+              data-placeholder=""
+              class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&amp;&gt;span]:line-clamp-1"
+              id="_r_di_-form-item"
+              aria-describedby="_r_di_-form-item-description"
+              aria-invalid="false"
+            >
+              <span style="pointer-events: none">Seleccionar...</span
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-chevron-down h-4 w-4 opacity-50"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6"></path>
+              </svg></button
+            ><select
+              aria-hidden="true"
+              tabindex="-1"
+              style="
+                position: absolute;
+                border: 0px;
+                width: 1px;
+                height: 1px;
+                padding: 0px;
+                margin: -1px;
+                overflow: hidden;
+                clip: rect(0px, 0px, 0px, 0px);
+                white-space: nowrap;
+                overflow-wrap: normal;
+              "
+            >
+              <option value=""></option>
+              <option value="abierta">Abierta</option>
+              <option value="invitacion_requerida">Por Invitación</option>
+              <option value="opcion_unica">Opción Única</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label
+              class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              for="_r_dk_-form-item"
+              >Máximo de Participantes (opcional)</label
+            ><input
+              class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              placeholder="Sin límite si está vacío"
+              id="_r_dk_-form-item"
+              aria-describedby="_r_dk_-form-item-description"
+              aria-invalid="false"
+              type="number"
+              name="maxParticipantes"
+            />
+          </div>
+          <div class="space-y-2">
+            <label
+              class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              for="_r_dl_-form-item"
+              >Días antelación solicitud admin</label
+            ><input
+              class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              id="_r_dl_-form-item"
+              aria-describedby="_r_dl_-form-item-description"
+              aria-invalid="false"
+              type="number"
+              value="7"
+              name="diasAntelacionSolicitudAdministracion"
+            />
+          </div>
+        </div>
+      </div>
+      <div class="space-y-4">
+        <h3 class="text-lg font-semibold border-b pb-2">Campos de costo</h3>
+        <div class="space-y-2">
+          <label
+            class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            for="_r_dm_-form-item"
+            >Centro de Costo Imputable</label
+          ><button
+            type="button"
+            role="combobox"
+            aria-controls="radix-_r_dn_"
+            aria-expanded="false"
+            aria-autocomplete="none"
+            dir="ltr"
+            data-state="closed"
+            data-placeholder=""
+            class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&amp;&gt;span]:line-clamp-1"
+            id="_r_dm_-form-item"
+            aria-describedby="_r_dm_-form-item-description"
+            aria-invalid="false"
+          >
+            <span style="pointer-events: none"
+              >Centro de costo por defecto...</span
+            ><svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="lucide lucide-chevron-down h-4 w-4 opacity-50"
+              aria-hidden="true"
+            >
+              <path d="m6 9 6 6 6-6"></path>
+            </svg></button
+          ><select
+            aria-hidden="true"
+            tabindex="-1"
+            style="
+              position: absolute;
+              border: 0px;
+              width: 1px;
+              height: 1px;
+              padding: 0px;
+              margin: -1px;
+              overflow: hidden;
+              clip: rect(0px, 0px, 0px, 0px);
+              white-space: nowrap;
+              overflow-wrap: normal;
+            "
+          >
+            <option value=""></option>
+          </select>
+        </div>
+      </div>
+    </form>
+  </div>
+  <div
+    class="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 p-6 pt-4 border-t"
+  >
+    <button
+      class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+      type="button"
+    >
+      Cancelar</button
+    ><button
+      class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+      type="submit"
+      form="activity-form"
+    >
+      Crear Actividad
+    </button>
+  </div>
+  <button
+    type="button"
+    class="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="lucide lucide-x h-4 w-4"
+    >
+      <path d="M18 6 6 18"></path>
+      <path d="m6 6 12 12"></path></svg
+    ><span class="sr-only">Close</span>
+  </button>
+</div>
