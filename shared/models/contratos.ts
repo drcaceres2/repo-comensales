@@ -1,4 +1,5 @@
-import { UserId, ResidenciaId, campoFechaConZonaHoraria } from "./types"
+import { campoFechaConZonaHoraria } from "@/lib/fechasResidencia";
+import { UsuarioId, ResidenciaId, CodigoPaisIso, Ubicacion, FechaIso, FirestoreTimestamp } from "./types"
 
 export type ContratoResidenciaId = string;
 export type ClienteId = string;
@@ -32,16 +33,24 @@ export interface EstadoContrato {
     usuariosLicenciados: number;
 }
 
+export interface CodigoFiscal {
+    pais: CodigoPaisIso;
+    codigo: string;
+}
+
 export interface Cliente {
     id: ClienteId;
     idClienteOdoo?: string | null;
     email?: string | null;
     telefonoFijo?: string | null;
     telefonoMovil?: string | null;
-    clienteAsociado?: UserId | null;
+    usuarioAsociado?: UsuarioId | null;
     tipoPersonaCliente: 'PersonaNaturalHonduras' | 'PersonaNaturalExtranjera' | 'PersonaJuridicaHonduras' | 'PersonaJuridicaExtranjera' | 'ClienteProbando';
     personaCliente: PersonaNaturalHonduras | PersonaNaturalExtranjera | PersonaJuridicaHonduras | PersonaJuridicaExtranjera | ClienteProbando;
     representanteLegal?: PersonaNaturalHonduras | PersonaNaturalExtranjera | null;
+    codigoFiscal?: CodigoFiscal | null;
+    direccionPrincipal: Ubicacion;
+    direccionFacturacion: Ubicacion;
 }
 
 export interface ClienteProbando {
@@ -50,24 +59,23 @@ export interface ClienteProbando {
 
 export interface PersonaNaturalHonduras {
     nombreCompleto: string;
-    dni: string; // formato "####-####-#####"
+    DNI: string; // formato "####-####-#####"
     pasaporte?: string;
-    rtn: string;
     fechaNacimiento?: string; // ISO 8601 en formato "YYYY-MM-DD" no es relevante la zona horaria
     profesionUOficio: string;
-    domicilio: string;
-    municipio: string;
-    departamento: string;
+    direccionFisica: Ubicacion;
     estadoCivil: string;
+    actividadProfesionalOComercial?: string;
+    imagenDNI?: string; // Para ser almacenada en Firestore
 }
 
 export interface PersonaNaturalExtranjera {
     nombreCompleto: string; // Como aparece en su pasaporte vigente
+    pasaporte: string; 
+    otraIdentificacion: string; // número de identificación en su país de origen
     fechaNacimiento?: string; // ISO 8601 en formato "YYYY-MM-DD" no es relevante la zona horaria
     nacionalidad: string; // según pasaporte vigente
-    númeroDePasaporte: string; 
-    direccionFísica: string; // residencia actual completa
-    paisEstadoDireccionFisica: string; // país y estado (si es un país con múltiples estados) por ejemplo Brasil / Sao Paulo
+    direccionFísica: Ubicacion; // residencia actual completa
     estadoCivil: string;
     actividadProfesionalOComercial?: string;
     imagenPasaporte?: string; // Para ser almacenada en Firestore
@@ -75,20 +83,15 @@ export interface PersonaNaturalExtranjera {
 
 export interface PersonaJuridicaHonduras {
     razonSocial: string; // Razón social
-    direccionFísica: string;
-    municipio: string;
-    departamento: string;
+    direccionFísica: Ubicacion;
     correoElectronicoOficial?: string | null;
-    rtn: string;
 }
 
 export interface PersonaJuridicaExtranjera {
     nombreLegalCompleto: string; // Nombre legal completo
-    paisConstitucion: string;
-    ciudadConstitucion: string;
+    direccionLegal: Ubicacion;
     numeroRegistroMercantil: string;
     identificacionFiscal: string;
-    direccionLegalCompletaSede: string;    
     correoElectronicoOficial?: string | null;
     telefonoOfifical: string;
     objetoSocial: string;
@@ -101,22 +104,22 @@ export interface ContactoExterno {
     telefonos: string[];
 }
 
-export type ContactoResponsable = UserId | ContactoExterno | Cliente;
+export type ContactoResponsable = UsuarioId | ContactoExterno | Cliente;
 
 export interface ContratoResidencia {
     id?: ContratoResidenciaId; // ID del documento en Firestore (opcional al crear)
     cliente: ClienteId;
     residencia: ResidenciaId;
-    fechaInicio: campoFechaConZonaHoraria;
-    fechaFin?: campoFechaConZonaHoraria | null; // null o undefined indica que podría tener fecha fin o no
+    fechaInicio: FechaIso;
+    fechaFin?: FechaIso | null; // null o undefined indica que podría tener fecha fin o no
     esIndefinido: boolean;
     correoOficialComunicacion: string; // Correo electrónico principal de comunicación
     contactosResponsables: ContactoResponsable[]; // Puede ser un UsuarioId o un ContactoExterno
     recordatorios?: RecordatorioVencimiento[] | null;
     pruebaSolucion: boolean;
-    fechaFinPrueba?: campoFechaConZonaHoraria | null; // El trial siempre es al principio, se supone fecha de inicio la fecha de inicio del contrato
-    fechaCreacionObjeto: campoFechaConZonaHoraria;
-    fechaUltimaModificacionObjeto: campoFechaConZonaHoraria;
+    fechaFinPrueba?: FechaIso | null; // El trial siempre es al principio, se supone fecha de inicio la fecha de inicio del contrato
+    timestampCreacion: FirestoreTimestamp;
+    timestampModificacion: FirestoreTimestamp;
     estadoContrato: EstadoContrato;
     urlContratoOdoo?: string | null;
 }

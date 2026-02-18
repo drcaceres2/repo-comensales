@@ -103,7 +103,7 @@ export default function RecordatoriosPage() {
         }
     
         setUserProfileLoading(true);
-        const userProfileRef = doc(db, "userProfiles", authUser.uid); // Assuming "userProfiles" is your collection name
+        const userProfileRef = doc(db, "usuarios", authUser.uid); // Assuming "userProfiles" is your collection name
         const unsubscribe = onSnapshot(userProfileRef, (docSnap) => {
             if (docSnap.exists()) {
                 setCurrentUserProfile(docSnap.data() as UserProfile); // Use the new state setter
