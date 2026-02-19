@@ -1,0 +1,117 @@
+{
+    "residencia": {
+        "entidad": "Residencia", 
+        "entidades": "Residencias", 
+        "la_entidad": "La Residencia",
+        "las_entidades": "Las Residencias",
+        "nueva_entidad": "Nueva Residencia",
+        "la_primera_entidad": "La Primera Residencia",
+        "entidad_creada": "Residencia Creada",
+        "entidad_eliminada": "Residencia Eliminada"
+    },
+    "usuario": {
+        "entidad": "Usuario", 
+        "entidades": "Usuarios", 
+        "la_entidad": "El Usuario",
+        "las_entidades": "Los Usuarios",
+        "nueva_entidad": "Nuevo Usuario"        
+    },
+    "rol": {
+        "entidad": "Rol", 
+        "entidades": "Roles", 
+        "la_entidad": "El Rol",
+        "las_entidades": "Los Roles",
+        "nueva_entidad": "Nuevo Rol"        
+    },
+    "usuario_maestro": {
+        "entidad": "Usuario Maestro", 
+        "entidades": "Usuarios Maestros", 
+        "la_entidad": "El Usuario Maestro",
+        "las_entidades": "Los Usuarios Maestros",
+        "nueva_entidad": "Nuevo Usuario Maestro"
+    },
+    "residente": {
+        "entidad": "Residente", 
+        "entidades": "Residentes", 
+        "la_entidad": "El Residente",
+        "las_entidades": "Los Residentes",
+        "nueva_entidad": "Nuevo Residente"        
+    },
+    "director": {
+        "entidad": "Director", 
+        "entidades": "Directores", 
+        "la_entidad": "El Director",
+        "las_entidades": "Los Directores",
+        "nueva_entidad": "Nuevo Director"        
+    },
+    "invitado": {
+        "entidad": "Invitado", 
+        "entidades": "Invitados", 
+        "la_entidad": "El Invitado",
+        "las_entidades": "Los Invitados",
+        "nueva_entidad": "Nuevo Invitado"        
+    },
+    "asistente": {
+        "entidad": "Asistente", 
+        "entidades": "Asistentes", 
+        "la_entidad": "El Asistente",
+        "las_entidades": "Los Asistentes",
+        "nueva_entidad": "Nuevo Asistente"        
+    },
+    "administrador": {
+        "entidad": "Usuario Administrador", 
+        "entidades": "Usuarios Administradores", 
+        "la_entidad": "El Usuario Administrador",
+        "las_entidades": "Los Usuarios Administradores",
+        "nueva_entidad": "Nuevo Usuario Administrador"        
+    },
+    "estudiante": {
+        "entidad": "Estudiante", 
+        "entidades": "Estudiantes", 
+        "la_entidad": "El Estudiante",
+        "las_entidades": "Los Estudiantes",
+        "nueva_entidad": "Nuevo Estudiante"        
+    },
+    "profesional": {
+        "entidad": "Profesional", 
+        "entidades": "Profesionales", 
+        "la_entidad": "El Profesional",
+        "las_entidades": "Los Profesionales",
+        "nueva_entidad": "Nuevo Profesional"        
+    },
+    "tiempo_comida": {
+        "entidad": "Tiempo de Comida", 
+        "entidades": "Tiempos de Comida", 
+        "la_entidad": "El Tiempo de Comida",
+        "las_entidades": "Los Tiempos de Comida",
+        "nueva_entidad": "Nuevo Tiempo de Comida"        
+    },
+    "alternativa": {
+        "entidad": "Alternativa", 
+        "entidades": "Alternativas", 
+        "la_entidad": "La Alternativa",
+        "las_entidades": "Las Alternativas",
+        "nueva_entidad": "Nueva Alternativa"        
+    },
+    "localidad": {
+        "entidad": "Localidad", 
+        "entidades": "Localidades", 
+        "la_entidad": "La Localidad",
+        "las_entidades": "Las Localidades",
+        "nueva_entidad": "Nueva Localidad"        
+    },
+    "campo_personalizado": {
+        "entidad": "Campo Personalizado", 
+        "entidades": "Campos Personalizados", 
+        "la_entidad": "El Campo Personalizado",
+        "las_entidades": "Los Campos Personalizados",
+        "nueva_entidad": "Nuevo Campo Personalizado"        
+    },
+    "zona_horaria": {
+        "entidad": "Zona Horaria", 
+        "entidades": "Zonas Horarias", 
+        "la_entidad": "La Zona Horaria",
+        "las_entidades": "Las Zonas Horarias",
+        "nueva_entidad": "Nueva Zona Horaria"        
+    }
+}

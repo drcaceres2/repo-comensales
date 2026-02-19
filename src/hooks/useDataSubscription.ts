@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { z } from 'zod';
+import { useEffect, useState, useMemo } from 'react';
 import { onSnapshot, Query, DocumentReference } from 'firebase/firestore';
 
 interface SubscriptionResult<T> {
@@ -72,4 +73,24 @@ export function useDocumentSubscription<T>(docRef: DocumentReference | null): Su
   }, [docRef]);
 
   return { data, loading, error };
+}
+
+export function useZodCollectionSubscription<T>(
+  schema: z.ZodSchema<T>,
+  queryRef: Query | null
+) {
+  const { data, loading, error } = useCollectionSubscription<any>(queryRef); // Get raw data
+
+  const parsedData = useMemo(() => {
+    if (!data) return null;
+    const result = schema.array().safeParse(data);
+    if (!result.success) {
+      console.error("Zod validation error in useZodCollectionSubscription:", result.error);
+      // Decide how to handle the error. For now, return null and log.
+      return null;
+    }
+    return result.data;
+  }, [data, schema]);
+
+  return { data: parsedData, loading, error };
 }

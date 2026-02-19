@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
 import { Button } from "@/components/ui/button";
-import { LogOut, Loader2, AlertCircle, MessageSquare } from 'lucide-react'; // Added MessageSquare for feedback icon
+import { LogOut, Loader2, AlertCircle, MessageSquare } from 'lucide-react';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -118,6 +118,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  React.useEffect(() => {
+    import('@/i18n/config');
+  }, []);
+
   return (
     <html lang="en" className="h-full">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans flex flex-col min-h-full bg-background`}>

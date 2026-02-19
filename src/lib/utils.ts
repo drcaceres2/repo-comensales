@@ -2,7 +2,7 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp, collection, addDoc, serverTimestamp, WriteBatch } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { UserProfile, LogActionType } from '../../shared/models/types';
+import { Usuario, LogActionType } from '../../shared/models/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { type Toast } from "@/hooks/useToast";
@@ -224,15 +224,15 @@ export async function validarResidenciaUsuario({
   authUser: any | undefined;
   claims: ParsedToken | undefined;
   params: any | undefined;
-}): Promise<UserProfile> {
+}): Promise<Usuario> {
   if (!authUser || !authUser.id || !claims || !params) {
     throw new Error('No se encontró el usuario autenticado en la base de datos.');
   }
   const userProfileRef = doc(db, 'users', authUser.uid)
   const userProfileDoc = await getDoc(userProfileRef);
-  let userProfileData: UserProfile;
+  let userProfileData: Usuario;
   if (userProfileDoc.exists()) {
-    userProfileData = userProfileDoc.data() as UserProfile;
+    userProfileData = userProfileDoc.data() as Usuario;
   } else {
     throw new Error('No se encontró el usuario autenticado en la base de datos.');
   }
@@ -250,7 +250,7 @@ export async function validarResidenciaUsuario({
   return userProfileData;
 }
 
-export async function getUserProfileData(userId: string): Promise<UserProfile | null> {
+export async function getUserProfileData(userId: string): Promise<Usuario | null> {
   const userProfileDoc = await getDoc(doc(db, 'users', userId));
-  return userProfileDoc.exists() ? (userProfileDoc.data() as UserProfile) : null;
+  return userProfileDoc.exists() ? (userProfileDoc.data() as Usuario) : null;
 }

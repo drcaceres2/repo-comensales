@@ -1,0 +1,9 @@
+{
+  "residenceManagement": {
+    "title": "Gestión de Colegios Mayores",
+    "createNew": "Crear Nuevo Colegio Mayor",
+    "editTitle": "Editar Colegio Mayor",
+    "residenceName": "Nombre del Colegio Mayor",
+    "residenceList": "Lista de Colegios Mayores"
+  }
+}

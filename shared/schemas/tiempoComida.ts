@@ -1,34 +1,31 @@
 import { z } from 'zod';
 import { FirebaseIdSchema } from './common';
-import { IsoDateStringSchema, DayOfWeekKeySchema, IsoTimeStringSchema } from './fechas';
+import { DiaDeLaSemanaSchema, HoraIsoSchema } from './fechas';
 
+// ============================================
+// TiempoComida (Embebido en ConfiguracionResidencia.esquemaSemanal)
+// ============================================
+
+/**
+ * TiempoComida: Categoría operativa que representa la intersección 
+ * entre un día de la semana y una comida (ej. "desayuno lunes").
+ * Embebido como Record<TiempoComidaId, TiempoComida> en ConfiguracionResidencia.esquemaSemanal.
+ */
 export const TiempoComidaSchema = z.object({
-  id: FirebaseIdSchema,
-  nombre: z.string(),
-  residenciaId: FirebaseIdSchema,
-  nombreGrupo: z.string(),
-  ordenGrupo: z.number(),
-  dia: DayOfWeekKeySchema.nullable().optional(),
-  horaEstimada: IsoTimeStringSchema.nullable().optional(),
-  aplicacionOrdinaria: z.boolean(),
-  isActive: z.boolean(),
-});
+    nombre: z.string().min(1).max(100),
+    residenciaId: FirebaseIdSchema,
 
-export const MealSelectionMutationSchema = z.object({
-  userId: FirebaseIdSchema,     // ¿Quién come?
-  residenciaId: FirebaseIdSchema,
-  fecha: IsoDateStringSchema,      // ¿Cuándo?
-  tiempoComidaId: FirebaseIdSchema, // ¿Desayuno, Comida, Cena?
-  
-  // La intención del usuario
-  accion: z.enum(['inscribir', 'desinscribir']), 
-  
-  // Origen del cambio (Auditoría)
-  source: z.enum(['manual_residente', 'manual_asistente']),
-  
-  // Metadatos opcionales para logs
-  timestamp: z.number().default(() => Date.now()),
-});
+    grupoComida: z.number().int().nonnegative(), // Índice de ConfiguracionResidencia.gruposComidas[]
+    dia: DiaDeLaSemanaSchema,
+    horaReferencia: HoraIsoSchema,
 
-// Inferencia automática del tipo TypeScript desde Zod
-export type MealSelectionMutation = z.infer<typeof MealSelectionMutationSchema>;
+    alternativas: z.object({
+        principal: FirebaseIdSchema, // ConfigAlternativaId
+        secundarias: z.array(FirebaseIdSchema), // ConfigAlternativaId[]
+    }).strict(),
+
+    estaActivo: z.boolean(),
+}).strict();
+
+// Type export
+export type TiempoComida = z.infer<typeof TiempoComidaSchema>;

@@ -17,7 +17,7 @@ A diferencia de aplicaciones comerciales de *delivery* (donde el objetivo es la 
 ### 1.2 Objetivos Estratégicos
 
 1.  **Formación sobre Conveniencia:** El sistema penaliza la falta de planificación. No existen flujos de emergencia automatizados; las excepciones fuera de plazo requieren intervención manual del Director (fricción intencional).
-2.  **Agnosticismo Cultural:** Soporte total para esquemas de comida no tradicionales (Brunch, Asados, Meriendas) mediante configuración dinámica, desacoplada de horarios fijos occidentales.
+2.  **Agnosticismo Cultural:** Soporte total para esquemas de comida no tradicionales (Brunch, Asados, Meriendas) mediante configuración dinámica, desacoplada de horarios fijos occidentales. Todas las páginas (rutas) manejan plantilla de idioma y estilo (i18n).
 3.  **Segregación de Negocio:** Estricta separación entre **Residencia** (Usuarios, Roles, Reglas) y **Administración** (Producción). La Administración opera como una "Caja Negra" que recibe solicitudes (órdenes de trabajo) consolidadas.
 
 ### 1.3 Drivers Arquitectónicos
@@ -96,17 +96,17 @@ La base de datos sigue una estructura de árbol estricta para aislar contextos y
 > ├── residencias/ {slug}
 > │   │
 > │   ├── configuracion/ {general}  (Singleton)
+> │   │   ├── (campo) horariosSolicitud: Map<ID, Data>
 > │   │   ├── (campo) comedores: Map<ID, Data>
 > │   │   ├── (campo) gruposUsuarios: Map<ID, Data>
 > │   │   ├── (campo) dietas: Map<ID, Data>
-> │   │   ├── (campo) horariosSolicitud: Map<ID, Data>
-> │   │   └── (campo) gruposTiempoComidaUI[]
+> │   │   ├── (campo) gruposComidas[]
+> │   │   ├── (campo) tiemposComidas: Map<ID, Data>
+> │   │   ├── (campo) definicionesAlternativas: Map<ID, Data>
+> │   │   └── (campo) configuracionesAlternativas: Map<ID, Data>
 > │   │
 > │   ├── configContabilidad/ {general}  (Singleton)
 > │   │   └── (campo) centrosDeCosto: Map<ID, Data>
-> │   │
-> │   ├── tiemposComida/ {slug_nombre}
-> │   ├── alternativas/ {slug_nombre}
 > │   │
 > │   ├── atenciones/ {auto-id}
 > │   │
@@ -171,11 +171,11 @@ El sistema realiza la imputación de costos en el momento del Snapshot (`Solicit
 * **Desnormalización:** Contiene copias de los nombres de los tiempos de comida y alternativas de comida, además del comedor para evitar corrupción histórica si la configuración cambia.
 * **Trazabilidad:** Incluye el campo `origen` (`SEMANARIO`, `EXCEPCION`, `ACTIVIDAD`, `ASISTENTE_INVITADOS`, `INVITADO_EXTERNO`) para auditoría.
 
----
-
 ### 3.5 Núcleo Compartido (Shared kernel)
 
 La lógica de resolución de estados (Cascada: Actividad > Ausencia > Preferencia) se implementará como un paquete de Funciones Puras en TypeScript/JavaScript, sin dependencias de infraestructura (ni Firebase, ni DOM). Este módulo será importado tanto por el Cliente (para UI reactiva) como por las Cloud Functions (para el Snapshot oficial). **Regla de Oro:** Si la lógica cambia, se actualiza el paquete compartido, nunca el frontend o backend por separado.
+
+---
 
 ## 4. Stack Tecnológico y Estrategia de Infraestructura
 
@@ -226,7 +226,42 @@ Prioridad en **Bajo Costo Operativo** (Non-profit) y **Eficiencia de Lecturas**.
 
 ---
 
-## 5. Resumen Ejecutivo (Blueprint)
+## 5. Estándares de Ingeniería y Calidad
+
+### 5.1 Estrategia de Validación (The Shared Schema)
+
+Los esquemas Zod (ubicados en `@/shared/schemas`) actúan como la **Fuente de la Verdad** (Single Source of Truth) para la integridad de datos.
+* **Contrato:** Ningún dato entra o sale del sistema sin pasar por un esquema Zod.
+* **Dualidad:** En el Cliente, sirven para feedback inmediato (UX). En el Servidor (Server Actions/Functions), actúan como barrera de seguridad obligatoria antes de tocar la base de datos.
+
+### 5.2 Patrón DTO y Serialización (Zod Transform)
+
+Se impone el uso de Zod como capa de transformación (DTO) obligatoria para resolver la brecha de hidratación ("Hydration Gap") de Next.js y Firestore:
+1.  **Aplanamiento:** Los tipos complejos (`Timestamp`, `GeoPoint`) deben transformarse a primitivos (`string ISO 8601`, `number`) dentro del esquema usando `z.transform()`.
+2.  **Seguridad de Datos:** Se debe utilizar `.pick()` o `.omit()` para exponer al cliente únicamente los campos necesarios, previniendo fugas de información sensible ("Over-fetching").
+
+### 5.3 Manejo Unificado de Errores (UI Standard)
+
+Para garantizar consistencia visual y reducir deuda técnica:
+* **Errores de Validación (Zod):** Se mostrarán en un componente unificado `ZodAlert` (Franja Roja) ubicado en la cabecera del formulario. No se usarán mensajes dispersos campo por campo salvo excepciones críticas.
+* **Confirmaciones/Errores de Sistema:** Se utilizarán notificaciones efímeras ("Toasts") para éxito de operaciones o fallos de red.
+
+### 5.4 Seguridad en Capas (Defense in Depth)
+
+La seguridad no es binaria, es estratificada:
+
+* **Capa 1: Autorización (Firestore Rules).** Valida la tenencia (Multi-tenant isolation) y permisos básicos de rol (RBAC) usando *Custom Claims*, comparándolos con la jerarquía de colecciones de Firestore (residenciaId y userId) y los resource.data que vienen de los registros de Firestore. Es la muralla final.
+* **Capa 2: Integridad (Zod Base).** Valida tipos, formatos (email, longitud) y estructura.
+* **Capa 3: Reglas de Negocio (Server Logic).** Valida lógica compleja (ej: cupos llenos, fechas cruzadas) usando `.refine` / `.superRefine`.
+    * **Restricción Crítica:** Si una operación depende de validaciones de Capa 3, la escritura directa en `firestore.rules` debe estar **deshabilitada** (`allow write: if false`), forzando el uso de Server Actions o Cloud Functions.
+
+### 5.5 Concurrencia y Latencia
+
+Debido a la naturaleza asíncrona de las Server Actions:
+* Es mandatorio implementar **Optimistic UI** (vía `useOptimistic` o `TanStack Query`) para mutaciones frecuentes. La interfaz no debe "congelarse" esperando al servidor.
+* Las transacciones atómicas deben agruparse en lotes (`batches`) para garantizar consistencia.
+
+## 6. Resumen Ejecutivo (Blueprint)
 
 **"Comensales Residencia"** es un sistema de gestión logística con enfoque formativo.
 
@@ -235,4 +270,5 @@ Prioridad en **Bajo Costo Operativo** (Non-profit) y **Eficiencia de Lecturas**.
 3.  **Outputs:** Al cierre, el servidor genera **Hechos Inmutables** (`Comensales`) mediante un Snapshot, que sirve como fuente única para Cocina y Contabilidad (BigQuery).
 
 ---
+
 *Documento generado bajo supervisión de Arquitectura de Software Senior.*

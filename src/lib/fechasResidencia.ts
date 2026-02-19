@@ -1,12 +1,12 @@
 import { format, getDay, addDays, endOfDay, startOfDay, startOfWeek, endOfWeek, isWithinInterval, isBefore, isAfter, parseISO } from 'date-fns';
 import { fromZonedTime, toZonedTime, formatInTimeZone } from 'date-fns-tz';
-import { DayOfWeekKey } from '../../shared/models/types';
+import { DiaDeLaSemana } from '../../shared/models/types';
 import { es } from 'date-fns/locale'; // Spanish locale for ISO 8601 week (Monday first)
-import { IsoDateString, IsoDateTimeString, IanaTimezone } from '../../shared/models/types';
+import { FechaIso, FechaHoraIso, ZonaHorariaIana } from '../../shared/models/types';
 
 export interface campoFechaConZonaHoraria {
-    fecha: IsoDateString | IsoDateTimeString; // fecha-hora, fecha u hora guardada en formato ISO: "YYYY-MM-DD" / "yyyy-MM-dd HH:mm" / "yyyy-MM-dd HH:mm:ss" / "HH:mm" / "HH:mm:ss"
-    zonaHoraria: IanaTimezone; // formato IANA de zona horaria
+    fecha: FechaIso | FechaHoraIso; // fecha-hora, fecha u hora guardada en formato ISO: "YYYY-MM-DD" / "yyyy-MM-dd HH:mm" / "yyyy-MM-dd HH:mm:ss" / "HH:mm" / "HH:mm:ss"
+    zonaHoraria: ZonaHorariaIana; // formato IANA de zona horaria
 }
 
 // --- Helper Functions for Date/Day Operations ---
@@ -14,11 +14,11 @@ export interface campoFechaConZonaHoraria {
 // Converts 'lunes', 'martes', etc. to a number (0=Monday, 1=Tuesday, ..., 6=Sunday for consistency with ISO 8601 if needed, or date-fns getDay-like)
 // date-fns getDay: Sunday=0, Monday=1, ..., Saturday=6
 // ISO 8601 weekDay: Monday=1, ..., Sunday=7
-// For this component, let's try to stick to DayOfWeekKey strings primarily and convert to numbers for date-fns where necessary.
+// For this component, let's try to stick to DiaDeLaSemana strings primarily and convert to numbers for date-fns where necessary.
 
-export const dayKeyToDateFnsNumber = (day: DayOfWeekKey): number => {
+export const dayKeyToDateFnsNumber = (day: DiaDeLaSemana): number => {
   // date-fns: Sunday=0, Monday=1, ..., Saturday=6
-  const map: Record<DayOfWeekKey, number> = {
+  const map: Record<DiaDeLaSemana, number> = {
     domingo: 0,
     lunes: 1,
     martes: 2,
@@ -30,8 +30,8 @@ export const dayKeyToDateFnsNumber = (day: DayOfWeekKey): number => {
   return map[day];
 };
 
-// Helper to get a Date object for a specific DayOfWeekKey within a given week (represented by its start date)
-export const dayOfWeekKeyToDate = (dayKey: DayOfWeekKey, weekStartDate: Date): Date => {
+// Helper to get a Date object for a specific DiaDeLaSemana within a given week (represented by its start date)
+export const dayOfWeekKeyToDate = (dayKey: DiaDeLaSemana, weekStartDate: Date): Date => {
   const targetDayIndex = dayKeyToDateFnsNumber(dayKey); // 0 (Sun) - 6 (Sat)
   
   // Calculate difference, ensuring we handle week wrap-around correctly if weekStartDate is not Sunday
@@ -45,15 +45,15 @@ export const dayOfWeekKeyToDate = (dayKey: DayOfWeekKey, weekStartDate: Date): D
   return addDays(weekStartDate, daysToAdd);
 };
 
-// Helper to convert a Date to DayOfWeekKey ('lunes', 'martes', etc.)
-export const formatToDayOfWeekKey = (date: Date): DayOfWeekKey => {
+// Helper to convert a Date to DiaDeLaSemana ('lunes', 'martes', etc.)
+export const formatToDayOfWeekKey = (date: Date): DiaDeLaSemana => {
   // format with 'eeee' gives full day name, locale handles language
   const dayString = format(date, 'eeee', { locale: es }).toLowerCase();
-  // Ensure it matches your DayOfWeekKey type, e.g., 'miércoles' -> 'miercoles'
-  let dayName: DayOfWeekKey;
+  // Ensure it matches your DiaDeLaSemana type, e.g., 'miércoles' -> 'miercoles'
+  let dayName: DiaDeLaSemana;
   if (dayString === 'miércoles') dayName = 'miercoles';
   else if (dayString === 'sábado') dayName = 'sabado';
-  else dayName = dayString as DayOfWeekKey; 
+  else dayName = dayString as DiaDeLaSemana; 
   return dayName;
 };
 interface formatoIsoCompletoProps {

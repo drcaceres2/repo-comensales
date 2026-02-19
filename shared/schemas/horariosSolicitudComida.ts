@@ -1,15 +1,16 @@
 import { z } from 'zod';
 import { FirebaseIdSchema } from './common';
-import { IsoTimeStringSchema } from './fechas';
+import { DiaDeLaSemanaSchema, HoraIsoSchema } from './fechas';
 
-const DayOfWeekKeySchema = z.enum(['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']);
+/**
+ * @deprecated Este archivo se mantiene por compatibilidad.
+ * Los horarios de solicitud de comida ahora están embebidos en ConfiguracionResidencia
+ * como Record<HorarioSolicitudComidaId, HorarioSolicitudData>.
+ * 
+ * Usar HorarioSolicitudDataSchema de './comedor' (datos embebidos de configuración).
+ */
+export { HorarioSolicitudDataSchema } from './comedor';
 
-export const HorarioSolicitudComidaSchema = z.object({
-  id: FirebaseIdSchema,
-  residenciaId: FirebaseIdSchema,
-  nombre: z.string().min(1).max(20),
-  dia: DayOfWeekKeySchema,
-  horaSolicitud: IsoTimeStringSchema,
-  isPrimary: z.boolean(),
-  isActive: z.boolean(),
-});
+// Re-export con alias para compatibilidad
+import { HorarioSolicitudDataSchema } from './comedor';
+export const HorarioSolicitudComidaSchema = HorarioSolicitudDataSchema;

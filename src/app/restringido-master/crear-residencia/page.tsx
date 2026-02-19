@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
-import { UserProfile, Residencia, Ubicacion, ConfiguracionCampo } from '../../../../shared/models/types';
-import countriesData from '../../../../shared/data/countries.json';
+import { Usuario, Residencia, Ubicacion, CampoPersonalizado } from 'shared/models/types';
+import countriesData from 'shared/data/countries.json';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
   doc,
@@ -39,26 +40,28 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, AlertCircle, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
 
-const getNewResidenciaDefaults = (): Partial<Residencia> => ({ // Changed return type
-  id: '', // Added id field
+const getNewResidenciaDefaults = (): Partial<Residencia> => ({
+  id: '',
   nombre: '',
   direccion: '',
   logoUrl: '',
-  configuracionContabilidad: null,
-  antelacionActividadesDefault: 7,
-  tipoResidencia: 'estudiantes',
-  esquemaAdministracion: 'estricto',
+  locale: 'es-HN',
+  tipo: {
+    tipoResidentes: 'estudiantes',
+    modalidadResidencia: 'hombres',
+  },
   ubicacion: {
     pais: 'HN',
     ciudad: 'Tegucigalpa',
-    timezone: 'America/Tegucigalpa',
+    zonaHoraria: 'America/Tegucigalpa',
     direccion: ''
   },
-  camposPersonalizados: {},
-  textProfile: 'espanol-honduras',
+  camposPersonalizados: [],
+  estadoContrato: 'activo',
 });
 
 function CrearResidenciaAdminPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { toast } = useToast();
   const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
@@ -66,8 +69,7 @@ function CrearResidenciaAdminPage() {
   const createResidenciaCallable = httpsCallable(functionsInstance, 'createResidencia');
   const updateResidenciaCallable = httpsCallable(functionsInstance, 'updateResidencia');
   const deleteResidenciaCallable = httpsCallable(functionsInstance, 'deleteResidencia');
-
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userProfile, setUserProfile] = useState<Usuario | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
@@ -106,7 +108,7 @@ function CrearResidenciaAdminPage() {
       return;
     }
     if (authFirebaseError) {
-      toast({ title: "Error de Autenticación", description: authFirebaseError.message, variant: "destructive" });
+      toast({ title: t('gestionResidencias.errorAutenticacion'), description: authFirebaseError.message, variant: "destructive" });
       setProfileLoading(false); setUserProfile(null); setProfileError(authFirebaseError.message);
       setIsAuthorized(false);
       return;
@@ -122,7 +124,7 @@ function CrearResidenciaAdminPage() {
     getDoc(userDocRef)
       .then((docSnap) => {
         if (docSnap.exists()) {
-          const profile = docSnap.data() as UserProfile;
+          const profile = docSnap.data() as Usuario;
           setUserProfile(profile);
           setProfileError(null);
 
@@ -133,23 +135,23 @@ function CrearResidenciaAdminPage() {
           setIsAdminUser(roles.includes('admin'));
 
           if (!canAccessPage) {
-            toast({ title: "Acceso Denegado", description: "No tienes permisos para acceder (master o admin).", variant: "destructive" });
+            toast({ title: t('gestionResidencias.accesoDenegado'), description: t('gestionResidencias.sinPermisos'), variant: "destructive" });
           }
         } else {
-          setUserProfile(null); setProfileError("Perfil de usuario no encontrado.");
-          toast({ title: "Error de Perfil", description: "No se encontró tu perfil de usuario.", variant: "destructive" });
+          setUserProfile(null); setProfileError(t('gestionResidencias.perfilNoEncontrado'));
+          toast({ title: t('gestionResidencias.errorPerfil'), description: t('gestionResidencias.perfilNoEncontrado'), variant: "destructive" });
           setIsAuthorized(false);
         }
       })
       .catch((error) => {
-        setUserProfile(null); setProfileError(`Error al cargar el perfil: ${error.message}`);
-        toast({ title: "Error al Cargar Perfil", description: `No se pudo cargar tu perfil: ${error.message}`, variant: "destructive" });
+        setUserProfile(null); setProfileError(t('gestionResidencias.errorCargandoPerfil', { error: error.message }));
+        toast({ title: t('gestionResidencias.errorPerfil'), description: t('gestionResidencias.noSePudoCargarPerfil', { error: error.message }), variant: "destructive" });
         setIsAuthorized(false);
       })
       .finally(() => {
         setProfileLoading(false);
       });
-  }, [authUser, authFirebaseLoading, authFirebaseError, toast]);
+  }, [authUser, authFirebaseLoading, authFirebaseError, toast, t]);
 
   // --- Redirect if not authenticated after loading ---
   useEffect(() => {
@@ -177,7 +179,7 @@ function CrearResidenciaAdminPage() {
         setResidences([]);
         setIsLoadingResidences(false);
         if (isAdminUser && !userProfile.residenciaId) {
-          toast({ title: "Información", description: "Como admin, no tienes una residencia asignada para ver.", variant: "default" });
+          toast({ title: t('gestionResidencias.informacion'), description: t('gestionResidencias.adminSinResidenciaAsignada'), variant: "default" });
         }
         return;
       }
@@ -191,11 +193,11 @@ function CrearResidenciaAdminPage() {
     } catch (error) {
       const errorMessage = `Error al cargar residencias. ${error instanceof Error ? error.message : 'Error desconocido'}`;
       setErrorResidences(errorMessage);
-      toast({ title: "Error", description: "No se pudieron cargar las residencias.", variant: "destructive" });
+      toast({ title: t('gestionResidencias.error'), description: t('gestionResidencias.noSePudieronCargarLasResidencias'), variant: "destructive" });
     } finally {
       setIsLoadingResidences(false);
     }
-  }, [userProfile, isAuthorized, isMasterUser, isAdminUser, toast]);
+  }, [userProfile, isAuthorized, isMasterUser, isAdminUser, toast, t]);
 
   // --- useEffect: Fetch residences when authorization changes ---
   useEffect(() => {
@@ -237,16 +239,9 @@ function CrearResidenciaAdminPage() {
     }));
   };
 
-  const handleSelectChange = (name: keyof Partial<Residencia>) => (value: string) => {
-    setCurrentResidencia(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
   const handleCreateNew = () => {
     if (!isMasterUser) {
-      toast({ title: "Acción no permitida", description: "Solo usuarios 'master' pueden crear residencias.", variant: "destructive" });
+      toast({ title: t('gestionResidencias.accionNoPermitida'), description: t('gestionResidencias.soloMasterPuedeCrear'), variant: "destructive" });
       return;
     }
     setCurrentResidencia(getNewResidenciaDefaults());
@@ -256,20 +251,26 @@ function CrearResidenciaAdminPage() {
 
   const handleEdit = (residencia: Residencia) => {
     if (!isMasterUser && !(isAdminUser && userProfile?.residenciaId === residencia.id)) {
-         toast({ title: "Acción no permitida", description: "No tienes permisos para editar esta residencia.", variant: "destructive" });
+         toast({ title: t('gestionResidencias.accionNoPermitida'), description: t('gestionResidencias.sinPermisoParaEditar'), variant: "destructive" });
         return;
     }
-    // Ensure ubicacion exists if editing legacy data
+    // Ensure the object to be edited conforms to the latest structure, merging defaults for missing top-level properties.
     const residenciaToEdit = { ...getNewResidenciaDefaults(), ...residencia };
+
+    // Handle legacy data: if `ubicacion` is missing, create it.
     if (!residenciaToEdit.ubicacion) {
-        // Fallback migration for old data if needed
-         residenciaToEdit.ubicacion = {
-            pais: 'HN', // Default or try to guess?
+        residenciaToEdit.ubicacion = {
+            pais: 'HN',
             ciudad: 'Tegucigalpa',
-            timezone: (residencia as any).zonaHoraria || 'America/Tegucigalpa',
+            zonaHoraria: 'America/Tegucigalpa',
             direccion: residencia.direccion
         };
+    } else if ((residenciaToEdit.ubicacion as any).timezone) {
+        // Handle legacy timezone property
+        residenciaToEdit.ubicacion.zonaHoraria = (residenciaToEdit.ubicacion as any).timezone;
+        delete (residenciaToEdit.ubicacion as any).timezone;
     }
+
     setCurrentResidencia(residenciaToEdit);
     setIsEditing(true);
     setShowCreateForm(true);
@@ -288,28 +289,28 @@ function CrearResidenciaAdminPage() {
     setAntelacionError(null);
 
     if (!userProfile || (!isMasterUser && !isEditing)) {
-      toast({ title: "Acción no permitida", description: "No tienes permisos para esta acción.", variant: "destructive" });
+      toast({ title: t('gestionResidencias.accionNoPermitida'), description: t('gestionResidencias.sinPermisos'), variant: "destructive" });
       return;
     }
 
     // Basic client-side validations
     if (typeof currentResidencia.nombre !== 'string' || !currentResidencia.nombre.trim()) {
-        toast({ title: "Campo requerido", description: "El nombre de la residencia es obligatorio.", variant: "default"});
+        toast({ title: t('gestionResidencias.campoRequerido'), description: t('gestionResidencias.nombreResidenciaObligatorio'), variant: "default"});
         return;
     }
 
-    if (!currentResidencia.ubicacion?.timezone || !currentResidencia.ubicacion.timezone.includes('/')) {
-        toast({ title: "Campo requerido", description: "La zona horaria es obligatoria y debe tener un formato válido (Ej: Region/Ciudad).", variant: "default"});
+    if (!currentResidencia.ubicacion?.zonaHoraria || !currentResidencia.ubicacion.zonaHoraria.includes('/')) {
+        toast({ title: t('gestionResidencias.campoRequerido'), description: t('gestionResidencias.zonaHorariaObligatoria'), variant: "default"});
         return;
     }
 
     if (!currentResidencia.ubicacion?.pais) {
-         toast({ title: "Campo requerido", description: "El país es obligatorio.", variant: "default"});
+         toast({ title: t('gestionResidencias.campoRequerido'), description: t('gestionResidencias.paisObligatorio'), variant: "default"});
          return;
     }
 
     if (!currentResidencia.ubicacion?.ciudad) {
-         toast({ title: "Campo requerido", description: "La ciudad es obligatoria.", variant: "default"});
+         toast({ title: t('gestionResidencias.campoRequerido'), description: t('gestionResidencias.ciudadObligatoria'), variant: "default"});
          return;
     }
 
@@ -320,27 +321,27 @@ function CrearResidenciaAdminPage() {
         nombre: currentResidencia.nombre || '',
         direccion: currentResidencia.direccion || '',
         logoUrl: currentResidencia.logoUrl || '',
-        configuracionContabilidad: null,
-        antelacionActividadesDefault: currentResidencia.antelacionActividadesDefault || 7,
-        tipoResidencia: currentResidencia.tipoResidencia || 'estudiantes',
-        esquemaAdministracion: currentResidencia.esquemaAdministracion || 'estricto',
+        locale: currentResidencia.locale || 'es-HN',
+        tipo: {
+            tipoResidentes: currentResidencia.tipo?.tipoResidentes || 'estudiantes',
+            modalidadResidencia: currentResidencia.tipo?.modalidadResidencia || 'hombres',
+        },
         ubicacion: {
             pais: currentResidencia.ubicacion!.pais,
             region: currentResidencia.ubicacion!.region || '',
             ciudad: currentResidencia.ubicacion!.ciudad,
             direccion: currentResidencia.ubicacion!.direccion || currentResidencia.direccion || '', // Sync or fallback
-            timezone: currentResidencia.ubicacion!.timezone,
+            zonaHoraria: currentResidencia.ubicacion!.zonaHoraria,
         },
-        camposPersonalizados: currentResidencia.camposPersonalizados || {},
-        textProfile: currentResidencia.textProfile || 'espanol-honduras',
-        estadoContrato: 'activo',
+        camposPersonalizados: currentResidencia.camposPersonalizados || [],
+        estadoContrato: currentResidencia.estadoContrato || 'activo',
       };
 
       if (isEditing && currentResidencia.id) {
         // UPDATE: Use Cloud Function
         const existingResidenciaId = currentResidencia.id;
         if (!isMasterUser && !(isAdminUser && userProfile?.residenciaId === existingResidenciaId)) {
-          toast({ title: "Acción no permitida", description: "No tienes permisos para editar esta residencia.", variant: "destructive" });
+          toast({ title: t('gestionResidencias.accionNoPermitida'), description: t('gestionResidencias.sinPermisoParaEditar'), variant: "destructive" });
           setFormLoading(false);
           return;
         }
@@ -348,14 +349,14 @@ function CrearResidenciaAdminPage() {
           residenciaIdToUpdate: existingResidenciaId,
           profileData: residenciaData
         }) as any;
-        toast({ title: "Residencia Actualizada", description: `Residencia actualizada con éxito.` });
+        toast({ title: t('gestionResidencias.residenciaActualizada'), description: t('gestionResidencias.residenciaActualizadaExito') });
       } else if (!isEditing && isMasterUser) {
         // CREATE: Use Cloud Function
         const customId = currentResidencia.id?.trim();
         if (!customId) {
-          toast({ title: "Error de Validación", description: "El ID de la Residencia (Slug) es obligatorio.", variant: "destructive" });
+          toast({ title: t('gestionResidencias.errorValidacion'), description: t('gestionResidencias.idResidenciaObligatorio'), variant: "destructive" });
           setFormLoading(false);
-          setResidenciaIdError("El ID de la Residencia (Slug) es obligatorio.");
+          setResidenciaIdError(t('gestionResidencias.idResidenciaObligatorio'));
           return;
         }
         setResidenciaIdError(null);
@@ -363,9 +364,9 @@ function CrearResidenciaAdminPage() {
           residenciaId: customId,
           profileData: residenciaData
         }) as any;
-        toast({ title: "Residencia Creada", description: `Residencia '${residenciaData.nombre}' (ID: ${customId}) creada con éxito.` });
+        toast({ title: t('gestionResidencias.residenciaCreada'), description: t('gestionResidencias.residenciaCreadaExito', { nombre: residenciaData.nombre, id: customId }) });
       } else {
-        toast({ title: "Acción no válida", description: "No se pudo determinar la acción a realizar.", variant: "destructive" });
+        toast({ title: t('gestionResidencias.accionNoValida'), description: t('gestionResidencias.noSePudoDeterminarAccion'), variant: "destructive" });
         setFormLoading(false);
         return;
       }
@@ -374,8 +375,8 @@ function CrearResidenciaAdminPage() {
       setAntelacionError(null);
       fetchResidences(); // Refresh the list
     } catch (error) {
-      const errorMessage = `Error al guardar la residencia. ${error instanceof Error ? error.message : 'Error desconocido'}`;
-      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+      const errorMessage = t('gestionResidencias.errorGuardandoResidencia', { error: error instanceof Error ? error.message : 'Error desconocido' });
+      toast({ title: t('gestionResidencias.error'), description: errorMessage, variant: "destructive" });
     } finally {
       setFormLoading(false);
     }
@@ -383,7 +384,7 @@ function CrearResidenciaAdminPage() {
 
   const handleDeleteResidencia = async (residenciaId: string, residenciaNombre: string) => {
     if (!isMasterUser) {
-      toast({ title: "Acción no permitida", description: "Solo usuarios 'master' pueden eliminar residencias.", variant: "destructive" });
+      toast({ title: t('gestionResidencias.accionNoPermitida'), description: t('gestionResidencias.soloMasterPuedeEliminar'), variant: "destructive" });
       return;
     }
     setFormLoading(true);
@@ -391,50 +392,76 @@ function CrearResidenciaAdminPage() {
       const result = await deleteResidenciaCallable({ 
         residenciaIdToDelete: residenciaId
       }) as any;
-      toast({ title: "Residencia Eliminada", description: `Residencia '${residenciaNombre}' eliminada con éxito.` });
+      toast({ title: t('gestionResidencias.residenciaEliminada'), description: t('gestionResidencias.residenciaEliminadaExito', { nombre: residenciaNombre }) });
       fetchResidences();
     } catch (error: any) {
       const errorMessage = error.message || 'Error desconocido';
-      toast({ title: "Error de Eliminación", description: errorMessage, variant: "destructive" });
+      toast({ title: t('gestionResidencias.errorEliminacion'), description: errorMessage, variant: "destructive" });
     } finally {
       setFormLoading(false);
     }
   };
 
-  const handleCampoPersonalizadoChange = (key: string, field: keyof ConfiguracionCampo, value: any) => {
+  const handleCampoPersonalizadoChange = (index: number, path: string, value: any) => {
     setCurrentResidencia(prev => {
-      const newCamposPersonalizados = { ...prev.camposPersonalizados };
-      if (newCamposPersonalizados[key]) {
-        (newCamposPersonalizados[key] as any)[field] = value;
-      }
-      return { ...prev, camposPersonalizados: newCamposPersonalizados };
+        const updatedCampos = (prev.camposPersonalizados || []).map((campo, i) => {
+            if (i === index) {
+                // Deep copy the field to avoid direct mutation
+                const newCampo = JSON.parse(JSON.stringify(campo));
+                const pathParts = path.split('.');
+                let current: any = newCampo;
+                for (let j = 0; j < pathParts.length - 1; j++) {
+                    current = current[pathParts[j]];
+                }
+                current[pathParts[pathParts.length - 1]] = value;
+                return newCampo;
+            }
+            return campo;
+        });
+        return { ...prev, camposPersonalizados: updatedCampos };
     });
   };
 
   const addCampoPersonalizado = () => {
-    setCurrentResidencia(prev => {
-      const newCamposPersonalizados = { ...prev.camposPersonalizados };
-      const newKey = `campo${Date.now()}`;
-      newCamposPersonalizados[newKey] = {
+    const newCampo: CampoPersonalizado = {
+      activo: true,
+      configuracionVisual: {
         etiqueta: 'Nuevo Campo',
-        isActive: true,
+        tipoControl: 'text',
+        placeholder: '',
+      },
+      validacion: {
         esObligatorio: false,
         necesitaValidacion: false,
-        regexValidacion: '',
-        tamanoTexto: 'text',
-        puedeModDirector: true,
-        puedeModInteresado: true,
-      };
-      return { ...prev, camposPersonalizados: newCamposPersonalizados };
-    });
+        regex: '',
+        mensajeError: '',
+      },
+      permisos: {
+        modificablePorDirector: true,
+        modificablePorInteresado: true,
+      },
+    };
+    setCurrentResidencia(prev => ({
+      ...prev,
+      camposPersonalizados: [...(prev.camposPersonalizados || []), newCampo],
+    }));
   };
 
-  const removeCampoPersonalizado = (key: string) => {
-    setCurrentResidencia(prev => {
-      const newCamposPersonalizados = { ...prev.camposPersonalizados };
-      delete newCamposPersonalizados[key];
-      return { ...prev, camposPersonalizados: newCamposPersonalizados };
-    });
+  const removeCampoPersonalizado = (index: number) => {
+    setCurrentResidencia(prev => ({
+      ...prev,
+      camposPersonalizados: (prev.camposPersonalizados || []).filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleTipoChange = (field: keyof Residencia['tipo'], value: string) => {
+    setCurrentResidencia(prev => ({
+      ...prev,
+      tipo: {
+        ...prev.tipo!,
+        [field]: value
+      }
+    }));
   };
 
   // Add this handler function
@@ -443,7 +470,7 @@ function CrearResidenciaAdminPage() {
       ...prev,
       ubicacion: {
         ...prev.ubicacion!,
-        timezone: newTimezone
+        zonaHoraria: newTimezone
       }
     }));
   }, []);
@@ -453,7 +480,7 @@ function CrearResidenciaAdminPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">{authFirebaseLoading ? 'Cargando autenticación...' : 'Cargando perfil...'}</span>
+        <span className="ml-2">{authFirebaseLoading ? t('gestionResidencias.cargandoAutenticacion') : t('gestionResidencias.cargandoPerfil')}</span>
       </div>
     );
   }
@@ -464,9 +491,9 @@ function CrearResidenciaAdminPage() {
     return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-            <h1 className="text-2xl font-bold text-destructive mb-2">No Autenticado</h1>
-            <p className="mb-4 text-muted-foreground">Debes iniciar sesión para acceder a esta página.</p>
-            <Button onClick={() => router.push('/')}>Ir al Inicio</Button>
+            <h1 className="text-2xl font-bold text-destructive mb-2">{t('gestionResidencias.noAutenticado')}</h1>
+            <p className="mb-4 text-muted-foreground">{t('gestionResidencias.debesIniciarSesion')}</p>
+            <Button onClick={() => router.push('/')}>{t('gestionResidencias.irAlInicio')}</Button>
         </div>
     );
   }
@@ -475,10 +502,10 @@ function CrearResidenciaAdminPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
         <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-bold text-destructive mb-2">Error de Perfil</h1>
+        <h1 className="text-2xl font-bold text-destructive mb-2">{t('gestionResidencias.errorPerfil')}</h1>
         <p className="mb-4 text-muted-foreground max-w-md">{profileError}</p>
-        <Button onClick={() => router.push('/')}>Volver al Inicio</Button>
-        <Button onClick={() => auth.signOut().then(() => router.push('/'))} variant="outline" className="mt-2">Cerrar Sesión</Button>
+        <Button onClick={() => router.push('/')}>{t('gestionResidencias.volverAlInicio')}</Button>
+        <Button onClick={() => auth.signOut().then(() => router.push('/'))} variant="outline" className="mt-2">{t('gestionResidencias.cerrarSesion')}</Button>
       </div>
     );
   }
@@ -487,12 +514,12 @@ function CrearResidenciaAdminPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
         <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-bold text-destructive mb-2">Acceso Denegado</h1>
+        <h1 className="text-2xl font-bold text-destructive mb-2">{t('gestionResidencias.accesoDenegado')}</h1>
         <p className="mb-4 text-muted-foreground max-w-md">
-          Tu perfil (<span className="font-medium">{userProfile.email}</span>) no tiene los roles necesarios ('master' o 'admin') para acceder a esta sección.
+          {t('gestionResidencias.perfilSinRoles', { email: userProfile.email })}
         </p>
-        <Button onClick={() => router.push('/')}>Volver al Inicio</Button>
-        <Button onClick={() => auth.signOut().then(() => router.push('/'))} variant="outline" className="mt-2">Cerrar Sesión</Button>
+        <Button onClick={() => router.push('/')}>{t('gestionResidencias.volverAlInicio')}</Button>
+        <Button onClick={() => auth.signOut().then(() => router.push('/'))} variant="outline" className="mt-2">{t('gestionResidencias.cerrarSesion')}</Button>
       </div>
     );
   }
@@ -502,24 +529,24 @@ function CrearResidenciaAdminPage() {
     <div className="container mx-auto p-4 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-            <h1 className="text-3xl font-bold">Gestión de Residencias</h1>
-            {userProfile && <p className="text-muted-foreground">Usuario: {userProfile.email} (Roles: {userProfile.roles?.join(', ') || 'N/A'})</p>}
+            <h1 className="text-3xl font-bold">{t('gestionResidencias.titulo')}</h1>
+            {userProfile && <p className="text-muted-foreground">{t('gestionResidencias.usuario', { email: userProfile.email, roles: userProfile.roles?.join(', ') || 'N/A' })}</p>}
         </div>
-        <Button onClick={() => auth.signOut().then(() => router.push('/'))} variant="outline">Cerrar Sesión</Button>
+        <Button onClick={() => auth.signOut().then(() => router.push('/'))} variant="outline">{t('gestionResidencias.cerrarSesion')}</Button>
       </div>
 
       {isMasterUser && !showCreateForm && (
         <Button onClick={handleCreateNew} className="mb-4">
-          <PlusCircle className="mr-2 h-4 w-4" /> Crear Nueva Residencia
+          <PlusCircle className="mr-2 h-4 w-4" /> {t('gestionResidencias.crearNueva')}
         </Button>
       )}
 
       {showCreateForm && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>{isEditing ? 'Editar Residencia' : 'Crear Nueva Residencia'}</CardTitle>
-            {!isEditing && isMasterUser && <CardDescription>Complete los detalles para la nueva residencia.</CardDescription>}
-            {isEditing && <CardDescription>Modifique los detalles de la residencia: {currentResidencia.nombre}</CardDescription>}
+            <CardTitle>{isEditing ? t('gestionResidencias.tituloEditar') : t('gestionResidencias.tituloCrear')}</CardTitle>
+            {!isEditing && isMasterUser && <CardDescription>{t('gestionResidencias.descripcionCrear')}</CardDescription>}
+            {isEditing && <CardDescription>{t('gestionResidencias.descripcionEditar', { name: currentResidencia.nombre })}</CardDescription>}
           </CardHeader>
           <form onSubmit={handleSubmitForm}>
             <CardContent className="space-y-4">
@@ -527,21 +554,21 @@ function CrearResidenciaAdminPage() {
               {!isEditing && isMasterUser && (
                 <div>
                   <Label htmlFor="id">
-                    ID de Residencia <span className="text-destructive">*</span>
+                    {t('gestionResidencias.idResidencia')} <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="id"
                     name="id"
                     value={currentResidencia.id || ''}
                     onChange={handleInputChange} // We might refine this later for formatting
-                    placeholder="Ej: mi-residencia-favorita (solo minúsculas, números y guiones)"
+                    placeholder={t('gestionResidencias.idResidenciaPlaceholder')}
                     disabled={formLoading}
                     required
                     aria-invalid={residenciaIdError ? "true" : "false"}
                     aria-describedby={residenciaIdError ? "residencia-id-error-message" : "residencia-id-description"}
                   />
                   <p id="residencia-id-description" className="text-xs text-muted-foreground mt-1">
-                    Este ID se usará en la URL. Debe ser único. Use minúsculas, números y guiones.
+                    {t('gestionResidencias.idResidenciaDescripcion')}
                   </p>
                   {residenciaIdError && (
                     <p id="residencia-id-error-message" className="text-xs text-destructive mt-1">
@@ -554,7 +581,7 @@ function CrearResidenciaAdminPage() {
               {/* Display Residencia ID when Editing (Read-only) */}
               {isEditing && (
                 <div>
-                  <Label htmlFor="id_display">ID de Residencia (Slug)</Label>
+                  <Label htmlFor="id_display">{t('gestionResidencias.idResidenciaDisplay')}</Label>
                   <Input
                     id="id_display"
                     name="id_display"
@@ -566,27 +593,27 @@ function CrearResidenciaAdminPage() {
                 </div>
               )}              
               <div>
-                <Label htmlFor="nombre">Nombre de la Residencia <span className="text-destructive">*</span></Label>
+                <Label htmlFor="nombre">{t('gestionResidencias.nombreResidencia')} <span className="text-destructive">*</span></Label>
                 <Input id="nombre" name="nombre" value={currentResidencia.nombre || ''} onChange={handleInputChange} required disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser)}/>
               </div>
               <div>
-                <Label htmlFor="direccion">Dirección</Label>
+                <Label htmlFor="direccion">{t('gestionResidencias.direccion')}</Label>
                 <Textarea id="direccion" name="direccion" value={currentResidencia.direccion || ''} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
               </div>
               <div>
-                <Label htmlFor="logoUrl">URL del Logo</Label>
+                <Label htmlFor="logoUrl">{t('gestionResidencias.logoUrl')}</Label>
                 <Input id="logoUrl" name="logoUrl" type="url" value={currentResidencia.logoUrl || ''} onChange={handleInputChange} disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}/>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="pais">País <span className="text-destructive">*</span></Label>
+                    <Label htmlFor="pais">{t('gestionResidencias.pais')} <span className="text-destructive">*</span></Label>
                     <Select
                       value={currentResidencia.ubicacion?.pais || 'HN'}
                       onValueChange={(val) => handleUbicacionChange('pais', val)}
                       disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                     >
                       <SelectTrigger id="pais">
-                        <SelectValue placeholder="Seleccionar País" />
+                        <SelectValue placeholder={t('gestionResidencias.seleccionarPais')} />
                       </SelectTrigger>
                       <SelectContent>
                           {countriesData.map((c: {code: string, name: string}) => (
@@ -596,24 +623,24 @@ function CrearResidenciaAdminPage() {
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="region">Región / Estado / Provincia</Label>
+                    <Label htmlFor="region">{t('gestionResidencias.region')}</Label>
                     <Input
                         id="region"
                         value={currentResidencia.ubicacion?.region || ''}
                         onChange={(e) => handleUbicacionChange('region', e.target.value)}
-                        placeholder="Ej. Francisco Morazán"
+                        placeholder={t('gestionResidencias.regionPlaceholder')}
                         disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                     />
                   </div>
               </div>
 
                <div>
-                <Label htmlFor="ciudad">Ciudad <span className="text-destructive">*</span></Label>
+                <Label htmlFor="ciudad">{t('gestionResidencias.ciudad')} <span className="text-destructive">*</span></Label>
                 <Input
                     id="ciudad"
                     value={currentResidencia.ubicacion?.ciudad || ''}
                     onChange={(e) => handleUbicacionChange('ciudad', e.target.value)}
-                    placeholder="Ej. Tegucigalpa"
+                    placeholder={t('gestionResidencias.ciudadPlaceholder')}
                     required
                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                 />
@@ -622,108 +649,88 @@ function CrearResidenciaAdminPage() {
               {/* Timezone Selection using TimezoneSelector Component */}
               <div>
                 <TimezoneSelector
-                  label="Zona Horaria"
-                  initialTimezone={currentResidencia.ubicacion?.timezone || 'America/Tegucigalpa'}
+                  label={t('gestionResidencias.zonaHoraria')}
+                  initialTimezone={currentResidencia.ubicacion?.zonaHoraria || 'America/Tegucigalpa'}
                   onTimezoneChange={handleTimezoneChange}
                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                   allowManualEntry={true}
-                  // You can pass custom classNames if needed, e.g.:
-                  // selectClassName="w-full p-2 border rounded mt-1 bg-background text-foreground"
-                  // containerClassName="mb-4"
-                  // labelClassName="block text-sm font-medium"
                 />
               </div>
               {/* End of Timezone Selection */}
 
               <div>
-                <Label htmlFor="antelacionActividadesDefault">Antelación Actividades Default (días)</Label>
-                <Input 
-                    id="antelacionActividadesDefault" 
-                    name="antelacionActividadesDefault" 
-                    type="number" 
-                    value={currentResidencia.antelacionActividadesDefault ?? ''} 
-                    onChange={handleInputChange} 
-                    placeholder="Ej: 7" 
-                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}
-                    aria-invalid={antelacionError ? "true" : "false"}
-                    aria-describedby={antelacionError ? "antelacion-error-message" : undefined}
-                  />
-                  {antelacionError && (
-                    <p id="antelacion-error-message" className="text-xs text-destructive mt-1">
-                      {antelacionError}
-                    </p>
-                  )}
-              </div>
-              <div>
-                <Label htmlFor="textProfile" className="text-sm font-medium">
-                  Perfil de Textos (Opcional)
+                <Label htmlFor="locale" className="text-sm font-medium">
+                  {t('gestionResidencias.perfilDeTextos')}
                 </Label>
                 <Input
-                  id="textProfile"
-                  name="textProfile"
+                  id="locale"
+                  name="locale"
                   type="text"
-                  placeholder="Ej. espanol-alternativo, ingles-FL"
-                  value={currentResidencia.textProfile || ''}
+                  placeholder={t('gestionResidencias.perfilDeTextosPlaceholder')}
+                  value={currentResidencia.locale || ''}
                   onChange={handleInputChange}
                   className="mt-1"
                   aria-describedby="textprofile-description"
                 />
                 <p id="textprofile-description" className="text-xs text-muted-foreground mt-1">
-                  Nombre del archivo JSON (sin la extensión .json) que se usará para los textos de esta residencia.
-                  Debe estar ubicado en /src/app/textos/. Si se deja vacío, se usará el comportamiento por defecto.
+                  {t('gestionResidencias.perfilDeTextosDescripcion')}
                 </p>
               </div>
-              <div>
-                <Label htmlFor="tipoResidencia">Tipo de Residencia</Label>
-                <Select
-                  value={currentResidencia.tipoResidencia || 'estudiantes'}
-                  onValueChange={handleSelectChange('tipoResidencia')}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                >
-                  <SelectTrigger id="tipoResidencia">
-                    <SelectValue placeholder="Tipo de Residencia" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="estudiantes">Estudiantes</SelectItem>
-                    <SelectItem value="profesionales">Profesionales</SelectItem>
-                    <SelectItem value="gente_mayor">Gente Mayor</SelectItem>
-                  </SelectContent>
-                </Select>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="tipoResidentes">{t('gestionResidencias.tipoResidentes')}</Label>
+                  <Select
+                    value={currentResidencia.tipo?.tipoResidentes || 'estudiantes'}
+                    onValueChange={(value) => handleTipoChange('tipoResidentes', value)}
+                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  >
+                    <SelectTrigger id="tipoResidentes">
+                      <SelectValue placeholder={t('gestionResidencias.tipoResidentesPlaceholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="estudiantes">{t('gestionResidencias.estudiantes')}</SelectItem>
+                      <SelectItem value="profesionales">{t('gestionResidencias.profesionales')}</SelectItem>
+                      <SelectItem value="gente_mayor">{t('gestionResidencias.genteMayor')}</SelectItem>
+                      <SelectItem value="otro">{t('gestionResidencias.otro')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="modalidadResidencia">{t('gestionResidencias.modalidadResidencia')}</Label>
+                  <Select
+                    value={currentResidencia.tipo?.modalidadResidencia || 'hombres'}
+                    onValueChange={(value) => handleTipoChange('modalidadResidencia', value)}
+                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
+                  >
+                    <SelectTrigger id="modalidadResidencia">
+                      <SelectValue placeholder={t('gestionResidencias.modalidadResidenciaPlaceholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hombres">{t('gestionResidencias.hombres')}</SelectItem>
+                      <SelectItem value="mujeres">{t('gestionResidencias.mujeres')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="esquemaAdministracion">Esquema de Administración</Label>
-                <Select
-                  value={currentResidencia.esquemaAdministracion || 'estricto'}
-                  onValueChange={handleSelectChange('esquemaAdministracion')}
-                  disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
-                >
-                  <SelectTrigger id="esquemaAdministracion">
-                    <SelectValue placeholder="Esquema de Administración" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="estricto">Estricto</SelectItem>
-                    <SelectItem value="flexible">Flexible</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Campos Personalizados</CardTitle>
+                  <CardTitle className="text-lg">{t('gestionResidencias.camposPersonalizados')}</CardTitle>
                   <CardDescription>
-                    Define campos adicionales para los perfiles de usuario.
+                    {t('gestionResidencias.camposPersonalizadosDescripcion')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {Object.keys(currentResidencia.camposPersonalizados || {}).map((key) => {
-                    const campo = (currentResidencia.camposPersonalizados || {})[key];
+                  {(currentResidencia.camposPersonalizados || []).map((campo, index) => {
                     return (
-                      <Card key={key} className="p-4">
+                      <Card key={index} className="p-4">
                         <div className="flex justify-between items-center mb-2">
-                          <p className="font-semibold">{campo.etiqueta || `Campo ${key}`}</p>
+                          <p className="font-semibold">{campo.configuracionVisual.etiqueta || t('gestionResidencias.campo', { index: index + 1 })}</p>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeCampoPersonalizado(key)}
+                            onClick={() => removeCampoPersonalizado(index)}
                             disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -732,86 +739,86 @@ function CrearResidenciaAdminPage() {
                         <div className="space-y-3">
                           <div className="flex items-center space-x-2">
                             <Checkbox
-                              id={`${key}-isActive`}
-                              checked={campo.isActive}
-                              onCheckedChange={(checked) => handleCampoPersonalizadoChange(key, 'isActive', !!checked)}
+                              id={`${index}-activo`}
+                              checked={campo.activo}
+                              onCheckedChange={(checked) => handleCampoPersonalizadoChange(index, 'activo', !!checked)}
                               disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                             />
-                            <Label htmlFor={`${key}-isActive`}>Activo</Label>
+                            <Label htmlFor={`${index}-activo`}>{t('gestionResidencias.activo')}</Label>
                           </div>
-                          {campo.isActive && (
+                          {campo.activo && (
                             <>
                               <div>
-                                <Label htmlFor={`${key}-etiqueta`}>Etiqueta</Label>
+                                <Label htmlFor={`${index}-etiqueta`}>{t('gestionResidencias.etiqueta')}</Label>
                                 <Input
-                                  id={`${key}-etiqueta`}
-                                  value={campo.etiqueta || ''}
-                                  onChange={(e) => handleCampoPersonalizadoChange(key, 'etiqueta', e.target.value)}
+                                  id={`${index}-etiqueta`}
+                                  value={campo.configuracionVisual.etiqueta || ''}
+                                  onChange={(e) => handleCampoPersonalizadoChange(index, 'configuracionVisual.etiqueta', e.target.value)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
                               </div>
                               <div className="flex items-center space-x-2">
                                 <Checkbox
-                                  id={`${key}-esObligatorio`}
-                                  checked={campo.esObligatorio || false}
-                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(key, 'esObligatorio', !!checked)}
+                                  id={`${index}-esObligatorio`}
+                                  checked={campo.validacion.esObligatorio || false}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(index, 'validacion.esObligatorio', !!checked)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
-                                <Label htmlFor={`${key}-esObligatorio`}>Es Obligatorio</Label>
+                                <Label htmlFor={`${index}-esObligatorio`}>{t('gestionResidencias.esObligatorio')}</Label>
                               </div>
                               <div className="flex items-center space-x-2">
                                 <Checkbox
-                                  id={`${key}-necesitaValidacion`}
-                                  checked={campo.necesitaValidacion || false}
-                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(key, 'necesitaValidacion', !!checked)}
+                                  id={`${index}-necesitaValidacion`}
+                                  checked={campo.validacion.necesitaValidacion || false}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(index, 'validacion.necesitaValidacion', !!checked)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
-                                <Label htmlFor={`${key}-necesitaValidacion`}>Necesita Validación (Regex)</Label>
+                                <Label htmlFor={`${index}-necesitaValidacion`}>{t('gestionResidencias.necesitaValidacion')}</Label>
                               </div>
-                              {campo.necesitaValidacion && (
+                              {campo.validacion.necesitaValidacion && (
                                 <div>
-                                  <Label htmlFor={`${key}-regexValidacion`}>Regex de Validación</Label>
+                                  <Label htmlFor={`${index}-regex`}>{t('gestionResidencias.regexValidacion')}</Label>
                                   <Input
-                                    id={`${key}-regexValidacion`}
-                                    value={campo.regexValidacion || ''}
-                                    onChange={(e) => handleCampoPersonalizadoChange(key, 'regexValidacion', e.target.value)}
+                                    id={`${index}-regex`}
+                                    value={campo.validacion.regex || ''}
+                                    onChange={(e) => handleCampoPersonalizadoChange(index, 'validacion.regex', e.target.value)}
                                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                   />
                                 </div>
                               )}
                               <div>
-                                <Label htmlFor={`${key}-tamanoTexto`}>Tamaño del Texto</Label>
+                                <Label htmlFor={`${index}-tipoControl`}>{t('gestionResidencias.tipoControl')}</Label>
                                 <Select
-                                  value={campo.tamanoTexto || 'text'}
-                                  onValueChange={(value) => handleCampoPersonalizadoChange(key, 'tamanoTexto', value)}
+                                  value={campo.configuracionVisual.tipoControl || 'text'}
+                                  onValueChange={(value) => handleCampoPersonalizadoChange(index, 'configuracionVisual.tipoControl', value)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 >
-                                  <SelectTrigger id={`${key}-tamanoTexto`}>
-                                    <SelectValue placeholder="Tamaño del Texto" />
+                                  <SelectTrigger id={`${index}-tipoControl`}>
+                                    <SelectValue placeholder={t('gestionResidencias.tipoControlPlaceholder')} />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="text">Una línea (Text)</SelectItem>
-                                    <SelectItem value="textArea">Múltiples líneas (Textarea)</SelectItem>
+                                    <SelectItem value="text">{t('gestionResidencias.unaLinea')}</SelectItem>
+                                    <SelectItem value="textArea">{t('gestionResidencias.multiplesLineas')}</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
                               <div className="flex items-center space-x-2 pt-2">
                                 <Checkbox
-                                  id={`${key}-puedeModDirector`}
-                                  checked={campo.puedeModDirector || false}
-                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(key, 'puedeModDirector', !!checked)}
+                                  id={`${index}-modificablePorDirector`}
+                                  checked={campo.permisos.modificablePorDirector || false}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(index, 'permisos.modificablePorDirector', !!checked)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
-                                <Label htmlFor={`${key}-puedeModDirector`}>Puede ser modificado por Director</Label>
+                                <Label htmlFor={`${index}-modificablePorDirector`}>{t('gestionResidencias.modificablePorDirector')}</Label>
                               </div>
                               <div className="flex items-center space-x-2">
                                 <Checkbox
-                                  id={`${key}-puedeModInteresado`}
-                                  checked={campo.puedeModInteresado || false}
-                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(key, 'puedeModInteresado', !!checked)}
+                                  id={`${index}-modificablePorInteresado`}
+                                  checked={campo.permisos.modificablePorInteresado || false}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(index, 'permisos.modificablePorInteresado', !!checked)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
-                                <Label htmlFor={`${key}-puedeModInteresado`}>Puede ser modificado por Interesado</Label>
+                                <Label htmlFor={`${index}-modificablePorInteresado`}>{t('gestionResidencias.modificablePorInteresado')}</Label>
                               </div>
                             </>
                           )}
@@ -826,15 +833,15 @@ function CrearResidenciaAdminPage() {
                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                   >
                     <PlusCircle className="mr-2 h-4 w-4" />
-                    Añadir Campo Personalizado
+                    {t('gestionResidencias.anadirCampoPersonalizado')}
                   </Button>
                 </CardContent>
               </Card>
             </CardContent>
             <CardFooter className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={handleCancelForm} disabled={formLoading}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={handleCancelForm} disabled={formLoading}>{t('gestionResidencias.cancelar')}</Button>
               <Button type="submit" disabled={formLoading || (!isMasterUser && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}>
-                {formLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isEditing ? 'Guardar Cambios' : 'Crear Residencia')}
+                {formLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isEditing ? t('gestionResidencias.guardarCambios') : t('gestionResidencias.crearResidencia'))}
               </Button>
             </CardFooter>
           </form>
@@ -843,11 +850,11 @@ function CrearResidenciaAdminPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Residencias</CardTitle>
+          <CardTitle>{t('gestionResidencias.listaResidencias')}</CardTitle>
           <CardDescription>
-            {isMasterUser ? "Puedes ver, editar y eliminar todas las residencias." : 
-             isAdminUser && userProfile?.residenciaId ? "Puedes ver y editar tu residencia asignada." :
-             isAdminUser ? "No tienes una residencia asignada para administrar." : ""
+            {isMasterUser ? t('gestionResidencias.listaResidenciasDescripcionMaster') : 
+             isAdminUser && userProfile?.residenciaId ? t('gestionResidencias.listaResidenciasDescripcionAdmin') :
+             isAdminUser ? t('gestionResidencias.listaResidenciasDescripcionAdminSinResidencia') : ""
             }
           </CardDescription>
         </CardHeader>
@@ -855,28 +862,28 @@ function CrearResidenciaAdminPage() {
           {isLoadingResidences ? (
             <div className="flex items-center justify-center p-6">
               <Loader2 className="mr-2 h-6 w-6 animate-spin" /> 
-              <span className="text-muted-foreground">Cargando residencias...</span>
+              <span className="text-muted-foreground">{t('gestionResidencias.cargandoResidencias')}</span>
             </div>
           ) : errorResidences ? (
             <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 text-center">
                 <AlertCircle className="mx-auto h-10 w-10 text-destructive" />
-                <h3 className="mt-2 text-lg font-semibold text-destructive">Error al Cargar Residencias</h3>
+                <h3 className="mt-2 text-lg font-semibold text-destructive">{t('gestionResidencias.errorCargandoResidencias')}</h3>
                 <p className="mt-1 text-sm text-destructive/80">
-                    No pudimos recuperar la lista de residencias. Por favor, revisa tu conexión o intenta más tarde.
+                    {t('gestionResidencias.noSePudoRecuperarLista')}
                 </p>
                 <p className="mt-3 text-xs text-muted-foreground">
-                    <span className="font-semibold">Detalle técnico:</span> {errorResidences}
+                    <span className="font-semibold">{t('gestionResidencias.detalleTecnico', { error: errorResidences })}</span>
                 </p>
             </div>
           ) : residences.length === 0 ? (
             <div className="text-center p-8 border-2 border-dashed rounded-lg">
-              <h3 className="text-xl font-semibold">No hay residencias creadas</h3>
+              <h3 className="text-xl font-semibold">{t('gestionResidencias.noHayResidenciasCreadas')}</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Parece que aún no se ha configurado ninguna residencia.
+                {t('gestionResidencias.noHayResidenciasDescripcion')}
               </p>
               {isMasterUser && (
                   <Button onClick={handleCreateNew} className="mt-4">
-                      <PlusCircle className="mr-2 h-4 w-4" /> Crear la primera residencia
+                      <PlusCircle className="mr-2 h-4 w-4" /> {t('gestionResidencias.crearPrimeraResidencia')}
                   </Button>
               )}
             </div>
@@ -891,37 +898,36 @@ function CrearResidenciaAdminPage() {
                   <div className="flex space-x-2">
                     {(isMasterUser || (isAdminUser && userProfile?.residenciaId === res.id)) && (
                        <Button variant="outline" size="sm" onClick={() => handleEdit(res)} disabled={formLoading}>
-                         <Edit className="mr-1 h-3 w-3" /> Editar
+                         <Edit className="mr-1 h-3 w-3" /> {t('gestionResidencias.editar')}
                        </Button>
                     )}
                     {isMasterUser && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="destructive" size="sm" disabled={formLoading}>
-                            <Trash2 className="mr-1 h-3 w-3" /> Eliminar
+                            <Trash2 className="mr-1 h-3 w-3" /> {t('gestionResidencias.eliminar')}
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                            <AlertDialogTitle>{t('gestionResidencias.confirmarEliminarTitulo')}</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Esta acción no se puede deshacer. Esto eliminará permanentemente la residencia '{res.nombre}'.
-                              Asegúrate de entender las consecuencias (ej. datos asociados).
+                              {t('gestionResidencias.confirmarEliminarDescripcion', { name: res.nombre })}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel disabled={formLoading}>Cancelar</AlertDialogCancel>
+                            <AlertDialogCancel disabled={formLoading}>{t('gestionResidencias.cancelar')}</AlertDialogCancel>
                             <AlertDialogAction onClick={() => handleDeleteResidencia(res.id, res.nombre)} disabled={formLoading}>
                               {formLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                              Eliminar
+                              {t('gestionResidencias.eliminar')}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
                     )}
                      {!isMasterUser && !(isAdminUser && userProfile?.residenciaId === res.id) && (
-                         <Button variant="outline" size="sm" onClick={() => handleEdit(res)} disabled={true} title="Solo lectura para tu rol">
-                             <Eye className="mr-1 h-3 w-3" /> Ver (Solo Lectura)
+                         <Button variant="outline" size="sm" onClick={() => handleEdit(res)} disabled={true} title={t('gestionResidencias.verSoloLectura')}>
+                             <Eye className="mr-1 h-3 w-3" /> {t('gestionResidencias.verSoloLectura')}
                          </Button>
                      )}
                   </div>

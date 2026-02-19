@@ -107,25 +107,6 @@ export interface AsistentePermisosDetalle {
     fechaFin?: FechaIso | null;
 }
 
-// --- Grupos de usuarios y restricción de usuarios ---
-export interface GrupoUsuariosData {
-    nombre: string;
-    etiqueta: string;
-    tipoGrupo: 'restriccion-comidas' | 'centro-de-costo' | 'presentacion-reportes';
-    descripcion?: string;
-    centroCostoId?: CentroDeCostoId;
-    restriccionComida?: {
-        usoSemanario: boolean;
-        usoExcepciones: boolean;
-        confirmacionAsistencia: boolean;
-        confirmacionDiariaElecciones: boolean;
-        horarioConfirmacionDiaria?: HoraIso; // Hora en ISO 8601 hh:mm en zona horaria de la residencia
-        restriccionAlternativas: boolean;
-        alternativasRestringidas: Record<ConfigAlternativaId, 'no_permitida' | 'requiere_aprobacion'>;
-        localizacionObligatoria: boolean;
-    }
-}
-export type GrupoUsuariosId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 
 // --- Residencias y propiedades esenciales ---
 export interface Residencia {
@@ -133,7 +114,7 @@ export interface Residencia {
     nombre: string;
     direccion?: string;
     logoUrl?: string;
-    archivoIdiomaEstilo?: string;
+    locale?: string;
     tipo: {
         tipoResidentes: 'estudiantes' | 'profesionales' | 'gente_mayor' | 'otro';
         modalidadResidencia: 'hombres' | 'mujeres';
@@ -187,21 +168,13 @@ export interface ConfiguracionResidencia {
   // Ya no son colecciones aparte. Se leen de un solo golpe.
   horariosSolicitud: Record<HorarioSolicitudComidaId, HorarioSolicitudData>;
   comedores: Record<ComedorId, ComedorData>;
-  usuarioGrupos: Record<GrupoUsuariosId, GrupoUsuariosData>;
+  gruposUsuarios: Record<GrupoUsuariosId, GrupoUsuariosData>;
   dietas: Record<DietaId, DietaData>;
   gruposComidas: GrupoComida[];
   esquemaSemanal: Record<TiempoComidaId, TiempoComida>;
   catalogoAlternativas: Record<AlternativaId, DefinicionAlternativa>;
   configuracionAlternativas: Record<ConfigAlternativaId, ConfiguracionAlternativa>;
 }
-export type GrupoComida = string;
-export interface ComedorData {
-    nombre: string;
-    descripcion?: string;
-    aforoMaximo?: number;
-    centroCostoId?: CentroDeCostoId;
-}
-export type ComedorId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export interface HorarioSolicitudData {
     nombre: string;
     dia: DiaDeLaSemana;
@@ -210,6 +183,31 @@ export interface HorarioSolicitudData {
     estaActivo: boolean;
 }
 export type HorarioSolicitudComidaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
+export interface ComedorData {
+    nombre: string;
+    descripcion?: string;
+    aforoMaximo?: number;
+    centroCostoId?: CentroDeCostoId;
+}
+export type ComedorId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
+export interface GrupoUsuariosData {
+    nombre: string;
+    etiqueta: string;
+    tipoGrupo: 'gestion-comidas' | 'centro-de-costo' | 'presentacion-reportes';
+    descripcion?: string;
+    centroCostoId?: CentroDeCostoId;
+    gestionComida?: {
+        usoSemanario: boolean;
+        usoExcepciones: boolean;
+        confirmacionAsistencia: boolean;
+        confirmacionDiariaElecciones: boolean;
+        horarioConfirmacionDiaria?: HoraIso; // Hora en ISO 8601 hh:mm en zona horaria de la residencia
+        restriccionAlternativas: boolean;
+        alternativasRestringidas: Record<ConfigAlternativaId, 'no_permitida' | 'requiere_aprobacion'>;
+        localizacionObligatoria: boolean;
+    }
+}
+export type GrupoUsuariosId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export interface DietaData {
     nombre: string;
     identificadorAdministracion: string;
@@ -222,6 +220,7 @@ export interface DietaData {
     estaActiva: boolean; // Esto es un "soft delete"
 }
 export type DietaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
+export type GrupoComida = string;
 
 // --- Comidas disponibles para elegir ---
 
@@ -247,14 +246,20 @@ export interface TiempoComida {
     estaActivo: boolean;
 }
 export type TiempoComidaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
+
+/**
+ * Alternativa
+ * Distintas opciones de horario que el usuario escoge para cada tiempo de comida.
+ * 
+ * Dos interfaces la conforman: DefinicionAlternativa y ConfiguracionAlternativa.
+ */
 export interface DefinicionAlternativa {
     nombre: string;
     descripcion?: string;
-    tipo: TipoAlternativa;
+    tipo: 'comedor' | 'para_llevar' | 'comida_fuera' | 'ayuno';
     estaActiva: boolean;
 }
 export type AlternativaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
-export type TipoAlternativa = 'COMEDOR' | 'PARA_LLEVAR' | 'COMIDA_FUERA' | 'AYUNO';
 export type ConfigAlternativaId = string;
 export interface ConfiguracionAlternativa {
     id: ConfigAlternativaId; // ID semántico: dia + slug alternativa
@@ -277,7 +282,6 @@ export interface ConfiguracionAlternativa {
     };
 }
 
-export type AlteracionHorarioId = string;
 export interface AlteracionHorario {
     id: AlteracionHorarioId; // ID autogenerado por Firestore
     nombre: string;
@@ -287,13 +291,16 @@ export interface AlteracionHorario {
     fechaFin: FechaIso;
     alteraciones: Record<TiempoComidaId, DetalleAlteracion>;
     estado: 'propuesta' | 'aprobada' | 'cancelada';
-    avisoAdministracion: 'no_comunicado' | 'comunicacion_preliminar' 
-                        | 'comunicacion_final' | 'alteracion_cancelada';
+    avisoAdministracion: EstadoAvisoAdministracion;
 }
+export type AlteracionHorarioId = string;
 export interface DetalleAlteracion {
     tiempoComida: TiempoComida;
     alternativas: ConfigAlternativaId[];
 }
+export type EstadoAvisoAdministracion =
+    | 'no_comunicado' | 'comunicacion_preliminar' 
+    | 'comunicacion_final' | 'evento_cancelado';
 
 // --------------------------------------------------------
 // 1. MODELO DE INTENCIÓN (Mutable por el usuario/reglas)
@@ -304,7 +311,6 @@ export interface DetalleAlteracion {
  * Si no existe este documento, aplica el Semanario.
  * Corresponde al Nivel 3 de la Cascada de la Verdad.
  */
-export type ExcepcionId = string;
 export interface ExcepcionUsuario {
     id?: ExcepcionId; 
     residenciaId: ResidenciaId;
@@ -316,7 +322,7 @@ export interface ExcepcionUsuario {
     // Solo para excepciones que requieren aprobación
     autorizacion?: {
         motivo: string;
-        estadoAprobacion: EstadoAprobacion;
+        estadoAprobacion: 'no_requiere_aprobacion' | 'pendiente_aprobacion' | 'aprobado' | 'rechazado';
         autorizadoPor?: UsuarioId;
         timestampAutorizacion: TimestampString;
         // Si el usuario selecciona una alternativa que requiere aprobación, debe también 
@@ -324,12 +330,12 @@ export interface ExcepcionUsuario {
         alternativaRespaldoId?: ConfigAlternativaId | null; 
     }
 }
-export type EstadoAprobacion = 'no_requiere_aprobacion' | 'pendiente_aprobacion' | 'aprobado' | 'rechazado';
+export type ExcepcionId = string;
+
 /**
  * Ausencia: Negación de servicio declarada por el usuario.
  * Corresponde al Nivel 2 de la Cascada de la Verdad.
  */
-export type AusenciaId = string;
 export interface Ausencia {
     id?: AusenciaId;
     usuarioId: UsuarioId;
@@ -342,8 +348,13 @@ export interface Ausencia {
     timestampCreacion: TimestampString;
     motivo?: string; 
 }
+export type AusenciaId = string;
 
-export type SemanarioUsuarioId = string;
+/**
+ * Semanario: 
+ * Entidad cíclica de elección de comidas. 
+ * El usuario define su rutina semanal.
+ */
 export interface SemanarioUsuario {
   id: SemanarioUsuarioId;
   residenciaId: ResidenciaId;
@@ -366,6 +377,7 @@ export interface SemanarioUsuario {
     visto: boolean;
   };
 }
+export type SemanarioUsuarioId = string;
 
 // --- TIPOS DE ENUMERACIÓN Y ESTADOS ---
 
@@ -406,8 +418,10 @@ export interface EstadoCeldaComida {
   // --- CONTEXTO ADICIONAL (Tus campos enriquecidos) ---
   contexto: {
     esAlteracion: boolean;      // True si hay AlteracionHorario vigente
-    hayRestriccionGrupo: boolean;
+    alteracionId?: AlteracionHorarioId;
     mensajeAlteracion?: string; // Ej: "Horario adelantado 1h"
+
+    hayRestriccionGrupo: boolean;
 
     nombresActividadesDisponibles?: string[];
   }
@@ -530,8 +544,7 @@ export interface Comentario {
     // Estado de gestión del Director
     estado: 'nuevo' | 'diferido' | 'atendido' | 'no_aprobado' | 'archivado';
     fechaDiferido?: FechaIso; // "Recuérdame esto el lunes"
-    avisoAdministracion: 'no_comunicado' | 'comunicacion_preliminar' 
-                        | 'comunicacion_final' | 'comentario_cancelado';
+    avisoAdministracion: EstadoAvisoAdministracion;
 }
 export interface Falta {
     id: string;
@@ -580,8 +593,7 @@ export interface Actividad {
     descripcion?: string;
     estado: 'borrador' | 'inscripcion_abierta' | 'inscripcion_cerrada' |
             'solicitada_administracion' | 'cancelada';
-    avisoAdministracion: 'no_comunicado' | 'comunicacion_preliminar' |
-                         'comunicacion_final' | 'actividad_cancelada';
+    avisoAdministracion: EstadoAvisoAdministracion;
     tipoSolicitudComidas: TipoSolicitudComidasActividad;
 
     // Campos de cálculo de comidas
@@ -614,6 +626,9 @@ export interface DetalleActividad {
     horaEstimada?: HoraIso; 
 }
 export type DetalleActividadId = string; 
+export type TipoSolicitudComidasActividad = 
+    | 'ninguna' | 'solicitud_unica' | 'solicitud_diaria' 
+    | 'solicitud_inicial_mas_confirmacion_diaria';
 
 /** 
  * ModoAcceso
@@ -657,9 +672,6 @@ export interface InscripcionActividad {
     timestampCreacion: TimestampString;
     timestampModificacion: TimestampString;
 }
-export type TipoSolicitudComidasActividad = 
-    | 'ninguna' | 'solicitud_unica' | 'solicitud_diaria' 
-    | 'solicitud_inicial_mas_confirmacion_diaria';
 export type InscripcionActividadId = string; 
 export type EstadoInscripcionActividad =
     | 'invitado_pendiente' | 'invitado_rechazado' | 'invitado_aceptado'    

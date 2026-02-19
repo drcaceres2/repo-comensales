@@ -6,232 +6,181 @@ service cloud.firestore {
     // 1. FUNCIONES DE INFRAESTRUCTURA (Lógica Booleana Pura)
     // =========================================================
 
-    // Verifica que el usuario esté autenticado y su claim 'isActive' sea true.
     function isAuthenticated() {
       return request.auth != null && request.auth.token.isActive == true;
     }
 
-    // Verifica si el usuario tiene un rol específico en sus claims
     function hasRole(role) {
-      return isAuthenticated() && role in request.auth.token.roles;
+      return isAuthenticated() && request.auth.token.roles[role] == true;
     }
 
-    // Verifica si el usuario tiene ALGUN rol de la lista proporcionada
     function hasRoleAny(roles) {
-      return isAuthenticated() && request.auth.token.roles.hasAny(roles);
+      return isAuthenticated() && roles.hasAny(request.auth.token.roles.keys());
     }
 
-    // Verifica si el usuario es MASTER (Dios)
     function isMaster() {
-      return isAuthenticated() && 'master' in request.auth.token.roles;
+      return hasRole('master');
     }
 
-    // Verifica que el usuario pertenezca a la residencia del documento (dato existente)
-    function matchesResidencia() {
-      return request.auth.token.residenciaId == resource.data.residenciaId;
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isMember(residenciaId) {
+        return isAuthenticated() && request.auth.token.residenciaId == residenciaId;
     }
 
-    // Verifica que el usuario pertenezca a la residencia del documento (dato entrante/nuevo)
-    function matchesResidenciaIncoming() {
-      return request.auth.token.residenciaId == request.resource.data.residenciaId;
+    // Permite acceso si es Master, o si es miembro de la residencia y tiene uno de los roles.
+    function isMemberWithRole(residenciaId, roles) {
+      return isMember(residenciaId) && hasRoleAny(roles);
     }
-
+    
     // =========================================================
-    // 2. HELPERS DE MATRIZ DE PERMISOS (Corregidos sin 'if')
-    // =========================================================
-
-    // Lógica: O es Master, O (tiene el rol Y coincide la residencia)
-    function check(rolesAllowed) {
-      return hasRoleAny(rolesAllowed) && matchesResidencia();
-    }
-
-    // Helper para CREATE (usa resource nuevo)
-    function checkCreate(rolesAllowed) {
-      return hasRoleAny(rolesAllowed) && matchesResidenciaIncoming();
-    }
-
-    function checkRolesOnly(rolesAllowed) {
-      return hasRoleAny(rolesAllowed);
-    }
-
-    // =========================================================
-    // 3. REGLAS POR COLECCIÓN
+    // 2. COLECCIONES RAÍZ (Globales)
     // =========================================================
 
-    // --- COLECCIÓN: USERS ---
-    match /users/{userId} {
-      allow get:    if isMaster() || (isAuthenticated() && request.auth.uid == userId) || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() ||  checkRolesOnly(['master', 'admin', 'director', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['admin']);
-      allow update: if isMaster() || (isAuthenticated() && request.auth.uid == userId) || check(['admin']); 
-      allow delete: if isMaster() || check(['admin']);
-    }
-
-    // --- COLECCIONES DE GRUPOS ---
-    match /usuariosGrupos/{docId} {
-      allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['admin']);
-      allow update: if isMaster() || check(['admin']);
-      allow delete: if isMaster() || check(['admin']);
-    }
-
-    match /gruposUsuarios/{docId} {
-      allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['admin']);
-      allow update: if isMaster() || check(['admin']);
-      allow delete: if isMaster() || check(['admin']);
-    }
-
-    match /permisosComidaPorGrupo/{docId} {
-      allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['admin']);
-      allow update: if isMaster() || check(['admin']);
-      allow delete: if isMaster() || check(['admin']);
-    }
-
-    // --- COLECCIÓN: RESIDENCIAS ---
-    match /residencias/{residenciaId} {
-      // Función local válida
-      function isMyResidencia() {
-        return request.auth.token.residenciaId == residenciaId;
-      }
+    // --- RAÍZ COMERCIAL ---
+    match /clientes/{clienteId} {
+      allow read, write: if isMaster(); // Solo Master puede gestionar clientes
       
-      allow get:    if isMaster() || (isAuthenticated() && isMyResidencia());
+      match /facturas/{facturaId} {
+        allow read, write: if isMaster();
+      }
+      match /pedidos/{pedidoId} {
+        allow read, write: if isMaster();
+      }
+      match /contratosResidencia/{contratoId} {
+        allow read, write: if isMaster();
+      }
+    }
+
+    // --- RAÍZ OPERATIVA (SAAS) ---
+    match /residencias/{residenciaId} {
+      allow get:    if isMaster() || isMember(residenciaId);
       allow list:   if isMaster();
       allow create: if isMaster();
-      allow update: if isMaster() || (hasRole('admin') && isMyResidencia());
+      allow update: if isMaster() || isMemberWithRole(residenciaId, ['admin']);
       allow delete: if isMaster();
-    }
 
-    // --- COLECCIÓN: DIETAS ---
-    match /dietas/{docId} {
-      allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['admin', 'director', 'asistente']);
-      allow update: if isMaster() || check(['admin', 'director', 'asistente']);
-      allow delete: if isMaster(); 
-    }
-
-    // --- COLECCIÓN: COMEDORES ---
-    match /comedores/{docId} {
-      allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['admin']);
-      allow update: if isMaster() || check(['admin']);
-      allow delete: if isMaster() || check(['admin']);
-    }
-
-    // --- COLECCIÓN: CENTRO COSTOS ---
-    match /centrosCosto/{docId} {
-      allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['admin', 'director', 'asistente', 'contador']);
-      allow update: if isMaster() || check(['admin', 'director', 'asistente', 'contador']);
-      allow delete: if isMaster() || check(['contador']);
-    }
-
-    // --- BLOQUE OPERATIVO COMÚN ---
-    // horariosSolicitudComida, tiemposComida, alternativasTiempoComida, actividades
-    match /{collectionName}/{docId} {
-      function isCommonOpCollection() {
-        return collectionName in ['horariosSolicitudComida', 'tiemposComida', 'alternativasTiempoComida', 'actividades'];
+      // --- SUBCOLECCIONES DE RESIDENCIA ---
+      
+      // Configuraciones (Singletons)
+      match /configuracion/{docId} {
+        allow get:    if isMaster() || (isMember(residenciaId) && resource.data.residenciaId == residenciaId);
+        allow list:   if isMaster() || isMember(residenciaId);
+        allow create, update: if isMaster() || (isMemberWithRole(residenciaId, ['admin']) && request.resource.data.residenciaId == residenciaId);
+        allow delete: if isMaster() || (isMemberWithRole(residenciaId, ['admin']) && resource.data.residenciaId == residenciaId);
+      }
+      match /configContabilidad/{docId} {
+        allow get:    if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'contador']) && resource.data.residenciaId == residenciaId);
+        allow list:   if isMaster() || isMemberWithRole(residenciaId, ['admin', 'contador']);
+        allow create, update: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'contador']) && request.resource.data.residenciaId == residenciaId);
+        allow delete: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'contador']) && resource.data.residenciaId == residenciaId);
       }
 
-      allow get:    if isCommonOpCollection() && (isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']));
-      allow list:   if isCommonOpCollection() && (isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']));
-      allow create: if isCommonOpCollection() && (isMaster() || checkCreate(['admin', 'director', 'asistente']));
-      allow update: if isCommonOpCollection() && (isMaster() || check(['admin', 'director', 'asistente']));
-      allow delete: if isCommonOpCollection() && (isMaster());
-    }
-
-    // --- COLECCIÓN: ALTERACIONES Y TIEMPOS UNICOS ---
-    match /{collectionName}/{docId} {
-      function isDirectorOps() {
-        return collectionName in ['alteracionesHorario', 'tiemposComidaAlternativaUnicaActividad'];
+      // Colecciones operativas
+      match /atenciones/{atencionId} {
+        allow read:   if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+        allow create, update: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
+        allow delete: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+      }
+      match /alteraciones/{alteracionId} {
+        allow read:   if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+        allow create, update: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
+        allow delete: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+      }
+      match /recordatorios/{recordatorioId} {
+        allow read:   if isMaster() || (isMember(residenciaId) && resource.data.residenciaId == residenciaId);
+        allow create, update:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
+        allow delete:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+      }
+       match /comentarios/{comentarioId} {
+        allow read:   if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+        // Usuarios pueden crear/leer sus propios comentarios, director/asistente gestiona todos.
+        allow create: if isMember(residenciaId) && request.resource.data.uid == request.auth.uid && request.resource.data.residenciaId == residenciaId;
+        allow update: if isMaster() || (isMemberWithRole(residenciaId, ['director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
+        allow delete: if isMaster();
       }
 
-      allow get:    if isDirectorOps() && (isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']));
-      allow list:   if isDirectorOps() && (isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']));
-      allow create: if isDirectorOps() && (isMaster() || checkCreate(['director', 'asistente']));
-      allow update: if isDirectorOps() && (isMaster() || check(['director', 'asistente']));
-      allow delete: if isDirectorOps() && isMaster();
+      // Actividades y sus inscripciones
+      match /actividades/{actividadId} {
+        allow read:   if isMaster() || (isMember(residenciaId) && resource.data.residenciaId == residenciaId);
+        allow create, update:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
+        allow delete:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+
+        match /inscripciones/{uid} {
+           allow read:   if isMaster() || (isMember(residenciaId) && resource.data.residenciaId == residenciaId);
+           // El propio usuario o roles de gestión pueden inscribir/desinscribir
+           allow create, update:  if isMaster() || ((isOwner(uid) || isMemberWithRole(residenciaId, ['director', 'asistente'])) && request.resource.data.residenciaId == residenciaId);
+           allow delete:  if isMaster() || ((isOwner(uid) || isMemberWithRole(residenciaId, ['director', 'asistente'])) && resource.data.residenciaId == residenciaId);
+        }
+      }
+
+      // Solicitudes (Snapshot Inmutable)
+      match /solicitudesConsolidadas/{solicitudId} {
+        allow read:   if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente', 'contador']) && resource.data.residenciaId == residenciaId);
+        allow write:  if false; // Solo se crean/modifican desde el backend (Cloud Functions)
+        
+        match /comensalesSolicitados/{comensalId} {
+           allow read:   if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente', 'contador']) && resource.data.residenciaId == residenciaId);
+           allow write:  if false;
+        }
+      }
     }
 
-    // --- COLECCIÓN: INSCRIPCIONES ---
-    match /inscripcionesActividades/{docId} {
-      allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
-      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
-      allow delete: if isMaster();
+    // --- RAÍZ DE IDENTIDAD ---
+    match /usuarios/{userId} {
+      allow get:    if isMaster() || isOwner(userId) || hasRoleAny(['admin', 'director', 'asistente', 'contador']);
+      allow list:   if isMaster() || hasRoleAny(['admin', 'director', 'asistente', 'contador']);
+      allow create: if isMaster() || hasRole('admin');
+      allow update: if isMaster() || isOwner(userId) || hasRole('admin');
+      allow delete: if isMaster() || hasRole('admin');
+
+      // --- SUBCOLECCIONES DE USUARIO ---
+      // El usuario puede gestionar sus propios datos. Roles de gestión pueden leerlos.
+      // Estas funciones definen QUIÉN puede acceder. La validación de integridad del dato (uid) se hace en la regla.
+      function canReadSubcollection() {
+        return isMaster() || isOwner(userId) || (isMember(request.auth.token.residenciaId) && hasRoleAny(['admin', 'director', 'asistente', 'contador']));
+      }
+      function canWriteSubcollection() {
+        return isMaster() || isOwner(userId) || (isMember(request.auth.token.residenciaId) && hasRoleAny(['director', 'asistente']));
+      }
+
+      match /semanarios/{semanarioId} {
+        allow read:   if canReadSubcollection() && resource.data.uid == userId;
+        allow create, update:  if canWriteSubcollection() && request.resource.data.uid == userId;
+        allow delete: if canWriteSubcollection() && resource.data.uid == userId;
+      }
+      match /excepciones/{excepcionId} {
+        allow read:   if canReadSubcollection() && resource.data.uid == userId;
+        allow create, update:  if canWriteSubcollection() && request.resource.data.uid == userId;
+        allow delete: if canWriteSubcollection() && resource.data.uid == userId;
+      }
+      match /ausencias/{ausenciaId} {
+        allow read:   if canReadSubcollection() && resource.data.uid == userId;
+        allow create, update:  if canWriteSubcollection() && request.resource.data.uid == userId;
+        allow delete: if canWriteSubcollection() && resource.data.uid == userId;
+      }
+      match /faltas/{faltaId} {
+        allow read:   if (isMaster() || isOwner(userId) || (isMember(request.auth.token.residenciaId) && hasRoleAny(['admin', 'director', 'asistente']))) && resource.data.uid == userId;
+        allow create, update: if (isMaster() || (isMember(request.auth.token.residenciaId) && hasRoleAny(['director', 'asistente']))) && request.resource.data.uid == userId;
+        allow delete: if (isMaster() || (isMember(request.auth.token.residenciaId) && hasRoleAny(['director', 'asistente']))) && resource.data.uid == userId;
+      }
     }
 
-    // --- COLECCIÓN: SEMANARIOS ---
-    match /semanarios/{docId} {
-      allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['director', 'residente', 'asistente']);
-      allow update: if isMaster() || check(['director', 'residente', 'asistente']);
-      allow delete: if isMaster();
-    }
-
-    /* match /elecciones/{docId} {
-      allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
-      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
-      allow delete: if isMaster();
-    } */
-
-    match /excepciones/{docId} {
-      allow get:    if isMaster() || check(['director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
-      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
-      allow delete: if isMaster();
-    }
-
-    match /comensalesSolicitados/{docId} {
-      allow get:    if isMaster() || check(['director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
-      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
-      allow delete: if isMaster();
-    }
-
-    match /ausencias/{docId} {
-      allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
-      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
-      allow delete: if isMaster();
-    }
-
-    match /comentarios/{docId} {
-      allow get:    if isMaster() || check(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow list:   if isMaster() || checkRolesOnly(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador']);
-      allow create: if isMaster() || checkCreate(['director', 'residente', 'invitado', 'asistente']);
-      allow update: if isMaster() || check(['director', 'residente', 'invitado', 'asistente']);
-      allow delete: if isMaster();
-    }
-
-    match /logs/{docId} {
-      allow get:    if isMaster();
-      allow list:   if isMaster();
-      allow create: if isMaster() || checkCreate(['admin', 'director', 'residente', 'invitado', 'asistente', 'contador', 'master']);
-      allow update: if isMaster();
-      allow delete: if isMaster();
-    }
-
-    match /feedback/{docId} {
-      allow get:    if isMaster();
+    // --- RAÍZ DE SISTEMA ---
+    match /feedback/{feedbackId} {
+      allow read:   if isMaster();
       allow list:   if isMaster();
       allow create: if isAuthenticated();
       allow update: if isMaster();
       allow delete: if isMaster();
+    }
+    match /logs/{logId} {
+      allow read:   if isMaster();
+      allow list:   if isMaster();
+      allow create: if isAuthenticated(); // El backend escribe con identidad de usuario
+      allow write:  if isMaster();
     }
   }
 }

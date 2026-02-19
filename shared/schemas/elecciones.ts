@@ -1,11 +1,11 @@
-import { ExcepcionSchema } from './excepciones';
+import { ExcepcionUsuarioSchema } from './excepciones';
 
 /**
  * @deprecated La entidad "Eleccion" ha sido fragmentada en dos entidades distintas:
- * - Excepcion: Representa la voluntad del usuario de desviarse de su Semanario
- * - Comensal: Representa la comida efectivamente solicitada a administración
+ * - ExcepcionUsuario: Representa la voluntad del usuario de desviarse de su Semanario
+ * - ComensalSolicitado: Representa la comida efectivamente solicitada a administración
  * 
- * EleccionSchema ahora es un alias para ExcepcionSchema para mantener compatibilidad.
- * Las nuevas referencias deben usar ExcepcionSchema directamente desde excepciones.ts
+ * EleccionSchema ahora es un alias para ExcepcionUsuarioSchema para mantener compatibilidad.
+ * Las nuevas referencias deben usar ExcepcionUsuarioSchema directamente desde excepciones.ts
  */
-export const EleccionSchema = ExcepcionSchema;
+export const EleccionSchema = ExcepcionUsuarioSchema;

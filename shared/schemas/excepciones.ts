@@ -1,21 +1,53 @@
 import { z } from 'zod';
 import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
-import { IsoDateStringSchema } from './fechas';
+import { FechaIsoSchema, TimestampStringSchema } from './fechas';
+
+// ============================================
+// ExcepcionUsuario
+// ============================================
 
 /**
- * ExcepcionSchema: Representa la voluntad del usuario de desviarse de su Semanario.
+ * ExcepcionUsuario: Representa la voluntad del usuario de desviarse de su Semanario.
  * Corresponde al Nivel 3 de la Cascada de la Verdad.
+ * 
+ * Ruta: usuarios/{uid}/excepciones/{fecha-slugtiempocomida}
  */
-export const ExcepcionSchema = z.object({
-  id: FirebaseIdSchema.optional(),
-  usuarioId: FirebaseIdSchema,
-  residenciaId: FirebaseIdSchema,
-  fecha: IsoDateStringSchema, // "YYYY-MM-DD"
-  tiempoComidaId: FirebaseIdSchema,
-  tipo: z.enum(['cambio_alternativa', 'cancelacion_comida', 'cambio_dieta']),
-  alternativaTiempoComidaId: FirebaseIdSchema.optional(), // Solo si tipo='cambio_alternativa'
-  motivo: CadenaOpcionalLimitada(),
-  origen: z.enum(['residente', 'director', 'asistente', 'wizard_invitados']),
-  autorizadoPor: FirebaseIdSchema.optional(),
-  estadoAprobacion: z.enum(['no_requiere_aprobacion', 'pendiente', 'aprobado', 'rechazado']).optional(),
+
+const AutorizacionExcepcionSchema = z.object({
+    motivo: z.string().min(1).max(500),
+    estadoAprobacion: z.enum([
+        'no_requiere_aprobacion', 'pendiente_aprobacion',
+        'aprobado', 'rechazado',
+    ]),
+    autorizadoPor: FirebaseIdSchema.optional(),
+    timestampAutorizacion: TimestampStringSchema,
+    alternativaRespaldoId: FirebaseIdSchema.nullable().optional(),
+}).strict();
+
+export const ExcepcionUsuarioSchema = z.object({
+    id: FirebaseIdSchema.optional(),
+    residenciaId: FirebaseIdSchema,
+    fecha: FechaIsoSchema,
+    tiempoComidaId: FirebaseIdSchema,
+    alternativaId: FirebaseIdSchema,   // ConfigAlternativaId
+    origen: z.enum(['residente', 'director', 'asistente', 'wizard_invitados']),
+    timestampCreacion: TimestampStringSchema,
+
+    // Solo para excepciones que requieren aprobación
+    autorizacion: AutorizacionExcepcionSchema.optional(),
+}).strict();
+
+// Schema para CREATE ExcepcionUsuario
+export const createExcepcionUsuarioSchema = ExcepcionUsuarioSchema.omit({
+    id: true,
+    timestampCreacion: true,
+}).extend({
+    timestampCreacion: TimestampStringSchema.optional(),
 });
+
+// Legacy alias
+export const ExcepcionSchema = ExcepcionUsuarioSchema;
+
+// Type exports
+export type ExcepcionUsuario = z.infer<typeof ExcepcionUsuarioSchema>;
+export type CreateExcepcionUsuario = z.infer<typeof createExcepcionUsuarioSchema>;

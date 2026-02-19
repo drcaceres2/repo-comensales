@@ -1,6 +1,10 @@
-import { campoFechaConZonaHoraria } from '../models/types';
 import { isValid, format, Duration, add, intervalToDuration } from 'date-fns'
 import { toDate, formatInTimeZone } from 'date-fns-tz'
+
+export type campoFechaConZonaHoraria = {
+    fecha: string;
+    zonaHoraria: string;
+}
 
 export type resultadoComparacionFCZH = "mayor" | "igual" | "menor" | "invalido";
 
