@@ -23,8 +23,8 @@ import { Loader2, PlusCircle, Trash2, Edit, AlertCircle, Hourglass, Users, XCirc
 
 // Types and Schemas
 import {
-    Residencia, Actividad, ActividadId, CentroCosto, TiempoComida,
-    UserProfile, ResidenciaId, InscripcionActividad, ActividadEstado, Comedor
+    Residencia, Actividad, ActividadId, CentroDeCostoData, TiempoComida,
+    Usuario, ResidenciaId, InscripcionActividad, ActividadEstado, ComedorData, ComedorId, TiempoComidaId
 } from '@/../shared/models/types';
 import { ActivityForm } from './ActivityForm';
 import { deleteActividad, updateActividadEstado } from './actions';
@@ -56,9 +56,9 @@ function AdminActividadesPage() {
     const [residencia, setResidencia] = useState<Residencia | null>(null);
     const [actividades, setActividades] = useState<Actividad[]>([]);
     const [inscripciones, setInscripciones] = useState<InscripcionActividad[]>([]);
-    const [centroCostosList, setCentroCostosList] = useState<CentroCosto[]>([]);
-    const [tiemposComidaList, setTiemposComidaList] = useState<TiempoComida[]>([]);
-    const [comedoresList, setComedoresList] = useState<Comedor[]>([]);
+    const [centroCostosList, setCentroCostosList] = useState<CentroDeCostoData[]>([]);
+    const [tiemposComidaList, setTiemposComidaList] = useState<(TiempoComida & { id: TiempoComidaId })[]>([]);
+    const [comedoresList, setComedoresList] = useState<(ComedorData & { id: ComedorId })[]>([]);
 
     // UI State
     const [isLoadingPageData, setIsLoadingPageData] = useState(true);
@@ -71,23 +71,40 @@ function AdminActividadesPage() {
         setIsLoadingPageData(true);
         setPageError(null);
         try {
-            const residenciaRef = doc(db, "residencias", residenciaId);
-            const residenciaSnap = await getDoc(residenciaRef);
-            if (!residenciaSnap.exists()) throw new Error("Residencia no encontrada.");
-            setResidencia(residenciaSnap.data() as Residencia);
+            const configRef = doc(db, "residencias", residenciaId, "configuracion", "general");
 
-            const [actividadesSnap, centroCostosSnap, tiemposComidaSnap, inscripcionesSnap, comedoresSnap] = await Promise.all([
+            const [actividadesSnap, centroCostosSnap, inscripcionesSnap, configSnap] = await Promise.all([
                 getDocs(query(collection(db, "actividades"), where("residenciaId", "==", residenciaId), orderBy("fechaInicio", "desc"))),
                 getDocs(query(collection(db, "centrosCosto"), where("residenciaId", "==", residenciaId), where("isActive", "==", true), orderBy("nombre"))),
-                getDocs(query(collection(db, "tiemposComida"), where("residenciaId", "==", residenciaId), orderBy("ordenGrupo"))), 
                 getDocs(query(collection(db, 'inscripcionesActividades'), where('residenciaId', '==', residenciaId))),
-                getDocs(query(collection(db, "comedores"), where("residenciaId", "==", residenciaId)))
+                getDoc(configRef)
             ]);
-            setActividades(actividadesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Actividad)));
-            setCentroCostosList(centroCostosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CentroCosto)));
-            setTiemposComidaList(tiemposComidaSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TiempoComida)));
-            setInscripciones(inscripcionesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as InscripcionActividad)));
-            setComedoresList(comedoresSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comedor)));
+            setActividades(actividadesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as Actividad)));
+            setCentroCostosList(centroCostosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as CentroDeCostoData)));
+            setInscripciones(inscripcionesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as InscripcionActividad)));
+            
+            if (configSnap.exists()) {
+                const configData = configSnap.data();
+                
+                // Fetch Comedores
+                const comedoresRecord = configData.comedores || {};
+                const comedoresArray = Object.entries(comedoresRecord).map(([id, data]) => ({
+                    id,
+                    ...(data as any)
+                }));
+                setComedoresList(comedoresArray);
+
+                // Fetch Tiempos de Comida
+                const esquemaRecord = configData.esquemaSemanal || {};
+                const tiemposArray = Object.entries(esquemaRecord).map(([id, data]) => ({
+                    id,
+                    ...(data as any)
+                })).sort((a, b) => (a.grupoComida || 0) - (b.grupoComida || 0)); // Maintain some order if possible
+                setTiemposComidaList(tiemposArray);
+            } else {
+                setComedoresList([]);
+                setTiemposComidaList([]);
+            }
 
         } catch (err) {
             console.error("Error fetching admin activities data:", err);
@@ -230,7 +247,11 @@ function AdminActividadesPage() {
                                     </div>
                                     <div className="flex flex-col p-2 bg-muted/40 rounded">
                                         <span className="text-muted-foreground uppercase font-semibold">Comedor</span>
-                                        <span className="font-medium truncate">{act.comedorActividad === 'comensal' ? 'Mi Comedor' : act.comedorActividad}</span>
+                                        <span className="font-medium truncate">
+                                            {act.comedorActividad 
+                                                ? (comedoresList.find(c => c.id === act.comedorActividad)?.nombre || act.comedorActividad)
+                                                : "No asignado"}
+                                        </span>
                                     </div>
                                 </div>
                             </CardContent>

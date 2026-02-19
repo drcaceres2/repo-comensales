@@ -24,25 +24,25 @@ import { useAuth } from '@/hooks/useAuth'; // Usamos nuestro hook modificado
 import { auth, db } from '@/lib/firebase';
 
 // --- Model Imports ---
-import { UserProfile, UserRole } from '../../shared/models/types';
+import { Usuario, RolUsuario } from '../../shared/models/types';
 
 // --- LOGO URL ---
 const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/public%2Flogo_web_app_1024x1024.jpg?alt=media&token=3d7a3f7c-71a1-403a-b858-bd0ec567dd10";
 
 // Helper function to redirect based on profile (remains the same)
-const redirectToDashboard = (profile: UserProfile, router: ReturnType<typeof useRouter>) => {
+const redirectToDashboard = (profile: Usuario, router: ReturnType<typeof useRouter>) => {
     const roles = profile.roles || [];
     const residenciaId = profile.residenciaId;
 
-    if (roles.includes('master' as UserRole)) {
+    if (roles.includes('master' as RolUsuario)) {
       router.push('/restringido-master/crear-residencia');
     } else if (residenciaId) {
-        if (roles.includes('admin' as UserRole)) router.push(`/${residenciaId}/admin`);
-        else if (roles.includes('director' as UserRole)) router.push(`/${residenciaId}/solicitar-comensales`);
-        else if (roles.includes('residente' as UserRole)) router.push(`/${residenciaId}/elegir-comidas`);
-        else if (roles.includes('invitado' as UserRole)) router.push(`/${residenciaId}/bienvenida-invitados`);
-        else if (roles.includes('asistente' as UserRole)) router.push(`/${residenciaId}/elecciones-invitados`);
-        else if (roles.includes('contador' as UserRole)) router.push(`/${residenciaId}/contabilidad/reporte-costos`);
+        if (roles.includes('admin' as RolUsuario)) router.push(`/${residenciaId}/admin`);
+        else if (roles.includes('director' as RolUsuario)) router.push(`/${residenciaId}/solicitar-comensales`);
+        else if (roles.includes('residente' as RolUsuario)) router.push(`/${residenciaId}/elegir-comidas`);
+        else if (roles.includes('invitado' as RolUsuario)) router.push(`/${residenciaId}/bienvenida-invitados`);
+        else if (roles.includes('asistente' as RolUsuario)) router.push(`/${residenciaId}/elecciones-invitados`);
+        else if (roles.includes('contador' as RolUsuario)) router.push(`/${residenciaId}/contabilidad/reporte-costos`);
         else router.push(`/`);
     } else {
       console.warn("User logged in but has undefined role/residenciaId or unknown role combination:", profile);
@@ -54,7 +54,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { user, loading, error, logout } = useAuth(); // Obtenemos la función logout del hook
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<Usuario | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(false);
   const [initialAuthCheckDone, setInitialAuthCheckDone] = useState(false);
   const [email, setEmail] = useState('');
@@ -88,12 +88,12 @@ export default function LoginPage() {
           .then(async (userDocSnap) => {
             if (userDocSnap.exists()) {
               console.log("Profile fetched successfully.");
-              const userProfileData = userDocSnap.data() as UserProfile;
+              const userProfileData = userDocSnap.data() as Usuario;
               try {
-                await updateDoc(userDocRef, { lastLogin: Date.now() });
+                await updateDoc(userDocRef, { timestampUltimoIngreso: new Date().toISOString() });
                 setProfile(userProfileData);
               } catch (updateError) {
-                console.error("Error updating lastLogin:", updateError);
+                console.error("Error updating timestampUltimoIngreso:", updateError);
                 setProfile(userProfileData); // Set profile even if update fails
               }
             } else {

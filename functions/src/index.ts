@@ -674,6 +674,17 @@ export const deleteResidencia = onCall(
 interface LogEntryWrite extends Omit<LogEntry, "id" | "timestamp"> {
     timestamp: admin.firestore.FieldValue;
 }
+export const logActionCallable = onCall(
+  {
+    region: "us-central1",
+    cors: ["http://localhost:3001", "http://127.0.0.1:3001"],
+  },
+  async (request: CallableRequest<LogPayload>) => {
+    await logAction(request.auth, request.data);
+    return { success: true };
+  }
+);
+
 export const logAction = async (
   authContext: { uid: string; token?: { email?: string; [key:string]: any } } | undefined | null,
   payload: LogPayload

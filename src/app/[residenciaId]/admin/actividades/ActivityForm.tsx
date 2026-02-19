@@ -4,8 +4,8 @@ import { useState, useTransition, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Actividad, ResidenciaId, TiempoComida, CentroCosto, DayOfWeekMap } from '@/../shared/models/types';
-import { ActividadCreateSchema, ActividadUpdateSchema } from '@/../shared/schemas/actividades';
+import { Actividad, ResidenciaId, TiempoComida, CentroDeCostoData, MapaDiaDeLaSemana, ComedorData, ComedorId, TiempoComidaId } from '@/../shared/models/types';
+import { ActividadCreateSchema, ActividadUpdateSchema } from 'shared/schemas/actividades';
 import { createActividad, updateActividad } from './actions';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/useToast";
-import { Loader2, XIcon, PlusCircle, Trash2 } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import {
@@ -30,13 +30,13 @@ interface ActivityFormProps {
     residenciaId: ResidenciaId;
     onClose: () => void;
     actividad?: Actividad | null;
-    tiemposComidaList: TiempoComida[];
-    centroCostosList: CentroCosto[];
-    comedoresList: any[];
+    tiemposComidaList: (TiempoComida & { id: TiempoComidaId })[];
+    centroCostosList: CentroDeCostoData[];
+    comedoresList: (ComedorData & { id: ComedorId })[];
 }
 
 const ActividadFormSchema = z.union([ActividadCreateSchema, ActividadUpdateSchema]);
-type ActividadFormData = z.infer<typeof ActividadFormSchema>;
+export type ActividadFormData = z.infer<typeof ActividadCreateSchema>;
 
 export function ActivityForm({
     residenciaId,
@@ -54,11 +54,19 @@ export function ActivityForm({
     const schema = isEditing ? ActividadUpdateSchema : ActividadCreateSchema;
 
     const form = useForm<ActividadFormData>({
-        resolver: zodResolver(schema),
+        resolver: zodResolver(ActividadCreateSchema), // Stricter validation is fine for both create/edit
         defaultValues: isEditing ? {
             ...actividad,
              fechaInicio: actividad.fechaInicio,
              fechaFin: actividad.fechaFin,
+             comedorActividad: actividad.comedorActividad ?? undefined,
+             modoAccesoResidentes: actividad.modoAccesoResidentes || { accesoUsuario: 'abierto', puedeInvitar: false },
+             modoAccesoInvitados: actividad.modoAccesoInvitados || { accesoUsuario: 'por_invitacion', puedeInvitar: false },
+             maxParticipantes: actividad.maxParticipantes ?? undefined,
+             diasAntelacionSolicitudAdministracion: actividad.diasAntelacionSolicitudAdministracion ?? 7,
+             centroCostoId: actividad.centroCostoId ?? undefined,
+             tiempoComidaInicial: actividad.tiempoComidaInicial ?? '',
+             tiempoComidaFinal: actividad.tiempoComidaFinal ?? '',
         } : {
             nombre: '',
             descripcion: '',
@@ -71,6 +79,9 @@ export function ActivityForm({
             diasAntelacionSolicitudAdministracion: 7,
             tiempoComidaInicial: '',
             tiempoComidaFinal: '',
+            comensalesNoUsuarios: 0,
+            modoAccesoResidentes: { accesoUsuario: 'abierto', puedeInvitar: false },
+            modoAccesoInvitados: { accesoUsuario: 'por_invitacion', puedeInvitar: false },
         },
     });
     
@@ -99,7 +110,7 @@ export function ActivityForm({
     const handleActualSubmit = (data: ActividadFormData) => {
         startTransition(async () => {
             const result = isEditing
-                ? await updateActividad(actividad.id, residenciaId, data)
+                ? await updateActividad(actividad!.id, residenciaId, data)
                 : await createActividad(residenciaId, data);
 
             if (result.success) {
@@ -163,7 +174,7 @@ export function ActivityForm({
                                             </FormItem>
                                         )}
                                     />
-                                    {isEditing && actividad.estado === 'inscripcion_abierta' && (
+                                    {isEditing && actividad!.estado === 'inscripcion_abierta' && (
                                         <FormField
                                             control={form.control}
                                             name="comensalesNoUsuarios"
@@ -171,7 +182,7 @@ export function ActivityForm({
                                                 <FormItem>
                                                     <FormLabel>Comensales No Usuarios</FormLabel>
                                                     <FormControl>
-                                                        <Input type="number" {...field} />
+                                                        <Input type="number" {...field} value={field.value ?? ''} onChange={event => field.onChange(event.target.value === '' ? undefined : +event.target.value)} />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -180,12 +191,12 @@ export function ActivityForm({
                                     )}
                                     {modoAtencionActividad === 'residencia' && (
                                         <FormField
-                                            control={form.control}
-                                            name="comedorActividad"
+                                         control={form.control}
+                                         name="comedorActividad"
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Comedor</FormLabel>
-                                                    <Select onValueChange={field.onChange} value={field.value ?? undefined}>
+                                                    <Select onValueChange={field.onChange} value={field.value ?? ''}>
                                                         <FormControl>
                                                             <SelectTrigger><SelectValue placeholder="Seleccionar comedor..." /></SelectTrigger>
                                                         </FormControl>
@@ -213,7 +224,7 @@ export function ActivityForm({
                                                 <FormItem>
                                                     <FormLabel>Fecha de Inicio</FormLabel>
                                                     <FormControl>
-                                                        <Input type="date" {...field} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)} />
+                                                        <Input type="date" {...field} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad!.estado)} />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -226,7 +237,7 @@ export function ActivityForm({
                                                 <FormItem>
                                                     <FormLabel>Fecha de Fin</FormLabel>
                                                     <FormControl>
-                                                        <Input type="date" {...field} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)} />
+                                                        <Input type="date" {...field} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad!.estado)} />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -240,13 +251,13 @@ export function ActivityForm({
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Primer tiempo excluido</FormLabel>
-                                                    <Select onValueChange={field.onChange} value={field.value ?? undefined} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)}>
+                                                    <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad!.estado)}>
                                                         <FormControl>
                                                             <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent className="z-[250]">
                                                             {tiemposComidaList.map(tc => (
-                                                                <SelectItem key={tc.id} value={tc.id}>{tc.nombre} ({tc.dia ? DayOfWeekMap[tc.dia] : 'General'})</SelectItem>
+                                                                <SelectItem key={tc.id} value={tc.id}>{tc.nombre} ({tc.dia ? MapaDiaDeLaSemana[tc.dia] : 'General'})</SelectItem>
                                                             ))}
                                                         </SelectContent>
                                                     </Select>
@@ -260,13 +271,13 @@ export function ActivityForm({
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Último tiempo excluido</FormLabel>
-                                                    <Select onValueChange={field.onChange} value={field.value ?? undefined} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)}>
+                                                    <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad!.estado)}>
                                                         <FormControl>
                                                             <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent className="z-[250]">
                                                             {tiemposComidaList.map(tc => (
-                                                                <SelectItem key={tc.id} value={tc.id}>{tc.nombre} ({tc.dia ? DayOfWeekMap[tc.dia] : 'General'})</SelectItem>
+                                                                <SelectItem key={tc.id} value={tc.id}>{tc.nombre} ({tc.dia ? MapaDiaDeLaSemana[tc.dia] : 'General'})</SelectItem>
                                                             ))}
                                                         </SelectContent>
                                                     </Select>
@@ -281,7 +292,7 @@ export function ActivityForm({
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Modo de Atención</FormLabel>
-                                                <Select onValueChange={field.onChange} value={field.value ?? undefined} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)}>
+                                                <Select onValueChange={field.onChange} value={field.value ?? ''} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad!.estado)}>
                                                     <FormControl>
                                                         <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                                                     </FormControl>
@@ -298,7 +309,7 @@ export function ActivityForm({
                                     <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
                                         <div className="flex justify-between items-center">
                                             <h3 className="text-base font-semibold">Plan de Comidas de la Actividad</h3>
-                                            <Button type="button" variant="outline" size="sm" onClick={() => append({ nombreTiempoComida_AlternativaUnica: '', nombreGrupoTiempoComida: '', ordenGrupoTiempoComida: 0, fecha: form.watch('fechaInicio') || new Date().toISOString().split('T')[0] })} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)}>
+                                            <Button type="button" variant="outline" size="sm" onClick={() => append({ id: crypto.randomUUID(), nombreTiempoComida: '', grupoComida: 0, fechaComida: form.watch('fechaInicio') || new Date().toISOString().split('T')[0] })} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)}>
                                                 <PlusCircle className="mr-2 h-4 w-4" />Añadir Comida
                                             </Button>
                                         </div>
@@ -312,10 +323,9 @@ export function ActivityForm({
                                                         </Button>
                                                     </div>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                        <FormField control={form.control} name={`planComidas.${index}.nombreGrupoTiempoComida`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Nombre Grupo (ej: Almuerzo)</FormLabel><FormControl><Input {...field} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)} /></FormControl></FormItem>)} />
-                                                        <FormField control={form.control} name={`planComidas.${index}.nombreTiempoComida_AlternativaUnica`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Nombre Alternativa Única (ej: Buffet)</FormLabel><FormControl><Input {...field} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)} /></FormControl></FormItem>)} />
-                                                        <FormField control={form.control} name={`planComidas.${index}.fecha`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Fecha</FormLabel><FormControl><Input type="date" {...field} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)} /></FormControl></FormItem>)} />
-                                                        <FormField control={form.control} name={`planComidas.${index}.ordenGrupoTiempoComida`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Orden (número)</FormLabel><FormControl><Input type="number" {...field} onChange={event => field.onChange(+event.target.value)} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)} /></FormControl></FormItem>)} />
+                                                        <FormField control={form.control} name={`planComidas.${index}.nombreTiempoComida`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Nombre Tiempo Comida (ej: Almuerzo Buffet)</FormLabel><FormControl><Input {...field} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)} /></FormControl></FormItem>)} />
+                                                        <FormField control={form.control} name={`planComidas.${index}.fechaComida`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Fecha</FormLabel><FormControl><Input type="date" {...field} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)} /></FormControl></FormItem>)} />
+                                                        <FormField control={form.control} name={`planComidas.${index}.grupoComida`} render={({ field }) => (<FormItem><FormLabel className="text-xs">Orden/Grupo (número)</FormLabel><FormControl><Input type="number" {...field} onChange={event => field.onChange(+event.target.value)} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)} /></FormControl></FormItem>)} />
                                                     </div>
                                                 </div>
                                             ))}
@@ -341,13 +351,16 @@ export function ActivityForm({
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                             <FormField
                                                 control={form.control}
-                                                name="tipoAccesoResidentes"
+                                                name="modoAccesoResidentes.accesoUsuario"
                                                 render={({ field }) => (
                                                     <FormItem>
                                                         <FormLabel>Acceso para Residentes</FormLabel>
-                                                        <Select onValueChange={field.onChange} value={field.value ?? undefined} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)}>
+                                                        <Select onValueChange={field.onChange} value={field.value} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)}>
                                                             <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl>
-                                                            <SelectContent className="z-[250]"><SelectItem value="abierta">Abierta (Inscripción libre)</SelectItem><SelectItem value="invitacion_requerida">Por Invitación (Admin invita)</SelectItem><SelectItem value="opcion_unica">Opción Única (No hay otra comida)</SelectItem></SelectContent>
+                                                            <SelectContent className="z-[250]">
+                                                                <SelectItem value="abierto">Abierto (Inscripción libre)</SelectItem>
+                                                                <SelectItem value="por_invitacion">Por Invitación (Admin invita)</SelectItem>
+                                                            </SelectContent>
                                                         </Select>
                                                         <FormMessage />
                                                     </FormItem>
@@ -355,13 +368,16 @@ export function ActivityForm({
                                             />
                                             <FormField
                                                 control={form.control}
-                                                name="tipoAccesoInvitados"
+                                                name="modoAccesoInvitados.accesoUsuario"
                                                 render={({ field }) => (
                                                     <FormItem>
                                                         <FormLabel>Acceso para Invitados Exteriores</FormLabel>
-                                                        <Select onValueChange={field.onChange} value={field.value ?? undefined} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)}>
+                                                        <Select onValueChange={field.onChange} value={field.value} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)}>
                                                             <FormControl><SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger></FormControl>
-                                                            <SelectContent className="z-[250]"><SelectItem value="abierta">Abierta</SelectItem><SelectItem value="invitacion_requerida">Por Invitación</SelectItem><SelectItem value="opcion_unica">Opción Única</SelectItem></SelectContent>
+                                                            <SelectContent className="z-[250]">
+                                                                <SelectItem value="abierto">Abierto</SelectItem>
+                                                                <SelectItem value="por_invitacion">Por Invitación</SelectItem>
+                                                            </SelectContent>
                                                         </Select>
                                                         <FormMessage />
                                                     </FormItem>
@@ -399,13 +415,13 @@ export function ActivityForm({
                                     <h3 className="text-lg font-semibold border-b pb-2">Campos de costo</h3>
                                     <FormField
                                         control={form.control}
-                                        name="defaultCentroCostoId"
+                                        name="centroCostoId"
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Centro de Costo Imputable</FormLabel>
                                                 <Select onValueChange={field.onChange} value={field.value ?? undefined}>
                                                     <FormControl><SelectTrigger><SelectValue placeholder="Centro de costo por defecto..." /></SelectTrigger></FormControl>
-                                                    <SelectContent className="z-[250]">{centroCostosList.map(cc => (<SelectItem key={cc.id} value={cc.id}>{cc.nombre} ({cc.codigoInterno})</SelectItem>))}</SelectContent>
+                                                    <SelectContent className="z-[250]">{centroCostosList.map(cc => (<SelectItem key={cc.codigo} value={cc.codigo}>{cc.nombre} ({cc.codigo})</SelectItem>))}</SelectContent>
                                                 </Select>
                                                 <FormMessage />
                                             </FormItem>

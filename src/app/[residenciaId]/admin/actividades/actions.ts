@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db, auth as adminAuth } from '@/lib/firebaseAdmin';
 import { requireAuth } from '@/lib/serverAuth';
-import { logServerAction } from '@/lib/serverLogs';
+// import { logServerAction } from '@/lib/serverLogs'; // REMOVED
 import { 
     ActividadCreateSchema, 
     ActividadUpdateSchema, 
@@ -12,8 +12,10 @@ import {
 } from '@/../shared/schemas/actividades';
 import { 
     Actividad, ActividadId, ActividadEstado, ResidenciaId, 
-    TiempoComida, UserId, InscripcionActividad
+    TiempoComida, LogPayload
 } from '@/../shared/models/types';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@/lib/firebase'; // Assuming functions is exported from here
 import * as admin from 'firebase-admin';
 
 // Helper to get the day of the week from a date string (YYYY-MM-DD)
@@ -28,12 +30,21 @@ async function validateTiempoComida(
     fecha: string, 
     residenciaId: string
 ): Promise<{valid: boolean; message: string}> {
-    const tiempoComidaRef = db.collection('tiemposComida').doc(tiempoComidaId);
-    const tiempoComidaSnap = await tiempoComidaRef.get();
-    if (!tiempoComidaSnap.exists) {
+    const configRef = db.collection('residencias').doc(residenciaId).collection('configuracion').doc('general');
+    const configSnap = await configRef.get();
+    
+    if (!configSnap.exists) {
+        return { valid: false, message: `Configuración de la residencia no encontrada.` };
+    }
+
+    const configData = configSnap.data() || {};
+    const esquemaSemanal = configData.esquemaSemanal || {};
+    const tiempoComida = esquemaSemanal[tiempoComidaId] as TiempoComida | undefined;
+
+    if (!tiempoComida) {
         return { valid: false, message: `Tiempo de comida con id ${tiempoComidaId} no encontrado.` };
     }
-    const tiempoComida = tiempoComidaSnap.data() as TiempoComida;
+
     if (tiempoComida.dia && tiempoComida.dia !== getDayOfWeek(fecha)) {
         return { valid: false, message: `El día de la semana del tiempo de comida no coincide con la fecha.` };
     }
@@ -78,12 +89,15 @@ export async function createActividad(
             fechaHoraModificacion: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        await logServerAction(user.uid, user.email, 'ACTIVIDAD_CREADA', {
+        // Async logging via Cloud Function
+        const logAction = httpsCallable<LogPayload, { success: boolean }>(functions, 'logActionCallable');
+        logAction({
+            action: 'ACTIVIDAD_CREADA',
             targetId: docRef.id,
             targetCollection: 'actividades',
             residenciaId,
             details: { nombre: restData.nombre },
-        });
+        }).catch(err => console.error("Error logging ACTIVIDAD_CREADA:", err));
 
         revalidatePath(`/`); 
         return { success: true, data: { id: docRef.id, ...validationResult.data } };
@@ -139,7 +153,7 @@ export async function updateActividad(
         const operationalFields: (keyof ActividadUpdate)[] = [
             'fechaInicio', 'fechaFin', 'tiempoComidaInicial', 'tiempoComidaFinal', 
             'planComidas', 'comedorActividad', 'modoAtencionActividad', 
-            'tipoAccesoResidentes', 'tipoAccesoInvitados'
+            'modoAccesoResidentes', 'modoAccesoInvitados'
         ];
 
         if (activity.estado !== 'borrador') {
@@ -147,6 +161,7 @@ export async function updateActividad(
             const updateDataAny = updateData as any;
             for (const field of operationalFields) {
                 if (updateDataAny[field] !== undefined && updateDataAny[field] !== activityAny[field]) {
+                    // Logic for specific fields if needed
                     return { success: false, error: `El campo ${field} solo se puede modificar en estado "borrador".` };
                 }
             }
@@ -175,12 +190,15 @@ export async function updateActividad(
         };
         await activityRef.update(finalUpdate);
         
-        await logServerAction(user.uid, user.email, 'ACTIVIDAD_ACTUALIZADA', {
+        // Async logging via Cloud Function
+        const logAction = httpsCallable<LogPayload, { success: boolean }>(functions, 'logActionCallable');
+        logAction({
+            action: 'ACTIVIDAD_ACTUALIZADA',
             targetId: actividadId,
             targetCollection: 'actividades',
             residenciaId,
             details: { changes: updateData },
-        });
+        }).catch(err => console.error("Error logging ACTIVIDAD_ACTUALIZADA:", err));
 
         revalidatePath(`/`);
         return { success: true, data: updateData };
@@ -198,11 +216,14 @@ export async function deleteActividad(actividadId: ActividadId, residenciaId: Re
         const user = await requireAuth();
         
         await db.collection('actividades').doc(actividadId).delete();
-        await logServerAction(user.uid, user.email, 'ACTIVIDAD_ELIMINADA', {
+        // Async logging via Cloud Function
+        const logAction = httpsCallable<LogPayload, { success: boolean }>(functions, 'logActionCallable');
+        logAction({
+            action: 'ACTIVIDAD_ELIMINADA',
             targetId: actividadId,
             targetCollection: 'actividades',
             residenciaId,
-        });
+        }).catch(err => console.error("Error logging ACTIVIDAD_ELIMINADA:", err));
 
         revalidatePath(`/`);
         return { success: true };
@@ -274,12 +295,15 @@ export async function updateActividadEstado(
         });
         await batch.commit();
         
-        await logServerAction(user.uid, user.email, 'ACTIVIDAD_ACTUALIZADA', {
+        // Async logging via Cloud Function
+        const logAction = httpsCallable<LogPayload, { success: boolean }>(functions, 'logActionCallable');
+        logAction({
+            action: 'ACTIVIDAD_ACTUALIZADA',
             targetId: actividadId,
             targetCollection: 'actividades',
             residenciaId,
             details: { oldState: actividad.estado, newState: nuevoEstado },
-        });
+        }).catch(err => console.error("Error logging ACTIVIDAD_ACTUALIZADA (estado):", err));
 
         revalidatePath(`/`);
         return { success: true };

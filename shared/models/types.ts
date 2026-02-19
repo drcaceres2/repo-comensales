@@ -591,8 +591,7 @@ export interface Actividad {
     organizadorId: UsuarioId; 
     nombre: string; 
     descripcion?: string;
-    estado: 'borrador' | 'inscripcion_abierta' | 'inscripcion_cerrada' |
-            'solicitada_administracion' | 'cancelada';
+    estado: ActividadEstado;
     avisoAdministracion: EstadoAvisoAdministracion;
     tipoSolicitudComidas: TipoSolicitudComidasActividad;
 
@@ -629,6 +628,8 @@ export type DetalleActividadId = string;
 export type TipoSolicitudComidasActividad = 
     | 'ninguna' | 'solicitud_unica' | 'solicitud_diaria' 
     | 'solicitud_inicial_mas_confirmacion_diaria';
+export type ActividadEstado = 'borrador' | 'inscripcion_abierta' | 'inscripcion_cerrada' |
+            'solicitada_administracion' | 'cancelada';
 
 /** 
  * ModoAcceso

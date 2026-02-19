@@ -488,7 +488,7 @@ function UserManagementPage(): JSX.Element | null {
             if (dataForValidation.centroCostoPorDefectoId === '') dataForValidation.centroCostoPorDefectoId = undefined;
             if (!dataForValidation.roles?.includes('residente')) delete dataForValidation.residente;
             if (!dataForValidation.roles?.includes('asistente')) delete dataForValidation.asistente;
-            if (dataForValidation.residente?.dietaId === '') delete dataForValidation.residente.dietaId;
+            if (dataForValidation.residente?.dietaId === '') delete (dataForValidation.residente as any).dietaId;
 
             const validationResult = schema.safeParse(dataForValidation);
 
