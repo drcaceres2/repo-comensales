@@ -45,27 +45,27 @@ import { format } from 'date-fns'
 
 // Model Imports from the new 'shared' directory structure
 import {
-    Usuario,
     RolUsuario,
-    Residencia,
     ResidenciaId,
     DietaId,
     DietaData,
     CentroDeCostoData,
     ConfiguracionResidencia, // Main configuration object
     CentroDeCostoId
-} from '../../../../shared/models/types';
+} from 'shared/models/types';
 
 // Zod Schemas import from the new 'shared' directory structure
 import {
+    Usuario,
+    AsistentePermisos,
+    AsistentePermisosDetalle,
     clientCreateUserFormSchema,
     clientUpdateUserFormSchema,
     type ClientCreateUserForm,
     type ClientUpdateUserForm,
-    type AsistentePermisos,
-    type AsistentePermisosDetalle,
     type ResidenteData,
-} from '../../../../shared/schemas/usuarios';
+} from 'shared/schemas/usuarios';
+import { Residencia } from 'shared/schemas/residencia';
 
 const defaultPermisoDetalle: AsistentePermisosDetalle = {
     nivelAcceso: 'Ninguna',

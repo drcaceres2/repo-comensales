@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema } from './common';
+import { FirestoreIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema } from './common';
 import { IsoDateStringSchema, OptionalIsoDateStringSchema, IsoTimeStringSchema, TimestampStringSchema } from './fechas';
 
 // ============================================
@@ -14,14 +14,14 @@ export const AsistentePermisosDetalleSchema = z.object({
 }).strict();
 
 export const ResidenteSchema = z.object({
-    dietaId: FirebaseIdSchema,
+    dietaId: FirestoreIdSchema,
     numeroDeRopa: z.string().min(1, "El número de ropa es obligatorio.").max(10),
     habitacion: z.string().min(1, "La habitación es obligatoria.").max(10),
     avisoAdministracion: z.enum(['convivente', 'no_comunicado', 'comunicado']),
 }).strict();
 
 export const AsistenteSchema = z.object({
-    usuariosAsistidos: z.record(FirebaseIdSchema, AsistentePermisosDetalleSchema),
+    usuariosAsistidos: z.record(FirestoreIdSchema, AsistentePermisosDetalleSchema),
     gestionActividades: AsistentePermisosDetalleSchema,
     gestionInvitados: AsistentePermisosDetalleSchema,
     gestionRecordatorios: AsistentePermisosDetalleSchema,
@@ -44,48 +44,51 @@ export const NotificacionPreferenciasSchema = z.object({
 }).strict();
 
 // ============================================
-// Esquema Base para Usuario (lectura)
+// Esquemas Base para Usuario
 // ============================================
 
-export const usuarioSchema = z.object({
-    // Info interna
-    id: FirebaseIdSchema,
-    residenciaId: FirebaseIdSchema.nullable().optional(),
-    roles: z.array(z.enum(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador'])),
-    email: z.string().email(),
-    tieneAutenticacion: z.boolean(),
+const usuarioBaseObject = z.object({
+    // Info interna (Controlada por el servidor)
+    id: FirestoreIdSchema,
     timestampCreacion: TimestampStringSchema,
     timestampActualizacion: TimestampStringSchema,
     timestampUltimoIngreso: TimestampStringSchema.nullable().optional(),
+    
+    // Info de estado y configuración
+    residenciaId: FirestoreIdSchema.nullable().optional(),
+    roles: z.array(z.enum(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador']))
+            .min(1, "Debe seleccionar al menos un rol."),
+    email: z.string().email("El formato del email no es válido."),
+    tieneAutenticacion: z.boolean(),
     estaActivo: z.boolean(),
-    centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
+    centroCostoPorDefectoId: FirestoreIdSchema.nullable().optional(),
     notificacionPreferencias: NotificacionPreferenciasSchema.nullable().optional(),
 
     // Info personal
-    nombre: z.string().min(2).max(100),
-    apellido: z.string().min(2).max(255),
-    nombreCorto: z.string().min(2).max(15),
+    nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres.").max(100),
+    apellido: z.string().min(2, "El apellido debe tener al menos 2 caracteres.").max(255),
+    nombreCorto: z.string().min(2, "El nombre corto debe tener al menos 2 caracteres.").max(15),
     identificacion: CadenaOpcionalLimitada().optional(),
     telefonoMovil: TelefonoOpcionalSchema.optional(),
-    fechaDeNacimiento: OptionalIsoDateStringSchema,
+    fechaDeNacimiento: OptionalIsoDateStringSchema.nullable().optional(),
     fotoPerfil: z.string().url().nullable().optional(),
     universidad: CadenaOpcionalLimitada(2, 150).optional(),
     carrera: CadenaOpcionalLimitada(2, 50).optional(),
 
     // Info funcional
-    grupos: z.array(FirebaseIdSchema),
+    grupos: z.array(FirestoreIdSchema),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable(),
     camposPersonalizados: z.record(z.string()).optional(),
 
     // Propiedades anidadas por rol
     asistente: AsistenteSchema.optional(),
     residente: ResidenteSchema.optional(),
-}).strict();
-
+});
 
 // ============================================
-// Refinamiento de roles
+// Refinamiento base de roles
 // ============================================
+
 
 const userRoleRefinement = (data: { roles?: string[], residente?: any, asistente?: any }, ctx: z.RefinementCtx) => {
     if (!data.roles) return;
@@ -129,81 +132,61 @@ const userRoleRefinement = (data: { roles?: string[], residente?: any, asistente
 };
 
 // ============================================
+// Esquema Base para Usuario (lectura)
+// ============================================
+
+
+export const usuarioSchema = usuarioBaseObject
+    .strict()
+    .superRefine(userRoleRefinement);
+
+// ============================================
 // Esquemas para CREATE
 // ============================================
 
-const createUsuarioObject = z.object({
-    // Info interna
-    residenciaId: FirebaseIdSchema.nullable().optional(),
-    roles: z.array(z.enum(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador'])).min(1, "Debe seleccionar al menos un rol."),
-    email: z.string().email("El formato del email no es válido."),
-    estaActivo: z.boolean().default(true),
-    centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
-    notificacionPreferencias: NotificacionPreferenciasSchema.nullable().optional(),
-    tieneAutenticacion: z.boolean().default(true),
+const createUsuarioObject = usuarioBaseObject
+    .omit({
+        id: true,
+        timestampCreacion: true,
+        timestampActualizacion: true,
+        timestampUltimoIngreso: true,
+    })
+    .extend({
+        // Usamos extend para inyectar los .default() específicos de creación
+        estaActivo: z.boolean().default(true),
+        tieneAutenticacion: z.boolean().default(true),
+        grupos: z.array(FirestoreIdSchema).default([]),
+        puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().default('no'),
+    });
 
-    // Info personal
-    nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres.").max(100),
-    apellido: z.string().min(2, "El apellido debe tener al menos 2 caracteres.").max(255),
-    nombreCorto: z.string().min(2, "El nombre corto debe tener al menos 2 caracteres.").max(15),
-    identificacion: CadenaOpcionalLimitada().optional(),
-    telefonoMovil: TelefonoOpcionalSchema.optional(),
-    fechaDeNacimiento: OptionalIsoDateStringSchema.nullable(),
-    fotoPerfil: z.string().url().nullable().optional(),
-    universidad: CadenaOpcionalLimitada(2, 150).optional(),
-    carrera: CadenaOpcionalLimitada(2, 50).optional(),
-    
-    // Info funcional
-    grupos: z.array(FirebaseIdSchema).default([]),
-    puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().default('no'),
-    camposPersonalizados: z.record(z.string()).optional(),
-
-    // Propiedades anidadas por rol
-    asistente: AsistenteSchema.optional(),
-    residente: ResidenteSchema.optional(),
-}).strict();
-
-export const createUsuarioSchema = createUsuarioObject.superRefine(userRoleRefinement);
+export const createUsuarioSchema = createUsuarioObject
+    .strict()
+    .superRefine(userRoleRefinement);
 
 // ============================================
 // Esquemas para UPDATE
 // ============================================
 
 // Prácticamente todo es opcional en una actualización
-const updateUsuarioObject = z.object({
-    residenciaId: FirebaseIdSchema.nullable().optional(),
-    roles: z.array(z.enum(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador'])).min(1, "Debe seleccionar al menos un rol.").optional(),
-    estaActivo: z.boolean().optional(),
-    centroCostoPorDefectoId: FirebaseIdSchema.nullable().optional(),
-    notificacionPreferencias: NotificacionPreferenciasSchema.nullable().optional(),
+const updateUsuarioObject = usuarioBaseObject
+    .omit({
+        id: true,
+        timestampCreacion: true,
+        timestampActualizacion: true,
+        timestampUltimoIngreso: true,
+    })
+    .partial();
 
-    nombre: z.string().min(2).max(100).optional(),
-    apellido: z.string().min(2).max(255).optional(),
-    nombreCorto: z.string().min(2).max(15).optional(),
-    identificacion: CadenaOpcionalLimitada().optional(),
-    telefonoMovil: TelefonoOpcionalSchema.optional(),
-    fechaDeNacimiento: OptionalIsoDateStringSchema.nullable().optional(),
-    fotoPerfil: z.string().url().nullable().optional(),
-    universidad: CadenaOpcionalLimitada(2, 150).optional(),
-    carrera: CadenaOpcionalLimitada(2, 50).optional(),
-    
-    grupos: z.array(FirebaseIdSchema).optional(),
-    puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().optional(),
-    camposPersonalizados: z.record(z.string()).optional(),
-
-    asistente: AsistenteSchema.optional(),
-    residente: ResidenteSchema.optional(),
-}).strict();
-
-export const updateUsuarioSchema = updateUsuarioObject.superRefine(userRoleRefinement);
-
+export const updateUsuarioSchema = updateUsuarioObject
+    .strict()
+    .superRefine(userRoleRefinement);
 
 // ============================================
 // Esquema para selector (dropdown)
 // ============================================
 
 export const UserSelectorItemSchema = z.object({
-    id: FirebaseIdSchema,
+    id: FirestoreIdSchema,
     nombreCorto: z.string().nullable().optional(),
     email: z.string().email(),
     roles: z.array(z.string()),
@@ -215,13 +198,17 @@ export const UserSelectorItemSchema = z.object({
 // Esquemas para formularios del cliente
 // ============================================
 
-export const clientCreateUserFormSchema = createUsuarioObject.extend({
-    password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
-    confirmPassword: z.string().min(6),
-}).superRefine(userRoleRefinement).refine((data) => data.password === data.confirmPassword, {
-    message: "Las contraseñas no coinciden",
-    path: ['confirmPassword'],
-});
+export const clientCreateUserFormSchema = createUsuarioObject
+    .extend({
+        password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
+        confirmPassword: z.string().min(6),
+    })
+    .strict()
+    .superRefine(userRoleRefinement)
+    .refine((data) => data.password === data.confirmPassword, {
+        message: "Las contraseñas no coinciden",
+        path: ['confirmPassword'],
+    });
 
 export const clientUpdateUserFormSchema = updateUsuarioSchema;
 

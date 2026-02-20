@@ -337,6 +337,15 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           roles: ['admin'],
           requiresResidenciaIdForHref: true,
         },
+        {
+          id: 'adminComedores',
+          label: 'Comedores',
+          icon: Home,
+          href: rLink,
+          pathTemplate: '/admin/comedores',
+          roles: ['admin'],
+          requiresResidenciaIdForHref: true,
+        },
       ],
     },
 

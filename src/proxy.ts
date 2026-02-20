@@ -18,7 +18,6 @@ const publicRoutes = [
   '/privacidad',
   '/acceso-no-autorizado',
   '/licencia-vencida',
-  '/mi-perfil',
   // --------------------------------------------------------------------
   //  ADVERTENCIA: CÓDIGO PELIGROSO EN PRODUCCIÓN - SOLO PARA DESARROLLO
   // --------------------------------------------------------------------

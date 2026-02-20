@@ -36,8 +36,6 @@
     "modalidadResidenciaPlaceholder": "Modalidad de $t(glosario:residencia.entidad)",
     "hombres": "Hombres",
     "mujeres": "Mujeres",
-    "camposPersonalizados": "Campos Personalizados",
-    "camposPersonalizadosDescripcion": "Define campos adicionales para los perfiles de usuario.",
     "cancelar": "Cancelar",
     "guardarCambios": "Guardar Cambios",
     "crearResidencia": "Crear $t(glosario:residencia.nueva_entidad)",
@@ -117,6 +115,13 @@
     "confirmarEliminarDescripcionCompleta": "Esta acción no se puede deshacer. Esto eliminará permanentemente la $t(glosario:residencia.entidad) '{{name}}'. Asegúrate de entender las consecuencias (ej. datos asociados).",
     "tipoControlPlaceholder": "Tipo de Control",
     "campo": "Campo {{index}}",
-    "confirmarEliminar": "Confirmar eliminar"
+    "confirmarEliminar": "Confirmar eliminar",
+    "camposPersonalizadosResidencia": "Campos Personalizados para la Residencia",
+    "camposPersonalizadosResidenciaDescripcion": "Añada datos clave-valor para la residencia. Por ejemplo: 'codigo_interno' con valor 'R-123'.",
+    "nombreCampo": "Nombre del Campo",
+    "valorCampo": "Valor",
+    "anadirCampo": "Añadir Campo",
+    "camposPersonalizadosPorUsuario": "Campos Personalizados por Usuario",
+    "camposPersonalizadosPorUsuarioDescripcion": "Defina plantillas de campos personalizados que se aplicarán a cada usuario de la residencia."
   }
 }

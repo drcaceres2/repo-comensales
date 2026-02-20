@@ -4,8 +4,10 @@ import { useState, useTransition, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Actividad, ResidenciaId, TiempoComida, CentroDeCostoData, MapaDiaDeLaSemana, ComedorData, ComedorId, TiempoComidaId } from '@/../shared/models/types';
+import { Actividad, ResidenciaId, TiempoComida, CentroDeCostoData, 
+    MapaDiaDeLaSemana, ComedorId, TiempoComidaId } from 'shared/models/types';
 import { ActividadCreateSchema, ActividadUpdateSchema } from 'shared/schemas/actividades';
+import { ComedorData } from 'shared/schemas/complemento1';
 import { createActividad, updateActividad } from './actions';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

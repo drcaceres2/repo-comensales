@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
+import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
 import { FechaIsoSchema, TimestampStringSchema } from './fechas';
 
 // ============================================
@@ -7,23 +7,23 @@ import { FechaIsoSchema, TimestampStringSchema } from './fechas';
 // ============================================
 
 const SnapshotComensalSchema = z.object({
-    tiempoComidaId: FirebaseIdSchema,
+    tiempoComidaId: FirestoreIdSchema,
     nombreTiempoComida: z.string(),
-    alternativaId: FirebaseIdSchema,
+    alternativaId: FirestoreIdSchema,
     nombreAlternativa: z.string(),
-    comedor: FirebaseIdSchema, // ComedorId
+    comedor: FirestoreIdSchema, // ComedorId
 }).strict();
 
 const ContabilidadComensalSchema = z.object({
-    ccDeUsuario: FirebaseIdSchema.optional(),
+    ccDeUsuario: FirestoreIdSchema.optional(),
     nombreCcDeUsuario: z.string().optional(),
-    ccDeGrupo: FirebaseIdSchema.optional(),
+    ccDeGrupo: FirestoreIdSchema.optional(),
     nombreCcDeGrupo: z.string().optional(),
-    ccDeComedor: FirebaseIdSchema.optional(),
+    ccDeComedor: FirestoreIdSchema.optional(),
     nombreCcDeComedor: z.string().optional(),
-    ccDeActividad: FirebaseIdSchema.optional(),
+    ccDeActividad: FirestoreIdSchema.optional(),
     nombreCcDeActividad: z.string().optional(),
-    ccEscogidos: z.array(FirebaseIdSchema).optional(),
+    ccEscogidos: z.array(FirestoreIdSchema).optional(),
 }).strict();
 
 const OrigenComensalSchema = z.enum([
@@ -38,14 +38,14 @@ const OrigenComensalSchema = z.enum([
  * Ruta: residencias/{slug}/solicitudesConsolidadas/{id}/comensalesSolicitados/{uid-slugtiempocomida}
  */
 export const ComensalSolicitadoSchema = z.object({
-    id: FirebaseIdSchema,
+    id: FirestoreIdSchema,
 
     // Coordenadas
-    residenciaId: FirebaseIdSchema,
-    usuarioComensalId: FirebaseIdSchema,
+    residenciaId: FirestoreIdSchema,
+    usuarioComensalId: FirestoreIdSchema,
     nombreUsuarioComensal: z.string(),
-    dietaId: FirebaseIdSchema,
-    usuarioDirectorId: FirebaseIdSchema,
+    dietaId: FirestoreIdSchema,
+    usuarioDirectorId: FirestoreIdSchema,
     fecha: FechaIsoSchema,
 
     // Detalle del consumo (Snapshot desnormalizado)
@@ -56,7 +56,7 @@ export const ComensalSolicitadoSchema = z.object({
 
     // Trazabilidad
     origen: OrigenComensalSchema,
-    referenciaOrigenId: FirebaseIdSchema.optional(),
+    referenciaOrigenId: FirestoreIdSchema.optional(),
     timestampCreacion: TimestampStringSchema,
 }).strict();
 
@@ -65,27 +65,27 @@ export const ComensalSolicitadoSchema = z.object({
 // ============================================
 
 const DetalleMovimientoUsuarioSchema = z.object({
-    usuarioId: FirebaseIdSchema,
+    usuarioId: FirestoreIdSchema,
     accion: z.enum(['entrada', 'salida', 'cambio_informacion']),
     comentario: z.string().max(500).optional(),
 }).strict();
 
 const DetalleResumenSchema = z.object({
-    tiempoComidaId: FirebaseIdSchema,
+    tiempoComidaId: FirestoreIdSchema,
     nombreTiempoComida: z.string(),
-    alternativaId: FirebaseIdSchema,
+    alternativaId: FirestoreIdSchema,
     nombreAlternativa: z.string(),
     totalComensales: z.number().int().nonnegative(),
-    desglosePorDieta: z.record(FirebaseIdSchema, z.number().int().nonnegative()),
+    desglosePorDieta: z.record(FirestoreIdSchema, z.number().int().nonnegative()),
 }).strict();
 
 const OtrasSolicitudesSchema = z.object({
     movimientosDeUsuarios: z.array(DetalleMovimientoUsuarioSchema),
-    actividades: z.array(FirebaseIdSchema),
-    dietas: z.array(FirebaseIdSchema),
-    atenciones: z.array(FirebaseIdSchema),
-    alteracionesHorario: z.array(FirebaseIdSchema),
-    comentarios: z.array(FirebaseIdSchema),
+    actividades: z.array(FirestoreIdSchema),
+    dietas: z.array(FirestoreIdSchema),
+    atenciones: z.array(FirestoreIdSchema),
+    alteracionesHorario: z.array(FirestoreIdSchema),
+    comentarios: z.array(FirestoreIdSchema),
 }).strict();
 
 /**
@@ -95,13 +95,13 @@ const OtrasSolicitudesSchema = z.object({
  * Ruta: residencias/{slug}/solicitudesConsolidadas/{fecha-slugHorarioSolicitud}
  */
 export const SolicitudConsolidadaSchema = z.object({
-    id: FirebaseIdSchema,
-    residenciaId: FirebaseIdSchema,
+    id: FirestoreIdSchema,
+    residenciaId: FirestoreIdSchema,
     fecha: FechaIsoSchema,
     timestampCreacion: TimestampStringSchema,
     estadoSincronizacionERP: z.enum(['pendiente', 'sincronizado', 'error']),
 
-    comensales: z.array(FirebaseIdSchema), // ComensalSolicitadoId[]
+    comensales: z.array(FirestoreIdSchema), // ComensalSolicitadoId[]
 
     otrasSolicitudes: OtrasSolicitudesSchema,
 

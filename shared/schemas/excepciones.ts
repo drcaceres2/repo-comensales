@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
+import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
 import { FechaIsoSchema, TimestampStringSchema } from './fechas';
 
 // ============================================
@@ -19,17 +19,17 @@ const AutorizacionExcepcionSchema = z.object({
         'no_requiere_aprobacion', 'pendiente_aprobacion',
         'aprobado', 'rechazado',
     ]),
-    autorizadoPor: FirebaseIdSchema.optional(),
+    autorizadoPor: FirestoreIdSchema.optional(),
     timestampAutorizacion: TimestampStringSchema,
-    alternativaRespaldoId: FirebaseIdSchema.nullable().optional(),
+    alternativaRespaldoId: FirestoreIdSchema.nullable().optional(),
 }).strict();
 
 export const ExcepcionUsuarioSchema = z.object({
-    id: FirebaseIdSchema.optional(),
-    residenciaId: FirebaseIdSchema,
+    id: FirestoreIdSchema.optional(),
+    residenciaId: FirestoreIdSchema,
     fecha: FechaIsoSchema,
-    tiempoComidaId: FirebaseIdSchema,
-    alternativaId: FirebaseIdSchema,   // ConfigAlternativaId
+    tiempoComidaId: FirestoreIdSchema,
+    alternativaId: FirestoreIdSchema,   // ConfigAlternativaId
     origen: z.enum(['residente', 'director', 'asistente', 'wizard_invitados']),
     timestampCreacion: TimestampStringSchema,
 

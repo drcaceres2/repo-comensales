@@ -23,9 +23,12 @@ import { Loader2, PlusCircle, Trash2, Edit, AlertCircle, Hourglass, Users, XCirc
 
 // Types and Schemas
 import {
-    Residencia, Actividad, ActividadId, CentroDeCostoData, TiempoComida,
-    Usuario, ResidenciaId, InscripcionActividad, ActividadEstado, ComedorData, ComedorId, TiempoComidaId
-} from '@/../shared/models/types';
+    Actividad, ActividadId, CentroDeCostoData, TiempoComida,
+    ResidenciaId, InscripcionActividad, ActividadEstado, ComedorId, TiempoComidaId
+} from 'shared/models/types';
+import { Residencia } from 'shared/schemas/residencia';
+import { Usuario } from 'shared/schemas/usuarios';
+import { ComedorData } from 'shared/schemas/complemento1'
 import { ActivityForm } from './ActivityForm';
 import { deleteActividad, updateActividadEstado } from './actions';
 

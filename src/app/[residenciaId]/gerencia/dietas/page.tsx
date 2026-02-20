@@ -25,33 +25,20 @@ import { useTranslation } from 'react-i18next';
 
 // --- This app types ---
 import { 
-    Residencia, 
     ResidenciaId, 
     LogActionType, 
-    Usuario, 
     RolUsuario,
     ConfiguracionResidencia,
     DietaData,
     DietaId,
-} from '../../../../../shared/models/types';
+} from 'shared/models/types';
+import { Residencia } from 'shared/schemas/residencia';
+import { Usuario } from 'shared/schemas/usuarios';
+import { slugify } from 'shared/utils/commonUtils';
 import { logClientAction } from '@/lib/utils';
 
 // Local type for managing dietas in the component's state
 type DietaConId = DietaData & { id: DietaId };
-
-
-// --- Helper Functions ---
-const slugify = (text: string): string => {
-  return text
-    .toString()
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, '-')           // Replace spaces with -
-    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
-    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
-    .replace(/^-+/, '')             // Trim - from start of text
-    .replace(/-+$/, '');            // Trim - from end of text
-};
 
 function DietasResidenciaPage(): React.ReactElement | null {
     const params = useParams();
@@ -78,7 +65,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
     // --- Form State ---
     const [isAdding, setIsAdding] = useState(false);
     const [editingDietaId, setEditingDietaId] = useState<string | null>(null);
-    const [formData, setFormData] = useState<Partial<DietaData>>({});
+    const [formData, setFormData] = useState<any>({});
     const [isSaving, setIsSaving] = useState(false);
 
 
@@ -242,7 +229,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
         setIsAdding(false); setEditingDietaId(null); setFormData({});
     };
     const handleDietaFormChange = (field: keyof DietaData, value: any) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
+        setFormData((prev: any) => ({ ...prev, [field]: value }));
     };
 
     const handleAddDieta = async () => {
@@ -257,7 +244,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
 
         const newDietaData: DietaData = {
             nombre: formData.nombre!.trim(),
-            descripcion: formData.descripcion?.trim() || '',
+            descripcion: { tipo: 'texto_corto', descripcion: (formData.descripcion as any)?.trim() || '' },
             esPredeterminada: false,
             estaActiva: formData.estaActiva === undefined ? true : formData.estaActiva,
             identificadorAdministracion: '',
@@ -293,7 +280,8 @@ function DietasResidenciaPage(): React.ReactElement | null {
 
     const handleEditDieta = (dieta: DietaConId) => {
         setEditingDietaId(dieta.id); setIsAdding(false);
-        setFormData({ nombre: dieta.nombre, descripcion: dieta.descripcion, estaActiva: dieta.estaActiva, esPredeterminada: dieta.esPredeterminada });
+        const desc = dieta.descripcion?.tipo === 'texto_corto' ? dieta.descripcion.descripcion : '';
+        setFormData({ nombre: dieta.nombre, descripcion: desc, estaActiva: dieta.estaActiva, esPredeterminada: dieta.esPredeterminada });
     };
 
     const handleSaveDieta = async () => {
@@ -314,11 +302,10 @@ function DietasResidenciaPage(): React.ReactElement | null {
         }
 
         const updatedDietaData: DietaData = {
-            ...originalDieta, // a DietaConId has an id, but DietaData doesn't, so we need to build it properly
-            nombre: originalDieta.nombre, // Keep original name
-            descripcion: formData.descripcion?.trim() || '',
+            ...originalDieta,
+            nombre: originalDieta.nombre,
+            descripcion: { tipo: 'texto_corto', descripcion: (formData.descripcion as any)?.trim() || '' },
             estaActiva: formData.estaActiva === undefined ? originalDieta.estaActiva : formData.estaActiva,
-            // esPredeterminada is handled by its own function
         };
         
         // Let's create a clean object without the `id` for Firestore
@@ -580,7 +567,13 @@ function DietasResidenciaPage(): React.ReactElement | null {
                                         <span className="font-semibold text-lg">{dieta.nombre}</span>
                                         {dieta.esPredeterminada && <Badge variant="default" className="ml-2 bg-green-600 hover:bg-green-700 text-white">{t('defaultBadge')}</Badge>}
                                         {!dieta.estaActiva && <Badge variant="outline" className="ml-2 text-red-600 border-red-500">{t('inactiveBadge')}</Badge>}
-                                        {dieta.descripcion && <p className="text-sm text-muted-foreground mt-1">{dieta.descripcion}</p>}
+                                        {dieta.descripcion && (
+                                            <p className="text-sm text-muted-foreground mt-1">
+                                                {dieta.descripcion.tipo === 'texto_corto' ? dieta.descripcion.descripcion : 
+                                                 dieta.descripcion.tipo === 'texto_enriquecido' ? dieta.descripcion.titulo : 
+                                                 dieta.descripcion.tipo === 'enlace_externo' ? dieta.descripcion.urlDocumento : ''}
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="space-x-2 flex-shrink-0 mt-2 md:mt-0">
                                         <Button variant="outline" size="sm" onClick={() => handleEditDieta(dieta)} disabled={isAdding || !!editingDietaId || isSaving}>
@@ -660,7 +653,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
 
 // Interface for DietaFormProps, include t function
 interface DietaFormProps {
-    formData: Partial<DietaData>;
+    formData: any; // Allow any to simplify handling description string in form vs object in data
     onFormChange: (field: keyof DietaData, value: any) => void;
     onSubmit: () => Promise<void>;
     onCancel: () => void;

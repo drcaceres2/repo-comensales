@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
-import { Usuario, Residencia, Ubicacion, CampoPersonalizado } from 'shared/models/types';
+import { Ubicacion } from 'shared/models/types';
+import { Residencia, CampoPersonalizado } from 'shared/schemas/residencia';
+import { Usuario } from 'shared/schemas/usuarios';
 import countriesData from 'shared/data/countries.json';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
@@ -56,7 +58,8 @@ const getNewResidenciaDefaults = (): Partial<Residencia> => ({
     zonaHoraria: 'America/Tegucigalpa',
     direccion: ''
   },
-  camposPersonalizados: [],
+  camposPersonalizadosResidencia: {},
+  camposPersonalizadosPorUsuario: [],
   estadoContrato: 'activo',
 });
 
@@ -86,6 +89,49 @@ function CrearResidenciaAdminPage() {
   const [formLoading, setFormLoading] = useState<boolean>(false);
   const [antelacionError, setAntelacionError] = useState<string | null>(null);
   const [residenciaIdError, setResidenciaIdError] = useState<string | null>(null);
+
+  const [residenciaFields, setResidenciaFields] = useState<{ id: number; key: string; value: string }[]>([]);
+
+  useEffect(() => {
+    // Sync UI state from form state when editing
+    const fields = currentResidencia.camposPersonalizadosResidencia || {};
+    // A simple Object.entries is enough if you don't need a stable ID
+    setResidenciaFields(
+      Object.entries(fields).map(([key, value], index) => ({ id: Date.now() + index, key, value }))
+    );
+  }, [isEditing, currentResidencia.id]); 
+
+  useEffect(() => {
+    // Sync form state from UI state
+    const newCampos = residenciaFields.reduce((acc, field) => {
+      if (field.key) { // Only add fields that have a key
+        acc[field.key] = field.value;
+      }
+      return acc;
+    }, {} as Record<string, string>);
+
+    // Avoid triggering an infinite loop of updates
+    if (JSON.stringify(newCampos) !== JSON.stringify(currentResidencia.camposPersonalizadosResidencia)) {
+        setCurrentResidencia(prev => ({
+          ...prev,
+          camposPersonalizadosResidencia: newCampos
+        }));
+    }
+  }, [residenciaFields]);
+
+  const handleResidenciaFieldChange = (id: number, field: 'key' | 'value', value: string) => {
+    setResidenciaFields(prevFields =>
+      prevFields.map(f => (f.id === id ? { ...f, [field]: value } : f))
+    );
+  };
+
+  const addResidenciaField = () => {
+    setResidenciaFields(prev => [...prev, { id: Date.now(), key: '', value: '' }]);
+  };
+
+  const removeResidenciaField = (id: number) => {
+    setResidenciaFields(prev => prev.filter(f => f.id !== id));
+  };
 
   // Helper for ubicacion change
   const handleUbicacionChange = (field: keyof Ubicacion, value: string) => {
@@ -333,7 +379,8 @@ function CrearResidenciaAdminPage() {
             direccion: currentResidencia.ubicacion!.direccion || currentResidencia.direccion || '', // Sync or fallback
             zonaHoraria: currentResidencia.ubicacion!.zonaHoraria,
         },
-        camposPersonalizados: currentResidencia.camposPersonalizados || [],
+        camposPersonalizadosResidencia: currentResidencia.camposPersonalizadosResidencia || {},
+        camposPersonalizadosPorUsuario: currentResidencia.camposPersonalizadosPorUsuario || [],
         estadoContrato: currentResidencia.estadoContrato || 'activo',
       };
 
@@ -402,9 +449,11 @@ function CrearResidenciaAdminPage() {
     }
   };
 
-  const handleCampoPersonalizadoChange = (index: number, path: string, value: any) => {
+
+
+  const handleCampoPersonalizadoPorUsuarioChange = (index: number, path: string, value: any) => {
     setCurrentResidencia(prev => {
-        const updatedCampos = (prev.camposPersonalizados || []).map((campo, i) => {
+        const updatedCampos = (prev.camposPersonalizadosPorUsuario || []).map((campo, i) => {
             if (i === index) {
                 // Deep copy the field to avoid direct mutation
                 const newCampo = JSON.parse(JSON.stringify(campo));
@@ -418,11 +467,13 @@ function CrearResidenciaAdminPage() {
             }
             return campo;
         });
-        return { ...prev, camposPersonalizados: updatedCampos };
+        return { ...prev, camposPersonalizadosPorUsuario: updatedCampos };
     });
   };
 
-  const addCampoPersonalizado = () => {
+
+
+  const addCampoPersonalizadoPorUsuario = () => {
     const newCampo: CampoPersonalizado = {
       activo: true,
       configuracionVisual: {
@@ -443,16 +494,19 @@ function CrearResidenciaAdminPage() {
     };
     setCurrentResidencia(prev => ({
       ...prev,
-      camposPersonalizados: [...(prev.camposPersonalizados || []), newCampo],
+      camposPersonalizadosPorUsuario: [...(prev.camposPersonalizadosPorUsuario || []), newCampo],
     }));
   };
 
-  const removeCampoPersonalizado = (index: number) => {
+
+
+  const removeCampoPersonalizadoPorUsuario = (index: number) => {
     setCurrentResidencia(prev => ({
       ...prev,
-      camposPersonalizados: (prev.camposPersonalizados || []).filter((_, i) => i !== index),
+      camposPersonalizadosPorUsuario: (prev.camposPersonalizadosPorUsuario || []).filter((_, i) => i !== index),
     }));
   };
+
 
   const handleTipoChange = (field: keyof Residencia['tipo'], value: string) => {
     setCurrentResidencia(prev => ({
@@ -474,6 +528,8 @@ function CrearResidenciaAdminPage() {
       }
     }));
   }, []);
+
+  
 
   // --- Render Logic ---
   if (authFirebaseLoading || (profileLoading && authUser)) {
@@ -716,13 +772,60 @@ function CrearResidenciaAdminPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">{t('gestionResidencias.camposPersonalizados')}</CardTitle>
+                  <CardTitle className="text-lg">{t('gestionResidencias.camposPersonalizadosResidencia')}</CardTitle>
                   <CardDescription>
-                    {t('gestionResidencias.camposPersonalizadosDescripcion')}
+                    {t('gestionResidencias.camposPersonalizadosResidenciaDescripcion')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {(currentResidencia.camposPersonalizados || []).map((campo, index) => {
+                  {residenciaFields.map((field) => (
+                    <div key={field.id} className="flex items-center gap-2">
+                      <Input
+                        placeholder={t('gestionResidencias.nombreCampo')}
+                        value={field.key}
+                        onChange={(e) => handleResidenciaFieldChange(field.id, 'key', e.target.value)}
+                        className="w-1/3"
+                        disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser)}
+                      />
+                      <Input
+                        placeholder={t('gestionResidencias.valorCampo')}
+                        value={field.value}
+                        onChange={(e) => handleResidenciaFieldChange(field.id, 'value', e.target.value)}
+                        className="w-2/3"
+                        disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id )}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeResidenciaField(field.id)}
+                        disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addResidenciaField}
+                    disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser)}
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    {t('gestionResidencias.anadirCampo')}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">{t('gestionResidencias.camposPersonalizadosPorUsuario')}</CardTitle>
+                  <CardDescription>
+                    {t('gestionResidencias.camposPersonalizadosPorUsuarioDescripcion')}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {(currentResidencia.camposPersonalizadosPorUsuario || []).map((campo, index) => {
                     return (
                       <Card key={index} className="p-4">
                         <div className="flex justify-between items-center mb-2">
@@ -730,7 +833,7 @@ function CrearResidenciaAdminPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeCampoPersonalizado(index)}
+                            onClick={() => removeCampoPersonalizadoPorUsuario(index)}
                             disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -741,7 +844,7 @@ function CrearResidenciaAdminPage() {
                             <Checkbox
                               id={`${index}-activo`}
                               checked={campo.activo}
-                              onCheckedChange={(checked) => handleCampoPersonalizadoChange(index, 'activo', !!checked)}
+                              onCheckedChange={(checked) => handleCampoPersonalizadoPorUsuarioChange(index, 'activo', !!checked)}
                               disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                             />
                             <Label htmlFor={`${index}-activo`}>{t('gestionResidencias.activo')}</Label>
@@ -753,7 +856,7 @@ function CrearResidenciaAdminPage() {
                                 <Input
                                   id={`${index}-etiqueta`}
                                   value={campo.configuracionVisual.etiqueta || ''}
-                                  onChange={(e) => handleCampoPersonalizadoChange(index, 'configuracionVisual.etiqueta', e.target.value)}
+                                  onChange={(e) => handleCampoPersonalizadoPorUsuarioChange(index, 'configuracionVisual.etiqueta', e.target.value)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
                               </div>
@@ -761,7 +864,7 @@ function CrearResidenciaAdminPage() {
                                 <Checkbox
                                   id={`${index}-esObligatorio`}
                                   checked={campo.validacion.esObligatorio || false}
-                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(index, 'validacion.esObligatorio', !!checked)}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoPorUsuarioChange(index, 'validacion.esObligatorio', !!checked)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
                                 <Label htmlFor={`${index}-esObligatorio`}>{t('gestionResidencias.esObligatorio')}</Label>
@@ -770,7 +873,7 @@ function CrearResidenciaAdminPage() {
                                 <Checkbox
                                   id={`${index}-necesitaValidacion`}
                                   checked={campo.validacion.necesitaValidacion || false}
-                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(index, 'validacion.necesitaValidacion', !!checked)}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoPorUsuarioChange(index, 'validacion.necesitaValidacion', !!checked)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
                                 <Label htmlFor={`${index}-necesitaValidacion`}>{t('gestionResidencias.necesitaValidacion')}</Label>
@@ -781,7 +884,7 @@ function CrearResidenciaAdminPage() {
                                   <Input
                                     id={`${index}-regex`}
                                     value={campo.validacion.regex || ''}
-                                    onChange={(e) => handleCampoPersonalizadoChange(index, 'validacion.regex', e.target.value)}
+                                    onChange={(e) => handleCampoPersonalizadoPorUsuarioChange(index, 'validacion.regex', e.target.value)}
                                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                   />
                                 </div>
@@ -790,7 +893,7 @@ function CrearResidenciaAdminPage() {
                                 <Label htmlFor={`${index}-tipoControl`}>{t('gestionResidencias.tipoControl')}</Label>
                                 <Select
                                   value={campo.configuracionVisual.tipoControl || 'text'}
-                                  onValueChange={(value) => handleCampoPersonalizadoChange(index, 'configuracionVisual.tipoControl', value)}
+                                  onValueChange={(value) => handleCampoPersonalizadoPorUsuarioChange(index, 'configuracionVisual.tipoControl', value)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 >
                                   <SelectTrigger id={`${index}-tipoControl`}>
@@ -806,7 +909,7 @@ function CrearResidenciaAdminPage() {
                                 <Checkbox
                                   id={`${index}-modificablePorDirector`}
                                   checked={campo.permisos.modificablePorDirector || false}
-                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(index, 'permisos.modificablePorDirector', !!checked)}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoPorUsuarioChange(index, 'permisos.modificablePorDirector', !!checked)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
                                 <Label htmlFor={`${index}-modificablePorDirector`}>{t('gestionResidencias.modificablePorDirector')}</Label>
@@ -815,7 +918,7 @@ function CrearResidenciaAdminPage() {
                                 <Checkbox
                                   id={`${index}-modificablePorInteresado`}
                                   checked={campo.permisos.modificablePorInteresado || false}
-                                  onCheckedChange={(checked) => handleCampoPersonalizadoChange(index, 'permisos.modificablePorInteresado', !!checked)}
+                                  onCheckedChange={(checked) => handleCampoPersonalizadoPorUsuarioChange(index, 'permisos.modificablePorInteresado', !!checked)}
                                   disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                                 />
                                 <Label htmlFor={`${index}-modificablePorInteresado`}>{t('gestionResidencias.modificablePorInteresado')}</Label>
@@ -829,7 +932,7 @@ function CrearResidenciaAdminPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={addCampoPersonalizado}
+                    onClick={addCampoPersonalizadoPorUsuario}
                     disabled={formLoading || (!isMasterUser && isEditing && !isAdminUser && userProfile?.residenciaId !== currentResidencia.id)}
                   >
                     <PlusCircle className="mr-2 h-4 w-4" />
@@ -837,6 +940,7 @@ function CrearResidenciaAdminPage() {
                   </Button>
                 </CardContent>
               </Card>
+
             </CardContent>
             <CardFooter className="flex justify-end space-x-2">
               <Button type="button" variant="outline" onClick={handleCancelForm} disabled={formLoading}>{t('gestionResidencias.cancelar')}</Button>

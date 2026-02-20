@@ -1,7 +1,21 @@
 import { z } from 'zod';
 
 // IDs de Firestore (no vacíos)
-export const FirebaseIdSchema = z.string().min(1, "ID inválido");
+export const FirestoreIdSchema = z.string()
+    .min(1, "ID inválido")
+    .max(50, "ID no puede tener más de 50 caracteres")
+    .refine(val => !val.includes('/'), {
+        message: "ID no puede contener una barra inclinada (/)",
+    })
+    .refine(val => val !== '.', {
+        message: "ID no puede ser un punto simple (.)",
+    })
+    .refine(val => val !== '..', {
+        message: "ID no puede ser puntos dobles (..)",
+    })
+    .refine(val => !(val.startsWith('__') && val.endsWith('__')), {
+        message: "ID no puede empezar y terminar con guiones bajos dobles, ya que está reservado para el sistema.",
+    });
 
 export const CadenaOpcionalLimitada = (min: number = 1, max?: number) => {
     // 1. Definimos la regla base para el string (cuando SÍ hay valor)
@@ -30,19 +44,3 @@ export const TelefonoOpcionalSchema = z.string()
         }, { message: "El número de teléfono debe tener entre 7 y 15 dígitos." })
         .optional()
     );
-
-/**
- * FirestoreTimestampSchema: Valida un timestamp de Firestore
- * Puede ser:
- * - Un objeto con estructura { seconds: number; nanoseconds: number }
- * - Un número (milisegundos desde época)
- * - Cualquier otro tipo (para compatibilidad con datos existentes)
- */
-export const FirestoreTimestampSchema = z.union([
-    z.object({
-        seconds: z.number(),
-        nanoseconds: z.number(),
-    }),
-    z.number(),
-    z.any(), // Fallback para compatibilidad
-]).describe("Firestore Timestamp - puede ser { seconds, nanoseconds } o número en ms");

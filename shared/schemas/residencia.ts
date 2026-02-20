@@ -1,9 +1,8 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
+import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
 import { UbicacionSchema, FechaHoraIsoSchema, TimestampStringSchema } from './fechas';
-import { ComedorDataSchema, HorarioSolicitudDataSchema, GrupoUsuariosDataSchema, DietaDataSchema } from './comedor';
-import { TiempoComidaSchema } from './tiempoComida';
-import { DefinicionAlternativaSchema, ConfiguracionAlternativaSchema } from './alternativasTiempoComida';
+import { ComedorDataSchema, GrupoUsuariosDataSchema, DietaDataSchema } from './complemento1';
+import { HorarioSolicitudDataSchema, TiempoComidaSchema, DefinicionAlternativaSchema, ConfiguracionAlternativaSchema } from './horarios';
 
 // ============================================
 // CampoPersonalizado (nueva estructura)
@@ -14,7 +13,7 @@ export const CampoPersonalizadoSchema = z.object({
     configuracionVisual: z.object({
         etiqueta: z.string().min(1).max(50),
         tipoControl: z.enum(['text', 'textArea']),
-        placeholder: z.string().max(1).optional(),
+        placeholder: z.string().min(1).optional(),
     }).strict(),
     validacion: z.object({
         esObligatorio: z.boolean(),
@@ -36,7 +35,7 @@ export const CampoPersonalizadoSchema = z.object({
  * Esquema base para Residencia (lectura)
  */
 export const residenciaSchema = z.object({
-    id: FirebaseIdSchema,
+    id: FirestoreIdSchema,
     nombre: z.string().min(1).max(80),
     direccion: CadenaOpcionalLimitada(1, 255).optional(),
     logoUrl: z.string().url().optional(),
@@ -47,7 +46,8 @@ export const residenciaSchema = z.object({
     }).strict(),
     ubicacion: UbicacionSchema,
 
-    camposPersonalizados: z.array(CampoPersonalizadoSchema).optional(),
+    camposPersonalizadosResidencia: z.record(z.string()).optional(),
+    camposPersonalizadosPorUsuario: z.array(CampoPersonalizadoSchema).optional(),
 
     estadoContrato: z.enum(['activo', 'prueba', 'inactivo']),
 }).strict();
@@ -66,7 +66,8 @@ export const createResidenciaSchema = z.object({
     }).strict(),
     ubicacion: UbicacionSchema,
 
-    camposPersonalizados: z.array(CampoPersonalizadoSchema).optional(),
+    camposPersonalizadosResidencia: z.record(z.string()).optional(),
+    camposPersonalizadosPorUsuario: z.array(CampoPersonalizadoSchema).optional(),
 
     estadoContrato: z.enum(['activo', 'prueba', 'inactivo']),
 }).strict();
@@ -85,7 +86,8 @@ export const updateResidenciaSchema = z.object({
     }).strict().optional(),
     ubicacion: UbicacionSchema.optional(),
 
-    camposPersonalizados: z.array(CampoPersonalizadoSchema).optional(),
+    camposPersonalizadosResidencia: z.record(z.string()).optional(),
+    camposPersonalizadosPorUsuario: z.array(CampoPersonalizadoSchema).optional(),
 
     estadoContrato: z.enum(['activo', 'prueba', 'inactivo']).optional(),
 }).strict();
@@ -101,7 +103,7 @@ export const updateResidenciaSchema = z.object({
  */
 export const ConfiguracionResidenciaSchema = z.object({
     // Metadata
-    residenciaId: FirebaseIdSchema,
+    residenciaId: FirestoreIdSchema,
     nombreCompleto: z.string().min(1).max(200),
 
     // Muro móvil
@@ -109,14 +111,14 @@ export const ConfiguracionResidenciaSchema = z.object({
     timestampUltimaSolicitud: TimestampStringSchema,
 
     // Datos Embebidos (Embed Pattern)
-    horariosSolicitud: z.record(FirebaseIdSchema, HorarioSolicitudDataSchema),
-    comedores: z.record(FirebaseIdSchema, ComedorDataSchema),
-    gruposUsuarios: z.record(FirebaseIdSchema, GrupoUsuariosDataSchema),
-    dietas: z.record(FirebaseIdSchema, DietaDataSchema),
+    horariosSolicitud: z.record(FirestoreIdSchema, HorarioSolicitudDataSchema),
+    comedores: z.record(FirestoreIdSchema, ComedorDataSchema),
+    gruposUsuarios: z.record(FirestoreIdSchema, GrupoUsuariosDataSchema),
+    dietas: z.record(FirestoreIdSchema, DietaDataSchema),
     gruposComidas: z.array(z.string()),
-    esquemaSemanal: z.record(FirebaseIdSchema, TiempoComidaSchema),
-    catalogoAlternativas: z.record(FirebaseIdSchema, DefinicionAlternativaSchema),
-    configuracionAlternativas: z.record(FirebaseIdSchema, ConfiguracionAlternativaSchema),
+    esquemaSemanal: z.record(FirestoreIdSchema, TiempoComidaSchema),
+    catalogoAlternativas: z.record(FirestoreIdSchema, DefinicionAlternativaSchema),
+    configuracionAlternativas: z.record(FirestoreIdSchema, ConfiguracionAlternativaSchema),
 }).strict();
 
 // ============================================
@@ -124,20 +126,20 @@ export const ConfiguracionResidenciaSchema = z.object({
 // ============================================
 
 export const CentroDeCostoDataSchema = z.object({
-    codigo: FirebaseIdSchema,
+    codigo: FirestoreIdSchema,
     nombre: z.string().min(1).max(100),
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
     estaActivo: z.boolean(),
 }).strict();
 
 export const ConfigContabilidadSchema = z.object({
-    residenciaId: FirebaseIdSchema,
+    residenciaId: FirestoreIdSchema,
     nombreEtiquetaCentroCosto: CadenaOpcionalLimitada(1, 100).optional(),
     modeloClasificacion: z.enum(['por-usuario', 'por-grupo-usuario', 'por-comedor', 'detallada']).optional(),
     valorizacionComensales: z.boolean(),
     modoCosteo: z.enum(['general', 'por-grupo-tiempo-comida', 'por-tiempo-comida', 'detallado']).optional(),
     costoDiferenciadoDietas: z.boolean(),
-    centrosDeCosto: z.record(FirebaseIdSchema, CentroDeCostoDataSchema),
+    centrosDeCosto: z.record(FirestoreIdSchema, CentroDeCostoDataSchema),
 }).strict();
 
 // ============================================

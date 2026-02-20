@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
-import { FechaIsoSchema, FechaHoraIsoSchema, HoraIsoSchema, TimestampStringSchema, DiaDeLaSemanaSchema, ColorHTMLSchema } from './fechas';
+import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
+import { FechaIsoSchema, FechaHoraIsoSchema, TimestampStringSchema, DiaDeLaSemanaSchema, ColorHTMLSchema } from './fechas';
 
 // ============================================
 // Enums compartidos
@@ -22,9 +22,9 @@ export const EstadoAvisoAdministracionSchema = z.enum([
  * Ruta: residencias/{slug}/comentarios/{auto-id}
  */
 export const ComentarioSchema = z.object({
-    id: FirebaseIdSchema,
-    residenciaId: FirebaseIdSchema,
-    autorId: FirebaseIdSchema,
+    id: FirestoreIdSchema,
+    residenciaId: FirestoreIdSchema,
+    autorId: FirestoreIdSchema,
     timestampCreacion: TimestampStringSchema,
 
     texto: CadenaOpcionalLimitada(1, 500),
@@ -47,10 +47,10 @@ export const ComentarioSchema = z.object({
  * Ruta: usuarios/{uid}/faltas/{auto-id}
  */
 export const FaltaSchema = z.object({
-    id: FirebaseIdSchema,
+    id: FirestoreIdSchema,
     fecha: FechaIsoSchema,
-    residencia: FirebaseIdSchema,
-    usuario: FirebaseIdSchema,
+    residencia: FirestoreIdSchema,
+    usuario: FirestoreIdSchema,
     titulo: CadenaOpcionalLimitada(1, 100),
     descripcion: CadenaOpcionalLimitada(1, 500).optional(),
     notificada: z.boolean(),
@@ -73,9 +73,9 @@ const RecurrenciaRecordatorioSchema = z.object({
  * Ruta: residencias/{slug}/recordatorios/{auto-id}
  */
 export const RecordatorioSchema = z.object({
-    id: FirebaseIdSchema,
-    residenciaId: FirebaseIdSchema,
-    usuarioIniciadorId: FirebaseIdSchema,
+    id: FirestoreIdSchema,
+    residenciaId: FirestoreIdSchema,
+    usuarioIniciadorId: FirestoreIdSchema,
 
     fecha: FechaIsoSchema,
     duracion: z.number().int().positive(),
@@ -98,13 +98,13 @@ export const RecordatorioSchema = z.object({
  * Ruta: residencias/{slug}/atenciones/{auto-id}
  */
 export const AtencionSchema = z.object({
-    id: FirebaseIdSchema,
-    residenciaId: FirebaseIdSchema,
-    usuarioId: FirebaseIdSchema,
+    id: FirestoreIdSchema,
+    residenciaId: FirestoreIdSchema,
+    usuarioId: FirestoreIdSchema,
     nombre: z.string().min(1).max(100),
     comentarios: CadenaOpcionalLimitada(1, 500).optional(),
     timestampCreacion: TimestampStringSchema,
-    horarioSolicitudComidaId: FirebaseIdSchema,
+    horarioSolicitudComidaId: FirestoreIdSchema,
     fechaSolicitudComida: FechaIsoSchema,
     fechaHoraAtencion: FechaHoraIsoSchema,
     estado: z.enum(['pendiente', 'aprobada', 'cancelada']),
@@ -112,7 +112,7 @@ export const AtencionSchema = z.object({
         'no_comunicado', 'comunicacion_preliminar',
         'comunicacion_final', 'atencion_cancelada',
     ]),
-    centroCostoId: FirebaseIdSchema.optional(),
+    centroCostoId: FirestoreIdSchema.optional(),
 }).strict();
 
 // ============================================
@@ -121,7 +121,7 @@ export const AtencionSchema = z.object({
 
 const DetalleAlteracionSchema = z.object({
     tiempoComida: z.any(), // TiempoComida (referencia al objeto completo)
-    alternativas: z.array(FirebaseIdSchema), // ConfigAlternativaId[]
+    alternativas: z.array(FirestoreIdSchema), // ConfigAlternativaId[]
 }).strict();
 
 /**
@@ -130,13 +130,13 @@ const DetalleAlteracionSchema = z.object({
  * Ruta: residencias/{slug}/alteraciones/{auto-id}
  */
 export const AlteracionHorarioSchema = z.object({
-    id: FirebaseIdSchema,
+    id: FirestoreIdSchema,
     nombre: z.string().min(1).max(100),
-    residenciaId: FirebaseIdSchema,
+    residenciaId: FirestoreIdSchema,
     descripcion: CadenaOpcionalLimitada(1, 500).optional(),
     fechaInicio: FechaIsoSchema,
     fechaFin: FechaIsoSchema,
-    alteraciones: z.record(FirebaseIdSchema, DetalleAlteracionSchema),
+    alteraciones: z.record(FirestoreIdSchema, DetalleAlteracionSchema),
     estado: z.enum(['propuesta', 'aprobada', 'cancelada']),
     avisoAdministracion: EstadoAvisoAdministracionSchema,
 }).strict().refine(data => data.fechaFin >= data.fechaInicio, {

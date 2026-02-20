@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
+import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
 import { FechaIsoSchema, HoraIsoSchema, TimestampStringSchema } from './fechas';
 
 // ============================================
@@ -43,7 +43,7 @@ export const ModoAccesoSchema = z.object({
  * DetalleActividad: Una comida planificada dentro de una actividad.
  */
 export const DetalleActividadSchema = z.object({
-    id: FirebaseIdSchema,
+    id: FirestoreIdSchema,
     fechaComida: FechaIsoSchema,
     grupoComida: z.number().int().nonnegative(),
     nombreTiempoComida: z.string().min(1).max(100),
@@ -62,9 +62,9 @@ export const DetalleActividadSchema = z.object({
  */
 const ActividadBaseSchema = z.object({
     // Campos generales
-    id: FirebaseIdSchema,
-    residenciaId: FirebaseIdSchema,
-    organizadorId: FirebaseIdSchema,
+    id: FirestoreIdSchema,
+    residenciaId: FirestoreIdSchema,
+    organizadorId: FirestoreIdSchema,
     nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(25, 'El nombre no puede exceder los 25 caracteres'),
     descripcion: z.string().trim().max(255, 'La descripción no puede exceder los 255 caracteres').optional(),
     estado: EstadoActividadEnum,
@@ -74,10 +74,10 @@ const ActividadBaseSchema = z.object({
     // Campos de cálculo de comidas
     fechaInicio: FechaIsoSchema,
     fechaFin: FechaIsoSchema,
-    tiempoComidaInicial: FirebaseIdSchema,
-    tiempoComidaFinal: FirebaseIdSchema,
+    tiempoComidaInicial: FirestoreIdSchema,
+    tiempoComidaFinal: FirestoreIdSchema,
     planComidas: z.array(DetalleActividadSchema),
-    comedorActividad: FirebaseIdSchema.nullable().optional(),
+    comedorActividad: FirestoreIdSchema.nullable().optional(),
     modoAtencionActividad: z.enum(['residencia', 'externa']),
     diasAntelacionSolicitudAdministracion: z.number().int().nonnegative(),
 
@@ -90,7 +90,7 @@ const ActividadBaseSchema = z.object({
     modoAccesoInvitados: ModoAccesoSchema.optional(),
 
     // Campos de costo
-    centroCostoId: FirebaseIdSchema.nullable().optional(),
+    centroCostoId: FirestoreIdSchema.nullable().optional(),
 }).strict();
 
 // --- Create Schema ---
@@ -174,11 +174,11 @@ export const ActividadSchema = ActividadBaseSchema;
  * Ruta: residencias/{slug}/actividades/{auto-id}/inscripciones/{uid}
  */
 export const InscripcionActividadSchema = z.object({
-    id: FirebaseIdSchema,
-    residenciaId: FirebaseIdSchema,
-    actividadId: FirebaseIdSchema,
-    usuarioInscritoId: FirebaseIdSchema,
-    invitadoPorUsuarioId: FirebaseIdSchema.optional(),
+    id: FirestoreIdSchema,
+    residenciaId: FirestoreIdSchema,
+    actividadId: FirestoreIdSchema,
+    usuarioInscritoId: FirestoreIdSchema,
+    invitadoPorUsuarioId: FirestoreIdSchema.optional(),
 
     fechaInvitacion: FechaIsoSchema.nullable(),
     estadoInscripcion: EstadoInscripcionActividadEnum,

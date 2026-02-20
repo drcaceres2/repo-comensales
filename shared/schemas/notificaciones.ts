@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirebaseIdSchema } from './common';
+import { FirestoreIdSchema } from './common';
 import { HoraIsoSchema, TimestampStringSchema } from './fechas';
 
 // ============================================
@@ -11,16 +11,16 @@ export const NotificacionPrioridadSchema = z.enum(['baja', 'media', 'alta']);
 
 export const NotificacionRelacionadaSchema = z.object({
     coleccion: z.enum(['excepcion', 'actividad', 'ausencia', 'mealCount']),
-    documentoId: FirebaseIdSchema,
+    documentoId: FirestoreIdSchema,
 }).strict();
 
 /**
  * Notificacion: Sistema de notificaciones multi-canal.
  */
 export const NotificacionSchema = z.object({
-    id: FirebaseIdSchema,
-    residenciaId: FirebaseIdSchema,
-    usuarioId: FirebaseIdSchema,
+    id: FirestoreIdSchema,
+    residenciaId: FirestoreIdSchema,
+    usuarioId: FirestoreIdSchema,
     tipo: NotificacionTipoSchema,
     prioridad: NotificacionPrioridadSchema,
     titulo: z.string(),

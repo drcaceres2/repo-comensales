@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
+import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
 import { HoraIsoSchema, DiaDeLaSemanaSchema } from './fechas';
 
 // ============================================
@@ -15,23 +15,7 @@ export const ComedorDataSchema = z.object({
     nombre: z.string().min(1, "El nombre es obligatorio").max(50),
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
     aforoMaximo: z.number().int().positive("El aforo debe ser positivo").optional(),
-    centroCostoId: FirebaseIdSchema.optional(),
-}).strict();
-
-// ============================================
-// HorarioSolicitudData (Embebido en ConfiguracionResidencia)
-// ============================================
-
-/**
- * HorarioSolicitudData: Datos de un horario de solicitud de comida.
- * Embebido como Record<HorarioSolicitudComidaId, HorarioSolicitudData>.
- */
-export const HorarioSolicitudDataSchema = z.object({
-    nombre: z.string().min(1).max(50),
-    dia: DiaDeLaSemanaSchema,
-    horaSolicitud: HoraIsoSchema,
-    esPrimario: z.boolean(),
-    estaActivo: z.boolean(),
+    centroCostoId: FirestoreIdSchema.optional(),
 }).strict();
 
 // ============================================
@@ -46,7 +30,7 @@ const GestionComidaSchema = z.object({
     horarioConfirmacionDiaria: HoraIsoSchema.optional(),
     restriccionAlternativas: z.boolean(),
     alternativasRestringidas: z.record(
-        FirebaseIdSchema,
+        FirestoreIdSchema,
         z.enum(['no_permitida', 'requiere_aprobacion'])
     ),
     localizacionObligatoria: z.boolean(),
@@ -61,13 +45,30 @@ export const GrupoUsuariosDataSchema = z.object({
     etiqueta: z.string().min(1).max(50),
     tipoGrupo: z.enum(['gestion-comidas', 'centro-de-costo', 'presentacion-reportes']),
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
-    centroCostoId: FirebaseIdSchema.optional(),
+    centroCostoId: FirestoreIdSchema.optional(),
     gestionComida: GestionComidaSchema.optional(),
 }).strict();
 
 // ============================================
 // DietaData (Embebido en ConfiguracionResidencia)
 // ============================================
+
+const DescripcionSimple = z.object({
+  tipo: z.literal('texto_corto'),
+  descripcion: z.string().max(200),
+});
+
+const DescripcionDetallada = z.object({
+  tipo: z.literal('texto_enriquecido'),
+  titulo: z.string().max(200),
+  contenidoMarkdown: z.string().min(10).max(15000, "El documento es demasiado largo para el sistema.")
+});
+
+const DescripcionPorEnlace = z.object({
+  tipo: z.literal('enlace_externo'),
+  urlDocumento: z.string().url(),
+  notas: z.string().optional(),
+});
 
 /**
  * DietaData: Datos de una dieta.
@@ -76,7 +77,11 @@ export const GrupoUsuariosDataSchema = z.object({
 export const DietaDataSchema = z.object({
     nombre: z.string().min(1).max(255),
     identificadorAdministracion: z.string().min(1).max(100),
-    descripcion: CadenaOpcionalLimitada(1, 255).optional(),
+    descripcion: z.discriminatedUnion('tipo', [
+        DescripcionSimple,
+        DescripcionDetallada,
+        DescripcionPorEnlace
+    ]),
     esPredeterminada: z.boolean(),
     estado: z.enum([
         'solicitada_por_residente', 'no_aprobada_director',
@@ -91,6 +96,5 @@ export const DietaDataSchema = z.object({
 
 // Type exports
 export type ComedorData = z.infer<typeof ComedorDataSchema>;
-export type HorarioSolicitudData = z.infer<typeof HorarioSolicitudDataSchema>;
 export type GrupoUsuariosData = z.infer<typeof GrupoUsuariosDataSchema>;
 export type DietaData = z.infer<typeof DietaDataSchema>;

@@ -1,0 +1,29 @@
+{
+    "title": "Gestión de $t(glosario:comedor.entidades)",
+    "add_comedor": "Añadir $t(glosario:comedor.entidad)",
+    "edit_comedor": "Modificar $t(glosario:comedor.entidad)",
+    "delete_comedor": "Eliminar $t(glosario:comedor.entidad)",
+    "confirm_delete": "¿Estás seguro de que deseas eliminar este $t(glosario:comedor.entidad)?",
+    "delete_warning": "Esta acción no se puede deshacer.",
+    "last_comedor_error": "No es posible eliminar todos los $t(glosario:comedor.entidades). Siempre debe quedar al menos uno.",
+    "form": {
+        "nombre": "Nombre del $t(glosario:comedor.entidad)",
+        "descripcion": "Descripción",
+        "aforo": "Aforo Máximo",
+        "centro_costo": "Centro de Costo",
+        "submit_add": "Añadir",
+        "submit_edit": "Guardar Cambios",
+        "cancel": "Cancelar"
+    },
+    "placeholders": {
+        "nombre": "Ej: $t(glosario:comedor.entidad) Principal",
+        "descripcion": "Opcional...",
+        "aforo": "Ej: 100"
+    },
+    "messages": {
+        "success_add": "$t(glosario:comedor.entidad) añadido correctamente.",
+        "success_edit": "$t(glosario:comedor.entidad) actualizado correctamente.",
+        "success_delete": "$t(glosario:comedor.entidad) eliminado correctamente.",
+        "error_generic": "Ha ocurrido un error inesperado."
+    }
+}

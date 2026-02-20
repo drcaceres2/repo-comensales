@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirebaseIdSchema } from './common';
+import { FirestoreIdSchema } from './common';
 import { FechaIsoSchema, DiaDeLaSemanaSchema, TimestampStringSchema } from './fechas';
 
 // ============================================
@@ -21,8 +21,8 @@ import { FechaIsoSchema, DiaDeLaSemanaSchema, TimestampStringSchema } from './fe
  * }
  */
 export const SemanarioUsuarioSchema = z.object({
-    id: FirebaseIdSchema,
-    residenciaId: FirebaseIdSchema,
+    id: FirestoreIdSchema,
+    residenciaId: FirestoreIdSchema,
 
     timestampCreacion: TimestampStringSchema,
 
@@ -32,7 +32,7 @@ export const SemanarioUsuarioSchema = z.object({
     // La plantilla: Día -> TiempoComidaId -> ConfigAlternativaId
     elecciones: z.record(
         DiaDeLaSemanaSchema,
-        z.record(FirebaseIdSchema, FirebaseIdSchema)
+        z.record(FirestoreIdSchema, FirestoreIdSchema)
     ),
 
     // UX: Recordatorio de cambio
@@ -56,7 +56,7 @@ export const updateSemanarioUsuarioSchema = z.object({
     fechaDesde: FechaIsoSchema.optional(),
     elecciones: z.record(
         DiaDeLaSemanaSchema,
-        z.record(FirebaseIdSchema, FirebaseIdSchema)
+        z.record(FirestoreIdSchema, FirestoreIdSchema)
     ).optional(),
     recordatorioCambio: z.object({
         fechaNotificacion: FechaIsoSchema,

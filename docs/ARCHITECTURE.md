@@ -1,7 +1,7 @@
 # ARCHITECTURE.md
 
 **Proyecto:** Comensales Residencia (Web App)
-**Versión del Documento:** 5.0 (Consolidado)
+**Versión del Documento:** 6.0 (Consolidado)
 **Rol:** Arquitectura de Software & Estrategia
 
 ---
@@ -232,7 +232,7 @@ Prioridad en **Bajo Costo Operativo** (Non-profit) y **Eficiencia de Lecturas**.
 
 Los esquemas Zod (ubicados en `@/shared/schemas`) actúan como la **Fuente de la Verdad** (Single Source of Truth) para la integridad de datos.
 * **Contrato:** Ningún dato entra o sale del sistema sin pasar por un esquema Zod.
-* **Dualidad:** En el Cliente, sirven para feedback inmediato (UX). En el Servidor (Server Actions/Functions), actúan como barrera de seguridad obligatoria antes de tocar la base de datos.
+* **Dualidad:** En el Cliente, se usa React Hook Form junto con ZOD para mejor desempeño y validación con feedback inmediato (UX). En el Servidor (Server Actions/Functions), se usan los mismos esquemas ZOD como barrera de seguridad obligatoria antes de tocar la base de datos.
 
 ### 5.2 Patrón DTO y Serialización (Zod Transform)
 

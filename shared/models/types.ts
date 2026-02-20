@@ -1,3 +1,4 @@
+import type { ComedorData } from 'shared/schemas/complemento1';
 export type TimestampString = string; // ISO 8601 (ejemplo "2023-10-25T14:00:00.000Z"
 
 // Tipos para ubicaciones, zonas horarias, fechas y horas
@@ -41,111 +42,14 @@ export interface OpcionZonaHoraria {
 export type ColorHTML = string; // Formato #RRGGBB
 
 // --- Usuarios  ---
-export interface Usuario {  
-    // Información interna de aplicación
-    id: UsuarioId; // ID viene de Firebase Auth
-    residenciaId?: ResidenciaId | null; // Solo usuario tipo = 'master' no tiene residencia
-    roles: RolUsuario[];
-    email: string;
-    tieneAutenticacion: boolean;
-    timestampCreacion: TimestampString;
-    timestampActualizacion: TimestampString;
-    timestampUltimoIngreso?: TimestampString | null;
-    estaActivo: boolean;
-    centroCostoPorDefectoId?: CentroDeCostoId | null;
-    notificacionPreferencias?: NotificacionPreferencias | null; 
- 
-    // Información personal
-    nombre: string;
-    apellido: string;
-    nombreCorto: string;
-    identificacion?: string;
-    telefonoMovil?: string;
-    fechaDeNacimiento?: FechaIso | null;
-    fotoPerfil?: string | null;
-    universidad?: string;
-    carrera?: string;
-
-    // Información funcional
-    grupos: GrupoUsuariosId[];
-    puedeTraerInvitados: 'no' | 'requiere_autorizacion' | 'si' | null;
-    camposPersonalizados?: { [key: string]: string };
-
-    // Información opcoinal solo para el rol asistente
-    asistente? : {
-        usuariosAsistidos: Record<UsuarioId, AsistentePermisosDetalle>;
-        gestionActividades: AsistentePermisosDetalle;
-        gestionInvitados: AsistentePermisosDetalle;
-        gestionRecordatorios: AsistentePermisosDetalle;
-        gestionDietas: AsistentePermisosDetalle;
-        gestionAtenciones: AsistentePermisosDetalle;
-        gestionAsistentes: AsistentePermisosDetalle;
-        gestionGrupos: AsistentePermisosDetalle;
-        solicitarComensales: AsistentePermisosDetalle;        
-    }
-
-    // Información opcoinal solo para el rol residente
-    residente? : {
-        dietaId: DietaId;
-        numeroDeRopa: string; 
-        habitacion: string; 
-        avisoAdministracion: 'convivente' | 'no_comunicado' | 'comunicado';
-    }
-}
 export type UsuarioId = string;
 export type RolUsuario = 
     'master' | 'admin' | 'director' | 
     'residente' | 'invitado' | 
     'asistente' | 'contador';
-export interface AsistentePermisosDetalle {
-    nivelAcceso: 
-        'Todas' | 'Propias' | 'Ninguna'; // Todas implica acceso total. 
-                // Propias solo las que el asistente haya creado 
-                // (no podría modificar lo creado por otro)
-    restriccionTiempo: boolean;
-    fechaInicio?: FechaIso | null;
-    fechaFin?: FechaIso | null;
-}
-
 
 // --- Residencias y propiedades esenciales ---
-export interface Residencia {
-    id: ResidenciaId; // slug escogido desde la UI por el usuario master que crea la residencia
-    nombre: string;
-    direccion?: string;
-    logoUrl?: string;
-    locale?: string;
-    tipo: {
-        tipoResidentes: 'estudiantes' | 'profesionales' | 'gente_mayor' | 'otro';
-        modalidadResidencia: 'hombres' | 'mujeres';
-    }
-    ubicacion: Ubicacion;
-
-    /*  Definición de campos personalizados por cada residencia, 
-        con valores para cada usuario (UserProfile) */
-    camposPersonalizados?: CampoPersonalizado[];
-
-    estadoContrato: 'activo' | 'prueba' | 'inactivo';
-}
 export type ResidenciaId = string;
-export interface CampoPersonalizado {
-    activo: boolean;
-    configuracionVisual: {
-        etiqueta: string;
-        tipoControl: 'text' | 'textArea';
-        placeholder?: string;
-    }
-    validacion: {
-        esObligatorio: boolean;
-        necesitaValidacion: boolean;
-        regex?: string;
-        mensajeError?: string;
-    }
-    permisos: {
-        modificablePorDirector: boolean;
-        modificablePorInteresado: boolean;
-    }
-}
 
 /**
  * Colección: configuracionResidencia (Singleton por residencia)
@@ -183,12 +87,6 @@ export interface HorarioSolicitudData {
     estaActivo: boolean;
 }
 export type HorarioSolicitudComidaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
-export interface ComedorData {
-    nombre: string;
-    descripcion?: string;
-    aforoMaximo?: number;
-    centroCostoId?: CentroDeCostoId;
-}
 export type ComedorId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export interface GrupoUsuariosData {
     nombre: string;
@@ -211,7 +109,10 @@ export type GrupoUsuariosId = string; // ID semántico: slug estilo kebab a part
 export interface DietaData {
     nombre: string;
     identificadorAdministracion: string;
-    descripcion?: string;
+    descripcion: 
+        | { tipo: 'texto_corto'; descripcion: string }
+        | { tipo: 'texto_enriquecido'; titulo: string; contenidoMarkdown: string }
+        | { tipo: 'enlace_externo'; urlDocumento: string; notas?: string };
     esPredeterminada: boolean;
     estado: 'solicitada_por_residente' | 'no_aprobada_director' | 
         'aprobada_director' | 'cancelada';

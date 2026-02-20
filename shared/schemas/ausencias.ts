@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirebaseIdSchema, CadenaOpcionalLimitada } from './common';
+import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
 import { FechaIsoSchema, TimestampStringSchema } from './fechas';
 
 // ============================================
@@ -13,13 +13,13 @@ import { FechaIsoSchema, TimestampStringSchema } from './fechas';
  * Ruta: usuarios/{uid}/ausencias/{fechaInicio}
  */
 export const AusenciaSchema = z.object({
-    id: FirebaseIdSchema.optional(),
-    usuarioId: FirebaseIdSchema,
-    residenciaId: FirebaseIdSchema,
+    id: FirestoreIdSchema.optional(),
+    usuarioId: FirestoreIdSchema,
+    residenciaId: FirestoreIdSchema,
     fechaInicio: FechaIsoSchema,
-    primerTiempoAusente: FirebaseIdSchema.nullable().optional(), // TiempoComidaId
+    primerTiempoAusente: FirestoreIdSchema.nullable().optional(), // TiempoComidaId
     fechaFin: FechaIsoSchema,
-    ultimoTiempoAusente: FirebaseIdSchema.nullable().optional(), // TiempoComidaId
+    ultimoTiempoAusente: FirestoreIdSchema.nullable().optional(), // TiempoComidaId
     retornoPendienteConfirmacion: z.boolean().optional(),
     timestampCreacion: TimestampStringSchema,
     motivo: CadenaOpcionalLimitada(3, 100).optional(),
@@ -30,12 +30,12 @@ export const AusenciaSchema = z.object({
 
 // Schema para CREATE Ausencia
 export const createAusenciaSchema = z.object({
-    usuarioId: FirebaseIdSchema,
-    residenciaId: FirebaseIdSchema,
+    usuarioId: FirestoreIdSchema,
+    residenciaId: FirestoreIdSchema,
     fechaInicio: FechaIsoSchema,
-    primerTiempoAusente: FirebaseIdSchema.nullable().optional(),
+    primerTiempoAusente: FirestoreIdSchema.nullable().optional(),
     fechaFin: FechaIsoSchema,
-    ultimoTiempoAusente: FirebaseIdSchema.nullable().optional(),
+    ultimoTiempoAusente: FirestoreIdSchema.nullable().optional(),
     retornoPendienteConfirmacion: z.boolean().optional(),
     motivo: CadenaOpcionalLimitada(3, 100).optional(),
 }).strict().refine(data => data.fechaFin >= data.fechaInicio, {

@@ -8,26 +8,28 @@ import * as functions from "firebase-functions/v2";
 
 // Zod schemas import
 import {
+  Usuario,
   createUsuarioSchema,
   updateUsuarioSchema,
   CreateUsuario,
   UpdateUsuario,
 } from "../../shared/schemas/usuarios";
 import {
+  Residencia,
   createResidenciaSchema,
   updateResidenciaSchema,
 } from "../../shared/schemas/residencia";
 
 // Shared types import
 import {
-  Usuario,
   RolUsuario,
   LogEntry,
   LogPayload,
-  Residencia,
   DietaData,
+  ComedorData,
   ConfiguracionResidencia,
 } from "../../shared/models/types";
+import { ComedorData as ComedorDataSchemaType } from "../../shared/schemas/complemento1";
 
 // ------ User CRUD ------
 interface CreateUserDataPayload {
@@ -503,22 +505,40 @@ export const createResidencia = onCall(
             batch.set(residenciaRef, residenciaDoc);
             functions.logger.info("Successfully created Residencia in Firestore:", data.residenciaId);
 
+            const now = new Date().toISOString();
             const defaultConfigRef = db.collection("residencias").doc(data.residenciaId).collection("configuracion").doc("general");
             const defaultDieta: DietaData = {
                 nombre: "Normal",
                 identificadorAdministracion: "NORMAL",
-                descripcion: "Ningún régimen especial.",
+                descripcion: { tipo: 'texto_corto', descripcion: "Ningún régimen especial." },
                 esPredeterminada: true,
                 estado: 'aprobada_director',
                 avisoAdministracion: 'comunicacion_final',
                 estaActiva: true,
             };
-            const initialConfig: Partial<ConfiguracionResidencia> = {
+            const defaultComedor: ComedorDataSchemaType = {
+                nombre: "Comedor Principal",
+                aforoMaximo: 100,
+            };
+            const initialConfig: ConfiguracionResidencia = {
+                residenciaId: data.residenciaId,
+                nombreCompleto: validatedData.nombre,
+                fechaHoraReferenciaUltimaSolicitud: now,
+                timestampUltimaSolicitud: now,
                 dietas: {
                     'normal': defaultDieta
-                }
+                },
+                comedores: {
+                    'comedor-principal': defaultComedor
+                },
+                horariosSolicitud: {},
+                gruposUsuarios: {},
+                gruposComidas: [],
+                esquemaSemanal: {},
+                catalogoAlternativas: {},
+                configuracionAlternativas: {},
             };
-            batch.set(defaultConfigRef, initialConfig, { merge: true });
+            batch.set(defaultConfigRef, initialConfig);
             functions.logger.info("Successfully created default Dieta for Residencia:", data.residenciaId);
 
             await batch.commit();

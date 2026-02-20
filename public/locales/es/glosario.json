@@ -113,5 +113,12 @@
         "la_entidad": "La Zona Horaria",
         "las_entidades": "Las Zonas Horarias",
         "nueva_entidad": "Nueva Zona Horaria"        
+    },
+    "comedor": {
+        "entidad": "Comedor",
+        "entidades": "Comedores",
+        "la_entidad": "El Comedor",
+        "las_entidades": "Los Comedores",
+        "nueva_entidad": "Nuevo Comedor"
     }
 }

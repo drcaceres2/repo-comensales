@@ -1,8 +1,7 @@
 import { format, getDay, addDays, endOfDay, startOfDay, startOfWeek, endOfWeek, isWithinInterval, isBefore, isAfter, parseISO } from 'date-fns';
 import { fromZonedTime, toZonedTime, formatInTimeZone } from 'date-fns-tz';
-import { DiaDeLaSemana } from '../../shared/models/types';
 import { es } from 'date-fns/locale'; // Spanish locale for ISO 8601 week (Monday first)
-import { FechaIso, FechaHoraIso, ZonaHorariaIana } from '../../shared/models/types';
+import { FechaIso, FechaHoraIso, ZonaHorariaIana, DiaDeLaSemana } from '../../shared/models/types';
 
 export interface campoFechaConZonaHoraria {
     fecha: FechaIso | FechaHoraIso; // fecha-hora, fecha u hora guardada en formato ISO: "YYYY-MM-DD" / "yyyy-MM-dd HH:mm" / "yyyy-MM-dd HH:mm:ss" / "HH:mm" / "HH:mm:ss"
