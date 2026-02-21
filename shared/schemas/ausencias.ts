@@ -1,10 +1,27 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
+import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada, slugCompuestoIdSchema } from './common';
 import { FechaIsoSchema, TimestampStringSchema } from './fechas';
 
 // ============================================
 // Ausencia
 // ============================================
+
+const AusenciaBaseObject = z.object({
+    usuarioId: FirestoreIdSchema,
+    residenciaId: slugIdSchema,
+    fechaInicio: FechaIsoSchema,
+    primerTiempoAusente: slugIdSchema.nullable().optional(), // TiempoComidaId
+    fechaFin: FechaIsoSchema,
+    ultimoTiempoAusente: slugIdSchema.nullable().optional(), // TiempoComidaId
+    retornoPendienteConfirmacion: z.boolean().optional(),
+    motivo: CadenaOpcionalLimitada(3, 100).optional(),
+})
+
+const AusenciaBaseSchema = AusenciaBaseObject
+    .strict().refine(data => data.fechaFin >= data.fechaInicio, {
+        message: "La fecha de fin no puede ser anterior a la fecha de inicio",
+        path: ["fechaFin"],
+    });
 
 /**
  * Ausencia: Negación de servicio declarada por el usuario.
@@ -12,37 +29,24 @@ import { FechaIsoSchema, TimestampStringSchema } from './fechas';
  * 
  * Ruta: usuarios/{uid}/ausencias/{fechaInicio}
  */
-export const AusenciaSchema = z.object({
-    id: FirestoreIdSchema.optional(),
-    usuarioId: FirestoreIdSchema,
-    residenciaId: FirestoreIdSchema,
-    fechaInicio: FechaIsoSchema,
-    primerTiempoAusente: FirestoreIdSchema.nullable().optional(), // TiempoComidaId
-    fechaFin: FechaIsoSchema,
-    ultimoTiempoAusente: FirestoreIdSchema.nullable().optional(), // TiempoComidaId
-    retornoPendienteConfirmacion: z.boolean().optional(),
-    timestampCreacion: TimestampStringSchema,
-    motivo: CadenaOpcionalLimitada(3, 100).optional(),
-}).strict().refine(data => data.fechaFin >= data.fechaInicio, {
-    message: "La fecha de fin no puede ser anterior a la fecha de inicio",
-    path: ["fechaFin"],
-});
+export const AusenciaSchema = AusenciaBaseObject
+    .extend({
+        id: FechaIsoSchema.optional(),
+        timestampCreacion: TimestampStringSchema,
+    })
+    .strict().refine(data => data.fechaFin >= data.fechaInicio, {
+        message: "La fecha de fin no puede ser anterior a la fecha de inicio",
+        path: ["fechaFin"],
+    });
 
 // Schema para CREATE Ausencia
-export const createAusenciaSchema = z.object({
-    usuarioId: FirestoreIdSchema,
-    residenciaId: FirestoreIdSchema,
-    fechaInicio: FechaIsoSchema,
-    primerTiempoAusente: FirestoreIdSchema.nullable().optional(),
-    fechaFin: FechaIsoSchema,
-    ultimoTiempoAusente: FirestoreIdSchema.nullable().optional(),
-    retornoPendienteConfirmacion: z.boolean().optional(),
-    motivo: CadenaOpcionalLimitada(3, 100).optional(),
-}).strict().refine(data => data.fechaFin >= data.fechaInicio, {
-    message: "La fecha de fin no puede ser anterior a la fecha de inicio",
-    path: ["fechaFin"],
-});
+export const createAusenciaSchema = AusenciaBaseSchema;
+
+// Schema para UPDATE Ausencia
+export const updateAusenciaSchema = AusenciaBaseObject.partial();
+
 
 // Type exports
 export type Ausencia = z.infer<typeof AusenciaSchema>;
 export type CreateAusencia = z.infer<typeof createAusenciaSchema>;
+export type UpdateAusencia = z.infer<typeof updateAusenciaSchema>;

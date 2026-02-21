@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
+import { FirestoreIdSchema, CadenaOpcionalLimitada, slugIdSchema } from './common';
 import { FechaIsoSchema, HoraIsoSchema, TimestampStringSchema } from './fechas';
 
 // ============================================
@@ -16,6 +16,24 @@ const EstadoAvisoAdministracionEnum = z.enum([
     'comunicacion_final', 'evento_cancelado',
 ]);
 
+/**
+ * TipoSolicitudComidasActividad
+ * Aquí se define el modo en como se debe solicitar la actividad 
+ * a la administración.
+ * 
+ * 1. Ninguna: 
+ *      No se solicita a la administración. Por ejemplo si la comida 
+ *      no la prepara la administración. Igualmente sirve en la aplicación
+ *      porque los inscritos dejarán de verse reflejados en los comensales
+ *      normales.
+ * 2. Solicitud unica: Es la forma ordinaria de solicitar una actividad.
+ *      Se solicita a la administración con la antelación debida.
+ * 3. Diario: Por la longitud de la actividad, se pide a la administración
+ *      cada día en el horario normal. Por ejemplo una convivencia larga con gente
+ *      de afuera, un retiro de gente externa que vienen y van, etc.
+ * 4. Solicitud inicial mas confirmacion diaria: 
+ *      Se solicita una vez con antelación y se confirma diariamente.
+ */
 const TipoSolicitudComidasActividadEnum = z.enum([
     'ninguna', 'solicitud_unica', 'solicitud_diaria',
     'solicitud_inicial_mas_confirmacion_diaria',
@@ -43,7 +61,6 @@ export const ModoAccesoSchema = z.object({
  * DetalleActividad: Una comida planificada dentro de una actividad.
  */
 export const DetalleActividadSchema = z.object({
-    id: FirestoreIdSchema,
     fechaComida: FechaIsoSchema,
     grupoComida: z.number().int().nonnegative(),
     nombreTiempoComida: z.string().min(1).max(100),
@@ -63,7 +80,7 @@ export const DetalleActividadSchema = z.object({
 const ActividadBaseSchema = z.object({
     // Campos generales
     id: FirestoreIdSchema,
-    residenciaId: FirestoreIdSchema,
+    residenciaId: slugIdSchema,
     organizadorId: FirestoreIdSchema,
     nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(25, 'El nombre no puede exceder los 25 caracteres'),
     descripcion: z.string().trim().max(255, 'La descripción no puede exceder los 255 caracteres').optional(),
@@ -74,10 +91,10 @@ const ActividadBaseSchema = z.object({
     // Campos de cálculo de comidas
     fechaInicio: FechaIsoSchema,
     fechaFin: FechaIsoSchema,
-    tiempoComidaInicial: FirestoreIdSchema,
-    tiempoComidaFinal: FirestoreIdSchema,
+    tiempoComidaInicial: slugIdSchema,
+    tiempoComidaFinal: slugIdSchema,
     planComidas: z.array(DetalleActividadSchema),
-    comedorActividad: FirestoreIdSchema.nullable().optional(),
+    comedorActividad: slugIdSchema.nullable().optional(),
     modoAtencionActividad: z.enum(['residencia', 'externa']),
     diasAntelacionSolicitudAdministracion: z.number().int().nonnegative(),
 
@@ -90,7 +107,7 @@ const ActividadBaseSchema = z.object({
     modoAccesoInvitados: ModoAccesoSchema.optional(),
 
     // Campos de costo
-    centroCostoId: FirestoreIdSchema.nullable().optional(),
+    centroCostoId: slugIdSchema.nullable().optional(),
 }).strict();
 
 // --- Create Schema ---
@@ -175,7 +192,7 @@ export const ActividadSchema = ActividadBaseSchema;
  */
 export const InscripcionActividadSchema = z.object({
     id: FirestoreIdSchema,
-    residenciaId: FirestoreIdSchema,
+    residenciaId: slugIdSchema,
     actividadId: FirestoreIdSchema,
     usuarioInscritoId: FirestoreIdSchema,
     invitadoPorUsuarioId: FirestoreIdSchema.optional(),
@@ -204,9 +221,23 @@ export const InscripcionActividadUpdateSchema = InscripcionActividadSchema.omit(
 }).partial();
 
 // Type exports
+
+/**
+ * Actividad: Evento que sobrescribe la rutina de comida.
+ * Corresponde al Nivel 1 (Máxima Prioridad) de la Cascada de la Verdad.
+ */
 export type Actividad = z.infer<typeof ActividadBaseSchema>;
 export type ActividadCreate = z.infer<typeof ActividadCreateSchema>;
 export type ActividadUpdate = z.infer<typeof ActividadUpdateSchema>;
 export type InscripcionActividad = z.infer<typeof InscripcionActividadSchema>;
+
+/** 
+ * ModoAcceso
+ * Abierta quiere decir que se inscribe voluntariamente quien lo desee. 
+ * Por invitación, como lo dice el texto. 
+ * Opción única quiere decir que no habrá otra opción para los residentes (los tiempos de comida omitidos no estarán disponibles en la residencia).
+ */
 export type ModoAcceso = z.infer<typeof ModoAccesoSchema>;
 export type DetalleActividad = z.infer<typeof DetalleActividadSchema>;
+
+export type EstadoActividad = z.infer<typeof EstadoActividadEnum>;

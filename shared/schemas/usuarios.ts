@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema } from './common';
+import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema } from './common';
 import { IsoDateStringSchema, OptionalIsoDateStringSchema, IsoTimeStringSchema, TimestampStringSchema } from './fechas';
 
 // ============================================
@@ -14,7 +14,7 @@ export const AsistentePermisosDetalleSchema = z.object({
 }).strict();
 
 export const ResidenteSchema = z.object({
-    dietaId: FirestoreIdSchema,
+    dietaId: slugIdSchema,
     numeroDeRopa: z.string().min(1, "El número de ropa es obligatorio.").max(10),
     habitacion: z.string().min(1, "La habitación es obligatoria.").max(10),
     avisoAdministracion: z.enum(['convivente', 'no_comunicado', 'comunicado']),
@@ -55,13 +55,13 @@ const usuarioBaseObject = z.object({
     timestampUltimoIngreso: TimestampStringSchema.nullable().optional(),
     
     // Info de estado y configuración
-    residenciaId: FirestoreIdSchema.nullable().optional(),
+    residenciaId: slugIdSchema.nullable().optional(),
     roles: z.array(z.enum(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador']))
             .min(1, "Debe seleccionar al menos un rol."),
     email: z.string().email("El formato del email no es válido."),
     tieneAutenticacion: z.boolean(),
     estaActivo: z.boolean(),
-    centroCostoPorDefectoId: FirestoreIdSchema.nullable().optional(),
+    centroCostoPorDefectoId: slugIdSchema.nullable().optional(),
     notificacionPreferencias: NotificacionPreferenciasSchema.nullable().optional(),
 
     // Info personal
@@ -76,7 +76,7 @@ const usuarioBaseObject = z.object({
     carrera: CadenaOpcionalLimitada(2, 50).optional(),
 
     // Info funcional
-    grupos: z.array(FirestoreIdSchema),
+    grupos: z.array(slugIdSchema),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable(),
     camposPersonalizados: z.record(z.string()).optional(),
 
@@ -155,10 +155,9 @@ const createUsuarioObject = usuarioBaseObject
         // Usamos extend para inyectar los .default() específicos de creación
         estaActivo: z.boolean().default(true),
         tieneAutenticacion: z.boolean().default(true),
-        grupos: z.array(FirestoreIdSchema).default([]),
+        grupos: z.array(slugIdSchema).default([]),
         puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().default('no'),
     });
-
 export const createUsuarioSchema = createUsuarioObject
     .strict()
     .superRefine(userRoleRefinement);

@@ -18,16 +18,16 @@ import {
   Residencia,
   createResidenciaSchema,
   updateResidenciaSchema,
+  ConfiguracionResidencia,
 } from "../../shared/schemas/residencia";
+import { ConfigContabilidad } from "../../shared/schemas/contabilidad";
+import { DietaData } from "../../shared/schemas/complemento1";
 
 // Shared types import
 import {
   RolUsuario,
   LogEntry,
-  LogPayload,
-  DietaData,
-  ComedorData,
-  ConfiguracionResidencia,
+  LogPayload
 } from "../../shared/models/types";
 import { ComedorData as ComedorDataSchemaType } from "../../shared/schemas/complemento1";
 
@@ -517,8 +517,7 @@ export const createResidencia = onCall(
                 estaActiva: true,
             };
             const defaultComedor: ComedorDataSchemaType = {
-                nombre: "Comedor Principal",
-                aforoMaximo: 100,
+                nombre: "Comedor Principal"
             };
             const initialConfig: ConfiguracionResidencia = {
                 residenciaId: data.residenciaId,
@@ -540,6 +539,16 @@ export const createResidencia = onCall(
             };
             batch.set(defaultConfigRef, initialConfig);
             functions.logger.info("Successfully created default Dieta for Residencia:", data.residenciaId);
+
+            const configContabilidadRef = db.collection("residencias").doc(data.residenciaId).collection("configContabilidad").doc("general");
+            const initialContabilidadConfig: ConfigContabilidad = {
+              residenciaId: data.residenciaId,
+              modeloClasificacion: 'detallada',
+              valorizacionComensales: false,
+              centrosDeCosto: {},
+            };
+            batch.set(configContabilidadRef, initialContabilidadConfig);
+            functions.logger.info("Successfully created default ConfigContabilidad for Residencia:", data.residenciaId);
 
             await batch.commit();
 

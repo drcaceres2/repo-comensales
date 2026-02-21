@@ -5,14 +5,17 @@ import { db, auth as adminAuth } from '@/lib/firebaseAdmin';
 import { requireAuth } from '@/lib/serverAuth';
 // import { logServerAction } from '@/lib/serverLogs'; // REMOVED
 import { 
+    Actividad,
+    EstadoActividad,
     ActividadCreateSchema, 
     ActividadUpdateSchema, 
     ActividadEstadoUpdateSchema,
     ActividadUpdate
 } from '@/../shared/schemas/actividades';
+import { TiempoComida } from 'shared/schemas/horarios';
 import { 
-    Actividad, ActividadId, ActividadEstado, ResidenciaId, 
-    TiempoComida, LogPayload
+    ActividadId, ResidenciaId, 
+    LogPayload
 } from '@/../shared/models/types';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase'; // Assuming functions is exported from here
@@ -240,7 +243,7 @@ export async function deleteActividad(actividadId: ActividadId, residenciaId: Re
 export async function updateActividadEstado(
     actividadId: ActividadId,
     residenciaId: ResidenciaId,
-    nuevoEstado: ActividadEstado
+    nuevoEstado: EstadoActividad
 ) {
     try {
         const user = await requireAuth();

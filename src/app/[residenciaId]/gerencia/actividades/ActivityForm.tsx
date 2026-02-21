@@ -4,11 +4,21 @@ import { useState, useTransition, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Actividad, ResidenciaId, TiempoComida, CentroDeCostoData, 
-    MapaDiaDeLaSemana, ComedorId, TiempoComidaId } from 'shared/models/types';
-import { ActividadCreateSchema, ActividadUpdateSchema } from 'shared/schemas/actividades';
+
+// Types
+import { ResidenciaId, MapaDiaDeLaSemana, 
+    ComedorId, TiempoComidaId } from 'shared/models/types';
+
+// ZOD Schemas
+import { Actividad, ActividadCreateSchema, ActividadUpdateSchema } from 'shared/schemas/actividades';
 import { ComedorData } from 'shared/schemas/complemento1';
+import { CentroDeCostoData } from 'shared/schemas/contabilidad';
+import { TiempoComida } from 'shared/schemas/horarios';
+
+// Server Actions
 import { createActividad, updateActividad } from './actions';
+
+// UI Components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -311,7 +321,7 @@ export function ActivityForm({
                                     <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
                                         <div className="flex justify-between items-center">
                                             <h3 className="text-base font-semibold">Plan de Comidas de la Actividad</h3>
-                                            <Button type="button" variant="outline" size="sm" onClick={() => append({ id: crypto.randomUUID(), nombreTiempoComida: '', grupoComida: 0, fechaComida: form.watch('fechaInicio') || new Date().toISOString().split('T')[0] })} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)}>
+                                            <Button type="button" variant="outline" size="sm" onClick={() => append({ nombreTiempoComida: '', grupoComida: 0, fechaComida: form.watch('fechaInicio') || new Date().toISOString().split('T')[0] })} disabled={isEditing && !['borrador', 'inscripcion_abierta'].includes(actividad.estado)}>
                                                 <PlusCircle className="mr-2 h-4 w-4" />Añadir Comida
                                             </Button>
                                         </div>

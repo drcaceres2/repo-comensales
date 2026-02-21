@@ -1,4 +1,5 @@
-import type { ComedorData } from 'shared/schemas/complemento1';
+import type { ComedorData, DietaData } from 'shared/schemas/complemento1';
+import type { HorarioSolicitudData, TiempoComida, DefinicionAlternativa, ConfiguracionAlternativa } from 'shared/schemas/horarios';
 export type TimestampString = string; // ISO 8601 (ejemplo "2023-10-25T14:00:00.000Z"
 
 // Tipos para ubicaciones, zonas horarias, fechas y horas
@@ -50,42 +51,6 @@ export type RolUsuario =
 
 // --- Residencias y propiedades esenciales ---
 export type ResidenciaId = string;
-
-/**
- * Colección: configuracionResidencia (Singleton por residencia)
- * ID: general (es un singleton)
- * Controla el "Muro Móvil" y las "Islas de Bloqueo".
- */
-export interface ConfiguracionResidencia {
-  // Metadata
-  residenciaId: ResidenciaId;
-  nombreCompleto: string;
-
-  // --- Muro móvil ---
-  fechaHoraReferenciaUltimaSolicitud: FechaHoraIso; // De la fecha y HorarioSolicitudData.horaSolicitud
-                                                    // perteneciente a la última solicitud consolidada.
-  timestampUltimaSolicitud: TimestampString; // El director puede adelantar o retrasar la solicitud porque
-                                                // no es automática sino manual. Aquí se almacena el instante de
-                                                // creación del último documento de SolicitudConsolidada
-
-  // --- DATOS EMBEBIDOS (Embed Pattern) ---
-  // Ya no son colecciones aparte. Se leen de un solo golpe.
-  horariosSolicitud: Record<HorarioSolicitudComidaId, HorarioSolicitudData>;
-  comedores: Record<ComedorId, ComedorData>;
-  gruposUsuarios: Record<GrupoUsuariosId, GrupoUsuariosData>;
-  dietas: Record<DietaId, DietaData>;
-  gruposComidas: GrupoComida[];
-  esquemaSemanal: Record<TiempoComidaId, TiempoComida>;
-  catalogoAlternativas: Record<AlternativaId, DefinicionAlternativa>;
-  configuracionAlternativas: Record<ConfigAlternativaId, ConfiguracionAlternativa>;
-}
-export interface HorarioSolicitudData {
-    nombre: string;
-    dia: DiaDeLaSemana;
-    horaSolicitud: HoraIso;
-    esPrimario: boolean;
-    estaActivo: boolean;
-}
 export type HorarioSolicitudComidaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export type ComedorId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export interface GrupoUsuariosData {
@@ -106,46 +71,9 @@ export interface GrupoUsuariosData {
     }
 }
 export type GrupoUsuariosId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
-export interface DietaData {
-    nombre: string;
-    identificadorAdministracion: string;
-    descripcion: 
-        | { tipo: 'texto_corto'; descripcion: string }
-        | { tipo: 'texto_enriquecido'; titulo: string; contenidoMarkdown: string }
-        | { tipo: 'enlace_externo'; urlDocumento: string; notas?: string };
-    esPredeterminada: boolean;
-    estado: 'solicitada_por_residente' | 'no_aprobada_director' | 
-        'aprobada_director' | 'cancelada';
-    avisoAdministracion: 'no_comunicado' | 'comunicacion_preliminar' 
-                        | 'comunicacion_final' | 'dieta_cancelada';
-    estaActiva: boolean; // Esto es un "soft delete"
-}
 export type DietaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
-export type GrupoComida = string;
 
 // --- Comidas disponibles para elegir ---
-
-/**
- * TiemposComida
- * Los tiempos de comida son como "desayuno lunes, almuerzo lunes,
- * cena lunes, desayuno martes, almuerzo martes, etc."
- * (Combinación de dia de la semana con "desayuno", "almuerzo", "cena", etc.)
- */
-export interface TiempoComida {
-    nombre: string;
-    residenciaId: ResidenciaId;
-
-    grupoComida: number; // Índice de arreglo "ConfiguracionResidencia.gruposComidas[]" 
-    dia: DiaDeLaSemana;
-    horaReferencia: HoraIso; 
-
-    alternativas: {
-        principal: ConfigAlternativaId; 
-        secundarias: ConfigAlternativaId[];
-    }
-
-    estaActivo: boolean;
-}
 export type TiempoComidaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 
 /**
@@ -154,34 +82,8 @@ export type TiempoComidaId = string; // ID semántico: slug estilo kebab a parti
  * 
  * Dos interfaces la conforman: DefinicionAlternativa y ConfiguracionAlternativa.
  */
-export interface DefinicionAlternativa {
-    nombre: string;
-    descripcion?: string;
-    tipo: 'comedor' | 'para_llevar' | 'comida_fuera' | 'ayuno';
-    estaActiva: boolean;
-}
 export type AlternativaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export type ConfigAlternativaId = string;
-export interface ConfiguracionAlternativa {
-    id: ConfigAlternativaId; // ID semántico: dia + slug alternativa
-
-    // Coordenadas
-    dia: DiaDeLaSemana;
-    alternativa: AlternativaId;
-
-    // Parámetros de Solicitud
-    horarioSolicitudComidaId: HorarioSolicitudComidaId;
-    comedorId?: ComedorId | null; 
-    requiereAprobacion: boolean;
-
-    // Parámetros de Horario
-    horario: {
-        horaInicio: HoraIso;
-        iniciaDiaAnterior?: boolean;
-        horaFin: HoraIso;
-        terminaDiaSiguiente?: boolean;
-    };
-}
 
 export interface AlteracionHorario {
     id: AlteracionHorarioId; // ID autogenerado por Firestore
@@ -480,105 +382,9 @@ export interface Recordatorio {
 }
 
 // --- Actividades ---
-
-/**
- * Actividad: Evento que sobrescribe la rutina de comida.
- * Corresponde al Nivel 1 (Máxima Prioridad) de la Cascada de la Verdad.
- */
-export interface Actividad {
-    // Campos generales
-    id: ActividadId;
-    residenciaId: ResidenciaId;
-    organizadorId: UsuarioId; 
-    nombre: string; 
-    descripcion?: string;
-    estado: ActividadEstado;
-    avisoAdministracion: EstadoAvisoAdministracion;
-    tipoSolicitudComidas: TipoSolicitudComidasActividad;
-
-    // Campos de cálculo de comidas
-    fechaInicio: FechaIso; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
-    fechaFin: FechaIso; // Fecha almacenada como cadena (string) en formato ISO 8601 "YYYY-MM-DD" en zona horaria de la residencia
-    tiempoComidaInicial: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
-    tiempoComidaFinal: TiempoComidaId; // Tiempo de comida a ser excluido a las personas que se inscriban
-    planComidas: DetalleActividad[]; 
-    comedorActividad?: ComedorId | null;
-    modoAtencionActividad: 'residencia' | 'externa'; // En la solicitud de comidas que lee el director, si es "residencia" lo verá con todos los demás comensales o al menos en los comedores de la casa. Si es "externa" lo verá en la sección de actividades
-    diasAntelacionSolicitudAdministracion: number; 
-
-    // Campos de lógica de inscripción
-    maxParticipantes?: number;
-    comensalesNoUsuarios: number; // se inscriben usuarios, se pueden inscribir invitados que no son usuarios y también se puede sencillamente agregar un número no asociado a un usuario (autenticado o no autenticado)
-    requiereInscripcion: boolean; // false significaría que las comidas se pedirán a la administración sin interacción de los involucraddos en "Comensales Residencia"
-    fechaLimiteInscripcion?: FechaIso; // indefinido significa que no hay fecha límite propia, sino hasta que se solicite a la administración
-    modoAccesoResidentes?: ModoAcceso; 
-    modoAccesoInvitados?: ModoAcceso;
-
-    // Campos de costo
-    centroCostoId?: CentroDeCostoId | null; 
-}
 export type ActividadId = string; 
-export interface DetalleActividad {
-    id: DetalleActividadId; 
-    fechaComida: FechaIso;  
-    grupoComida: number;
-    nombreTiempoComida: string; 
-    horaEstimada?: HoraIso; 
-}
 export type DetalleActividadId = string; 
-export type TipoSolicitudComidasActividad = 
-    | 'ninguna' | 'solicitud_unica' | 'solicitud_diaria' 
-    | 'solicitud_inicial_mas_confirmacion_diaria';
-export type ActividadEstado = 'borrador' | 'inscripcion_abierta' | 'inscripcion_cerrada' |
-            'solicitada_administracion' | 'cancelada';
-
-/** 
- * ModoAcceso
- * Abierta quiere decir que se inscribe voluntariamente quien lo desee. 
- * Por invitación, como lo dice el texto. 
- * Opción única quiere decir que no habrá otra opción para los residentes (los tiempos de comida omitidos no estarán disponibles en la residencia).
- */
-export interface ModoAcceso {
-    accesoUsuario: 'abierto' | 'por_invitacion';
-    puedeInvitar: boolean;
-}
-
-/**
- * TipoSolicitudComidasActividad
- * Aquí se define el modo en como se debe solicitar la actividad 
- * a la administración.
- * 
- * 1. Ninguna: 
- *      No se solicita a la administración. Por ejemplo si la comida 
- *      no la prepara la administración. Igualmente sirve en la aplicación
- *      porque los inscritos dejarán de verse reflejados en los comensales
- *      normales.
- * 2. Solicitud unica: Es la forma ordinaria de solicitar una actividad.
- *      Se solicita a la administración con la antelación debida.
- * 3. Diario: Por la longitud de la actividad, se pide a la administración
- *      cada día en el horario normal. Por ejemplo una convivencia larga con gente
- *      de afuera, un retiro de gente externa que vienen y van, etc.
- * 4. Solicitud inicial mas confirmacion diaria: 
- *      Se solicita una vez con antelación y se confirma diariamente.
- */
-export interface InscripcionActividad {
-    id: InscripcionActividadId; 
-    residenciaId: ResidenciaId;     
-    actividadId: ActividadId;
-    usuarioInscritoId: UsuarioId; 
-    invitadoPorUsuarioId?: UsuarioId;     
-
-    fechaInvitacion: FechaIso | null;
-    estadoInscripcion: EstadoInscripcionActividad;
-
-    timestampCreacion: TimestampString;
-    timestampModificacion: TimestampString;
-}
 export type InscripcionActividadId = string; 
-export type EstadoInscripcionActividad =
-    | 'invitado_pendiente' | 'invitado_rechazado' | 'invitado_aceptado'    
-    | 'inscrito_directo'     
-    | 'cancelado_usuario' | 'cancelado_admin';
 
 /*
  * Atenciones
@@ -643,22 +449,7 @@ export interface NotificacionPreferencias {
 }
 
 // Contabilidad
-export interface ConfigContabilidad {
-    residenciaId: ResidenciaId;
-    nombreEtiquetaCentroCosto?: string; 
-    modeloClasificacion?: 'por-usuario' | 'por-grupo-usuario' | 'por-comedor' | 'detallada';
-    valorizacionComensales: boolean;
-    modoCosteo?: 'general' | 'por-grupo-tiempo-comida' | 'por-tiempo-comida' | 'detallado';
-    costoDiferenciadoDietas: boolean;
-    centrosDeCosto: Record<CentroDeCostoId, CentroDeCostoData>;
-}
 export type CentroDeCostoId = string;
-export interface CentroDeCostoData {
-    codigo: CentroDeCostoId;
-    nombre: string; 
-    descripcion?: string;
-    estaActivo: boolean; 
-}
 
 // --- Registro de actividad ---
 export type LogEntryId = string;

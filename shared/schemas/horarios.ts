@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
+import { CadenaOpcionalLimitada, slugIdSchema } from './common';
 import { HoraIsoSchema, DiaDeLaSemanaSchema } from './fechas';
 
 // ============================================
@@ -22,6 +22,11 @@ export const HorarioSolicitudDataSchema = z.object({
 // TiempoComida (Embebido en ConfiguracionResidencia.esquemaSemanal)
 // ============================================
 
+export const GrupoComidaSchema = z.object({
+    nombre: z.string().min(1).max(20),
+    orden: z.number().int().nonnegative()
+});
+
 /**
  * TiempoComida: Categoría operativa que representa la intersección 
  * entre un día de la semana y una comida (ej. "desayuno lunes").
@@ -29,15 +34,15 @@ export const HorarioSolicitudDataSchema = z.object({
  */
 export const TiempoComidaSchema = z.object({
     nombre: z.string().min(1).max(100),
-    residenciaId: FirestoreIdSchema,
+    residenciaId: slugIdSchema,
 
     grupoComida: z.number().int().nonnegative(), // Índice de ConfiguracionResidencia.gruposComidas[]
     dia: DiaDeLaSemanaSchema,
     horaReferencia: HoraIsoSchema,
 
     alternativas: z.object({
-        principal: FirestoreIdSchema, // ConfigAlternativaId
-        secundarias: z.array(FirestoreIdSchema), // ConfigAlternativaId[]
+        principal: slugIdSchema, // ConfigAlternativaId
+        secundarias: z.array(slugIdSchema), // ConfigAlternativaId[]
     }).strict(),
 
     estaActivo: z.boolean(),
@@ -55,6 +60,7 @@ export const TiempoComidaSchema = z.object({
  */
 export const DefinicionAlternativaSchema = z.object({
     nombre: z.string().min(1).max(100),
+    grupoComida: z.number().int().nonnegative(),
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
     tipo: z.enum(['comedor', 'para_llevar', 'comida_fuera', 'ayuno']),
     estaActiva: z.boolean(),
@@ -76,15 +82,15 @@ const HorarioAlternativaSchema = z.object({
  * Embebida como Record<ConfigAlternativaId, ConfiguracionAlternativa> en ConfiguracionResidencia.configuracionAlternativas.
  */
 export const ConfiguracionAlternativaSchema = z.object({
-    id: FirestoreIdSchema, // ID semántico: dia + slug alternativa
+    id: slugIdSchema, // ID semántico: dia + slug alternativa
 
     // Coordenadas
     dia: DiaDeLaSemanaSchema,
-    alternativa: FirestoreIdSchema, // AlternativaId
+    alternativa: slugIdSchema, // AlternativaId
 
     // Parámetros de Solicitud
-    horarioSolicitudComidaId: FirestoreIdSchema,
-    comedorId: FirestoreIdSchema.nullable().optional(),
+    horarioSolicitudComidaId: slugIdSchema,
+    comedorId: slugIdSchema.nullable().optional(),
     requiereAprobacion: z.boolean(),
 
     // Parámetros de Horario
@@ -95,6 +101,21 @@ export const ConfiguracionAlternativaSchema = z.object({
 
 // Type exports
 export type HorarioSolicitudData = z.infer<typeof HorarioSolicitudDataSchema>;
+
+/**
+ * TiemposComida
+ * Los tiempos de comida son como "desayuno lunes, almuerzo lunes,
+ * cena lunes, desayuno martes, almuerzo martes, etc."
+ * (Combinación de dia de la semana con "desayuno", "almuerzo", "cena", etc.)
+ */
 export type TiempoComida = z.infer<typeof TiempoComidaSchema>;
+export type GrupoComida = z.infer<typeof GrupoComidaSchema>;
+
+/**
+ * Alternativa
+ * Distintas opciones de horario que el usuario escoge para cada tiempo de comida.
+ * 
+ * Dos interfaces la conforman: DefinicionAlternativa y ConfiguracionAlternativa.
+ */
 export type DefinicionAlternativa = z.infer<typeof DefinicionAlternativaSchema>;
 export type ConfiguracionAlternativa = z.infer<typeof ConfiguracionAlternativaSchema>;

@@ -19,16 +19,24 @@ import {
     AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
     AlertDialogContent, AlertDialogDescription 
 } from "@/components/ui/alert-dialog";
-import { Loader2, PlusCircle, Trash2, Edit, AlertCircle, Hourglass, Users, XCircle, ArrowRight, Play, Undo, Calendar, Ban } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Edit, AlertCircle, 
+    Hourglass, Users, XCircle, ArrowRight, Play, Undo, 
+    Calendar, Ban } from 'lucide-react';
 
-// Types and Schemas
-import {
-    Actividad, ActividadId, CentroDeCostoData, TiempoComida,
-    ResidenciaId, InscripcionActividad, ActividadEstado, ComedorId, TiempoComidaId
-} from 'shared/models/types';
+// ZOD Schemas
+import { Actividad, InscripcionActividad, EstadoActividad } from 'shared/schemas/actividades'
 import { Residencia } from 'shared/schemas/residencia';
 import { Usuario } from 'shared/schemas/usuarios';
-import { ComedorData } from 'shared/schemas/complemento1'
+import { CentroDeCostoData } from 'shared/schemas/contabilidad';
+import { ComedorData } from 'shared/schemas/complemento1';
+import { TiempoComida } from 'shared/schemas/horarios';
+
+// Types
+import {
+    ActividadId, 
+    ResidenciaId, ComedorId, TiempoComidaId
+} from 'shared/models/types';
+
 import { ActivityForm } from './ActivityForm';
 import { deleteActividad, updateActividadEstado } from './actions';
 
@@ -141,7 +149,7 @@ function AdminActividadesPage() {
     };
 
     // --- ACTIONS ---
-    const handleStateChange = (actividadId: ActividadId, newState: ActividadEstado) => {
+    const handleStateChange = (actividadId: ActividadId, newState: EstadoActividad) => {
         startTransition(async () => {
             const result = await updateActividadEstado(actividadId, residenciaId, newState);
              if (result.success) {
@@ -159,14 +167,14 @@ function AdminActividadesPage() {
         const fechaFin = new Date(actividad.fechaFin);
 
         switch(actividad.estado) {
-            case 'borrador': return { label: 'Abrir Inscripción', icon: Play, nextState: 'inscripcion_abierta' as ActividadEstado };
+            case 'borrador': return { label: 'Abrir Inscripción', icon: Play, nextState: 'inscripcion_abierta' as EstadoActividad };
             case 'inscripcion_abierta': 
                 if (now > fechaFin) {
-                    return { label: 'Confirmar Administración', icon: ArrowRight, nextState: 'solicitada_administracion' as ActividadEstado };
+                    return { label: 'Confirmar Administración', icon: ArrowRight, nextState: 'solicitada_administracion' as EstadoActividad };
                 }
-                return { label: 'Cerrar Inscripción', icon: XCircle, nextState: 'inscripcion_cerrada' as ActividadEstado };
-            case 'inscripcion_cerrada': return { label: 'Confirmar Administración', icon: ArrowRight, nextState: 'solicitada_administracion' as ActividadEstado };
-            case 'cancelada': return { label: 'Reactivar', icon: Undo, nextState: 'borrador' as ActividadEstado };
+                return { label: 'Cerrar Inscripción', icon: XCircle, nextState: 'inscripcion_cerrada' as EstadoActividad };
+            case 'inscripcion_cerrada': return { label: 'Confirmar Administración', icon: ArrowRight, nextState: 'solicitada_administracion' as EstadoActividad };
+            case 'cancelada': return { label: 'Reactivar', icon: Undo, nextState: 'borrador' as EstadoActividad };
             default: return null;
         }
     }

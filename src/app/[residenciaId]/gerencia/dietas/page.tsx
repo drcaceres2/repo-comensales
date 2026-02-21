@@ -17,7 +17,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, AlertCircle } from 'lucide-react';
 
 // --- Firebase Imports ---
-import { addDoc, collection, doc, getDoc, query, where, getDocs, updateDoc, deleteDoc, writeBatch, deleteField } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, query, 
+    where, getDocs, updateDoc, deleteDoc, 
+    writeBatch, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -28,12 +30,11 @@ import {
     ResidenciaId, 
     LogActionType, 
     RolUsuario,
-    ConfiguracionResidencia,
-    DietaData,
     DietaId,
 } from 'shared/models/types';
-import { Residencia } from 'shared/schemas/residencia';
+import { Residencia, ConfiguracionResidencia } from 'shared/schemas/residencia';
 import { Usuario } from 'shared/schemas/usuarios';
+import { DietaData } from 'shared/schemas/complemento1';
 import { slugify } from 'shared/utils/commonUtils';
 import { logClientAction } from '@/lib/utils';
 

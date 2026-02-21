@@ -86,56 +86,56 @@ La base de datos sigue una estructura de árbol estricta para aislar contextos y
     * *Ejemplo:* No existe una colección `actividades` suelta. Existe `residencias/{slug}/actividades`.
     * *Beneficio:* Las Security Rules se simplifican drásticamente (`allow read if user.residenciaId == residenciaId`).
 
-> (RAÍZ COMERCIAL)
-> ├── clientes/ {pais-codigo_fiscal}
-> │   ├── facturas/ {numero_fiscal}
-> │   ├── pedidos/ {fecha-hora}
-> │   └── contratosResidencia/ {auto-id}
-> │
-> (RAÍZ OPERATIVA - SAAS)
-> ├── residencias/ {slug}
-> │   │
-> │   ├── configuracion/ {general}  (Singleton)
-> │   │   ├── (campo) horariosSolicitud: Map<ID, Data>
-> │   │   ├── (campo) comedores: Map<ID, Data>
-> │   │   ├── (campo) gruposUsuarios: Map<ID, Data>
-> │   │   ├── (campo) dietas: Map<ID, Data>
-> │   │   ├── (campo) gruposComidas[]
-> │   │   ├── (campo) tiemposComidas: Map<ID, Data>
-> │   │   ├── (campo) definicionesAlternativas: Map<ID, Data>
-> │   │   └── (campo) configuracionesAlternativas: Map<ID, Data>
-> │   │
-> │   ├── configContabilidad/ {general}  (Singleton)
-> │   │   └── (campo) centrosDeCosto: Map<ID, Data>
-> │   │
-> │   ├── atenciones/ {auto-id}
-> │   │
-> │   ├── alteraciones/ {auto-id}
-> │   │
-> │   ├── actividades/ {auto-id}
-> │   │   └── inscripciones/ {uid}
-> │   │
-> │   ├── solicitudesConsolidadas/ {fecha-slugHorarioSolicitud}
-> │   │   ├── (campo) otrasSolicitudes/
-> │   │   └── comensalesSolicitados/ {uid-slugtiempocomida}
-> │   │
-> │   ├── recordatorios/ {auto-id}
-> │   │
+> (RAÍZ COMERCIAL)  
+> ├── clientes/ {pais-codigo_fiscal}  
+> │   ├── facturas/ {numero_fiscal}  
+> │   ├── pedidos/ {fecha-hora}  
+> │   └── contratosResidencia/ {auto-id}  
+> │  
+> (RAÍZ OPERATIVA - SAAS)  
+> ├── residencias/ {slug}  
+> │   │  
+> │   ├── configuracion/ {general}  (Singleton)  
+> │   │   ├── (campo) horariosSolicitud: Map<ID, HorarioSolicitudData>  
+> │   │   ├── (campo) comedores: Map<ID, ComedorData>  
+> │   │   ├── (campo) gruposUsuarios: Map<ID, GrupoUsuariosData>  
+> │   │   ├── (campo) dietas: Map<ID, DietaData>  
+> │   │   ├── (campo) gruposComidas: Map<ID, GrupoComida>  
+> │   │   ├── (campo) tiemposComidas: Map<ID, TiempoComida>  
+> │   │   ├── (campo) catalogoAlternativas: Map<ID, DefinicionAlternativa>  
+> │   │   └── (campo) configuracionesAlternativas: Map<ID, ConfiguracionAlternativa>  
+> │   │  
+> │   ├── configContabilidad/ {general}  (Singleton)  
+> │   │   └── (campo) centrosDeCosto: Map<ID, CentroDeCostoData>  
+> │   │  
+> │   ├── atenciones/ {auto-id}  
+> │   │  
+> │   ├── alteraciones/ {auto-id}  
+> │   │  
+> │   ├── actividades/ {auto-id}  
+> │   │   └── inscripciones/ {uid}  
+> │   │  
+> │   ├── solicitudesConsolidadas/ {fecha-slugHorarioSolicitud}  
+> │   │   ├── (campo) otrasSolicitudes/  
+> │   │   └── comensalesSolicitados/ {uid-slugtiempocomida}  
+> │   │  
+> │   ├── recordatorios/ {auto-id}  
+> │   │  
 > │   └── comentarios/ {auto-id}
-> │
-> ├── usuarios/ {uid}
-> │   ├── semanarios/ {fechaInicio}
-> │   ├── excepciones/ {fecha-slugtiempocomida}
-> │   ├── ausencias/ {fechaInicio}
-> │   └── faltas/ {auto-id}
-> │
-> (RAÍZ DE SISTEMA)
-> ├── feedback/ {auto-id}
-> └── logs/ {auto-id}
+> │  
+> ├── usuarios/ {uid}  
+> │   ├── semanarios/ {fechaInicio}  
+> │   ├── excepciones/ {fecha-slugtiempocomida}  
+> │   ├── ausencias/ {fechaInicio}  
+> │   └── faltas/ {auto-id}  
+> │  
+> (RAÍZ DE SISTEMA)  
+> ├── feedback/ {auto-id}  
+> └── logs/ {auto-id}  
 
 #### B. Estrategia de Identidad (IDs Semánticos vs. Auto-IDs)
 
-Se prohíbe el uso indiscriminado de `add()` (Auto-IDs) para entidades de configuración.
+Se prohíbe el uso indiscriminado de `add()` (Auto-IDs) para entidades de configuración. Solo los documentos de las colecciones indicadas con {auto-id} en este documento.
 
 1.  **IDs Deterministas (Semánticos):**
     * Se usan para entidades de configuración, definiciones estables o singletons.

@@ -47,7 +47,7 @@ const getNewResidenciaDefaults = (): Partial<Residencia> => ({
   nombre: '',
   direccion: '',
   logoUrl: '',
-  locale: 'es-HN',
+  contextoTraduccion: 'es-HN',
   tipo: {
     tipoResidentes: 'estudiantes',
     modalidadResidencia: 'hombres',
@@ -61,6 +61,7 @@ const getNewResidenciaDefaults = (): Partial<Residencia> => ({
   camposPersonalizadosResidencia: {},
   camposPersonalizadosPorUsuario: [],
   estadoContrato: 'activo',
+  estado: 'aprovisionado'
 });
 
 function CrearResidenciaAdminPage() {
@@ -367,7 +368,7 @@ function CrearResidenciaAdminPage() {
         nombre: currentResidencia.nombre || '',
         direccion: currentResidencia.direccion || '',
         logoUrl: currentResidencia.logoUrl || '',
-        locale: currentResidencia.locale || 'es-HN',
+        contextoTraduccion: currentResidencia.contextoTraduccion || 'es-HN',
         tipo: {
             tipoResidentes: currentResidencia.tipo?.tipoResidentes || 'estudiantes',
             modalidadResidencia: currentResidencia.tipo?.modalidadResidencia || 'hombres',
@@ -382,6 +383,7 @@ function CrearResidenciaAdminPage() {
         camposPersonalizadosResidencia: currentResidencia.camposPersonalizadosResidencia || {},
         camposPersonalizadosPorUsuario: currentResidencia.camposPersonalizadosPorUsuario || [],
         estadoContrato: currentResidencia.estadoContrato || 'activo',
+        estado: currentResidencia.estado || 'aprovisionado',
       };
 
       if (isEditing && currentResidencia.id) {
@@ -719,11 +721,11 @@ function CrearResidenciaAdminPage() {
                   {t('gestionResidencias.perfilDeTextos')}
                 </Label>
                 <Input
-                  id="locale"
-                  name="locale"
+                  id="contextoTraduccion"
+                  name="contextoTraduccion"
                   type="text"
                   placeholder={t('gestionResidencias.perfilDeTextosPlaceholder')}
-                  value={currentResidencia.locale || ''}
+                  value={currentResidencia.contextoTraduccion || ''}
                   onChange={handleInputChange}
                   className="mt-1"
                   aria-describedby="textprofile-description"

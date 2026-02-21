@@ -1,8 +1,11 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
+import { CadenaOpcionalLimitada, UrlOpcionalSchema, slugIdSchema } from './common';
 import { UbicacionSchema, FechaHoraIsoSchema, TimestampStringSchema } from './fechas';
 import { ComedorDataSchema, GrupoUsuariosDataSchema, DietaDataSchema } from './complemento1';
-import { HorarioSolicitudDataSchema, TiempoComidaSchema, DefinicionAlternativaSchema, ConfiguracionAlternativaSchema } from './horarios';
+import { HorarioSolicitudDataSchema, TiempoComidaSchema, 
+    DefinicionAlternativaSchema, ConfiguracionAlternativaSchema,
+    GrupoComidaSchema
+} from './horarios';
 
 // ============================================
 // CampoPersonalizado (nueva estructura)
@@ -35,11 +38,15 @@ export const CampoPersonalizadoSchema = z.object({
  * Esquema base para Residencia (lectura)
  */
 export const residenciaSchema = z.object({
-    id: FirestoreIdSchema,
+    id: slugIdSchema,
     nombre: z.string().min(1).max(80),
     direccion: CadenaOpcionalLimitada(1, 255).optional(),
-    logoUrl: z.string().url().optional(),
-    locale: z.string().max(10).optional(),
+    logoUrl: UrlOpcionalSchema,
+    contextoTraduccion: z.string()
+        .max(20)
+        .trim()
+        .transform(v => v === "" ? "es-HN" : v)
+        .default("es-HN"),
     tipo: z.object({
         tipoResidentes: z.enum(['estudiantes', 'profesionales', 'gente_mayor', 'otro']),
         modalidadResidencia: z.enum(['hombres', 'mujeres']),
@@ -50,46 +57,27 @@ export const residenciaSchema = z.object({
     camposPersonalizadosPorUsuario: z.array(CampoPersonalizadoSchema).optional(),
 
     estadoContrato: z.enum(['activo', 'prueba', 'inactivo']),
+    estado: z.enum(['aprovisionado', 'activo', 'archivado', 're-aprovisionado']),
 }).strict();
 
 /**
  * Esquema para CREATE Residencia
  */
-export const createResidenciaSchema = z.object({
-    nombre: z.string().min(1).max(80),
-    direccion: z.string().max(255).optional(),
-    logoUrl: z.string().url().or(z.literal('')).optional(),
-    locale: z.string().max(10).optional(),
-    tipo: z.object({
-        tipoResidentes: z.enum(['estudiantes', 'profesionales', 'gente_mayor', 'otro']),
-        modalidadResidencia: z.enum(['hombres', 'mujeres']),
-    }).strict(),
-    ubicacion: UbicacionSchema,
-
-    camposPersonalizadosResidencia: z.record(z.string()).optional(),
-    camposPersonalizadosPorUsuario: z.array(CampoPersonalizadoSchema).optional(),
-
-    estadoContrato: z.enum(['activo', 'prueba', 'inactivo']),
+export const createResidenciaSchema = residenciaSchema.omit({ 
+    id: true 
 }).strict();
 
 /**
  * Esquema para UPDATE Residencia
  */
-export const updateResidenciaSchema = z.object({
-    nombre: z.string().min(1).max(80).optional(),
+export const updateResidenciaSchema = residenciaSchema.omit({ 
+    id: true 
+}).partial().extend({
     direccion: z.string().max(255).nullable().optional(),
-    logoUrl: z.string().url().or(z.literal('')).nullable().optional(),
-    locale: z.string().max(10).nullable().optional(),
-    tipo: z.object({
-        tipoResidentes: z.enum(['estudiantes', 'profesionales', 'gente_mayor', 'otro']),
-        modalidadResidencia: z.enum(['hombres', 'mujeres']),
-    }).strict().optional(),
-    ubicacion: UbicacionSchema.optional(),
-
-    camposPersonalizadosResidencia: z.record(z.string()).optional(),
-    camposPersonalizadosPorUsuario: z.array(CampoPersonalizadoSchema).optional(),
-
-    estadoContrato: z.enum(['activo', 'prueba', 'inactivo']).optional(),
+    logoUrl: UrlOpcionalSchema.nullable(),
+    locale: z.string().max(10).trim().nullable()
+        .transform(v => (v === "" || v === null) ? "es-HN" : v)
+        .optional(),
 }).strict();
 
 // ============================================
@@ -103,7 +91,7 @@ export const updateResidenciaSchema = z.object({
  */
 export const ConfiguracionResidenciaSchema = z.object({
     // Metadata
-    residenciaId: FirestoreIdSchema,
+    residenciaId: slugIdSchema,
     nombreCompleto: z.string().min(1).max(200),
 
     // Muro móvil
@@ -111,36 +99,16 @@ export const ConfiguracionResidenciaSchema = z.object({
     timestampUltimaSolicitud: TimestampStringSchema,
 
     // Datos Embebidos (Embed Pattern)
-    horariosSolicitud: z.record(FirestoreIdSchema, HorarioSolicitudDataSchema),
-    comedores: z.record(FirestoreIdSchema, ComedorDataSchema),
-    gruposUsuarios: z.record(FirestoreIdSchema, GrupoUsuariosDataSchema),
-    dietas: z.record(FirestoreIdSchema, DietaDataSchema),
-    gruposComidas: z.array(z.string()),
-    esquemaSemanal: z.record(FirestoreIdSchema, TiempoComidaSchema),
-    catalogoAlternativas: z.record(FirestoreIdSchema, DefinicionAlternativaSchema),
-    configuracionAlternativas: z.record(FirestoreIdSchema, ConfiguracionAlternativaSchema),
+    horariosSolicitud: z.record(slugIdSchema, HorarioSolicitudDataSchema),
+    comedores: z.record(slugIdSchema, ComedorDataSchema),
+    gruposUsuarios: z.record(slugIdSchema, GrupoUsuariosDataSchema),
+    dietas: z.record(slugIdSchema, DietaDataSchema),
+    gruposComidas: z.record(slugIdSchema, GrupoComidaSchema),
+    esquemaSemanal: z.record(slugIdSchema, TiempoComidaSchema),
+    catalogoAlternativas: z.record(slugIdSchema, DefinicionAlternativaSchema),
+    configuracionAlternativas: z.record(slugIdSchema, ConfiguracionAlternativaSchema),
 }).strict();
-
-// ============================================
-// ConfigContabilidad (Singleton por residencia)
-// ============================================
-
-export const CentroDeCostoDataSchema = z.object({
-    codigo: FirestoreIdSchema,
-    nombre: z.string().min(1).max(100),
-    descripcion: CadenaOpcionalLimitada(1, 255).optional(),
-    estaActivo: z.boolean(),
-}).strict();
-
-export const ConfigContabilidadSchema = z.object({
-    residenciaId: FirestoreIdSchema,
-    nombreEtiquetaCentroCosto: CadenaOpcionalLimitada(1, 100).optional(),
-    modeloClasificacion: z.enum(['por-usuario', 'por-grupo-usuario', 'por-comedor', 'detallada']).optional(),
-    valorizacionComensales: z.boolean(),
-    modoCosteo: z.enum(['general', 'por-grupo-tiempo-comida', 'por-tiempo-comida', 'detallado']).optional(),
-    costoDiferenciadoDietas: z.boolean(),
-    centrosDeCosto: z.record(FirestoreIdSchema, CentroDeCostoDataSchema),
-}).strict();
+export const CONFIG_RESIDENCIA_ID = "general";
 
 // ============================================
 // Type Exports
@@ -149,7 +117,11 @@ export const ConfigContabilidadSchema = z.object({
 export type Residencia = z.infer<typeof residenciaSchema>;
 export type CreateResidencia = z.infer<typeof createResidenciaSchema>;
 export type UpdateResidencia = z.infer<typeof updateResidenciaSchema>;
+
+/**
+ * Colección: configuracionResidencia (Singleton por residencia)
+ * ID: general (es un singleton)
+ * Controla el "Muro Móvil" y las "Islas de Bloqueo".
+ */
 export type ConfiguracionResidencia = z.infer<typeof ConfiguracionResidenciaSchema>;
 export type CampoPersonalizado = z.infer<typeof CampoPersonalizadoSchema>;
-export type CentroDeCostoData = z.infer<typeof CentroDeCostoDataSchema>;
-export type ConfigContabilidad = z.infer<typeof ConfigContabilidadSchema>;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
+import { FirestoreIdSchema, slugCompuestoIdSchema, slugIdSchema } from './common';
 import { FechaIsoSchema, TimestampStringSchema } from './fechas';
 
 // ============================================
@@ -7,23 +7,23 @@ import { FechaIsoSchema, TimestampStringSchema } from './fechas';
 // ============================================
 
 const SnapshotComensalSchema = z.object({
-    tiempoComidaId: FirestoreIdSchema,
+    tiempoComidaId: slugIdSchema,
     nombreTiempoComida: z.string(),
-    alternativaId: FirestoreIdSchema,
+    alternativaId: slugIdSchema,
     nombreAlternativa: z.string(),
-    comedor: FirestoreIdSchema, // ComedorId
+    comedor: slugIdSchema, // ComedorId
 }).strict();
 
 const ContabilidadComensalSchema = z.object({
-    ccDeUsuario: FirestoreIdSchema.optional(),
+    ccDeUsuario: slugIdSchema.optional(),
     nombreCcDeUsuario: z.string().optional(),
-    ccDeGrupo: FirestoreIdSchema.optional(),
+    ccDeGrupo: slugIdSchema.optional(),
     nombreCcDeGrupo: z.string().optional(),
-    ccDeComedor: FirestoreIdSchema.optional(),
+    ccDeComedor: slugIdSchema.optional(),
     nombreCcDeComedor: z.string().optional(),
-    ccDeActividad: FirestoreIdSchema.optional(),
+    ccDeActividad: slugIdSchema.optional(),
     nombreCcDeActividad: z.string().optional(),
-    ccEscogidos: z.array(FirestoreIdSchema).optional(),
+    ccEscogidos: z.array(slugIdSchema).optional(),
 }).strict();
 
 const OrigenComensalSchema = z.enum([
@@ -38,14 +38,14 @@ const OrigenComensalSchema = z.enum([
  * Ruta: residencias/{slug}/solicitudesConsolidadas/{id}/comensalesSolicitados/{uid-slugtiempocomida}
  */
 export const ComensalSolicitadoSchema = z.object({
-    id: FirestoreIdSchema,
+    id: slugCompuestoIdSchema,
 
     // Coordenadas
-    residenciaId: FirestoreIdSchema,
+    residenciaId: slugIdSchema,
     usuarioComensalId: FirestoreIdSchema,
     nombreUsuarioComensal: z.string(),
-    dietaId: FirestoreIdSchema,
-    usuarioDirectorId: FirestoreIdSchema,
+    dietaId: slugIdSchema,
+    solicitudConsolidadaId: slugIdSchema,
     fecha: FechaIsoSchema,
 
     // Detalle del consumo (Snapshot desnormalizado)
@@ -56,7 +56,7 @@ export const ComensalSolicitadoSchema = z.object({
 
     // Trazabilidad
     origen: OrigenComensalSchema,
-    referenciaOrigenId: FirestoreIdSchema.optional(),
+    referenciaOrigenId: slugCompuestoIdSchema.optional(),
     timestampCreacion: TimestampStringSchema,
 }).strict();
 
@@ -71,18 +71,18 @@ const DetalleMovimientoUsuarioSchema = z.object({
 }).strict();
 
 const DetalleResumenSchema = z.object({
-    tiempoComidaId: FirestoreIdSchema,
+    tiempoComidaId: slugIdSchema,
     nombreTiempoComida: z.string(),
-    alternativaId: FirestoreIdSchema,
+    alternativaId: slugIdSchema,
     nombreAlternativa: z.string(),
     totalComensales: z.number().int().nonnegative(),
-    desglosePorDieta: z.record(FirestoreIdSchema, z.number().int().nonnegative()),
+    desglosePorDieta: z.record(slugIdSchema, z.number().int().nonnegative()),
 }).strict();
 
 const OtrasSolicitudesSchema = z.object({
     movimientosDeUsuarios: z.array(DetalleMovimientoUsuarioSchema),
     actividades: z.array(FirestoreIdSchema),
-    dietas: z.array(FirestoreIdSchema),
+    dietas: z.array(slugIdSchema),
     atenciones: z.array(FirestoreIdSchema),
     alteracionesHorario: z.array(FirestoreIdSchema),
     comentarios: z.array(FirestoreIdSchema),
@@ -95,13 +95,13 @@ const OtrasSolicitudesSchema = z.object({
  * Ruta: residencias/{slug}/solicitudesConsolidadas/{fecha-slugHorarioSolicitud}
  */
 export const SolicitudConsolidadaSchema = z.object({
-    id: FirestoreIdSchema,
-    residenciaId: FirestoreIdSchema,
+    id: slugIdSchema,
+    residenciaId: slugIdSchema,
     fecha: FechaIsoSchema,
     timestampCreacion: TimestampStringSchema,
     estadoSincronizacionERP: z.enum(['pendiente', 'sincronizado', 'error']),
 
-    comensales: z.array(FirestoreIdSchema), // ComensalSolicitadoId[]
+    comensales: z.array(slugCompuestoIdSchema), // ComensalSolicitadoId[]
 
     otrasSolicitudes: OtrasSolicitudesSchema,
 

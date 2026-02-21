@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, CadenaOpcionalLimitada } from './common';
-import { HoraIsoSchema, DiaDeLaSemanaSchema } from './fechas';
+import { CadenaOpcionalLimitada, slugIdSchema } from './common';
+import { HoraIsoSchema } from './fechas';
 
 // ============================================
 // ComedorData (Embebido en ConfiguracionResidencia)
@@ -15,7 +15,7 @@ export const ComedorDataSchema = z.object({
     nombre: z.string().min(1, "El nombre es obligatorio").max(50),
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
     aforoMaximo: z.number().int().positive("El aforo debe ser positivo").optional(),
-    centroCostoId: FirestoreIdSchema.optional(),
+    centroCostoId: slugIdSchema.optional(),
 }).strict();
 
 // ============================================
@@ -30,7 +30,7 @@ const GestionComidaSchema = z.object({
     horarioConfirmacionDiaria: HoraIsoSchema.optional(),
     restriccionAlternativas: z.boolean(),
     alternativasRestringidas: z.record(
-        FirestoreIdSchema,
+        slugIdSchema,
         z.enum(['no_permitida', 'requiere_aprobacion'])
     ),
     localizacionObligatoria: z.boolean(),
@@ -45,7 +45,7 @@ export const GrupoUsuariosDataSchema = z.object({
     etiqueta: z.string().min(1).max(50),
     tipoGrupo: z.enum(['gestion-comidas', 'centro-de-costo', 'presentacion-reportes']),
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
-    centroCostoId: FirestoreIdSchema.optional(),
+    centroCostoId: slugIdSchema.optional(),
     gestionComida: GestionComidaSchema.optional(),
 }).strict();
 
@@ -61,7 +61,7 @@ const DescripcionSimple = z.object({
 const DescripcionDetallada = z.object({
   tipo: z.literal('texto_enriquecido'),
   titulo: z.string().max(200),
-  contenidoMarkdown: z.string().min(10).max(15000, "El documento es demasiado largo para el sistema.")
+  contenidoMarkdown: z.string().min(100).max(15000, "El documento es demasiado largo para el sistema.")
 });
 
 const DescripcionPorEnlace = z.object({
