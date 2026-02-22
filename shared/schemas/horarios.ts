@@ -11,11 +11,11 @@ import { HoraIsoSchema, DiaDeLaSemanaSchema } from './fechas';
  * Embebido como Record<HorarioSolicitudComidaId, HorarioSolicitudData>.
  */
 export const HorarioSolicitudDataSchema = z.object({
-    nombre: z.string().min(1).max(50),
+    nombre: z.string().min(1).max(50),  // Este nombre se usa para construir el slug que sirve de ID semántico en singleton que contiene estos objetos embebidos. Es inmutable, si cambia el nombre, el ID permanece
     dia: DiaDeLaSemanaSchema,
     horaSolicitud: HoraIsoSchema,
-    esPrimario: z.boolean(),
-    estaActivo: z.boolean(),
+    esPrimario: z.boolean().default(false),
+    estaActivo: z.boolean().default(true),
 }).strict();
 
 // ============================================
@@ -23,8 +23,9 @@ export const HorarioSolicitudDataSchema = z.object({
 // ============================================
 
 export const GrupoComidaSchema = z.object({
-    nombre: z.string().min(1).max(20),
-    orden: z.number().int().nonnegative()
+    nombre: z.string().min(1).max(20), // Este nombre se usa para construir el slug que sirve de ID semántico en singleton que contiene estos objetos embebidos. Es inmutable, si cambia el nombre, el ID permanece
+    orden: z.number().int().nonnegative(),
+    estaActivo: z.boolean().default(true),
 });
 
 /**
@@ -33,19 +34,18 @@ export const GrupoComidaSchema = z.object({
  * Embebido como Record<TiempoComidaId, TiempoComida> en ConfiguracionResidencia.esquemaSemanal.
  */
 export const TiempoComidaSchema = z.object({
-    nombre: z.string().min(1).max(100),
-    residenciaId: slugIdSchema,
+    nombre: z.string().min(1).max(100), // Este nombre se usa para construir el slug que sirve de ID semántico en singleton que contiene estos objetos embebidos. Es inmutable, si cambia el nombre, el ID permanece
 
-    grupoComida: z.number().int().nonnegative(), // Índice de ConfiguracionResidencia.gruposComidas[]
+    grupoComida: slugIdSchema,
     dia: DiaDeLaSemanaSchema,
     horaReferencia: HoraIsoSchema,
 
     alternativas: z.object({
-        principal: slugIdSchema, // ConfigAlternativaId
-        secundarias: z.array(slugIdSchema), // ConfigAlternativaId[]
+        principal: slugIdSchema, // Apunta a una ConfiguracionAlternativa
+        secundarias: z.array(slugIdSchema).optional(), // Apunta a ConfiguracionesAlternativas
     }).strict(),
 
-    estaActivo: z.boolean(),
+    estaActivo: z.boolean().default(true),
 }).strict();
 
 
@@ -59,22 +59,21 @@ export const TiempoComidaSchema = z.object({
  * Embebida como Record<AlternativaId, DefinicionAlternativa> en ConfiguracionResidencia.catalogoAlternativas.
  */
 export const DefinicionAlternativaSchema = z.object({
-    nombre: z.string().min(1).max(100),
-    grupoComida: z.number().int().nonnegative(),
+    nombre: z.string().min(1).max(100), // Este nombre se usa para construir el slug que sirve de ID semántico en singleton que contiene estos objetos embebidos. Es inmutable, si cambia el nombre, el ID permanece
+    grupoComida: slugIdSchema,
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
     tipo: z.enum(['comedor', 'para_llevar', 'comida_fuera', 'ayuno']),
-    estaActiva: z.boolean(),
+    estaActiva: z.boolean().default(true),
 }).strict();
 
 // ============================================
 // ConfiguracionAlternativa (Instanciación por día)
 // ============================================
 
-const HorarioAlternativaSchema = z.object({
+const VentanaServicioComidaSchema = z.object({
     horaInicio: HoraIsoSchema,
-    iniciaDiaAnterior: z.boolean().optional(),
     horaFin: HoraIsoSchema,
-    terminaDiaSiguiente: z.boolean().optional(),
+    tipoVentana: z.enum(['normal', 'inicia_dia_anterior', 'termina_dia_siguiente']).default('normal')
 }).strict();
 
 /**
@@ -82,24 +81,25 @@ const HorarioAlternativaSchema = z.object({
  * Embebida como Record<ConfigAlternativaId, ConfiguracionAlternativa> en ConfiguracionResidencia.configuracionAlternativas.
  */
 export const ConfiguracionAlternativaSchema = z.object({
-    id: slugIdSchema, // ID semántico: dia + slug alternativa
-
+    nombre: z.string().min(1).max(100), // Este nombre se usa para construir el slug que sirve de ID semántico en singleton que contiene estos objetos embebidos. Es inmutable, si cambia el nombre, el ID permanece
+    
     // Coordenadas
-    dia: DiaDeLaSemanaSchema,
-    alternativa: slugIdSchema, // AlternativaId
+    tiempoComidaId: slugIdSchema, // TiempoComidaId
+    definicionAlternativaId: slugIdSchema, // DefinicionAlternativaId
 
     // Parámetros de Solicitud
     horarioSolicitudComidaId: slugIdSchema,
     comedorId: slugIdSchema.nullable().optional(),
-    requiereAprobacion: z.boolean(),
+    requiereAprobacion: z.boolean().default(false),
 
     // Parámetros de Horario
-    horario: HorarioAlternativaSchema,
+    ventanaServicio: VentanaServicioComidaSchema,
+    estaActivo: z.boolean().default(true)
 }).strict();
 
 
-
 // Type exports
+
 export type HorarioSolicitudData = z.infer<typeof HorarioSolicitudDataSchema>;
 
 /**

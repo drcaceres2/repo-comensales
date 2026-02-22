@@ -6,6 +6,7 @@ import { auth } from './lib/firebaseAdmin';
 const technicalRoutes = [
   '/manifest.json',
   '/favicon.ico',
+  '/locales/',
   // Las imágenes y otros assets estáticos suelen estar en /public o servidos a través de _next/static
   // Next.js ya es eficiente en esto, pero una regla explícita no hace daño.
 ];
@@ -133,6 +134,6 @@ export async function proxy(request: NextRequest) {
 // Se excluyen las rutas de API, las de generación estática de Next.js y los archivos públicos.
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|.*\.png$|.*\.ico$|.*\.svg$).*)',
+    '/((?!api|locales|_next/static|_next/image|.*\\.png$|.*\\.ico$|.*\\.svg$).*)',
   ],
 };

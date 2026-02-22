@@ -9,7 +9,8 @@ import {
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ResidenciaId, Actividad, InscripcionActividad, UserRole } from '@/../shared/models/types';
+import { Actividad, InscripcionActividad } from '@/../shared/schemas/actividades';
+import { ResidenciaId, RolUsuario } from '@/../shared/models/types';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, UserPlus, Info, Users, Soup, CheckCircle, XCircle } from 'lucide-react';
 import {
@@ -42,7 +43,7 @@ export function ActividadesClient({
   const userInscriptions = new Map<string, InscripcionActividad>();
     actividades.forEach(act => {
         act.invitaciones.forEach(inv => {
-            if (inv.userId === user?.uid) {
+            if (inv.usuarioInscritoId === user?.uid) {
                 userInscriptions.set(act.id, inv);
             }
         })
@@ -96,9 +97,9 @@ export function ActividadesClient({
 
   const isInviteAccordionVisible = (actividad: ActividadDisponible): boolean => {
     if (!user || !profile) return false;
-    const userRoles = (profile.roles || []) as UserRole[];
+    const userRoles = (profile.roles || []) as RolUsuario[];
     if (actividad.organizadorId === user.uid || userRoles.includes('director')) return true;
-    if ((userRoles.includes('residente') || userRoles.includes('invitado')) && actividad.tipoAccesoResidentes === 'abierta') {
+    if ((userRoles.includes('residente') || userRoles.includes('invitado')) && actividad.modoAccesoResidentes?.accesoUsuario === 'abierto') {
       return true;
     }
     // TODO: Add logic for assistants with permissions
@@ -150,7 +151,7 @@ export function ActividadesClient({
                     <AccordionTrigger><UserPlus className="mr-2" /> Inscribirse</AccordionTrigger>
                     <AccordionContent className="p-4 space-y-4">
                       <div><strong>Cupos disponibles:</strong> {actividad.maxParticipantes ? actividad.maxParticipantes - actividad.inscritos : 'Ilimitados'}</div>
-                      <div><strong>Fecha límite de inscripción:</strong> {new Date(new Date(actividad.fechaInicio).setDate(new Date(actividad.fechaInicio).getDate() - actividad.diasAntelacionSolicitudAdministracion)).toLocaleDateString()}</div>
+                      <div><strong>Fecha límite de inscripción:</strong> {actividad.fechaLimiteInscripcion || actividad.fechaInicio}</div>
                       
                       {estaInscrito ? (
                           <div className='flex items-center gap-4'>
@@ -197,9 +198,9 @@ export function ActividadesClient({
                             <tr className="text-left"><th className="p-2">Fecha</th><th className="p-2">Hora</th><th className="p-2">Comida</th></tr>
                           </thead>
                           <tbody>
-                            {actividad.planComidas.sort((a, b) => (a.horaEstimada || '').localeCompare(b.horaEstimada || '')).map((comida) => (
-                              <tr key={comida.id} className="border-t">
-                                <td className="p-2">{comida.fecha}</td><td className="p-2">{comida.horaEstimada || '-'}</td><td className="p-2">{comida.nombreTiempoComida_AlternativaUnica}</td>
+                            {actividad.planComidas.sort((a, b) => (a.horaEstimada || '').localeCompare(b.horaEstimada || '')).map((comida, index) => (
+                              <tr key={index} className="border-t">
+                                <td className="p-2">{comida.fechaComida}</td><td className="p-2">{comida.horaEstimada || '-'}</td><td className="p-2">{comida.nombreTiempoComida}</td>
                               </tr>
                             ))}
                           </tbody>

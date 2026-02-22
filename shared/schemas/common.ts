@@ -34,32 +34,31 @@ export const slugCompuestoIdSchema = z.string()
     });
 
 export const CadenaOpcionalLimitada = (min: number = 1, max?: number) => {
-    // 1. Definimos la regla base para el string (cuando SÍ hay valor)
     let stringRule = z.string().min(min, { message: `Mínimo ${min} caracter(es)` });
 
-    // 2. Si nos pasaron un max, lo inyectamos a la regla
     if (max) {
         stringRule = stringRule.max(max, { message: `Máximo ${max} caracteres` });
     }
 
-    // 3. Retornamos el pipeline completo
-    return z.string()
-        .trim() // Limpieza inicial
-        .transform(v => v === "" ? undefined : v) // La magia del formulario
-        .pipe(stringRule.optional()); // Aplicamos las reglas construidas arriba
+    return z.preprocess(
+        (val) => (val === "" || val === null) ? undefined : val,
+        z.string().optional().pipe(stringRule.optional())
+    );
 };
 
-export const TelefonoOpcionalSchema = z.string()
-    .trim()
-    .transform(v => v === "" ? undefined : v)
-    .pipe(z.string()
-        .regex(/^(\+?(\d[\d\- ]+)?(\([\d\- ]+\))?[\d\- ]+\d$)/, { message: "El formato del número de teléfono no es válido." })
-        .refine(val => {
-            const digits = val.replace(/\D/g, '').length;
-            return digits >= 7 && digits <= 15;
-        }, { message: "El número de teléfono debe tener entre 7 y 15 dígitos." })
-        .optional()
-    );
+export const TelefonoOpcionalSchema = z.preprocess(
+    (val) => (val === "" || val === null) ? undefined : val,
+    z.string().optional().pipe(
+        z.string()
+            .trim()
+            .regex(/^(\+?(\d[\d\- ]+)?(\([\d\- ]+\))?[\d\- ]+\d$)/, { message: "El formato del número de teléfono no es válido." })
+            .refine(val => {
+                const digits = val.replace(/\D/g, '').length;
+                return digits >= 7 && digits <= 15;
+            }, { message: "El número de teléfono debe tener entre 7 y 15 dígitos." })
+            .optional()
+    )
+);
 
 export const UrlOpcionalSchema = z.string()
     .trim()

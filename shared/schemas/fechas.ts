@@ -55,10 +55,10 @@ export const FechaIsoSchema = z.string().regex(
 export const IsoDateStringSchema = FechaIsoSchema;
 
 // Formato YYYY-MM-DD opcional (para formularios)
-export const OptionalFechaIsoSchema = z.string()
-    .trim()
-    .transform(v => v === "" ? undefined : v)
-    .pipe(FechaIsoSchema.optional());
+export const OptionalFechaIsoSchema = z.preprocess(
+    (val) => (val === "" || val === null) ? undefined : val,
+    z.string().optional().pipe(FechaIsoSchema.optional())
+);
 
 // Alias para compatibilidad
 export const OptionalIsoDateStringSchema = OptionalFechaIsoSchema;

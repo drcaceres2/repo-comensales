@@ -2,11 +2,10 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Timestamp, collection, addDoc, serverTimestamp, WriteBatch } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { Usuario, LogActionType } from '../../shared/models/types';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { LogActionType } from 'shared/models/types';
+import { Usuario } from 'shared/schemas/usuarios';
 import { type Toast } from "@/hooks/useToast";
-import timezonesDataJson from '../../shared/data/zonas_horarias_soportadas.json';
+import timezonesDataJson from 'shared/data/zonas_horarias_soportadas.json';
 import { ParsedToken, IdTokenResult } from "firebase/auth";
 import { getDoc, doc } from 'firebase/firestore';
 
@@ -228,7 +227,7 @@ export async function validarResidenciaUsuario({
   if (!authUser || !authUser.id || !claims || !params) {
     throw new Error('No se encontró el usuario autenticado en la base de datos.');
   }
-  const userProfileRef = doc(db, 'users', authUser.uid)
+  const userProfileRef = doc(db, 'usuarios', authUser.uid)
   const userProfileDoc = await getDoc(userProfileRef);
   let userProfileData: Usuario;
   if (userProfileDoc.exists()) {
@@ -251,6 +250,6 @@ export async function validarResidenciaUsuario({
 }
 
 export async function getUserProfileData(userId: string): Promise<Usuario | null> {
-  const userProfileDoc = await getDoc(doc(db, 'users', userId));
+  const userProfileDoc = await getDoc(doc(db, 'usuarios', userId));
   return userProfileDoc.exists() ? (userProfileDoc.data() as Usuario) : null;
 }

@@ -13,6 +13,8 @@ import { useAuth } from '@/hooks/useAuth';
 
 import { Button } from "@/components/ui/button";
 import { LogOut, Loader2, AlertCircle, MessageSquare } from 'lucide-react';
+import '@/i18n/config';
+import { I18nLanguageSync } from '@/components/I18nLanguageSync';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -118,14 +120,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  React.useEffect(() => {
-    import('@/i18n/config');
-  }, []);
 
   return (
     <html lang="en" className="h-full">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans flex flex-col min-h-full bg-background`}>
         <SidebarProvider>
+          <I18nLanguageSync />
           <AppShell>{children}</AppShell>
         </SidebarProvider>
         <div id="modal-root"></div>

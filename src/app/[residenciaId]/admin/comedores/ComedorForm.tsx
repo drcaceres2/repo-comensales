@@ -4,7 +4,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ComedorData, ComedorDataSchema } from 'shared/schemas/complemento1';
-import { CentroDeCostoData } from 'shared/models/types';
+import { CentroDeCosto } from 'shared/schemas/contabilidad';
 import { 
     Form, 
     FormControl, 
@@ -26,7 +26,7 @@ interface ComedorFormProps {
     onSubmit: (data: ComedorData) => Promise<void>;
     onCancel: () => void;
     isSaving: boolean;
-    centroCostosList: CentroDeCostoData[];
+    centroCostosList: CentroDeCosto[];
 }
 
 export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroCostosList }: ComedorFormProps) {
@@ -106,8 +106,8 @@ export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroC
                                 </FormControl>
                                 <SelectContent>
                                     {centroCostosList.map((cc) => (
-                                        <SelectItem key={cc.codigo} value={cc.codigo}>
-                                            {cc.nombre} ({cc.codigo})
+                                        <SelectItem key={cc.id} value={cc.id}>
+                                            {cc.nombre} ({cc.codigoVisible})
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

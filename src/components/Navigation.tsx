@@ -37,25 +37,26 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from "firebase/firestore";
-import { UserProfile, UserRole } from '../../shared/models/types';
+import { Usuario } from 'shared/schemas/usuarios';
+import { RolUsuario } from 'shared/models/types'
 
 interface NavItem {
   id: string;
   label: string;
   icon: LucideIcon;
   href?: string | ((residenciaIdRelativePath: string) => string);
-  roles?: UserRole[] | 'authenticated' | 'unauthenticated';
+  roles?: RolUsuario[] | 'authenticated' | 'unauthenticated';
   requiresResidenciaIdForHref?: boolean;
   isAccordion?: boolean;
   children?: NavItem[];
   isFeedbackLink?: boolean;
-  checkVisibility?: (profile: UserProfile | null) => boolean;
+  checkVisibility?: (profile: Usuario | null) => boolean;
   pathTemplate?: string;
 }
 
-const ALL_AUTHENTICATED_ROLES: UserRole[] = ['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador'];
+const ALL_AUTHENTICATED_ROLES: RolUsuario[] = ['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador'];
 
-const getNavConfig = (profile: UserProfile | null): NavItem[] => {
+const getNavConfig = (profile: Usuario | null): NavItem[] => {
   const userRoles = profile?.roles || [];
   const residenciaId = profile?.residenciaId;
 
@@ -72,16 +73,6 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       icon: UserCircle2,
       href: '/mi-perfil',
       roles: ALL_AUTHENTICATED_ROLES,
-    },
-    {
-      id: 'elegirComidasGlobal',
-      label: 'Elegir comidas (Global)',
-      icon: ListChecks,
-      href: (residenciaId && profile?.roles.includes('residente')) ? `/${residenciaId}/elegir-comidas` : '#',
-      checkVisibility: (p) => !!p?.residenciaId && p.roles.includes('residente'),
-      roles: ['residente'],
-      requiresResidenciaIdForHref: true,
-      pathTemplate: '/elegir-comidas',
     },
     {
       id: 'privacidad',
@@ -107,45 +98,10 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       roles: ['master'],
       children: [
         {
-          id: 'crearCliente',
-          label: 'Cliente',
-          icon: Users,
-          href: '/restringido-master/crear-cliente',
-          roles: ['master'],
-        },
-        {
-          id: 'crearContrato',
-          label: 'Contratos',
-          icon: FileText,
-          href: '/restringido-master/crear-contrato-residencia',
-          roles: ['master'],
-        },
-        {
-          id: 'crearPedido',
-          label: 'Pedidos',
-          icon: PlusCircle,
-          href: '/restringido-master/crear-pedido',
-          roles: ['master'],
-        },
-        {
           id: 'crearResidenciaMaster',
           label: 'Crear residencia',
           icon: Building,
           href: '/restringido-master/crear-residencia',
-          roles: ['master'],
-        },
-        {
-          id: 'facturasMaster',
-          label: 'Facturas',
-          icon: FileText,
-          href: '/restringido-master/facturas',
-          roles: ['master'],
-        },
-        {
-          id: 'licenciasMaster',
-          label: 'Licenciamiento',
-          icon: Briefcase,
-          href: '/restringido-master/licencias',
           roles: ['master'],
         },
       ],
@@ -161,38 +117,11 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       requiresResidenciaIdForHref: true,
       children: [
         {
-          id: 'solicitarComensales',
-          label: 'Solicitar comensales',
-          icon: ConciergeBell,
-          href: rLink,
-          pathTemplate: '/solicitar-comensales',
-          roles: ['director', 'asistente'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
-          id: 'recordatoriosDirectores',
-          label: 'Recordatorios',
-          icon: Bell,
-          href: rLink,
-          pathTemplate: '/recordatorios',
-          roles: ['director', 'asistente'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
-          id: 'adminAtenciones',
-          label: 'Atenciones',
-          icon: Settings,
-          href: rLink,
-          pathTemplate: '/admin/atenciones',
-          roles: ['director', 'asistente'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
           id: 'adminDietas',
           label: 'Dietas',
           icon: ListChecks,
           href: rLink,
-          pathTemplate: '/admin/dietas',
+          pathTemplate: '/gerencia/dietas',
           roles: ['director', 'asistente'],
           requiresResidenciaIdForHref: true,
         },
@@ -201,7 +130,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           label: 'Restringir residentes',
           icon: UsersRound,
           href: rLink,
-          pathTemplate: '/admin/grupos-usuarios',
+          pathTemplate: '/gerencia/grupos-usuarios',
           roles: ['director', 'asistente'],
           requiresResidenciaIdForHref: true,
         },
@@ -210,7 +139,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           label: 'Delegar',
           icon: UserCog,
           href: rLink,
-          pathTemplate: '/configurar-delegacion-asistente',
+          pathTemplate: '/gerencia/delegar',
           roles: ['director', 'asistente'],
           requiresResidenciaIdForHref: true,
         },
@@ -240,46 +169,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           label: 'Crear Actividades',
           icon: PlusCircle,
           href: rLink,
-          pathTemplate: '/admin/actividades',
-          roles: ['director', 'asistente'],
-          requiresResidenciaIdForHref: true,
-        },
-      ],
-    },
-
-    // --- Group: Invitados ---
-    {
-      id: 'invitadosGroup',
-      label: 'Invitados',
-      icon: Handshake,
-      isAccordion: true,
-      roles: ['director', 'asistente', 'invitado'],
-      requiresResidenciaIdForHref: true,
-      children: [
-        {
-          id: 'invitadoBienvenida',
-          label: 'Solicitar comidas (asistente)',
-          icon: ConciergeBell,
-          href: rLink,
-          pathTemplate: '/bienvenida-invitados',
-          roles: ['invitado'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
-          id: 'invitadoElecciones',
-          label: 'Solicitar comidas (detallado)',
-          icon: ListChecks,
-          href: rLink,
-          pathTemplate: '/elecciones-invitados',
-          roles: ['director', 'asistente', 'invitado'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
-          id: 'adminInvitadosNoAuth',
-          label: 'Crear invitados sin acceso',
-          icon: UserPlus,
-          href: rLink,
-          pathTemplate: '/admin/invitados-no-autenticados',
+          pathTemplate: '/gerencia/actividades',
           roles: ['director', 'asistente'],
           requiresResidenciaIdForHref: true,
         },
@@ -302,38 +192,11 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
           roles: ['admin', 'master'],
         },
         {
-          id: 'adminCrearUsuarioPorCorreo',
-          label: 'Enviar enlace creación usuario',
-          icon: UserCog,
-          href: rLink,
-          pathTemplate: '/admin/crear-usuario-por-correo',
-          roles: ['admin'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
-          id: 'adminResidenciaDashboard',
-          label: 'Comedores y Horarios Admin',
-          icon: Settings,
-          href: rLink,
-          pathTemplate: '/admin',
-          roles: ['admin'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
           id: 'adminHorariosComida',
           label: 'Horarios de comida',
           icon: Clock,
           href: rLink,
           pathTemplate: '/admin/horarios',
-          roles: ['admin'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
-          id: 'adminHorariosComidaArchivo',
-          label: 'Horarios carga masiva',
-          icon: FileText,
-          href: rLink,
-          pathTemplate: '/admin/cargaHorarios',
           roles: ['admin'],
           requiresResidenciaIdForHref: true,
         },
@@ -359,20 +222,11 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
       requiresResidenciaIdForHref: true,
       children: [
         {
-          id: 'configContabilidad',
-          label: 'Configurar contabilidad',
-          icon: Settings,
+          id: 'centrosDeCosto',
+          label: 'Centros de costo',
+          icon: Building,
           href: rLink,
-          pathTemplate: '/contabilidad/config-contabilidad',
-          roles: ['contador'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
-          id: 'detallarCostoClasificacion',
-          label: 'Detallar costo y clasificación',
-          icon: ListChecks,
-          href: rLink,
-          pathTemplate: '/contabilidad/detallar-costo-y-clasificacion',
+          pathTemplate: '/contabilidad/centros-de-costo',
           roles: ['contador'],
           requiresResidenciaIdForHref: true,
         },
@@ -400,7 +254,7 @@ const getNavConfig = (profile: UserProfile | null): NavItem[] => {
   ];
 };
 
-const isItemVisible = (item: NavItem, profile: UserProfile | null): boolean => {
+const isItemVisible = (item: NavItem, profile: Usuario | null): boolean => {
   if (item.checkVisibility) {
     return item.checkVisibility(profile);
   }
@@ -428,7 +282,7 @@ const isItemVisible = (item: NavItem, profile: UserProfile | null): boolean => {
 
 export function Navigation() {
   const { user: authUser, loading: authLoading } = useAuth();
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userProfile, setUsuario] = useState<Usuario | null>(null);
   const [profileLoading, setProfileLoading] = useState<boolean>(true);
   const { isMobile, setOpenMobile } = useSidebar(); 
 
@@ -439,18 +293,18 @@ export function Navigation() {
     }
     if (authUser) {
       setProfileLoading(true);
-      const userDocRef = doc(db, "users", authUser.uid);
+      const userDocRef = doc(db, "usuarios", authUser.uid);
       getDoc(userDocRef)
         .then((docSnap) => {
-          setUserProfile(docSnap.exists() ? (docSnap.data() as UserProfile) : null);
+          setUsuario(docSnap.exists() ? (docSnap.data() as Usuario) : null);
         })
         .catch((error) => {
           console.error("Error fetching user profile:", error);
-          setUserProfile(null);
+          setUsuario(null);
         })
         .finally(() => setProfileLoading(false));
     } else {
-      setUserProfile(null);
+      setUsuario(null);
       setProfileLoading(false);
     }
   }, [authUser, authLoading]);

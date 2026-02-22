@@ -14,15 +14,15 @@ import { HorarioSolicitudDataSchema, TiempoComidaSchema,
 export const CampoPersonalizadoSchema = z.object({
     activo: z.boolean(),
     configuracionVisual: z.object({
-        etiqueta: z.string().min(1).max(50),
+        etiqueta: z.string().min(1, "La etiqueta es obligatoria").max(50),
         tipoControl: z.enum(['text', 'textArea']),
-        placeholder: z.string().min(1).optional(),
+        placeholder: CadenaOpcionalLimitada(1, 100).optional(),
     }).strict(),
     validacion: z.object({
         esObligatorio: z.boolean(),
         necesitaValidacion: z.boolean(),
-        regex: z.string().max(200).optional(),
-        mensajeError: z.string().max(200).optional(),
+        regex: CadenaOpcionalLimitada(1, 200).optional(),
+        mensajeError: CadenaOpcionalLimitada(1, 200).optional(),
     }).strict(),
     permisos: z.object({
         modificablePorDirector: z.boolean(),
@@ -92,7 +92,8 @@ export const updateResidenciaSchema = residenciaSchema.omit({
 export const ConfiguracionResidenciaSchema = z.object({
     // Metadata
     residenciaId: slugIdSchema,
-    nombreCompleto: z.string().min(1).max(200),
+    nombreCompleto: z.string().min(1).max(80),
+    version: z.number().int().nonnegative().default(1),
 
     // Muro móvil
     fechaHoraReferenciaUltimaSolicitud: FechaHoraIsoSchema,

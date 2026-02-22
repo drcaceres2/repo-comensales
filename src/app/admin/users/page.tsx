@@ -30,6 +30,7 @@ import {
 import { useToast } from "@/hooks/useToast";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 // --- React & Next Imports ---
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -48,9 +49,6 @@ import {
     RolUsuario,
     ResidenciaId,
     DietaId,
-    DietaData,
-    CentroDeCostoData,
-    ConfiguracionResidencia, // Main configuration object
     CentroDeCostoId
 } from 'shared/models/types';
 
@@ -65,7 +63,9 @@ import {
     type ClientUpdateUserForm,
     type ResidenteData,
 } from 'shared/schemas/usuarios';
-import { Residencia } from 'shared/schemas/residencia';
+import { Residencia, ConfiguracionResidencia } from 'shared/schemas/residencia';
+import { DietaData } from "shared/schemas/complemento1";
+import { CentroDeCosto } from "shared/schemas/contabilidad";
 
 const defaultPermisoDetalle: AsistentePermisosDetalle = {
     nivelAcceso: 'Ninguna',
@@ -135,14 +135,20 @@ function UserManagementPage(): JSX.Element | null {
         residenciaId: '',
         password: '',
         confirmPassword: '',
+        identificacion: '',
         telefonoMovil: '',
         fechaDeNacimiento: '',
+        universidad: '',
+        carrera: '',
         centroCostoPorDefectoId: '',
         puedeTraerInvitados: 'no',
         camposPersonalizados: {},
         grupos: [],
         tieneAutenticacion: true,
     });
+    
+    const [centrosDeCosto, setCentrosDeCosto] = useState<CentroDeCosto[]>([]);
+    const [isLoadingCentros, setIsLoadingCentros] = useState(false);
     
     const [isSaving, setIsSaving] = useState(false);
     const [users, setUsers] = useState<Usuario[]>([]);
@@ -151,6 +157,7 @@ function UserManagementPage(): JSX.Element | null {
     const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
     const [userToDeleteId, setUserToDeleteId] = useState<string | null>(null);
     const [selectedResidenciaFilter, setSelectedResidenciaFilter] = useState<string>(ALL_RESIDENCIAS_FILTER_KEY);
+    const [formError, setFormError] = useState<string | null>(null);
 
     const availableRoles: RolUsuario[] = ['residente', 'director', 'admin', 'master', 'invitado', 'asistente', 'contador'];
     const [residences, setResidences] = useState<Record<ResidenciaId, { nombre: string }>>({});
@@ -160,10 +167,14 @@ function UserManagementPage(): JSX.Element | null {
         return Object.entries(configuracionResidencia.dietas).map(([id, data]) => ({ id, ...data }));
     }, [configuracionResidencia]);
     
-    const centrosCostoList = useMemo((): (CentroDeCostoData & {id: CentroDeCostoId})[] => {
-        // This needs to be adjusted based on the final schema for ConfigContabilidad
-        return []; 
-    }, []);
+    const centrosCostoList = useMemo(() => {
+        return centrosDeCosto;
+    }, [centrosDeCosto]);
+
+    const availableGroups = useMemo(() => {
+        if (!configuracionResidencia?.gruposUsuarios) return [];
+        return Object.entries(configuracionResidencia.gruposUsuarios).map(([id, data]) => ({ id, nombre: data.nombre }));
+    }, [configuracionResidencia]);
 
 
     const filteredUsers = useMemo(() => {
@@ -184,9 +195,9 @@ function UserManagementPage(): JSX.Element | null {
         return usersToDisplay.sort((a, b) => (a.apellido + a.nombre).localeCompare(b.apellido + b.nombre));
     }, [users, selectedResidenciaFilter, adminUserProfile]);
 
-    const fetchResidences = useCallback(async (profile: Usuario | null) => {
-        if (!profile || hasAttemptedFetch['residencias']) return;
-        setHasAttemptedFetch(prev => ({...prev, residencias: true}));
+    const fetchResidences = useCallback(async (profile: Usuario | null, force: boolean = false) => {
+        if (!profile || (hasAttemptedFetch['residencias'] && !force)) return;
+        if (!force) setHasAttemptedFetch(prev => ({...prev, residencias: true}));
 
         const isMaster = profile.roles.includes('master');
         const adminResidenciaId = profile.residenciaId;
@@ -259,6 +270,27 @@ function UserManagementPage(): JSX.Element | null {
         }
     }, [toast]);
 
+    const fetchCentrosDeCosto = useCallback(async (residenciaId: string) => {
+        if (!residenciaId) {
+            setCentrosDeCosto([]);
+            return;
+        }
+        setIsLoadingCentros(true);
+        try {
+            const q = query(
+                collection(db, "residencias", residenciaId, "centrosDeCosto"),
+                where("estaActivo", "==", true)
+            );
+            const snap = await getDocs(q);
+            const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CentroDeCosto));
+            setCentrosDeCosto(data);
+        } catch (error) {
+            console.error("Error fetching cost centers:", error);
+        } finally {
+            setIsLoadingCentros(false);
+        }
+    }, []);
+
 
     const fetchResidentesForResidencia = useCallback(async (residenciaId?: ResidenciaId) => {
         if (!residenciaId) {
@@ -286,9 +318,9 @@ function UserManagementPage(): JSX.Element | null {
         }
     }, [toast, editingUserId, formData.email]);
 
-    const fetchUsersToManage = useCallback(async (profile: Usuario | null) => {
-        if (!profile || hasAttemptedFetch['users']) return;
-        setHasAttemptedFetch(prev => ({...prev, users: true}));
+    const fetchUsersToManage = useCallback(async (profile: Usuario | null, force: boolean = false) => {
+        if (!profile || (hasAttemptedFetch['users'] && !force)) return;
+        if (!force) setHasAttemptedFetch(prev => ({...prev, users: true}));
         setIsLoadingUsers(true);
 
         const isMaster = profile.roles.includes('master');
@@ -384,14 +416,17 @@ function UserManagementPage(): JSX.Element | null {
     useEffect(() => {
         if (formData.residenciaId && formData.residenciaId !== currentResidenciaDetails?.id) {
             fetchResidenciaData(formData.residenciaId);
+            fetchCentrosDeCosto(formData.residenciaId);
         } else if (!formData.residenciaId) {
             setCurrentResidenciaDetails(null);
             setConfiguracionResidencia(null);
             setResidentesForAsistente([]);
+            setCentrosDeCosto([]);
         }
-    }, [formData.residenciaId, fetchResidenciaData, currentResidenciaDetails?.id]);
+    }, [formData.residenciaId, fetchResidenciaData, fetchCentrosDeCosto, currentResidenciaDetails?.id]);
 
     const handleFormChange = (fieldPath: string, value: any) => {
+        if (formError) setFormError(null);
         setFormData((prev: UserFormData) => {
             const keys = fieldPath.split('.');
             if (keys.length === 1) {
@@ -495,27 +530,28 @@ function UserManagementPage(): JSX.Element | null {
             if (!validationResult.success) {
                 const errors = validationResult.error.flatten();
                 const errorMessages = Object.entries(errors.fieldErrors).map(([field, msgs]) => `${field}: ${(msgs as string[]).join(', ')}`);
-                toast({
-                    title: `Error de Validación (${errorMessages.length})`,
-                    description: errorMessages.join('\n'),
-                    variant: "destructive"
-                });
+                setFormError(`Error de Validación (${errorMessages.length}): ` + errorMessages.join(' | '));
+                window.scrollTo({ top: 0, behavior: 'smooth' });
                 setIsSaving(false);
                 return;
             }
 
             const validatedData = validationResult.data;
+            const { password, confirmPassword, ...profileData } = validatedData as any;
+
             const callable = editingUserId ? updateUserCallable : createUserCallable;
             
             const payload: any = {
-                profileData: validatedData,
+                profileData: profileData,
                 performedByUid: adminUserProfile?.id,
+                email: profileData.email,
+                password: password,
             };
 
             if (editingUserId) {
                 payload.userIdToUpdate = editingUserId;
-            } else {
-                payload.password = (validatedData as ClientCreateUserForm).password;
+                delete payload.password;
+                delete payload.email;
             }
             
             const result = await callable(payload);
@@ -523,14 +559,40 @@ function UserManagementPage(): JSX.Element | null {
 
             if (resultData.success) {
                 toast({ title: `Usuario ${editingUserId ? 'Actualizado' : 'Creado'}`, description: `Usuario ${validatedData.nombre} ${validatedData.apellido} ${editingUserId ? 'actualizado' : 'creado'}.` });
-                await fetchUsersToManage(adminUserProfile);
+                await fetchUsersToManage(adminUserProfile, true);
                 handleCancelEdit();
+                setFormError(null);
             } else {
                 throw new Error(resultData.message || 'La operación falló en el servidor.');
             }
 
         } catch (error: any) {
-            toast({ title: "Error en la Operación", description: error.message, variant: "destructive" });
+            console.error("Error in handleSubmit:", error);
+            
+            let errorMessage = error.message || "Ocurrió un error inesperado";
+            
+            // Si es un error de Firebase Functions, a veces el mensaje viene con el prefijo del tipo de error
+            if (errorMessage.includes("] ")) {
+                errorMessage = errorMessage.split("] ")[1];
+            }
+
+            // Si hay detalles adicionales (como errores de validación estructurados)
+            if (error.details) {
+                if (typeof error.details === 'string') {
+                    errorMessage += `\n\nDetalles: ${error.details}`;
+                } else if (typeof error.details === 'object') {
+                    errorMessage += `\n\n${JSON.stringify(error.details, null, 2)}`;
+                }
+            }
+
+            setFormError(errorMessage);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            toast({ 
+                title: "Error en la Operación", 
+                description: "Revisa los detalles marcados en rojo en el formulario.", 
+                variant: "destructive" 
+            });
         } finally {
             setIsSaving(false);
         }
@@ -687,6 +749,15 @@ function UserManagementPage(): JSX.Element | null {
                 </CardHeader>
                 <form onSubmit={handleSubmit}>
                     <CardContent className="space-y-6">
+                        {formError && (
+                            <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-2 duration-300">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Error al procesar la solicitud</AlertTitle>
+                                <AlertDescription className="whitespace-pre-wrap mt-2 text-xs font-mono bg-destructive/10 p-2 rounded">
+                                    {formError}
+                                </AlertDescription>
+                            </Alert>
+                        )}
                         {/* Personal Info */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                            <div className="space-y-1.5">
@@ -700,6 +771,49 @@ function UserManagementPage(): JSX.Element | null {
                             <div className="space-y-1.5">
                                 <Label htmlFor="nombreCorto">Nombre Corto *</Label>
                                 <Input id="nombreCorto" value={formData.nombreCorto || ''} onChange={(e) => handleFormChange('nombreCorto', e.target.value)} disabled={isSaving} />
+                            </div>
+                        </div>
+
+                        {/* Personal & Auth Info Continued */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="identificacion">Identificación (DNI/ID)</Label>
+                                <Input id="identificacion" value={formData.identificacion || ''} onChange={(e) => handleFormChange('identificacion', e.target.value)} disabled={isSaving} />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="telefonoMovil">Te
+                                    léfono Móvil</Label>
+                                <Input id="telefonoMovil" value={formData.telefonoMovil || ''} onChange={(e) => handleFormChange('telefonoMovil', e.target.value)} disabled={isSaving} placeholder="+504 1234-5678" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="fechaDeNacimiento">Fecha de Nacimiento</Label>
+                                <Input id="fechaDeNacimiento" type="date" value={formData.fechaDeNacimiento || ''} onChange={(e) => handleFormChange('fechaDeNacimiento', e.target.value)} disabled={isSaving} />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="centroCosto">Centro de Costo</Label>
+                                <Select 
+                                    value={formData.centroCostoPorDefectoId || ''} 
+                                    onValueChange={(v) => handleSelectChange('centroCostoPorDefectoId', v)} 
+                                    disabled={isSaving || isLoadingCentros || !formData.residenciaId}
+                                >
+                                    <SelectTrigger><SelectValue placeholder={centrosCostoList.length > 0 ? "Seleccione..." : "No hay CC"} /></SelectTrigger>
+                                    <SelectContent>
+                                        {centrosCostoList.map(cc => (
+                                            <SelectItem key={cc.id} value={cc.id}>{cc.nombre} ({cc.codigoVisible})</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                             <div className="space-y-1.5">
+                                <Label htmlFor="universidad">Universidad</Label>
+                                <Input id="universidad" value={formData.universidad || ''} onChange={(e) => handleFormChange('universidad', e.target.value)} disabled={isSaving} />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="carrera">Carrera</Label>
+                                <Input id="carrera" value={formData.carrera || ''} onChange={(e) => handleFormChange('carrera', e.target.value)} disabled={isSaving} />
                             </div>
                         </div>
 
@@ -721,21 +835,50 @@ function UserManagementPage(): JSX.Element | null {
                             </div>
                         )}
 
-                        {/* Roles */}
-                        <div className="space-y-2">
-                            <Label className="font-medium">Roles *</Label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                                {availableRoles.map((role) => (
-                                    <div key={role} className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id={`role-${role}`}
-                                            checked={formData.roles?.includes(role)}
-                                            onCheckedChange={(checked) => handleRoleChange(role, !!checked)}
-                                            disabled={isSaving || (role === 'master' && !adminUserProfile?.roles.includes('master'))}
-                                        />
-                                        <Label htmlFor={`role-${role}`} className="font-normal capitalize">{formatSingleRoleName(role)}</Label>
-                                    </div>
-                                ))}
+                        {/* Roles & Groups */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div className="space-y-2">
+                                <Label className="font-medium">Roles *</Label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {availableRoles.map((role) => (
+                                        <div key={role} className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`role-${role}`}
+                                                checked={formData.roles?.includes(role)}
+                                                onCheckedChange={(checked) => handleRoleChange(role, !!checked)}
+                                                disabled={isSaving || (role === 'master' && !adminUserProfile?.roles.includes('master'))}
+                                            />
+                                            <Label htmlFor={`role-${role}`} className="font-normal capitalize">{formatSingleRoleName(role)}</Label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <Label className="font-medium">Grupos</Label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border p-3 rounded-md bg-slate-50/50 dark:bg-slate-900/20 min-h-[100px]">
+                                    {availableGroups.length > 0 ? (
+                                        availableGroups.map((group) => (
+                                            <div key={group.id} className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`group-${group.id}`}
+                                                    checked={formData.grupos?.includes(group.id)}
+                                                    onCheckedChange={(checked) => {
+                                                        const current = formData.grupos || [];
+                                                        const updated = checked ? [...current, group.id] : current.filter(id => id !== group.id);
+                                                        handleFormChange('grupos', updated);
+                                                    }}
+                                                    disabled={isSaving}
+                                                />
+                                                <Label htmlFor={`group-${group.id}`} className="font-normal text-xs">{group.nombre}</Label>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="col-span-full flex items-center justify-center text-xs text-muted-foreground italic">
+                                            {formData.residenciaId ? 'No hay grupos configurados' : 'Seleccione una residencia para ver grupos'}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                         
@@ -747,14 +890,13 @@ function UserManagementPage(): JSX.Element | null {
                             </div>
                         )}
 
-                        {/* Residencia & Dieta */}
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
                              <div className="space-y-1.5">
                                  <Label htmlFor="residencia">Residencia Asignada {isResidenciaRequired ? '*' : ''}</Label>
                                 <Select
                                     value={formData.residenciaId || ''}
                                     onValueChange={(value) => handleSelectChange('residenciaId', value)}
-                                    disabled={isSaving || !isResidenciaRequired || !adminUserProfile?.roles.includes('master')}
+                                    disabled={isSaving || !isResidenciaRequired || (!!adminUserProfile && !adminUserProfile.roles.includes('master'))}
                                 >
                                     <SelectTrigger><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                                     <SelectContent>
@@ -779,7 +921,59 @@ function UserManagementPage(): JSX.Element | null {
                                      </SelectContent>
                                  </Select>
                              </div>
+                             <div className="space-y-1.5">
+                                <Label htmlFor="puedeTraerInvitados">¿Puede Traer Invitados?</Label>
+                                <Select 
+                                    value={formData.puedeTraerInvitados || 'no'} 
+                                    onValueChange={(v) => handleSelectChange('puedeTraerInvitados', v)} 
+                                    disabled={isSaving}
+                                >
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="no">No</SelectItem>
+                                        <SelectItem value="si">Sí</SelectItem>
+                                        <SelectItem value="requiere_autorizacion">Requiere Autorización</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                             </div>
                          </div>
+                         
+                         {/* Custom Fields from Residencia */}
+                         {currentResidenciaDetails?.camposPersonalizadosPorUsuario && currentResidenciaDetails.camposPersonalizadosPorUsuario.length > 0 && (
+                            <div className="space-y-4 pt-4 border-t">
+                                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Campos Personalizados de la Residencia</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {currentResidenciaDetails.camposPersonalizadosPorUsuario.filter(field => field.activo).map((field, idx) => {
+                                        const fieldId = field.configuracionVisual.etiqueta.toLowerCase().replace(/\s+/g, '_');
+                                        return (
+                                            <div key={idx} className="space-y-1.5">
+                                                <Label htmlFor={`custom-${idx}`}>
+                                                    {field.configuracionVisual.etiqueta} 
+                                                    {field.validacion.esObligatorio ? ' *' : ''}
+                                                </Label>
+                                                {field.configuracionVisual.tipoControl === 'textArea' ? (
+                                                    <Textarea 
+                                                        id={`custom-${idx}`}
+                                                        placeholder={field.configuracionVisual.placeholder}
+                                                        value={formData.camposPersonalizados?.[field.configuracionVisual.etiqueta] || ''}
+                                                        onChange={(e) => handleFormChange(`camposPersonalizados.${field.configuracionVisual.etiqueta}`, e.target.value)}
+                                                        disabled={isSaving}
+                                                    />
+                                                ) : (
+                                                    <Input 
+                                                        id={`custom-${idx}`}
+                                                        placeholder={field.configuracionVisual.placeholder}
+                                                        value={formData.camposPersonalizados?.[field.configuracionVisual.etiqueta] || ''}
+                                                        onChange={(e) => handleFormChange(`camposPersonalizados.${field.configuracionVisual.etiqueta}`, e.target.value)}
+                                                        disabled={isSaving}
+                                                    />
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                         )}
                          
                          {/* Residente specific fields */}
                          {isResidente && (

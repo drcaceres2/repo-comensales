@@ -3,15 +3,14 @@
 import { db, admin } from '@/lib/firebaseAdmin';
 import {
   Actividad,
-  EstadoInscripcionActividad,
   InscripcionActividad,
-  Residencia,
-  ResidenciaId,
-  UserRole,
-} from '@/../shared/models/types';
+} from '@/../shared/schemas/actividades';
+import { Residencia } from '@/../shared/schemas/residencia';
+import { ResidenciaId, RolUsuario, LogPayload } from '@/../shared/models/types';
 import { requireAuth } from '@/lib/serverAuth';
 import { revalidatePath } from 'next/cache';
-import { logServerAction } from '@/lib/serverLogs';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@/lib/firebase';
 
 async function getResidencia(residenciaId: ResidenciaId): Promise<Residencia | null> {
     const residenciaRef = db.collection('residencias').doc(residenciaId);
@@ -28,10 +27,10 @@ async function getTodayInTimezone(residenciaId: ResidenciaId) {
     if (!residencia || !residencia.ubicacion) {
         throw new Error('Residencia not found or timezone not configured');
     }
-    const { timezone } = residencia.ubicacion;
+    const { zonaHoraria } = residencia.ubicacion;
     const today = new Date();
     //toLocaleString can be buggy in server environments. Let's use a more robust way.
-    return new Date(today.toLocaleString('en-US', { timeZone: timezone })).toISOString().split('T')[0];
+    return new Date(today.toLocaleString('en-US', { timeZone: zonaHoraria })).toISOString().split('T')[0];
 }
 
 
@@ -69,7 +68,7 @@ export async function getActividadesDisponibles(
   );
 
   // 3. Use user's roles from auth context
-    const userRoles: UserRole[] = (roles as UserRole[]) || [];
+    const userRoles: RolUsuario[] = (roles as RolUsuario[]) || [];
     const isResidente = userRoles.includes('residente');
     const isInvitado = userRoles.includes('invitado');
 
@@ -105,10 +104,10 @@ export async function getActividadesDisponibles(
 
     let finalActividades = actividadesDisponibles.filter(act => {
         // 2e & 2f: Role-based filtering
-        if (isResidente && !['abierta', 'opcion_unica'].includes(act.tipoAccesoResidentes || '')) {
+        if (isResidente && act.modoAccesoResidentes?.accesoUsuario !== 'abierto') {
             return false;
         }
-        if (isInvitado && !['abierta', 'opcion_unica'].includes(act.tipoAccesoInvitados || '')) {
+        if (isInvitado && act.modoAccesoInvitados?.accesoUsuario !== 'abierto') {
             return false;
         }
         return true;
@@ -116,7 +115,7 @@ export async function getActividadesDisponibles(
 
   // 2g: Include activities the user is specifically invited to
   const userInvitations = allInscripciones.filter(
-    (ins) => ins.userId === uid && ins.estadoInscripcion === 'invitado_pendiente'
+    (ins) => ins.usuarioInscritoId === uid && ins.estadoInscripcion === 'invitado_pendiente'
   );
 
   const invitedActividadIds = userInvitations.map((ins) => ins.actividadId);
@@ -154,22 +153,27 @@ export async function inscribirEnActividad(residenciaId: ResidenciaId, actividad
         throw new Error("No hay cupos disponibles");
     }
 
-    const newInscripcion: Omit<InscripcionActividad, 'id'> = {
+    const newInscripcion = {
         actividadId,
-        userId: uid,
+        usuarioInscritoId: uid,
         residenciaId,
         estadoInscripcion: 'inscrito_directo',
-        fechaHoraCreacion: admin.firestore.Timestamp.now(),
-        fechaHoraModificacion: admin.firestore.Timestamp.now(),
+        fechaInvitacion: null,
+        timestampCreacion: new Date().toISOString(),
+        timestampModificacion: new Date().toISOString(),
     };
 
     await inscripcionesRef.add(newInscripcion);
-    await logServerAction(uid, email, 'INSCRIPCION_USUARIO_ACTIVIDAD', {
-        residenciaId,
+
+    // Async logging via Cloud Function
+    const logAction = httpsCallable<LogPayload, { success: boolean }>(functions, 'logActionCallable');
+    logAction({
+        action: 'INSCRIPCION_USUARIO_ACTIVIDAD',
         targetId: actividadId,
         targetCollection: 'actividades',
+        residenciaId,
         details: { nombreActividad: actividad.nombre }
-    });
+    }).catch(err => console.error("Error logging INSCRIPCION_USUARIO_ACTIVIDAD:", err));
 
     revalidatePath(`/${residenciaId}/inscripcion-actividades`);
 }
@@ -182,21 +186,24 @@ export async function responderInvitacion(residenciaId: ResidenciaId, inscripcio
     if (!inscripcionSnap.exists) throw new Error("Invitation not found");
     const inscripcion = inscripcionSnap.data() as InscripcionActividad;
 
-    if (inscripcion.userId !== uid) throw new Error("Unauthorized");
+    if (inscripcion.usuarioInscritoId !== uid) throw new Error("Unauthorized");
 
-    const nuevoEstado: EstadoInscripcionActividad = aceptar ? 'invitado_aceptado' : 'invitado_rechazado';
+    const nuevoEstado = aceptar ? 'invitado_aceptado' : 'invitado_rechazado';
 
     await inscripcionRef.update({
         estadoInscripcion: nuevoEstado,
-        fechaHoraModificacion: admin.firestore.Timestamp.now(),
+        timestampModificacion: new Date().toISOString(),
     });
 
-    await logServerAction(uid, email, 'INVITACION_USUARIO_ACTIVIDAD', {
-        residenciaId,
+    // Async logging via Cloud Function
+    const logAction = httpsCallable<LogPayload, { success: boolean }>(functions, 'logActionCallable');
+    logAction({
+        action: 'INVITACION_USUARIO_ACTIVIDAD',
         targetId: inscripcion.actividadId,
         targetCollection: 'actividades',
+        residenciaId,
         details: { respuesta: aceptar ? 'aceptada' : 'rechazada' }
-    });
+    }).catch(err => console.error("Error logging INVITACION_USUARIO_ACTIVIDAD:", err));
 
     revalidatePath(`/${residenciaId}/inscripcion-actividades`);
 }
@@ -209,19 +216,22 @@ export async function cancelarInscripcion(residenciaId: ResidenciaId, inscripcio
     if (!inscripcionSnap.exists) throw new Error("Inscription not found");
     const inscripcion = inscripcionSnap.data() as InscripcionActividad;
 
-    if (inscripcion.userId !== uid) throw new Error("Unauthorized");
+    if (inscripcion.usuarioInscritoId !== uid) throw new Error("Unauthorized");
 
     await inscripcionRef.update({
         estadoInscripcion: 'cancelado_usuario',
-        fechaHoraModificacion: admin.firestore.Timestamp.now(),
+        timestampModificacion: new Date().toISOString(),
     });
 
-    await logServerAction(uid, email, 'SALIDA_USUARIO_ACTIVIDAD', {
-        residenciaId,
+    // Async logging via Cloud Function
+    const logAction = httpsCallable<LogPayload, { success: boolean }>(functions, 'logActionCallable');
+    logAction({
+        action: 'SALIDA_USUARIO_ACTIVIDAD',
         targetId: inscripcion.actividadId,
         targetCollection: 'actividades',
+        residenciaId,
         details: { inscripcionId }
-    });
+    }).catch(err => console.error("Error logging SALIDA_USUARIO_ACTIVIDAD:", err));
 
     revalidatePath(`/${residenciaId}/inscripcion-actividades`);
 }

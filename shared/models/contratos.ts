@@ -1,5 +1,6 @@
 import { campoFechaConZonaHoraria } from "@/lib/fechasResidencia";
-import { UsuarioId, ResidenciaId, CodigoPaisIso, Ubicacion, FechaIso, FirestoreTimestamp } from "./types"
+import { UsuarioId, ResidenciaId, CodigoPaisIso, Ubicacion, FechaIso } from "./types"
+import { TimestampString } from "./types";
 
 export type ContratoResidenciaId = string;
 export type ClienteId = string;
@@ -118,8 +119,8 @@ export interface ContratoResidencia {
     recordatorios?: RecordatorioVencimiento[] | null;
     pruebaSolucion: boolean;
     fechaFinPrueba?: FechaIso | null; // El trial siempre es al principio, se supone fecha de inicio la fecha de inicio del contrato
-    timestampCreacion: FirestoreTimestamp;
-    timestampModificacion: FirestoreTimestamp;
+    timestampCreacion: TimestampString;
+    timestampModificacion: TimestampString;
     estadoContrato: EstadoContrato;
     urlContratoOdoo?: string | null;
 }

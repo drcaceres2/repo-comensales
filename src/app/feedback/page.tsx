@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/useToast";
 import { useAuth } from "@/hooks/useAuth";
 import { doc, getDoc } from "firebase/firestore";
-import { UserProfile } from "../../../shared/models/types";
+import { Usuario } from "shared/schemas/usuarios";
 import { submitFeedback } from "./actions";
 
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 export default function FeedbackPage() {
   const [feedbackText, setFeedbackText] = useState("");
   const { user, loading, error } = useAuth();
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userProfile, setUsuario] = useState<Usuario | null>(null);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -36,20 +36,20 @@ export default function FeedbackPage() {
   }, []);
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
+    const fetchUsuario = async () => {
       if (user) { 
         try {
           const userDocRef = doc((await import("@/lib/firebase")).db, "users", user.uid);
           const userDocSnap = await getDoc(userDocRef);
           if (userDocSnap.exists()) {
-            setUserProfile(userDocSnap.data() as UserProfile);
+            setUsuario(userDocSnap.data() as Usuario);
           }
         } catch (err) {
           console.error("Error fetching user profile:", err);
         }
       }
     };
-    fetchUserProfile();
+    fetchUsuario();
   }, [user]);
   const [state, formAction] = useActionState(submitFeedback, null);
   const { pending } = useFormStatus();

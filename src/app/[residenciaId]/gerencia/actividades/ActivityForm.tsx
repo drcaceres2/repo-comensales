@@ -12,7 +12,7 @@ import { ResidenciaId, MapaDiaDeLaSemana,
 // ZOD Schemas
 import { Actividad, ActividadCreateSchema, ActividadUpdateSchema } from 'shared/schemas/actividades';
 import { ComedorData } from 'shared/schemas/complemento1';
-import { CentroDeCostoData } from 'shared/schemas/contabilidad';
+import { CentroDeCosto } from 'shared/schemas/contabilidad';
 import { TiempoComida } from 'shared/schemas/horarios';
 
 // Server Actions
@@ -43,7 +43,7 @@ interface ActivityFormProps {
     onClose: () => void;
     actividad?: Actividad | null;
     tiemposComidaList: (TiempoComida & { id: TiempoComidaId })[];
-    centroCostosList: CentroDeCostoData[];
+    centroCostosList: CentroDeCosto[];
     comedoresList: (ComedorData & { id: ComedorId })[];
 }
 
@@ -433,7 +433,7 @@ export function ActivityForm({
                                                 <FormLabel>Centro de Costo Imputable</FormLabel>
                                                 <Select onValueChange={field.onChange} value={field.value ?? undefined}>
                                                     <FormControl><SelectTrigger><SelectValue placeholder="Centro de costo por defecto..." /></SelectTrigger></FormControl>
-                                                    <SelectContent className="z-[250]">{centroCostosList.map(cc => (<SelectItem key={cc.codigo} value={cc.codigo}>{cc.nombre} ({cc.codigo})</SelectItem>))}</SelectContent>
+                                                    <SelectContent className="z-[250]">{centroCostosList.map(cc => (<SelectItem key={cc.id} value={cc.id}>{cc.nombre} ({cc.codigoVisible})</SelectItem>))}</SelectContent>
                                                 </Select>
                                                 <FormMessage />
                                             </FormItem>

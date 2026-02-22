@@ -27,7 +27,7 @@ import { Loader2, PlusCircle, Trash2, Edit, AlertCircle,
 import { Actividad, InscripcionActividad, EstadoActividad } from 'shared/schemas/actividades'
 import { Residencia } from 'shared/schemas/residencia';
 import { Usuario } from 'shared/schemas/usuarios';
-import { CentroDeCostoData } from 'shared/schemas/contabilidad';
+import { CentroDeCosto } from 'shared/schemas/contabilidad';
 import { ComedorData } from 'shared/schemas/complemento1';
 import { TiempoComida } from 'shared/schemas/horarios';
 
@@ -67,7 +67,7 @@ function AdminActividadesPage() {
     const [residencia, setResidencia] = useState<Residencia | null>(null);
     const [actividades, setActividades] = useState<Actividad[]>([]);
     const [inscripciones, setInscripciones] = useState<InscripcionActividad[]>([]);
-    const [centroCostosList, setCentroCostosList] = useState<CentroDeCostoData[]>([]);
+    const [centroCostosList, setCentroCostosList] = useState<CentroDeCosto[]>([]);
     const [tiemposComidaList, setTiemposComidaList] = useState<(TiempoComida & { id: TiempoComidaId })[]>([]);
     const [comedoresList, setComedoresList] = useState<(ComedorData & { id: ComedorId })[]>([]);
 
@@ -86,12 +86,12 @@ function AdminActividadesPage() {
 
             const [actividadesSnap, centroCostosSnap, inscripcionesSnap, configSnap] = await Promise.all([
                 getDocs(query(collection(db, "actividades"), where("residenciaId", "==", residenciaId), orderBy("fechaInicio", "desc"))),
-                getDocs(query(collection(db, "centrosCosto"), where("residenciaId", "==", residenciaId), where("isActive", "==", true), orderBy("nombre"))),
+                getDocs(collection(db, "residencias", residenciaId, "centrosDeCosto")),
                 getDocs(query(collection(db, 'inscripcionesActividades'), where('residenciaId', '==', residenciaId))),
                 getDoc(configRef)
             ]);
             setActividades(actividadesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as Actividad)));
-            setCentroCostosList(centroCostosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as CentroDeCostoData)));
+            setCentroCostosList(centroCostosSnap.docs.map(doc => doc.data() as CentroDeCosto).filter(cc => cc.estaActivo));
             setInscripciones(inscripcionesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as InscripcionActividad)));
             
             if (configSnap.exists()) {

@@ -441,6 +441,7 @@ interface CreateResidenciaDataPayload {
 interface UpdateResidenciaDataPayload {
     residenciaIdToUpdate: string;
     profileData: Partial<Omit<Residencia, "id">>;
+    version: number;
     performedByUid?: string;
 }
 interface DeleteResidenciaDataPayload {
@@ -522,6 +523,7 @@ export const createResidencia = onCall(
             const initialConfig: ConfiguracionResidencia = {
                 residenciaId: data.residenciaId,
                 nombreCompleto: validatedData.nombre,
+                version: 0,
                 fechaHoraReferenciaUltimaSolicitud: now,
                 timestampUltimaSolicitud: now,
                 dietas: {
@@ -532,7 +534,7 @@ export const createResidencia = onCall(
                 },
                 horariosSolicitud: {},
                 gruposUsuarios: {},
-                gruposComidas: [],
+                gruposComidas: {},
                 esquemaSemanal: {},
                 catalogoAlternativas: {},
                 configuracionAlternativas: {},
@@ -545,7 +547,6 @@ export const createResidencia = onCall(
               residenciaId: data.residenciaId,
               modeloClasificacion: 'detallada',
               valorizacionComensales: false,
-              centrosDeCosto: {},
             };
             batch.set(configContabilidadRef, initialContabilidadConfig);
             functions.logger.info("Successfully created default ConfigContabilidad for Residencia:", data.residenciaId);
@@ -577,8 +578,7 @@ export const updateResidencia = onCall(
     },
     async (request: CallableRequest<UpdateResidenciaDataPayload>) => {
         const callerInfo = await getCallerSecurityInfo(request.auth);
-        const data = request.data;
-        const { residenciaIdToUpdate, profileData } = data;
+        const { residenciaIdToUpdate, profileData, version } = request.data;
 
         functions.logger.info(`updateResidencia called by: ${callerInfo.uid} for residencia: ${residenciaIdToUpdate}`, { profileData });
 
@@ -588,11 +588,6 @@ export const updateResidencia = onCall(
 
         if (Object.keys(profileData).length === 0) {
             return { success: true, message: "No changes provided." };
-        }
-
-        const targetResidenciaDoc = await db.collection("residencias").doc(residenciaIdToUpdate).get();
-        if (!targetResidenciaDoc.exists) {
-            throw new HttpsError("not-found", `Residencia ${residenciaIdToUpdate} not found.`);
         }
 
         const canUpdate = callerInfo.isMaster || 
@@ -622,16 +617,40 @@ export const updateResidencia = onCall(
             throw new HttpsError("invalid-argument", errorMessage);
         }
 
+        const residenciaRef = db.collection("residencias").doc(residenciaIdToUpdate);
+        const configRef = residenciaRef.collection("configuracion").doc("general");
+
         try {
-            const validatedData = validationResult.data;
+            await db.runTransaction(async (transaction) => {
+                const configDoc = await transaction.get(configRef);
 
-            const firestoreUpdateData = {
-                ...validatedData,
-                ultimaActualizacion: FieldValue.serverTimestamp(),
-            };
+                if (!configDoc.exists) {
+                    throw new HttpsError("not-found", "Configuration document not found.");
+                }
 
-            await db.collection("residencias").doc(residenciaIdToUpdate).update(firestoreUpdateData);
-            functions.logger.info("Successfully updated Residencia in Firestore:", residenciaIdToUpdate);
+                const configData = configDoc.data() as ConfiguracionResidencia;
+
+                if (configData.version !== version) {
+                    throw new HttpsError("failed-precondition", "The data has been modified by someone else. Please reload and try again.");
+                }
+
+                const newVersion = configData.version + 1;
+                
+                const validatedData = validationResult.data;
+
+                const firestoreUpdateData = {
+                    ...validatedData,
+                    ultimaActualizacion: FieldValue.serverTimestamp(),
+                };
+                
+                transaction.update(residenciaRef, firestoreUpdateData);
+
+                const configUpdateData: any = { version: newVersion };
+                if (validatedData.nombre) {
+                    configUpdateData.nombreCompleto = validatedData.nombre;
+                }
+                transaction.update(configRef, configUpdateData);
+            });
 
             await logAction(
                 { uid: callerInfo.uid, token: callerInfo.claims },
@@ -647,6 +666,9 @@ export const updateResidencia = onCall(
             return { success: true, message: "Residencia updated successfully." };
         } catch (error: any) {
             functions.logger.error("Error updating Residencia in Firestore:", residenciaIdToUpdate, error);
+            if (error instanceof HttpsError) {
+                throw error;
+            }
             throw new HttpsError("internal", `Firestore update failed: ${error.message}`);
         }
     }

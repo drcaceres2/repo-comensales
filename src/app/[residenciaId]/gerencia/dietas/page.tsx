@@ -94,7 +94,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
 
         // console.log("Admin user authenticated (UID:", authUser.uid,"). Fetching admin's profile...");
         setAdminProfileLoading(true); setAdminProfileError(null);
-        const adminDocRef = doc(db, "users", authUser.uid);
+        const adminDocRef = doc(db, "usuarios", authUser.uid);
         getDoc(adminDocRef)
             .then((docSnap) => {
                 if (docSnap.exists()) {

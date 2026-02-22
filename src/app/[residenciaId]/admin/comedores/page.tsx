@@ -39,16 +39,13 @@ import {
 
 // --- Firebase & Actions ---
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteField, collection, getDocs } from 'firebase/firestore';
 import { useAuth } from '@/hooks/useAuth';
 
 // --- Types & Schemas ---
-import { 
-    ComedorId, 
-    CentroDeCostoData, 
-    ConfiguracionResidencia,
-    ConfigContabilidad
-} from 'shared/models/types';
+import { ComedorId } from 'shared/models/types';
+import { CentroDeCosto, ConfigContabilidad } from 'shared/schemas/contabilidad';
+import { ConfiguracionResidencia } from 'shared/schemas/residencia';
 import { ComedorData } from 'shared/schemas/complemento1';
 import { ComedorForm } from './ComedorForm';
 import { Usuario } from 'shared/schemas/usuarios';
@@ -65,7 +62,7 @@ export default function GestionComedoresPage() {
 
     // --- State ---
     const [comedores, setComedores] = useState<Record<ComedorId, ComedorData>>({});
-    const [centroCostos, setCentroCostos] = useState<CentroDeCostoData[]>([]);
+    const [centroCostos, setCentroCostos] = useState<CentroDeCosto[]>([]);
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [residenciaNombre, setResidenciaNombre] = useState('');
@@ -81,7 +78,7 @@ export default function GestionComedoresPage() {
         if (!residenciaId || !authUser) return;
         
         // Authorization Check
-        const userDocRef = doc(db, 'users', authUser.uid);
+        const userDocRef = doc(db, 'usuarios', authUser.uid);
         const userSnap = await getDoc(userDocRef);
         if (!userSnap.exists()) {
             setIsAuthorized(false);
@@ -120,13 +117,12 @@ export default function GestionComedoresPage() {
                 setResidenciaNombre(resSnap.data().nombre);
             }
 
-            const contabilidadRef = doc(db, 'residencias', residenciaId, 'configuracion', 'contabilidad');
-            const contabilidadSnap = await getDoc(contabilidadRef);
-            if (contabilidadSnap.exists()) {
-                const contData = contabilidadSnap.data() as ConfigContabilidad;
-                const ccList = Object.values(contData.centrosDeCosto || {}).filter(cc => cc.estaActivo);
-                setCentroCostos(ccList);
-            }
+            const ccCollRef = collection(db, 'residencias', residenciaId, 'centrosDeCosto');
+            const ccSnap = await getDocs(ccCollRef);
+            const ccList = ccSnap.docs
+                .map(doc => doc.data() as CentroDeCosto)
+                .filter(cc => cc.estaActivo);
+            setCentroCostos(ccList);
         } catch (error) {
             console.error('Error fetching data:', error);
             toast({

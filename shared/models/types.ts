@@ -1,5 +1,4 @@
-import type { ComedorData, DietaData } from 'shared/schemas/complemento1';
-import type { HorarioSolicitudData, TiempoComida, DefinicionAlternativa, ConfiguracionAlternativa } from 'shared/schemas/horarios';
+import type { TiempoComida } from '../../shared/schemas/horarios';
 export type TimestampString = string; // ISO 8601 (ejemplo "2023-10-25T14:00:00.000Z"
 
 // Tipos para ubicaciones, zonas horarias, fechas y horas
@@ -18,6 +17,7 @@ export const MapaDiaDeLaSemana: Record<DiaDeLaSemana, string> = {
     sabado: 'Sábado',
     domingo: 'Domingo'
 };
+export const ArregloDiaDeLaSemana: DiaDeLaSemana[] = Object.keys(MapaDiaDeLaSemana) as DiaDeLaSemana[];
 export interface Ubicacion {
   // Geografía Política
   pais: CodigoPaisIso;      // Estricto 2 letras

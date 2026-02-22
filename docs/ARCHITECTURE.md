@@ -1,7 +1,7 @@
 # ARCHITECTURE.md
 
 **Proyecto:** Comensales Residencia (Web App)
-**Versión del Documento:** 6.0 (Consolidado)
+**Versión del Documento:** 8.0
 **Rol:** Arquitectura de Software & Estrategia
 
 ---
@@ -106,7 +106,7 @@ La base de datos sigue una estructura de árbol estricta para aislar contextos y
 > │   │   └── (campo) configuracionesAlternativas: Map<ID, ConfiguracionAlternativa>  
 > │   │  
 > │   ├── configContabilidad/ {general}  (Singleton)  
-> │   │   └── (campo) centrosDeCosto: Map<ID, CentroDeCostoData>  
+> │   ├── centrosDeCosto/ {slug}
 > │   │  
 > │   ├── atenciones/ {auto-id}  
 > │   │  
@@ -240,11 +240,13 @@ Se impone el uso de Zod como capa de transformación (DTO) obligatoria para reso
 1.  **Aplanamiento:** Los tipos complejos (`Timestamp`, `GeoPoint`) deben transformarse a primitivos (`string ISO 8601`, `number`) dentro del esquema usando `z.transform()`.
 2.  **Seguridad de Datos:** Se debe utilizar `.pick()` o `.omit()` para exponer al cliente únicamente los campos necesarios, previniendo fugas de información sensible ("Over-fetching").
 
-### 5.3 Manejo Unificado de Errores (UI Standard)
+### 5.3 Estrategia de UI
 
-Para garantizar consistencia visual y reducir deuda técnica:
-* **Errores de Validación (Zod):** Se mostrarán en un componente unificado `ZodAlert` (Franja Roja) ubicado en la cabecera del formulario. No se usarán mensajes dispersos campo por campo salvo excepciones críticas.
-* **Confirmaciones/Errores de Sistema:** Se utilizarán notificaciones efímeras ("Toasts") para éxito de operaciones o fallos de red.
+* La aplicación es mobile-first y responsive.
+* Para mejorar la experiencia del usuario se usará React Hook Form (para claridad de código y eficiencia en renderizado de UI) en conjunto con los esquemas ZOD (validación de datos, transformación de inputs del usuario).
+* Hay un "layout.tsx" general de toda el app que muesta un menú desplegable a la izquierda con un menú de opciones de navegación a las páginas a las que tiene acceso el usuario. En la parte superior indica el usuario actual y un botón de cerrar sesión.
+* Se usa tailwind CSS para manejo rápido y efectivo de estilos.
+* El título de cada página aparece siempre con un ícono alusivo a la página (Lucide React) seguido del título. como subtítulo se coloca normalmente la residencia en la que se está trabajando en letras grises.
 
 ### 5.4 Seguridad en Capas (Defense in Depth)
 

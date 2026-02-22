@@ -38,7 +38,7 @@ const redirectToDashboard = (profile: Usuario, router: ReturnType<typeof useRout
     if (roles.includes('master' as RolUsuario)) {
       router.push('/restringido-master/crear-residencia');
     } else if (residenciaId) {
-        if (roles.includes('admin' as RolUsuario)) router.push(`/${residenciaId}/admin`);
+        if (roles.includes('admin' as RolUsuario)) router.push(`/admin/users`);
         else if (roles.includes('director' as RolUsuario)) router.push(`/${residenciaId}/solicitar-comensales`);
         else if (roles.includes('residente' as RolUsuario)) router.push(`/${residenciaId}/elegir-comidas`);
         else if (roles.includes('invitado' as RolUsuario)) router.push(`/${residenciaId}/bienvenida-invitados`);
@@ -84,7 +84,7 @@ export default function LoginPage() {
       if (!profile && !profileLoading) {
         console.log("User authenticated (client-side), fetching profile...");
         setProfileLoading(true);
-        const userDocRef = doc(db, "users", user.uid);
+        const userDocRef = doc(db, "usuarios", user.uid);
         getDoc(userDocRef)
           .then(async (userDocSnap) => {
             if (userDocSnap.exists()) {

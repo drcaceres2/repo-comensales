@@ -85,8 +85,8 @@ const ActividadBaseSchema = z.object({
     nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(25, 'El nombre no puede exceder los 25 caracteres'),
     descripcion: z.string().trim().max(255, 'La descripción no puede exceder los 255 caracteres').optional(),
     estado: EstadoActividadEnum,
-    avisoAdministracion: EstadoAvisoAdministracionEnum,
-    tipoSolicitudComidas: TipoSolicitudComidasActividadEnum,
+    avisoAdministracion: EstadoAvisoAdministracionEnum.default('no_comunicado'),
+    tipoSolicitudComidas: TipoSolicitudComidasActividadEnum.default('solicitud_unica'),
 
     // Campos de cálculo de comidas
     fechaInicio: FechaIsoSchema,
@@ -101,7 +101,7 @@ const ActividadBaseSchema = z.object({
     // Campos de lógica de inscripción
     maxParticipantes: z.number().int().min(2, 'El máximo de participantes debe ser al menos 2').optional(),
     comensalesNoUsuarios: z.number().int().nonnegative(),
-    requiereInscripcion: z.boolean(),
+    requiereInscripcion: z.boolean().default(true),
     fechaLimiteInscripcion: FechaIsoSchema.optional(),
     modoAccesoResidentes: ModoAccesoSchema.optional(),
     modoAccesoInvitados: ModoAccesoSchema.optional(),

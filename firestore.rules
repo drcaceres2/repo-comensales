@@ -11,11 +11,11 @@ service cloud.firestore {
     }
 
     function hasRole(role) {
-      return isAuthenticated() && request.auth.token.roles[role] == true;
+      return isAuthenticated() && 'roles' in request.auth.token && request.auth.token.roles.hasAny([role]);
     }
 
     function hasRoleAny(roles) {
-      return isAuthenticated() && roles.hasAny(request.auth.token.roles.keys());
+      return isAuthenticated() && 'roles' in request.auth.token && roles.hasAny(request.auth.token.roles);
     }
 
     function isMaster() {
@@ -125,6 +125,12 @@ service cloud.firestore {
            allow read:   if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente', 'contador']) && resource.data.residenciaId == residenciaId);
            allow write:  if false;
         }
+      }
+
+      // Centros de Costo
+      match /centrosDeCosto/{centroId} {
+        allow read:   if isMaster() || isMemberWithRole(residenciaId, ['admin', 'director', 'contador', 'asistente']);
+        allow write:  if isMaster() || isMemberWithRole(residenciaId, ['admin', 'contador']);
       }
     }
 
