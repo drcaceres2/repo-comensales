@@ -216,8 +216,98 @@ export const construirMatrizVistaHorarios = (
   };
 };
 
+export const CatalogoErrores = {
+  GENERAL: {
+    codigo: "GENERAL",
+    severidad: "advertencia",
+    descripcion: "No hay ninguna entidad de horarios activa. La configuración de horarios está completamente vacía."
+  },
+  HSC_DIA: { 
+    codigo: "HSC_DIA",
+    severidad: "advertencia",
+    descripcion: "No hay 'HorarioSolicitudData' activo en un determinado 'DiaDeLaSemana'"
+  },
+  HSC_PRI_DIA: { 
+    codigo: "HSC_PRI_DIA",
+    severidad: "advertencia",
+    descripcion: "No hay (o hay más de un) 'HorarioSolicitudData' activo primario en un determinado 'DiaDeLaSemana'"
+  },
+  TC_DIAxGR: { 
+    codigo: "TC_DIAxGR",
+    severidad: "advertencia",
+    descripcion: "No hay (o hay más de un) 'TiempoComida' activo para cada 'GrupoComida' y 'DiaDeLaSemana'"
+  },
+  CFALT_TC: { 
+    codigo: "CFALT_TC",
+    severidad: "advertencia",
+    descripcion: "No hay ninguna `ConfiguracionAlternativa` activa para algún `TiempoComida` activo"
+  },
+  CFALT_TCxCOM: { 
+    codigo: "CFALT_TCxCOM",
+    severidad: "advertencia",
+    descripcion: "No hay ninguna `ConfiguracionAlternativa` activa de tipo comedor (`DefinicionAlternativa.tipo='comedor'`) en un determinado `TiempoComida`"
+  },
+  HSC_REP: { 
+    codigo: "HSC_REP",
+    severidad: "advertencia",
+    descripcion: "Hay nombres repetidos en dos o más `HorarioSolicitudData` activos"
+  },
+  TC_REP: { 
+    codigo: "TC_REP",
+    severidad: "advertencia",
+    descripcion: "Hay nombres repetidos en dos o más `TiempoComida` activos"
+  },
+  DFALT_REP: { 
+    codigo: "DFALT_REP",
+    severidad: "advertencia",
+    descripcion: "Hay nombres repetidos en dos o más `DefinicionAlternativa` activas"
+  },
+  CFALT_REP: { 
+    codigo: "CFALT_REP",
+    severidad: "advertencia",
+    descripcion: "Hay nombres repetidos en dos o más `ConfiguracionAlternativa` activas"
+  },
+  CFALT_CONC: {
+    codigo: "CFALT_CONC",
+    severidad: "advertencia",
+    descripcion: "Hay dos o más `ConfiguracionAlternativa` con la misma `ventanaServicio` para el mismo `DiaDeLaSemana`"
+  },
+  CFALT_CONC_COM: {
+    codigo: "CFALT_CONC_COM",
+    severidad: "advertencia",
+    descripcion: "Hay dos o más `ConfiguracionAlternativa` concurriendo al mismo tiempo en el mismo `comedorId`"
+  },
+  CFALT_TIEM_NEG: {
+    codigo: "CFALT_TIEM_NEG",
+    severidad: "advertencia",
+    descripcion: "Hay una `ConfiguracionAlternativa` activa que tiene `VentanaServicioComidaSchema` de `tipo='normal'` con horaInicio > horaFin"
+  },
+  HSC_INACT_ASOC: {
+    codigo: "HSC_INACT_ASOC",
+    severidad: "error",
+    descripcion: "Hay un `HorarioSolicitudData` inactivo que tiene una `ConfiguracionAlternativa` activa asociada"
+  },
+  TC_INACT_ASOC: {
+    codigo: "TC_INACT_ASOC",
+    severidad: "error",
+    descripcion: "Hay un `TiempoComida` inactivo que tiene una `ConfiguracionAlternativa` activa asociada"
+  },
+  GC_DESOR: {
+    codigo: "GC_DESOR",
+    severidad: "error",
+    descripcion: "El orden de los `GrupoComida` activos no son consecutivos"
+  },
+  GC_REP: {
+    codigo: "GC_REP",
+    severidad: "error",
+    descripcion: "Hay nombres repetidos en `GrupoComida` activos"
+  }
+}
+
+export type TipoError = keyof typeof CatalogoErrores;
+
 export interface Aviso {
-  tipo: 'advertencia' | 'error';
+  tipo: TipoError;
   entidad: 'HorarioSolicitudData' | 'GrupoComida' | 'TiempoComida' | 'ConfiguracionAlternativa' | 'Global';
   id?: string; // El ID de la entidad que causa el problema
   mensaje: string;
@@ -247,7 +337,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
     configuracionesAlternativasActivas.length === 0
   ) {
     avisos.push({
-      tipo: 'advertencia',
+      tipo: 'GENERAL',
       entidad: 'Global',
       mensaje: 'No hay ninguna entidad de horarios activa. La configuración de horarios está completamente vacía.'
     });
@@ -260,7 +350,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
     const horariosParaDia = horariosSolicitudActivos.filter(([, h]) => h.dia === dia);
     if (horariosParaDia.length === 0) {
       avisos.push({
-        tipo: 'advertencia',
+        tipo: 'HSC_DIA',
         entidad: 'HorarioSolicitudData',
         mensaje: `No hay ningún horario de solicitud activo para el día ${dia}.`
       });
@@ -272,13 +362,13 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
     const primariosParaDia = horariosSolicitudActivos.filter(([, h]) => h.dia === dia && h.esPrimario);
     if (primariosParaDia.length === 0) {
       avisos.push({
-        tipo: 'advertencia',
+        tipo: 'HSC_PRI_DIA',
         entidad: 'HorarioSolicitudData',
         mensaje: `No hay un horario de solicitud primario definido para el día ${dia}.`
       });
     } else if (primariosParaDia.length > 1) {
       avisos.push({
-        tipo: 'advertencia',
+        tipo: 'HSC_PRI_DIA',
         entidad: 'HorarioSolicitudData',
         id: primariosParaDia.map(([id]) => id).join(', '),
         mensaje: `Hay más de un horario de solicitud primario definido para el día ${dia}.`
@@ -294,13 +384,13 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
       );
       if (tiemposParaGrupoDia.length === 0) {
         avisos.push({
-          tipo: 'advertencia',
+          tipo: 'TC_DIAxGR',
           entidad: 'TiempoComida',
           mensaje: `No hay un tiempo de comida activo para el grupo '${grupo.nombre}' en el día ${dia}.`
         });
       } else if (tiemposParaGrupoDia.length > 1) {
         avisos.push({
-          tipo: 'advertencia',
+          tipo: 'TC_DIAxGR',
           entidad: 'TiempoComida',
           id: tiemposParaGrupoDia.map(([id]) => id).join(', '),
           mensaje: `Hay más de un tiempo de comida activo para el grupo '${grupo.nombre}' en el día ${dia}.`
@@ -316,7 +406,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
     );
     if (configsParaTiempo.length === 0) {
       avisos.push({
-        tipo: 'advertencia',
+        tipo: 'CFALT_TC',
         entidad: 'ConfiguracionAlternativa',
         id: tiempoId,
         mensaje: `El tiempo de comida '${tiempo.nombre}' no tiene ninguna configuración de alternativa activa.`
@@ -335,7 +425,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
     });
     if (!hayDeTipoComedor) {
       avisos.push({
-        tipo: 'advertencia',
+        tipo: 'CFALT_TCxCOM',
         entidad: 'ConfiguracionAlternativa',
         id: tiempoId,
         mensaje: `El tiempo de comida '${tiempo.nombre}' no tiene ninguna alternativa de tipo 'comedor'.`
@@ -354,7 +444,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   nombresHorarios.forEach((ids, nombre) => {
     if (ids.length > 1) {
       avisos.push({
-        tipo: 'advertencia',
+        tipo: 'HSC_REP',
         entidad: 'HorarioSolicitudData',
         id: ids.join(', '),
         mensaje: `Nombre de horario de solicitud repetido: '${nombre}'.`
@@ -373,7 +463,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   nombresTiempos.forEach((ids, nombre) => {
     if (ids.length > 1) {
       avisos.push({
-        tipo: 'advertencia',
+        tipo: 'TC_REP',
         entidad: 'TiempoComida',
         id: ids.join(', '),
         mensaje: `Nombre de tiempo de comida repetido: '${nombre}'.`
@@ -392,7 +482,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   nombresDefiniciones.forEach((ids, nombre) => {
     if (ids.length > 1) {
       avisos.push({
-        tipo: 'advertencia',
+        tipo: 'DFALT_REP',
         entidad: 'ConfiguracionAlternativa',
         id: ids.join(', '),
         mensaje: `Nombre de definición de alternativa repetido: '${nombre}'.`
@@ -411,7 +501,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   nombresConfiguraciones.forEach((ids, nombre) => {
     if (ids.length > 1) {
       avisos.push({
-        tipo: 'advertencia',
+        tipo: 'CFALT_REP',
         entidad: 'ConfiguracionAlternativa',
         id: ids.join(', '),
         mensaje: `Nombre de configuración de alternativa repetido: '${nombre}'.`
@@ -433,7 +523,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
         const existente = bucket.find(item => item.ventana === ventanaStr);
         if (existente) {
             avisos.push({
-                tipo: 'advertencia',
+                tipo: 'CFALT_CONC',
                 entidad: 'ConfiguracionAlternativa',
                 id: `${existente.id}, ${id}`,
                 mensaje: `Conflicto de ventanas de servicio en ${tiempo.dia} para la ventana ${c.ventanaServicio.horaInicio}-${c.ventanaServicio.horaFin}.`
@@ -449,10 +539,10 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   configuracionesAlternativasActivas.forEach(([id, c]) => {
     if (c.ventanaServicio.tipoVentana === 'normal' && c.ventanaServicio.horaInicio > c.ventanaServicio.horaFin) {
       avisos.push({
-        tipo: 'advertencia',
+        tipo: 'CFALT_TIEM_NEG',
         entidad: 'ConfiguracionAlternativa',
         id: id,
-        mensaje: `La configuración alternativa '${c.nombre}' tiene una ventana de servicio normal con hora de inicio posterior a la hora de fin.`
+        mensaje: `La configuración alternativa '${c.nombre}' tiene una ventana de servicio con hora de inicio posterior a la hora de fin.`
       });
     }
   });
@@ -464,7 +554,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
       const tieneConfigActiva = configuracionesAlternativasActivas.some(([,c]) => c.horarioSolicitudComidaId === hId);
       if(tieneConfigActiva){
         avisos.push({
-            tipo: 'error',
+            tipo: 'HSC_INACT_ASOC',
             entidad: 'HorarioSolicitudData',
             id: hId,
             mensaje: `El horario de solicitud inactivo '${h.nombre}' está siendo usado por una configuración de alternativa activa.`
@@ -478,7 +568,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
       const tieneConfigActiva = configuracionesAlternativasActivas.some(([,c]) => c.tiempoComidaId === tId);
       if(tieneConfigActiva){
         avisos.push({
-            tipo: 'error',
+            tipo: 'TC_INACT_ASOC',
             entidad: 'TiempoComida',
             id: tId,
             mensaje: `El tiempo de comida inactivo '${t.nombre}' está siendo usado por una configuración de alternativa activa.`
@@ -491,7 +581,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   for(let i = 0; i < ordenGrupos.length - 1; i++){
       if(ordenGrupos[i+1] !== ordenGrupos[i] + 1){
           avisos.push({
-              tipo: 'error',
+              tipo: 'GC_DESOR',
               entidad: 'GrupoComida',
               mensaje: 'El orden de los grupos de comida activos no es consecutivo.'
           });
@@ -510,7 +600,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   nombresGrupos.forEach((ids, nombre) => {
     if (ids.length > 1) {
       avisos.push({
-        tipo: 'error',
+        tipo: 'GC_REP',
         entidad: 'GrupoComida',
         id: ids.join(', '),
         mensaje: `Nombre de grupo de comida repetido: '${nombre}'.`

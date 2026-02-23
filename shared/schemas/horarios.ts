@@ -48,6 +48,14 @@ export const TiempoComidaSchema = z.object({
     estaActivo: z.boolean().default(true),
 }).strict();
 
+export const TiempoComidaCreateSchema = TiempoComidaSchema.omit({
+    alternativas: true
+})
+
+export const TiempoComidaFormSchema = TiempoComidaSchema.omit({
+    estaActivo: true,
+    alternativas: true
+})
 
 
 // ============================================

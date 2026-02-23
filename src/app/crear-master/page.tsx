@@ -1,78 +1,31 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+// =================================================================================================
+// **ADVERTENCIA DE SEGURIDAD IMPORTANTE**
+//
+// Esta página está diseñada EXCLUSIVAMENTE para el entorno de desarrollo local.
+// Su propósito es facilitar la creación inicial de un usuario "master" para configurar el sistema
+// por primera vez.
+//
+// NO DEBE EXPONERSE EN UN ENTORNO DE PRODUCCIÓN O CUALQUIER ENTORNO ACCESIBLE PÚBLICAMENTE.
+//
+// **Acciones requeridas antes de desplegar a producción:**
+// 1. Eliminar el archivo de esta página: `src/app/crear-master/page.tsx`.
+// 2. Eliminar la función de Firebase asociada: `createHardcodedMasterUser` en `functions/src/index.ts`.
+//
+// Exponer esta funcionalidad en producción crearía una vulnerabilidad de seguridad crítica
+// que permitiría a cualquier persona crear un usuario con privilegios de administrador.
+// =================================================================================================
+
+import { useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
-import { useAuth } from '@/hooks/useAuth';
-import { Usuario } from 'shared/schemas/usuarios';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/useToast';
-import { Loader2, AlertCircle } from 'lucide-react';
 
 export default function CreateMasterUserPage() {
-    const { user: authUser, loading: authFirebaseLoading } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
-    const [userProfile, setUserProfile] = useState<Usuario | null>(null);
-    const [profileLoading, setProfileLoading] = useState<boolean>(true);
-    const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
     const { toast } = useToast();
-    const router = useRouter();
     const functions = getFunctions();
-
-    // --- useEffect: Handle Auth State & Fetch Profile ---
-    useEffect(() => {
-        if (authFirebaseLoading) {
-            setProfileLoading(true);
-            return;
-        }
-
-        if (!authUser) {
-            setProfileLoading(false);
-            setIsAuthorized(false);
-            return;
-        }
-
-        const fetchProfile = async () => {
-            try {
-                const userDocRef = doc(db, "usuarios", authUser.uid);
-                const docSnap = await getDoc(userDocRef);
-                
-                if (docSnap.exists()) {
-                    const profile = docSnap.data() as Usuario;
-                    setUserProfile(profile);
-                    const roles = profile.roles || [];
-                    setIsAuthorized(roles.includes('master'));
-                } else {
-                    setIsAuthorized(false);
-                }
-            } catch (error) {
-                console.error("Error fetching user profile:", error);
-                setIsAuthorized(false);
-            } finally {
-                setProfileLoading(false);
-            }
-        };
-
-        fetchProfile();
-    }, [authUser, authFirebaseLoading]);
-
-    // Redirect if not authenticated or not authorized after loading
-    useEffect(() => {
-        if (!authFirebaseLoading && !profileLoading) {
-            if (!authUser) {
-                router.replace('/');
-            } else if (!isAuthorized) {
-                toast({
-                    title: 'Acceso Denegado',
-                    description: 'Esta página es exclusiva para usuarios con rol de Master.',
-                    variant: 'destructive',
-                });
-                router.replace('/');
-            }
-        }
-    }, [authUser, authFirebaseLoading, profileLoading, isAuthorized, router, toast]);
 
     const createHardcodedMasterUserCallable = httpsCallable(functions, 'createHardcodedMasterUser');
 
@@ -107,19 +60,6 @@ export default function CreateMasterUserPage() {
         }
         setIsLoading(false);
     };
-
-    if (authFirebaseLoading || profileLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-                <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-                <p className="text-lg font-medium text-muted-foreground">Verificando permisos...</p>
-            </div>
-        );
-    }
-
-    if (!isAuthorized) {
-        return null; // Redirect handled by useEffect
-    }
 
     return (
         <div className="container mx-auto p-4">
