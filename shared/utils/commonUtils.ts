@@ -380,7 +380,7 @@ export const intervalToDurationFCZH = (fczh1: campoFechaConZonaHoraria | null | 
 }
 
 // --- Helper Functions ---
-export const slugify = (text: string): string => {
+export const slugify = (text: string, longitudMax?: number): string => {
   return text
     .toString()
     .toLowerCase()
@@ -389,5 +389,6 @@ export const slugify = (text: string): string => {
     .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
     .replace(/\-\-+/g, '-')         // Replace multiple - with single -
     .replace(/^-+/, '')             // Trim - from start of text
-    .replace(/-+$/, '');            // Trim - from end of text
+    .replace(/-+$/, '')            // Trim - from end of text
+    .substring(0, longitudMax);
 };

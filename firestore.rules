@@ -94,11 +94,11 @@ service cloud.firestore {
         allow create, update:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
         allow delete:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
       }
-       match /comentarios/{comentarioId} {
+       match /novedadesOperativas/{novedadId} {
         allow read:   if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
-        // Usuarios pueden crear/leer sus propios comentarios, director/asistente gestiona todos.
-        allow create: if isMember(residenciaId) && request.resource.data.uid == request.auth.uid && request.resource.data.residenciaId == residenciaId;
-        allow update: if isMaster() || (isMemberWithRole(residenciaId, ['director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
+        // Usuarios pueden crear/leer sus propias novedades operativas, director/asistente gestiona todos.
+        allow create: if isMaster() || isMember(residenciaId) && request.resource.data.uid == request.auth.uid && request.resource.data.residenciaId == residenciaId;
+        allow update: if isMaster() || isMember(residenciaId) && request.resource.data.uid == request.auth.uid && request.resource.data.residenciaId == residenciaId;
         allow delete: if isMaster();
       }
 

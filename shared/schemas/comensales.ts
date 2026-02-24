@@ -85,7 +85,7 @@ const OtrasSolicitudesSchema = z.object({
     dietas: z.array(slugIdSchema),
     atenciones: z.array(FirestoreIdSchema),
     alteracionesHorario: z.array(FirestoreIdSchema),
-    comentarios: z.array(FirestoreIdSchema),
+    novedadesOperativas: z.array(FirestoreIdSchema),
 }).strict();
 
 /**

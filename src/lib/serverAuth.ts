@@ -23,10 +23,14 @@ export async function requireAuth(): Promise<ServerAuthContext> {
 
   try {
     // 1. Validar la firma criptográfica de la cookie de Firebase
-    const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
+    // En desarrollo (emuladores), evitamos checkRevoked para evitar el lag de 7s
+    const checkRevoked = process.env.NODE_ENV === 'production';
+    const decodedClaims = await auth.verifySessionCookie(sessionCookie, checkRevoked);
     const uid = decodedClaims.uid;
 
     // 2. Obtener la metadata del usuario (residenciaId, roles)
+    console.log(`[requireAuth] Claims decodificados:`, { uid, email: decodedClaims.email, roles: decodedClaims.roles, residenciaId: decodedClaims.residenciaId });
+    
     // Opción A: Si usaste Custom Claims al momento de loguear (¡Cero lecturas a BD! Recomendado)
     if (decodedClaims.residenciaId) {
        return {

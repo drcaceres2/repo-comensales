@@ -34,13 +34,14 @@ export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroC
 
     const form = useForm<ComedorData>({
         resolver: zodResolver(ComedorDataSchema),
-        defaultValues: initialData || {
-            nombre: '',
-            descripcion: '',
-            aforoMaximo: undefined,
-            centroCostoId: undefined,
+        defaultValues: {
+            nombre: initialData?.nombre || '',
+            descripcion: initialData?.descripcion || '',
+            aforoMaximo: initialData?.aforoMaximo ?? undefined,
+            centroCostoId: initialData?.centroCostoId || undefined,
         },
     });
+
 
     return (
         <Form {...form}>
@@ -52,8 +53,15 @@ export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroC
                         <FormItem>
                             <FormLabel>{t('form.nombre')}</FormLabel>
                             <FormControl>
-                                <Input placeholder={t('placeholders.nombre')} {...field} />
+                                <Input 
+                                    placeholder={t('placeholders.nombre')} 
+                                    {...field}
+                                    disabled={!!initialData} // Disable editing for existing comedor names
+                                />
                             </FormControl>
+                            <FormDescription>
+                                {t('form.descriptions.nombre')}
+                            </FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -66,7 +74,11 @@ export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroC
                         <FormItem>
                             <FormLabel>{t('form.descripcion')}</FormLabel>
                             <FormControl>
-                                <Textarea placeholder={t('placeholders.descripcion')} {...field} />
+                                <Textarea 
+                                    placeholder={t('placeholders.descripcion')} 
+                                    {...field}
+                                    value={field.value || ''} 
+                                />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -83,8 +95,12 @@ export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroC
                                 <Input 
                                     type="number" 
                                     placeholder={t('placeholders.aforo')} 
-                                    {...field} 
-                                    onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))}
+                                    {...field}
+                                    value={field.value ?? ''}
+                                    onChange={e => {
+                                        const value = e.target.value;
+                                        field.onChange(value === '' ? null : parseInt(value, 10));
+                                    }}
                                 />
                             </FormControl>
                             <FormMessage />
@@ -98,19 +114,23 @@ export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroC
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>{t('form.centro_costo')}</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select 
+                                onValueChange={(value) => field.onChange(value === "none" ? undefined : value)} 
+                                value={field.value || "none"}
+                            >
                                 <FormControl>
                                     <SelectTrigger>
-                                        <SelectValue placeholder={t('form.centro_costo')} />
+                                        <SelectValue placeholder={t('placeholders.centro_costo_select')} />
                                     </SelectTrigger>
                                 </FormControl>
-                                <SelectContent>
-                                    {centroCostosList.map((cc) => (
-                                        <SelectItem key={cc.id} value={cc.id}>
-                                            {cc.nombre} ({cc.codigoVisible})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
+                                    <SelectContent className="z-[110]">
+                                        <SelectItem value="none">{t('opciones.ninguno')}</SelectItem>
+                                        {centroCostosList.map((cc) => (
+                                            <SelectItem key={cc.id} value={cc.id}>
+                                                {cc.nombre} ({cc.codigoVisible})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
                             </Select>
                             <FormMessage />
                         </FormItem>

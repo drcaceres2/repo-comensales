@@ -1,6 +1,5 @@
 {
   "firestore": {
-    "database": "comensales-residencia-db",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { 
@@ -27,6 +27,7 @@ import {
   Archive, 
   Circle 
 } from "lucide-react";
+import { useToast } from "@/hooks/useToast";
 
 /**
  * Propiedades del componente CentroDeCostoItem
@@ -59,6 +60,7 @@ export default function CentroDeCostoItem({
   onArchive,
 }: CentroDeCostoItemProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const { toast } = useToast();
 
   // Configuración del formulario
   const form = useForm<CentroDeCosto>({
@@ -79,9 +81,19 @@ export default function CentroDeCostoItem({
     setIsSubmitting(true);
     try {
       await onSave(data);
+      toast({
+        title: centro ? "Centro actualizado" : "Centro creado",
+        description: `El centro de costo "${data.nombre}" se ha guardado correctamente.`,
+      });
       if (!centro) {
         reset(); // Limpiar si era creación
       }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error al guardar",
+        description: error.message || "No se pudo procesar la solicitud.",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -93,6 +105,16 @@ export default function CentroDeCostoItem({
     setIsSubmitting(true);
     try {
       await onArchive();
+      toast({
+        title: "Centro archivado",
+        description: "El centro de costo ha sido desactivado correctamente.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error al archivar",
+        description: error.message || "No se pudo archivar el centro de costo.",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -214,28 +236,26 @@ export default function CentroDeCostoItem({
                   )}
                 />
 
-                {/* Estado Activo */}
-                <FormField
-                  control={control}
-                  name="estaActivo"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                      <div className="space-y-0.5">
-                        <FormLabel>Centro de Costo Activo</FormLabel>
-                        <p className="text-xs text-muted-foreground">
-                          Determina si el centro puede ser seleccionado en operaciones actuales.
-                        </p>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          disabled={isSubmitting}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                {/* Estado Informativo (Sin Switch) */}
+                <div className="flex flex-row items-center justify-between rounded-lg border p-3 bg-muted/20">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-sm font-medium">Estado del Centro</FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      {isNew 
+                        ? "Los nuevos centros se crean activos por defecto." 
+                        : "El estado solo puede cambiarse archivando el centro."}
+                    </p>
+                  </div>
+                  <Badge 
+                    variant={form.watch("estaActivo") ? "outline" : "destructive"}
+                    className={cn(
+                      "capitalize",
+                      form.watch("estaActivo") && "border-green-500 text-green-600 bg-green-50"
+                    )}
+                  >
+                    {form.watch("estaActivo") ? "Activo" : "Archivado / Inactivo"}
+                  </Badge>
+                </div>
 
                 {/* Botones de Acción */}
                 <div className="flex items-center justify-end gap-3 pt-2">

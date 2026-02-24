@@ -263,7 +263,7 @@ export interface SolicitudConsolidada {
         dietas: DietaId[];
         atenciones: AtencionId[];
         alteracionesHorario: AlteracionHorarioId[];
-        comentarios: ComentarioId[];
+        novedadesOperativas: NovedadOperativaId[];
     }
 
     resumen: DetalleResumen[];
@@ -332,23 +332,8 @@ export type ComensalSolicitadoId = string;
 // 3. MÓDULOS DE SOPORTE
 // --------------------------------------------------------
 
-// --- Comentarios ---
-export type ComentarioId = string;
-export interface Comentario {
-    id: ComentarioId;
-    residenciaId: ResidenciaId;
-    autorId: UsuarioId; // Residente que se queja/avisa
-    timestampCreacion: TimestampString;
-    
-    texto: string;
-    categoria: 'comida'| 'ropa' | 'limpieza' | 'mantenimiento' | 'otros';
-    fecha: FechaIso;
-    
-    // Estado de gestión del Director
-    estado: 'nuevo' | 'diferido' | 'atendido' | 'no_aprobado' | 'archivado';
-    fechaDiferido?: FechaIso; // "Recuérdame esto el lunes"
-    avisoAdministracion: EstadoAvisoAdministracion;
-}
+// --- Novedades Operativas ---
+export type NovedadOperativaId = string;
 export interface Falta {
     id: string;
     fecha: FechaIso;
@@ -504,8 +489,8 @@ export type LogActionType =
     | 'AUSENCIA_CREADA' | 'AUSENCIA_ACTUALIZADA' | 'AUSENCIA_ELIMINADA'
     // Autorizaciones
     | 'AUTORIZACION_CREADA' | 'AUTORIZACION_ACTUALIZADA' | 'AUTORIZACION_ELIMINADA'
-    // Comentarios
-    | 'COMENTARIO_CREADO' | 'COMENTARIO_ACTUALIZADO' | 'COMENTARIO_ELIMINADO'
+    // Novedades Operativas
+    | 'NOVEDAD_OPERATIVA_CREADA' | 'NOVEDAD_OPERATIVA_ACTUALIZADA' | 'NOVEDAD_OPERATIVA_ELIMINADA'
     // Modo de elección
     | 'MODO_ELECCION_CREADO' | 'MODO_ELECCION_ACTUALIZADO' | 'MODO_ELECCION_ELIMINADO'
     // Elecciones (Meal selections)

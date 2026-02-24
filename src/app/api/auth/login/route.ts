@@ -22,8 +22,10 @@ export async function POST(request: Request) {
     // El token de ID de Firebase tiene una vida corta (1 hora).
     // Lo verificamos y lo usamos para crear una cookie de sesión más duradera.
     const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 días en milisegundos
-
-    const decodedToken = await auth.verifyIdToken(idToken, true);
+    
+    // En desarrollo (emuladores), evitamos checkRevoked para evitar errores de red y lag.
+    const checkRevoked = process.env.NODE_ENV === 'production';
+    const decodedToken = await auth.verifyIdToken(idToken, checkRevoked);
     
     // Solo permitir que usuarios activos creen una sesión, usando nuestra reclamación personalizada.
     if (decodedToken.isActive === false) {

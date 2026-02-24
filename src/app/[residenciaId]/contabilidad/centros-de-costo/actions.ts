@@ -14,15 +14,24 @@ interface ActionResponse<T = any> {
     error?: string;
 }
 
+const ROLES_PERMITIDOS = ["contador", "master", "admin"];
+
 /**
  * Crea un nuevo Centro de Costo bajo la ruta residencias/{residenciaId}/centrosDeCosto/{slug}
  */
 export async function crearCentroDeCosto(residenciaId: string, payload: unknown): Promise<ActionResponse> {
     try {
-        // 1. Seguridad: Verificar auth y rol contador
+        console.log(`[crearCentroDeCosto] Iniciando para residencia: ${residenciaId}`, payload);
+        
+        // 1. Seguridad: Verificar auth y roles permitidos
         const auth = await requireAuth();
-        if (!auth.roles.includes("contador")) {
-            return { success: false, error: "No autorizado: Se requiere rol de contador." };
+        console.log(`[crearCentroDeCosto] Auth verificado para UID: ${auth.uid}, Roles: ${auth.roles}`);
+        
+        const hasPermission = auth.roles.some(rol => ROLES_PERMITIDOS.includes(rol));
+        
+        if (!hasPermission) {
+            console.warn(`[crearCentroDeCosto] Permiso denegado. Roles actuales: ${auth.roles}`);
+            return { success: false, error: "No autorizado: Se requiere rol de contador, master o admin." };
         }
 
         // 2. Generación de ID determinista (slug) basado en el nombre
@@ -31,7 +40,7 @@ export async function crearCentroDeCosto(residenciaId: string, payload: unknown)
             return { success: false, error: "El nombre es obligatorio para generar el ID." };
         }
         
-        const id = slugify(rawData.nombre);
+        const id = slugify(rawData.nombre,30);
         
         // 3. Inyección de ID y Validación con Zod
         const validatedData = CentroDeCostoSchema.parse({
@@ -40,11 +49,14 @@ export async function crearCentroDeCosto(residenciaId: string, payload: unknown)
         });
 
         // 4. Guardado en Firestore
-        await db.collection("residencias")
+        const docRef = db.collection("residencias")
             .doc(residenciaId)
             .collection("centrosDeCosto")
-            .doc(id)
-            .set(validatedData);
+            .doc(id);
+            
+        console.log(`[crearCentroDeCosto] Escribiendo en ruta: ${docRef.path}`);
+        await docRef.set(validatedData);
+        console.log(`[crearCentroDeCosto] Éxito al guardar centro de costo: ${id}`);
 
         return { success: true, data: validatedData };
 
@@ -64,16 +76,15 @@ export async function crearCentroDeCosto(residenciaId: string, payload: unknown)
  */
 export async function actualizarCentroDeCosto(residenciaId: string, id: string, payload: unknown): Promise<ActionResponse> {
     try {
-        // 1. Seguridad: Verificar auth y rol contador
+        // 1. Seguridad: Verificar auth y roles
         const auth = await requireAuth();
-        if (!auth.roles.includes("contador")) {
-            return { success: false, error: "No autorizado: Se requiere rol de contador." };
+        const hasPermission = auth.roles.some(rol => ROLES_PERMITIDOS.includes(rol));
+        
+        if (!hasPermission) {
+            return { success: false, error: "No autorizado: Se requiere rol de contador, master o admin." };
         }
 
         // 2. Validación con Zod
-        // Nota: El schema tiene .strict(), así que pasamos solo el payload validado.
-        // Aseguramos que el id sea parte de la validación si es necesario, 
-        // aunque .update() no requiere el ID en el cuerpo.
         const validatedData = CentroDeCostoSchema.partial().parse(payload);
 
         // 3. Actualización en Firestore
@@ -101,10 +112,12 @@ export async function actualizarCentroDeCosto(residenciaId: string, id: string, 
  */
 export async function archivarCentroDeCosto(residenciaId: string, id: string): Promise<ActionResponse> {
     try {
-        // 1. Seguridad: Verificar auth y rol contador
+        // 1. Seguridad: Verificar auth y roles
         const auth = await requireAuth();
-        if (!auth.roles.includes("contador")) {
-            return { success: false, error: "No autorizado: Se requiere rol de contador." };
+        const hasPermission = auth.roles.some(rol => ROLES_PERMITIDOS.includes(rol));
+        
+        if (!hasPermission) {
+            return { success: false, error: "No autorizado: Se requiere rol de contador, master o admin." };
         }
 
         // 2. Actualización de soft delete

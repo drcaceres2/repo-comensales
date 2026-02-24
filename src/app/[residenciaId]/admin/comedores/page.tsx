@@ -120,7 +120,7 @@ export default function GestionComedoresPage() {
             const ccCollRef = collection(db, 'residencias', residenciaId, 'centrosDeCosto');
             const ccSnap = await getDocs(ccCollRef);
             const ccList = ccSnap.docs
-                .map(doc => doc.data() as CentroDeCosto)
+                .map(doc => ({ id: doc.id, ...doc.data() } as CentroDeCosto))
                 .filter(cc => cc.estaActivo);
             setCentroCostos(ccList);
         } catch (error) {
@@ -167,9 +167,17 @@ export default function GestionComedoresPage() {
                 return;
             }
 
+            const cleanData: Partial<ComedorData> = {
+                nombre: data.nombre,
+            };
+            if (data.descripcion) cleanData.descripcion = data.descripcion;
+            if (data.aforoMaximo) cleanData.aforoMaximo = data.aforoMaximo;
+            if (data.centroCostoId) cleanData.centroCostoId = data.centroCostoId;
+
+
             const configRef = doc(db, 'residencias', residenciaId, 'configuracion', 'general');
             await updateDoc(configRef, {
-                [`comedores.${id}`]: data
+                [`comedores.${id}`]: cleanData
             });
 
             await logClientAction(

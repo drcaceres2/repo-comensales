@@ -33,6 +33,11 @@ export const slugCompuestoIdSchema = z.string()
         message: "El slug no puede contener guiones dobles",
     });
 
+export const OptionalSlugIdSchema = z.preprocess(
+    (val) => (val === "" || val === null) ? undefined : val,
+    slugIdSchema.optional()
+);
+
 export const CadenaOpcionalLimitada = (min: number = 1, max?: number) => {
     let stringRule = z.string().min(min, { message: `Mínimo ${min} caracter(es)` });
 

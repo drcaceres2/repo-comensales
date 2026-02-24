@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CadenaOpcionalLimitada, slugIdSchema } from './common';
+import { CadenaOpcionalLimitada, OptionalSlugIdSchema, slugIdSchema } from './common';
 import { HoraIsoSchema } from './fechas';
 
 // ============================================
@@ -15,7 +15,7 @@ export const ComedorDataSchema = z.object({
     nombre: z.string().min(1, "El nombre es obligatorio").max(50),
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
     aforoMaximo: z.number().int().positive("El aforo debe ser positivo").optional(),
-    centroCostoId: slugIdSchema.optional(),
+    centroCostoId: OptionalSlugIdSchema,
 }).strict();
 
 // ============================================

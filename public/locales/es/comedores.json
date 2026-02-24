@@ -13,12 +13,19 @@
         "centro_costo": "Centro de Costo",
         "submit_add": "Añadir",
         "submit_edit": "Guardar Cambios",
-        "cancel": "Cancelar"
+        "cancel": "Cancelar",
+        "descriptions": {
+            "nombre": "El nombre principal del $t(glosario:comedor.entidad) para identificación rápida."
+        }
     },
     "placeholders": {
         "nombre": "Ej: $t(glosario:comedor.entidad) Principal",
         "descripcion": "Opcional...",
-        "aforo": "Ej: 100"
+        "aforo": "Ej: 100",
+        "centro_costo_select": "Selecciona un centro de costo"
+    },
+    "opciones": {
+        "ninguno": "Ninguno"
     },
     "messages": {
         "success_add": "$t(glosario:comedor.entidad) añadido correctamente.",

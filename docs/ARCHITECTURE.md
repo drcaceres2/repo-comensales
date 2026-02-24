@@ -49,7 +49,7 @@ Dado que el cálculo dinámico (2.1) es volátil (si cambia el semanario hoy, ca
     + Se bloquean las ediciones (muro móvil) 
     + Se calculan todos los estados finales
     + Se crea documento `SolicitudConsolidada`
-    + Se agregan los ID de `comensalesSolicitados`, `usuarios` (nuevos o eliminados), `actividades`, `dietas`, `atenciones`, `alteracionesHorario`, `comentarios` que se hayan comunicado a la administración al documento de `SolicitudConsolidada`
+    + Se agregan los ID de `comensalesSolicitados`, `usuarios` (nuevos o eliminados), `actividades`, `dietas`, `atenciones`, `alteracionesHorario`, `novedadesOperativas` que se hayan comunicado a la administración al documento de `SolicitudConsolidada`
     + Se cambian los campos `avisoAdministracion` en los documentos afectados.
     + (Todos los cambios en Firestore se hacen en una sola transacción atómica)
 
@@ -64,7 +64,7 @@ Dado que el cálculo dinámico (2.1) es volátil (si cambia el semanario hoy, ca
 
 ### 3.2 Feedback y Comunicación
 
-* **Comentarios:** Son originados por los usuarios y funcionan como una cola de trabajo para el Director (`nuevo` -> `diferido` -> `atendido` -> `archivado` o `no_aprobado`); para que él se los comunique a la administración al momento de la `SolicitudConsolidada`. Los datos persisten para trazabilidad histórica.
+* **Novedades Operativas:** Son originados por los usuarios y funcionan como una cola de trabajo para el Director (`pendiente` -> `aprobado` -> `consolidado` -> `archivado` o `no_aprobado`); para que él se los comunique a la administración al momento de la `SolicitudConsolidada`. Los datos persisten para trazabilidad histórica.
 * **Recordatorios:** Capa de contexto visual (Overlay) sobre el calendario. (Por ejemplo: cumpleaños de residentes, período de exámenes de las universidades, etc.)
 
 ### 3.3 Estrategia de Persistencia (Patrones Firestore)
@@ -121,7 +121,7 @@ La base de datos sigue una estructura de árbol estricta para aislar contextos y
 > │   │  
 > │   ├── recordatorios/ {auto-id}  
 > │   │  
-> │   └── comentarios/ {auto-id}
+> │   └── novedadesOperativas/ {auto-id}
 > │  
 > ├── usuarios/ {uid}  
 > │   ├── semanarios/ {fechaInicio}  
@@ -147,7 +147,7 @@ Se prohíbe el uso indiscriminado de `add()` (Auto-IDs) para entidades de config
     * Cuando una entidad cíclica como `TiempoComida` o `Alternativa` se quiere borrar, se hace un "soft delete" colocando `esActivo=false` y se crea un nuevo slug versionado agregando el sufijo "-1" luego "-2" etc. de forma que el usuario final no necesite cambiar el nombre para generar un nuevo `slug-kebab-case`
 3.  **Auto-IDs (Aleatorios):**
     * Se usan para datos transaccionales de alto volumen o sin nombre único.
-    * *Uso:* `contratosResidencia`, `logs`, `comentarios`, `faltas`, `atenciones`, `alteraciones`, `actividades`
+    * *Uso:* `contratosResidencia`, `logs`, `novedadesOperativas`, `faltas`, `atenciones`, `alteraciones`, `actividades`
 4.  **IDs Externos:**
     * Los documentos en `usuarios` deben coincidir estrictamente con el **Auth UID**.
     * Los documentos en `clientes` deben usar el identificador de país más código fiscal (RTN en Honduras, etc.).

@@ -12,29 +12,6 @@ export const EstadoAvisoAdministracionSchema = z.enum([
 ]);
 
 // ============================================
-// Comentario
-// ============================================
-
-const ComentarioBaseSchema = z.object({
-    residenciaId: slugIdSchema,
-    autorId: FirestoreIdSchema,
-    texto: CadenaOpcionalLimitada(1, 500),
-    categoria: z.enum(['comida', 'ropa', 'limpieza', 'mantenimiento', 'otros']),
-    fecha: FechaIsoSchema,
-    estado: z.enum(['nuevo', 'diferido', 'atendido', 'no_aprobado', 'archivado']),
-    fechaDiferido: FechaIsoSchema.optional(),
-    avisoAdministracion: EstadoAvisoAdministracionSchema,
-}).strict();
-
-export const ComentarioSchema = ComentarioBaseSchema.extend({
-    id: FirestoreIdSchema,
-    timestampCreacion: TimestampStringSchema,
-});
-
-export const ComentarioCreateSchema = ComentarioBaseSchema;
-export const ComentarioUpdateSchema = ComentarioBaseSchema.partial();
-
-// ============================================
 // Falta
 // ============================================
 
@@ -150,10 +127,6 @@ export const AlteracionHorarioCreateSchema = AlteracionHorarioBaseSchema;
 export const AlteracionHorarioUpdateSchema = AlteracionHorarioBaseObject.partial();
 
 // Type exports
-export type Comentario = z.infer<typeof ComentarioSchema>;
-export type ComentarioCreate = z.infer<typeof ComentarioCreateSchema>;
-export type ComentarioUpdate = z.infer<typeof ComentarioUpdateSchema>;
-
 export type Falta = z.infer<typeof FaltaSchema>;
 export type FaltaCreate = z.infer<typeof FaltaCreateSchema>;
 export type FaltaUpdate = z.infer<typeof FaltaUpdateSchema>;
