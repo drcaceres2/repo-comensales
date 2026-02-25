@@ -4,7 +4,7 @@ import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { 
-  CentroDeCosto, 
+  type CentroDeCosto,
   CentroDeCostoSchema 
 } from "shared/schemas/contabilidad";
 import { 

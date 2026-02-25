@@ -13,7 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { SafeParseReturnType } from 'zod';
+import { type SafeParseReturnType } from 'zod';
 
 type FormValues = Omit<TiempoComida, 'estaActivo' | 'alternativas'>;
 

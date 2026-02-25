@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugCompuestoIdSchema, slugIdSchema } from './common';
-import { FechaIsoSchema, TimestampStringSchema } from './fechas';
+import { FirestoreIdSchema, slugCompuestoIdSchema, slugIdSchema, TimestampSchema } from './common';
+import {FechaHoraIsoSchema, FechaIsoSchema } from './fechas';
 
 // ============================================
 // ExcepcionUsuario
@@ -13,7 +13,7 @@ const AutorizacionExcepcionSchema = z.object({
         'aprobado', 'rechazado',
     ]),
     autorizadoPor: FirestoreIdSchema.optional(),
-    timestampAutorizacion: TimestampStringSchema,
+    fechaHoraAutorizacion: FechaHoraIsoSchema,
     alternativaRespaldoId: slugIdSchema.nullable().optional(),
 }).strict();
 
@@ -34,12 +34,12 @@ const ExcepcionUsuarioBaseSchema = z.object({
  */
 export const ExcepcionUsuarioSchema = ExcepcionUsuarioBaseSchema.extend({
     id: slugCompuestoIdSchema.optional(),
-    timestampCreacion: TimestampStringSchema,
+    timestampCreacion: TimestampSchema,
 });
 
 // Schema para CREATE ExcepcionUsuario
 export const createExcepcionUsuarioSchema = ExcepcionUsuarioBaseSchema.extend({
-    timestampCreacion: TimestampStringSchema.optional(),
+    timestampCreacion: TimestampSchema.optional(),
 });
 
 // Schema para UPDATE ExcepcionUsuario

@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada, slugCompuestoIdSchema } from './common';
-import { FechaIsoSchema, TimestampStringSchema } from './fechas';
+import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada, slugCompuestoIdSchema, TimestampSchema } from './common';
+import { FechaIsoSchema } from './fechas';
 
 // ============================================
 // Ausencia
@@ -26,13 +26,13 @@ const AusenciaBaseSchema = AusenciaBaseObject
 /**
  * Ausencia: Negación de servicio declarada por el usuario.
  * Corresponde al Nivel 2 de la Cascada de la Verdad.
- * 
+ *
  * Ruta: usuarios/{uid}/ausencias/{fechaInicio}
  */
 export const AusenciaSchema = AusenciaBaseObject
     .extend({
         id: FechaIsoSchema.optional(),
-        timestampCreacion: TimestampStringSchema,
+        timestampCreacion: TimestampSchema,
     })
     .strict().refine(data => data.fechaFin >= data.fechaInicio, {
         message: "La fecha de fin no puede ser anterior a la fecha de inicio",

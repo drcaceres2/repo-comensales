@@ -3,10 +3,12 @@
 import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { I18nLanguageSync } from '@/components/I18nLanguageSync';
+import { I18nLanguageSync } from '@/components/context/I18nLanguageSync';
 import { Toaster } from '@/components/ui/toaster';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import '@/i18n/config';
+import {ResidenciaProvider} from "@/components/context/ResidenciaProvider";
+
+import '@/lib/i18nConfig';
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -22,13 +24,15 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SidebarProvider>
-        <I18nLanguageSync />
-        {children}
-        <Toaster />
-        <ReactQueryDevtools initialIsOpen={false} />
-      </SidebarProvider>
-    </QueryClientProvider>
+      <ResidenciaProvider>
+        <QueryClientProvider client={queryClient}>
+          <SidebarProvider>
+            <I18nLanguageSync />
+            {children}
+            <Toaster />
+            <ReactQueryDevtools initialIsOpen={false} />
+          </SidebarProvider>
+        </QueryClientProvider>
+      </ResidenciaProvider>
   );
 }

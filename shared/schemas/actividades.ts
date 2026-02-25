@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, CadenaOpcionalLimitada, slugIdSchema } from './common';
-import { FechaIsoSchema, HoraIsoSchema, TimestampStringSchema } from './fechas';
+import { FirestoreIdSchema, slugIdSchema, TimestampSchema } from './common';
+import { FechaIsoSchema, HoraIsoSchema} from './fechas';
 
 // ============================================
 // Enums
@@ -200,8 +200,8 @@ export const InscripcionActividadSchema = z.object({
     fechaInvitacion: FechaIsoSchema.nullable(),
     estadoInscripcion: EstadoInscripcionActividadEnum,
 
-    timestampCreacion: TimestampStringSchema,
-    timestampModificacion: TimestampStringSchema,
+    timestampCreacion: TimestampSchema,
+    timestampModificacion: TimestampSchema,
 }).strict();
 
 export const InscripcionActividadCreateSchema = InscripcionActividadSchema.omit({
@@ -209,8 +209,8 @@ export const InscripcionActividadCreateSchema = InscripcionActividadSchema.omit(
     timestampCreacion: true,
     timestampModificacion: true,
 }).extend({
-    timestampCreacion: TimestampStringSchema.optional(),
-    timestampModificacion: TimestampStringSchema.optional(),
+    timestampCreacion: TimestampSchema.optional(),
+    timestampModificacion: TimestampSchema.optional(),
 });
 
 export const InscripcionActividadUpdateSchema = InscripcionActividadSchema.omit({

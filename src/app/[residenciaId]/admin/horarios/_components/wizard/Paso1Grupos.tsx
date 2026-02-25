@@ -82,6 +82,12 @@ export default function Paso1Grupos() {
         setEditingId(null);
         reset();
     };
+
+    const handleCreateTradicionales = () => {
+        upsertGrupoComida('desayuno', { nombre: 'Desayuno', orden: 1, estaActivo: true });
+        upsertGrupoComida('almuerzo', { nombre: 'Almuerzo', orden: 2, estaActivo: true });
+        upsertGrupoComida('cena', { nombre: 'Cena', orden: 3, estaActivo: true });
+    };
     
     const renderForm = () => (
         <form onSubmit={handleSubmit(onSubmit)} className="bg-slate-100 dark:bg-slate-800 p-4 rounded-lg my-4 border border-slate-200 dark:border-slate-700">
@@ -208,6 +214,18 @@ export default function Paso1Grupos() {
                 ))}
             </div>
             
+            {!editingId && filteredGrupos.length === 0 && (
+                <div className="text-center my-8">
+                    <p className="text-slate-500 dark:text-slate-400 mb-4">No hay grupos de comida activos.</p>
+                    <button
+                        onClick={handleCreateTradicionales}
+                        className="px-4 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                    >
+                        Crear grupos tradicionales
+                    </button>
+                </div>
+            )}
+
             {!editingId && (
                  <button 
                     onClick={handleAddNewClick}

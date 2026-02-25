@@ -9,8 +9,8 @@ import {
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Actividad, InscripcionActividad } from '@/../shared/schemas/actividades';
-import { ResidenciaId, RolUsuario } from '@/../shared/models/types';
+import type { Actividad, InscripcionActividad } from '@/../shared/schemas/actividades';
+import type { ResidenciaId, RolUsuario } from '@/../shared/models/types';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, UserPlus, Info, Users, Soup, CheckCircle, XCircle } from 'lucide-react';
 import {

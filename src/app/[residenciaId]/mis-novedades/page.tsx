@@ -1,9 +1,11 @@
 import { requireAuth } from '@/lib/serverAuth';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/firebaseAdmin';
-import { NovedadOperativa } from 'shared/schemas/novedades';
+import { type NovedadOperativa } from 'shared/schemas/novedades';
 import TableroMisNovedades from './components/TableroMisNovedades';
-import { Timestamp } from 'firebase-admin/firestore';
+import { NotebookPen } from 'lucide-react';
+import NovedadesHeaderActions from './components/NovedadesHeaderActions';
+import { Timestamp } from 'firebase-admin/firestore'
 
 // Helper to serialize data with Timestamps
 function serializeNovedad(doc: FirebaseFirestore.QueryDocumentSnapshot): NovedadOperativa {
@@ -21,17 +23,18 @@ function serializeNovedad(doc: FirebaseFirestore.QueryDocumentSnapshot): Novedad
     return serializedData as NovedadOperativa;
 }
 
-
-export default async function MisNovedadesPage({ params }: { params: { residenciaId: string } }) {
+// The 'params' object in async Server Components is a Promise. We must await it.
+export default async function MisNovedadesPage({ params }: { params: Promise<{ residenciaId: string }> }) {
+    const { residenciaId } = await params;
     const { uid } = await requireAuth();
     if (!uid) {
         redirect('/login');
     }
 
-    const novedadesRef = db.collection(`residencias/${params.residenciaId}/novedadesOperativas`);
+    const novedadesRef = db.collection(`residencias/${residenciaId}/novedadesOperativas`);
     const novedadesQuery = novedadesRef
         .where('autorId', '==', uid)
-        .orderBy('fechaCreacion', 'desc')
+        .orderBy('timestampCreacion', 'desc')
         .limit(50);
 
     const querySnapshot = await novedadesQuery.get();
@@ -39,10 +42,16 @@ export default async function MisNovedadesPage({ params }: { params: { residenci
 
     return (
         <main className="p-4 md:p-6">
-            <div className="flex justify-between items-center mb-4">
-                <div>
-                    <h1 className="text-2xl font-bold">Mis Novedades</h1>
-                    <p className="text-gray-500">Consulta y gestiona las novedades que has reportado.</p>
+            <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-6">
+                <div className="flex items-center gap-4">
+                    <NotebookPen className="h-8 w-8 text-gray-500" />
+                    <div>
+                        <h1 className="text-2xl font-bold">Mis Novedades</h1>
+                        <p className="text-gray-500">Residencia: {residenciaId}</p>
+                    </div>
+                </div>
+                <div className="w-full md:w-auto">
+                    <NovedadesHeaderActions residenciaId={residenciaId} />
                 </div>
             </div>
             <TableroMisNovedades initialData={novedades} />

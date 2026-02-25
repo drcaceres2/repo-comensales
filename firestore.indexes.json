@@ -1,4 +1,19 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "novedadesOperativas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "autorId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestampCreacion",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

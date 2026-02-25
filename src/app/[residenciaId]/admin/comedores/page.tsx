@@ -3,15 +3,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
-import { 
-    ConciergeBell, 
-    Plus, 
-    Pencil, 
-    Trash2, 
-    Loader2, 
-    AlertCircle,
-    Utensils
-} from 'lucide-react';
+
+// --- Firebase & Actions ---
+import { db } from '@/lib/firebase';
+import { doc, getDoc, updateDoc, deleteField, collection, getDocs } from 'firebase/firestore';
+import { useAuth } from '@/hooks/useAuth';
+
+// --- Types & Schemas ---
+import { type ComedorId } from 'shared/models/types';
+import type { CentroDeCosto, ConfigContabilidad } from 'shared/schemas/contabilidad';
+import { type ConfiguracionResidencia } from 'shared/schemas/residencia';
+import { type ComedorData } from 'shared/schemas/complemento1';
+import { type Usuario } from 'shared/schemas/usuarios';
+
+// --- Components ----
+import { ComedorForm } from './ComedorForm';
+import { logClientAction } from '@/lib/utils';
+import { slugify } from 'shared/utils/commonUtils';
 
 // --- UI components ---
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -36,21 +44,15 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-// --- Firebase & Actions ---
-import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, deleteField, collection, getDocs } from 'firebase/firestore';
-import { useAuth } from '@/hooks/useAuth';
-
-// --- Types & Schemas ---
-import { ComedorId } from 'shared/models/types';
-import { CentroDeCosto, ConfigContabilidad } from 'shared/schemas/contabilidad';
-import { ConfiguracionResidencia } from 'shared/schemas/residencia';
-import { ComedorData } from 'shared/schemas/complemento1';
-import { ComedorForm } from './ComedorForm';
-import { Usuario } from 'shared/schemas/usuarios';
-import { logClientAction } from '@/lib/utils';
-import { slugify } from 'shared/utils/commonUtils';
+import {
+    ConciergeBell,
+    Plus,
+    Pencil,
+    Trash2,
+    Loader2,
+    AlertCircle,
+    Utensils
+} from 'lucide-react';
 
 export default function GestionComedoresPage() {
     const params = useParams();
@@ -116,7 +118,7 @@ export default function GestionComedoresPage() {
             if (resSnap.exists()) {
                 setResidenciaNombre(resSnap.data().nombre);
             }
-
+            // ZONA HORARIA AQUÍ
             const ccCollRef = collection(db, 'residencias', residenciaId, 'centrosDeCosto');
             const ccSnap = await getDocs(ccCollRef);
             const ccList = ccSnap.docs

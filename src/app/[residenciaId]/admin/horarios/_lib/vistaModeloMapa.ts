@@ -5,7 +5,7 @@ import {
   type HorarioSolicitudData,
   type TiempoComida,
 } from 'shared/schemas/horarios';
-import { DiaDeLaSemana, ArregloDiaDeLaSemana } from 'shared/models/types';
+import { type DiaDeLaSemana, ArregloDiaDeLaSemana } from 'shared/schemas/fechas';
 
 const mapaDiasANumero: Record<DiaDeLaSemana, number> = {
   lunes: 0,
@@ -306,15 +306,15 @@ export const CatalogoErrores = {
 
 export type TipoError = keyof typeof CatalogoErrores;
 
-export interface Aviso {
+export interface Alerta {
   tipo: TipoError;
   entidad: 'HorarioSolicitudData' | 'GrupoComida' | 'TiempoComida' | 'ConfiguracionAlternativa' | 'Global';
   id?: string; // El ID de la entidad que causa el problema
   mensaje: string;
 }
 
-export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
-  const avisos: Aviso[] = [];
+export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Alerta[] {
+  const alertas: Alerta[] = [];
   const {
     gruposComidas,
     tiemposComidas,
@@ -336,12 +336,12 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
     definicionesAlternativasActivas.length === 0 &&
     configuracionesAlternativasActivas.length === 0
   ) {
-    avisos.push({
+    alertas.push({
       tipo: 'GENERAL',
       entidad: 'Global',
       mensaje: 'No hay ninguna entidad de horarios activa. La configuración de horarios está completamente vacía.'
     });
-    return avisos;
+    return alertas;
   }
 
   // ADVERTENCIAS
@@ -349,7 +349,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   ArregloDiaDeLaSemana.forEach(dia => {
     const horariosParaDia = horariosSolicitudActivos.filter(([, h]) => h.dia === dia);
     if (horariosParaDia.length === 0) {
-      avisos.push({
+      alertas.push({
         tipo: 'HSC_DIA',
         entidad: 'HorarioSolicitudData',
         mensaje: `No hay ningún horario de solicitud activo para el día ${dia}.`
@@ -361,13 +361,13 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   ArregloDiaDeLaSemana.forEach(dia => {
     const primariosParaDia = horariosSolicitudActivos.filter(([, h]) => h.dia === dia && h.esPrimario);
     if (primariosParaDia.length === 0) {
-      avisos.push({
+      alertas.push({
         tipo: 'HSC_PRI_DIA',
         entidad: 'HorarioSolicitudData',
         mensaje: `No hay un horario de solicitud primario definido para el día ${dia}.`
       });
     } else if (primariosParaDia.length > 1) {
-      avisos.push({
+      alertas.push({
         tipo: 'HSC_PRI_DIA',
         entidad: 'HorarioSolicitudData',
         id: primariosParaDia.map(([id]) => id).join(', '),
@@ -383,13 +383,13 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
         ([, t]) => t.grupoComida === grupoId && t.dia === dia
       );
       if (tiemposParaGrupoDia.length === 0) {
-        avisos.push({
+        alertas.push({
           tipo: 'TC_DIAxGR',
           entidad: 'TiempoComida',
           mensaje: `No hay un tiempo de comida activo para el grupo '${grupo.nombre}' en el día ${dia}.`
         });
       } else if (tiemposParaGrupoDia.length > 1) {
-        avisos.push({
+        alertas.push({
           tipo: 'TC_DIAxGR',
           entidad: 'TiempoComida',
           id: tiemposParaGrupoDia.map(([id]) => id).join(', '),
@@ -405,7 +405,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
       ([, c]) => c.tiempoComidaId === tiempoId
     );
     if (configsParaTiempo.length === 0) {
-      avisos.push({
+      alertas.push({
         tipo: 'CFALT_TC',
         entidad: 'ConfiguracionAlternativa',
         id: tiempoId,
@@ -424,7 +424,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
       return definicion && definicion.tipo === 'comedor';
     });
     if (!hayDeTipoComedor) {
-      avisos.push({
+      alertas.push({
         tipo: 'CFALT_TCxCOM',
         entidad: 'ConfiguracionAlternativa',
         id: tiempoId,
@@ -443,7 +443,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   });
   nombresHorarios.forEach((ids, nombre) => {
     if (ids.length > 1) {
-      avisos.push({
+      alertas.push({
         tipo: 'HSC_REP',
         entidad: 'HorarioSolicitudData',
         id: ids.join(', '),
@@ -462,7 +462,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   });
   nombresTiempos.forEach((ids, nombre) => {
     if (ids.length > 1) {
-      avisos.push({
+      alertas.push({
         tipo: 'TC_REP',
         entidad: 'TiempoComida',
         id: ids.join(', '),
@@ -481,7 +481,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   });
   nombresDefiniciones.forEach((ids, nombre) => {
     if (ids.length > 1) {
-      avisos.push({
+      alertas.push({
         tipo: 'DFALT_REP',
         entidad: 'ConfiguracionAlternativa',
         id: ids.join(', '),
@@ -500,7 +500,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   });
   nombresConfiguraciones.forEach((ids, nombre) => {
     if (ids.length > 1) {
-      avisos.push({
+      alertas.push({
         tipo: 'CFALT_REP',
         entidad: 'ConfiguracionAlternativa',
         id: ids.join(', '),
@@ -522,7 +522,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
         const bucket = ventanasPorDia.get(key)!;
         const existente = bucket.find(item => item.ventana === ventanaStr);
         if (existente) {
-            avisos.push({
+            alertas.push({
                 tipo: 'CFALT_CONC',
                 entidad: 'ConfiguracionAlternativa',
                 id: `${existente.id}, ${id}`,
@@ -538,7 +538,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   // Hay una `ConfiguracionAlternativa` activa que tiene `VentanaServicioComidaSchema` de `tipo='normal'` con horaInicio > horaFin
   configuracionesAlternativasActivas.forEach(([id, c]) => {
     if (c.ventanaServicio.tipoVentana === 'normal' && c.ventanaServicio.horaInicio > c.ventanaServicio.horaFin) {
-      avisos.push({
+      alertas.push({
         tipo: 'CFALT_TIEM_NEG',
         entidad: 'ConfiguracionAlternativa',
         id: id,
@@ -553,7 +553,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   horariosInactivosConConfigActiva.forEach(([hId, h]) => {
       const tieneConfigActiva = configuracionesAlternativasActivas.some(([,c]) => c.horarioSolicitudComidaId === hId);
       if(tieneConfigActiva){
-        avisos.push({
+        alertas.push({
             tipo: 'HSC_INACT_ASOC',
             entidad: 'HorarioSolicitudData',
             id: hId,
@@ -567,7 +567,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   tiemposInactivosConConfigActiva.forEach(([tId, t]) => {
       const tieneConfigActiva = configuracionesAlternativasActivas.some(([,c]) => c.tiempoComidaId === tId);
       if(tieneConfigActiva){
-        avisos.push({
+        alertas.push({
             tipo: 'TC_INACT_ASOC',
             entidad: 'TiempoComida',
             id: tId,
@@ -580,7 +580,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   const ordenGrupos = gruposComidasActivos.map(([,g]) => g.orden).sort((a,b) => a - b);
   for(let i = 0; i < ordenGrupos.length - 1; i++){
       if(ordenGrupos[i+1] !== ordenGrupos[i] + 1){
-          avisos.push({
+          alertas.push({
               tipo: 'GC_DESOR',
               entidad: 'GrupoComida',
               mensaje: 'El orden de los grupos de comida activos no es consecutivo.'
@@ -599,7 +599,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   });
   nombresGrupos.forEach((ids, nombre) => {
     if (ids.length > 1) {
-      avisos.push({
+      alertas.push({
         tipo: 'GC_REP',
         entidad: 'GrupoComida',
         id: ids.join(', '),
@@ -609,17 +609,17 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Aviso[] {
   });
 
   // Agrupar mensajes idénticos
-  const avisosAgrupados: Record<string, Aviso> = {};
-  avisos.forEach(aviso => {
-    const key = `${aviso.tipo}-${aviso.entidad}-${aviso.mensaje}`;
-    if (avisosAgrupados[key]) {
-      if (aviso.id) {
-        avisosAgrupados[key].id = `${avisosAgrupados[key].id || ''}, ${aviso.id}`;
+  const alertasAgrupadas: Record<string, Alerta> = {};
+  alertas.forEach(alerta => {
+    const key = `${alerta.tipo}-${alerta.entidad}-${alerta.mensaje}`;
+    if (alertasAgrupadas[key]) {
+      if (alerta.id) {
+        alertasAgrupadas[key].id = `${alertasAgrupadas[key].id || ''}, ${alerta.id}`;
       }
     } else {
-      avisosAgrupados[key] = { ...aviso };
+      alertasAgrupadas[key] = { ...alerta };
     }
   });
 
-  return Object.values(avisosAgrupados);
+  return Object.values(alertasAgrupadas);
 }

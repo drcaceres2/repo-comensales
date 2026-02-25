@@ -9,7 +9,7 @@ import type {
 import {
     auditarIntegridadHorarios,
     construirMatrizVistaHorarios,
-    type Aviso,
+    type Alerta,
     type DatosHorariosEnBruto,
     type MatrizVistaHorarios
 } from "./vistaModeloMapa";
@@ -29,7 +29,7 @@ export interface HorariosState {
     matriz: MatrizVistaHorarios;
 
     // 4. ESTADO DE AUDITORÍA (A demanda)
-    alertas: Aviso[];
+    alertas: Alerta[];
     alertasIgnoradas: string[]; // Arreglo de IDs deterministas de alertas que el usuario ocultó
 
     // ACCIONES DE UI

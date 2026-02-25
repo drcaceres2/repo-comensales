@@ -1,6 +1,12 @@
 import { z } from 'zod';
-import { CadenaOpcionalLimitada, UrlOpcionalSchema, slugIdSchema } from './common';
-import { UbicacionSchema, FechaHoraIsoSchema, TimestampStringSchema } from './fechas';
+import {
+    CadenaOpcionalLimitada,
+    UbicacionSchema,
+    UrlOpcionalSchema,
+    slugIdSchema,
+    TimestampSchema
+} from './common';
+import { FechaHoraIsoSchema } from './fechas';
 import { ComedorDataSchema, GrupoUsuariosDataSchema, DietaDataSchema } from './complemento1';
 import { HorarioSolicitudDataSchema, TiempoComidaSchema, 
     DefinicionAlternativaSchema, ConfiguracionAlternativaSchema,
@@ -37,7 +43,7 @@ export const CampoPersonalizadoSchema = z.object({
 /**
  * Esquema base para Residencia (lectura)
  */
-export const residenciaSchema = z.object({
+export const ResidenciaSchema = z.object({
     id: slugIdSchema,
     nombre: z.string().min(1).max(80),
     direccion: CadenaOpcionalLimitada(1, 255).optional(),
@@ -63,14 +69,14 @@ export const residenciaSchema = z.object({
 /**
  * Esquema para CREATE Residencia
  */
-export const createResidenciaSchema = residenciaSchema.omit({ 
+export const CreateResidenciaSchema = ResidenciaSchema.omit({ 
     id: true 
 }).strict();
 
 /**
  * Esquema para UPDATE Residencia
  */
-export const updateResidenciaSchema = residenciaSchema.omit({ 
+export const UpdateResidenciaSchema = ResidenciaSchema.omit({
     id: true 
 }).partial().extend({
     direccion: z.string().max(255).nullable().optional(),
@@ -79,6 +85,10 @@ export const updateResidenciaSchema = residenciaSchema.omit({
         .transform(v => (v === "" || v === null) ? "es-HN" : v)
         .optional(),
 }).strict();
+
+export const ResidenciaConVersion = ResidenciaSchema.extend(
+    { version: z.number().int().nonnegative().default(1) }
+).strict();
 
 // ============================================
 // ConfiguracionResidencia (Singleton por residencia)
@@ -97,7 +107,7 @@ export const ConfiguracionResidenciaSchema = z.object({
 
     // Muro móvil
     fechaHoraReferenciaUltimaSolicitud: FechaHoraIsoSchema,
-    timestampUltimaSolicitud: TimestampStringSchema,
+    timestampUltimaSolicitud: TimestampSchema,
 
     // Datos Embebidos (Embed Pattern)
     horariosSolicitud: z.record(slugIdSchema, HorarioSolicitudDataSchema),
@@ -115,9 +125,10 @@ export const CONFIG_RESIDENCIA_ID = "general";
 // Type Exports
 // ============================================
 
-export type Residencia = z.infer<typeof residenciaSchema>;
-export type CreateResidencia = z.infer<typeof createResidenciaSchema>;
-export type UpdateResidencia = z.infer<typeof updateResidenciaSchema>;
+export type Residencia = z.infer<typeof ResidenciaSchema>;
+export type ResidenciaConVersion = z.infer<typeof ResidenciaConVersion>;
+export type CreateResidencia = z.infer<typeof CreateResidenciaSchema>;
+export type UpdateResidencia = z.infer<typeof UpdateResidenciaSchema>;
 
 /**
  * Colección: configuracionResidencia (Singleton por residencia)

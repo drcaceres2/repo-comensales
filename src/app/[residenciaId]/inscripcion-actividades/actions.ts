@@ -1,12 +1,16 @@
 'use server';
 
 import { db, admin } from '@/lib/firebaseAdmin';
-import {
+import type {
   Actividad,
   InscripcionActividad,
 } from '@/../shared/schemas/actividades';
-import { Residencia } from '@/../shared/schemas/residencia';
-import { ResidenciaId, RolUsuario, LogPayload } from '@/../shared/models/types';
+import { type Residencia } from '@/../shared/schemas/residencia';
+import {
+    type ResidenciaId,
+    type RolUsuario,
+    LogPayload
+} from '@/../shared/models/types';
 import { requireAuth } from '@/lib/serverAuth';
 import { revalidatePath } from 'next/cache';
 import { httpsCallable } from 'firebase/functions';

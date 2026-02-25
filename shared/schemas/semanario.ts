@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { slugIdSchema } from './common';
-import { FechaIsoSchema, DiaDeLaSemanaSchema, TimestampStringSchema } from './fechas';
+import { slugIdSchema, TimestampStringSchema } from './common';
+import { FechaIsoSchema, DiaDeLaSemanaSchema } from './fechas';
 
 // ============================================
 // SemanarioUsuario

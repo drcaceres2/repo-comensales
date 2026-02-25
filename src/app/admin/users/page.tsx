@@ -45,7 +45,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns'
 
 // Model Imports from the new 'shared' directory structure
-import {
+import type {
     RolUsuario,
     ResidenciaId,
     DietaId,
@@ -54,18 +54,21 @@ import {
 
 // Zod Schemas import from the new 'shared' directory structure
 import {
-    Usuario,
-    AsistentePermisos,
-    AsistentePermisosDetalle,
+    type Usuario,
+    type AsistentePermisos,
+    type AsistentePermisosDetalle,
     clientCreateUserFormSchema,
     clientUpdateUserFormSchema,
     type ClientCreateUserForm,
     type ClientUpdateUserForm,
     type ResidenteData,
 } from 'shared/schemas/usuarios';
-import { Residencia, ConfiguracionResidencia } from 'shared/schemas/residencia';
-import { DietaData } from "shared/schemas/complemento1";
-import { CentroDeCosto } from "shared/schemas/contabilidad";
+import type {
+    Residencia,
+    ConfiguracionResidencia
+} from 'shared/schemas/residencia';
+import { type DietaData } from "shared/schemas/complemento1";
+import { type CentroDeCosto } from "shared/schemas/contabilidad";
 
 const defaultPermisoDetalle: AsistentePermisosDetalle = {
     nivelAcceso: 'Ninguna',
@@ -781,8 +784,7 @@ function UserManagementPage(): JSX.Element | null {
                                 <Input id="identificacion" value={formData.identificacion || ''} onChange={(e) => handleFormChange('identificacion', e.target.value)} disabled={isSaving} />
                             </div>
                             <div className="space-y-1.5">
-                                <Label htmlFor="telefonoMovil">Te
-                                    léfono Móvil</Label>
+                                <Label htmlFor="telefonoMovil">Teléfono Móvil</Label>
                                 <Input id="telefonoMovil" value={formData.telefonoMovil || ''} onChange={(e) => handleFormChange('telefonoMovil', e.target.value)} disabled={isSaving} placeholder="+504 1234-5678" />
                             </div>
                             <div className="space-y-1.5">

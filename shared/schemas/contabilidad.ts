@@ -1,7 +1,6 @@
 import {z } from 'zod';
 import { slugIdSchema, CadenaOpcionalLimitada } from "./common";
 
-
 // Centro de Costo - Entidad principal de la contabilidad
 
 export const CentroDeCostoSchema = z.object({

@@ -212,6 +212,37 @@ const getNavConfig = (profile: Usuario | null): NavItem[] => {
       ],
     },
 
+    // --- Group: Novedades ---
+    {
+      id: 'novedadesGroup',
+      label: 'Novedades Operativas',
+      icon: BookCopy,
+      isAccordion: true,
+      roles: ALL_AUTHENTICATED_ROLES,
+      requiresResidenciaIdForHref: true,
+      children: [
+        {
+          id: 'Mis Novedades',
+          label: 'novedades',
+          icon: Building,
+          href: rLink,
+          pathTemplate: '/mis-novedades',
+          roles: ALL_AUTHENTICATED_ROLES,
+          requiresResidenciaIdForHref: true,
+        },
+        {
+          id: 'Aprobar novedades',
+          label: 'Aprobar novedades',
+          icon: FileText,
+          href: rLink,
+          pathTemplate: '/gerencia/novedades',
+          roles: ['director', "asistente"],
+          requiresResidenciaIdForHref: true,
+        },
+      ],
+    },
+
+
     // --- Group: Contabilidad ---
     {
       id: 'contabilidadGroup',

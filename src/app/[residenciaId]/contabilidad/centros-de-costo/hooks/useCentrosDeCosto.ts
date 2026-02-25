@@ -17,7 +17,7 @@ import {
     archivarCentroDeCosto 
 } from "../actions";
 import { useAuth } from "@/hooks/useAuth";
-import { CentroDeCosto } from "shared/schemas/contabilidad";
+import { type CentroDeCosto } from "shared/schemas/contabilidad";
 
 /**
  * Hook para gestionar los Centros de Costo de una residencia.

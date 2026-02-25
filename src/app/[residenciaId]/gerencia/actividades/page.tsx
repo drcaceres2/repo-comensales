@@ -24,15 +24,15 @@ import { Loader2, PlusCircle, Trash2, Edit, AlertCircle,
     Calendar, Ban } from 'lucide-react';
 
 // ZOD Schemas
-import { Actividad, InscripcionActividad, EstadoActividad } from 'shared/schemas/actividades'
-import { Residencia } from 'shared/schemas/residencia';
-import { Usuario } from 'shared/schemas/usuarios';
-import { CentroDeCosto } from 'shared/schemas/contabilidad';
-import { ComedorData } from 'shared/schemas/complemento1';
-import { TiempoComida } from 'shared/schemas/horarios';
+import type { Actividad, InscripcionActividad, EstadoActividad } from 'shared/schemas/actividades'
+import { type Residencia } from 'shared/schemas/residencia';
+import { type Usuario } from 'shared/schemas/usuarios';
+import { type CentroDeCosto } from 'shared/schemas/contabilidad';
+import { type ComedorData } from 'shared/schemas/complemento1';
+import { type TiempoComida } from 'shared/schemas/horarios';
 
 // Types
-import {
+import type {
     ActividadId, 
     ResidenciaId, ComedorId, TiempoComidaId
 } from 'shared/models/types';

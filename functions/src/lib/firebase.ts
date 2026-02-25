@@ -1,5 +1,5 @@
-import * as admin from 'firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import * as admin from "firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 // Initialize Firebase Admin SDK only once
 if (!admin.apps.length) {

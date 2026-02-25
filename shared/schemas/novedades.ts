@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugIdSchema } from './common';
-import { FechaIsoSchema, TimestampStringSchema } from './fechas';
+import { FirestoreIdSchema, slugIdSchema, TimestampSchema } from './common';
+import { FechaIsoSchema } from './fechas';
 
 // Definición centralizada para el estado de la novedad
 export const EstadoNovedadEnum = z.enum([
@@ -27,8 +27,8 @@ const NovedadOperativaBaseSchema = z.object({
   solicitudConsolidadaId: FirestoreIdSchema.optional(), // Vínculo estricto e inmutable al Snapshot
   fechaProgramada: FechaIsoSchema,
 
-  texto: z.string().min(5).max(500), // OBLIGATORIO. Mínimo 5 caracteres para evitar "ok".
-  categoria: z.enum(['comida', 'ropa', 'limpieza', 'mantenimiento', 'salud', 'otros']), // Sugiero agregar 'salud'
+  texto: z.string().min(5, "La descripción debe tener al menos 5 caracteres.").max(500),
+  categoria: z.enum(['comida', 'ropa', 'limpieza', 'mantenimiento', 'salud', 'otros']),
 
   estado: z.enum([
     'pendiente',   // Recién creado por residente
@@ -38,26 +38,27 @@ const NovedadOperativaBaseSchema = z.object({
     'archivado'    // Histórico (si aplica post-consolidación)
   ]),
 
-  timestampCreacion: TimestampStringSchema,
-  timestampActualizacion: TimestampStringSchema, // Crítico para auditoría de cambios de estado
+  timestampCreacion: TimestampSchema,
+  timestampActualizacion: TimestampSchema,
 }).strict();
 
 export const NovedadOperativaSchema = NovedadOperativaBaseSchema.extend({
   id: FirestoreIdSchema,
-  timestampCreacion: TimestampStringSchema,
 });
 
-export const NovedadOperativaCreateSchema = NovedadOperativaBaseSchema.pick({
+// Schema defining the fields used in the form
+export const NovedadFormSchema = NovedadOperativaBaseSchema.pick({
   texto: true,
   categoria: true,
 });
-export const NovedadOperativaUpdateSchema = NovedadOperativaSchema.partial();
+
+export const NovedadOperativaUpdateSchema = NovedadFormSchema.partial();
 
 // Tipo inferido para ser usado en otros lugares de la aplicación
 export type NovedadEstado = z.infer<typeof EstadoNovedadEnum>;
 export type CategoriaNovedad = z.infer<typeof CategoriaNovedadEnum>;
 export type NovedadOperativa = z.infer<typeof NovedadOperativaSchema>;
-export type NovedadOperativaCreate = z.infer<typeof NovedadOperativaCreateSchema>;
+export type NovedadFormValues = z.infer<typeof NovedadFormSchema>;
 export type NovedadOperativaUpdate = z.infer<typeof NovedadOperativaUpdateSchema>;
 
 

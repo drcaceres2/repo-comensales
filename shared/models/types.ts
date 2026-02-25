@@ -1,23 +1,10 @@
 import type { TiempoComida } from '../../shared/schemas/horarios';
+import type { FechaIso, FechaHoraIso, HoraIso, DiaDeLaSemana } from '../../shared/schemas/fechas';
 export type TimestampString = string; // ISO 8601 (ejemplo "2023-10-25T14:00:00.000Z"
 
 // Tipos para ubicaciones, zonas horarias, fechas y horas
 export type CodigoPaisIso = string; // ISO 3166-1 alpha-2 (ej: "HN", "MX", "ES")
 export type ZonaHorariaIana = string; // Identificador IANA (ej: "America/Tegucigalpa", "Europe/Madrid")
-export type FechaIso = string; // Formato YYYY-MM-DD
-export type FechaHoraIso = string; // Formato YYYY-MM-DDTHH:mm:ss
-export type HoraIso = string; // Formato THH:MM:SS
-export type DiaDeLaSemana = 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado' | 'domingo';
-export const MapaDiaDeLaSemana: Record<DiaDeLaSemana, string> = {
-    lunes: 'Lunes',
-    martes: 'Martes',
-    miercoles: 'Miércoles',
-    jueves: 'Jueves',
-    viernes: 'Viernes',
-    sabado: 'Sábado',
-    domingo: 'Domingo'
-};
-export const ArregloDiaDeLaSemana: DiaDeLaSemana[] = Object.keys(MapaDiaDeLaSemana) as DiaDeLaSemana[];
 export interface Ubicacion {
   // Geografía Política
   pais: CodigoPaisIso;      // Estricto 2 letras

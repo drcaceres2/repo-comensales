@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from '@/components/ui/sidebar';
-
 import { Button } from '@/components/ui/button';
 import { LogOut, Loader2, AlertCircle, MessageSquare } from 'lucide-react';
 import { Navigation } from '@/components/Navigation';
+import { IndicadorZonaHoraria } from './IndicadorZonaHoraria';
 
 function LayoutHeader() {
   const { user, loading, error, logout } = useAuth();
@@ -48,6 +48,9 @@ function LayoutHeader() {
   if (user) {
     return (
       <header className={`bg-primary text-primary-foreground ${commonHeaderStyles} ${contentPositioningClasses}`}>
+        <div className="mr-4">
+          <IndicadorZonaHoraria />
+        </div>
         <span className="mr-4 text-sm truncate">{user.email}</span>
         <Button variant="ghost" size="sm" onClick={handleLogout} className="hover:bg-primary/90">
           <LogOut className="mr-2 h-4 w-4" />

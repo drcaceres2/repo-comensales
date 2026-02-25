@@ -3,22 +3,22 @@
 import { revalidatePath } from 'next/cache';
 import { db, auth as adminAuth } from '@/lib/firebaseAdmin';
 import { requireAuth } from '@/lib/serverAuth';
-// import { logServerAction } from '@/lib/serverLogs'; // REMOVED
 import { 
-    Actividad,
-    EstadoActividad,
+    type Actividad,
+    type EstadoActividad,
     ActividadCreateSchema, 
     ActividadUpdateSchema, 
     ActividadEstadoUpdateSchema,
-    ActividadUpdate
+    type ActividadUpdate
 } from '@/../shared/schemas/actividades';
-import { TiempoComida } from 'shared/schemas/horarios';
+import { type TiempoComida } from 'shared/schemas/horarios';
 import { 
-    ActividadId, ResidenciaId, 
+    type ActividadId,
+    type ResidenciaId,
     LogPayload
 } from '@/../shared/models/types';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/lib/firebase'; // Assuming functions is exported from here
+import { functions } from '@/lib/firebase';
 import * as admin from 'firebase-admin';
 
 // Helper to get the day of the week from a date string (YYYY-MM-DD)

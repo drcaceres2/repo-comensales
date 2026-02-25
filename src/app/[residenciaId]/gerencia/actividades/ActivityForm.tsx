@@ -6,14 +6,15 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 // Types
-import { ResidenciaId, MapaDiaDeLaSemana, 
+import type { ResidenciaId,
     ComedorId, TiempoComidaId } from 'shared/models/types';
 
 // ZOD Schemas
-import { Actividad, ActividadCreateSchema, ActividadUpdateSchema } from 'shared/schemas/actividades';
-import { ComedorData } from 'shared/schemas/complemento1';
-import { CentroDeCosto } from 'shared/schemas/contabilidad';
-import { TiempoComida } from 'shared/schemas/horarios';
+import { type Actividad, ActividadCreateSchema, ActividadUpdateSchema } from 'shared/schemas/actividades';
+import { type ComedorData } from 'shared/schemas/complemento1';
+import { type CentroDeCosto } from 'shared/schemas/contabilidad';
+import { type TiempoComida } from 'shared/schemas/horarios';
+import { MapaDiaDeLaSemana } from 'shared/schemas/fechas';
 
 // Server Actions
 import { createActividad, updateActividad } from './actions';

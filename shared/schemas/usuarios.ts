@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema } from './common';
-import { IsoDateStringSchema, OptionalIsoDateStringSchema, IsoTimeStringSchema, TimestampStringSchema } from './fechas';
+import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema, TimestampSchema} from './common';
+import { FechaIsoSchema, FechaIsoOpcionalSchema, HoraIsoSchema } from './fechas';
 
 // ============================================
 // Esquemas para los nuevos objetos anidados de Usuario
@@ -9,8 +9,8 @@ import { IsoDateStringSchema, OptionalIsoDateStringSchema, IsoTimeStringSchema, 
 export const AsistentePermisosDetalleSchema = z.object({
     nivelAcceso: z.enum(['Todas', 'Propias', 'Ninguna']),
     restriccionTiempo: z.boolean(),
-    fechaInicio: IsoDateStringSchema.nullable().optional(),
-    fechaFin: IsoDateStringSchema.nullable().optional(),
+    fechaInicio: FechaIsoSchema.nullable().optional(),
+    fechaFin: FechaIsoSchema.nullable().optional(),
 }).strict();
 
 export const ResidenteSchema = z.object({
@@ -39,8 +39,8 @@ export const NotificacionPreferenciasSchema = z.object({
     canalSMS: z.boolean().optional(),
     tiposPermitidos: z.array(z.enum(['info', 'accion_requerida', 'recordatorio', 'alerta'])),
     notificacionesSilenciadas: z.boolean().optional(),
-    horaMaxima: IsoTimeStringSchema.optional(),
-    horaMinima: IsoTimeStringSchema.optional(),
+    horaMaxima: HoraIsoSchema.optional(),
+    horaMinima: HoraIsoSchema.optional(),
 }).strict();
 
 // ============================================
@@ -50,9 +50,9 @@ export const NotificacionPreferenciasSchema = z.object({
 const usuarioBaseObject = z.object({
     // Info interna (Controlada por el servidor)
     id: FirestoreIdSchema,
-    timestampCreacion: TimestampStringSchema,
-    timestampActualizacion: TimestampStringSchema,
-    timestampUltimoIngreso: TimestampStringSchema.nullable().optional(),
+    timestampCreacion: TimestampSchema,
+    timestampActualizacion: TimestampSchema,
+    timestampUltimoIngreso: TimestampSchema.nullable().optional(),
     
     // Info de estado y configuración
     residenciaId: slugIdSchema.nullable().optional(),
@@ -70,7 +70,7 @@ const usuarioBaseObject = z.object({
     nombreCorto: z.string().min(2, "El nombre corto debe tener al menos 2 caracteres.").max(15),
     identificacion: CadenaOpcionalLimitada().optional(),
     telefonoMovil: TelefonoOpcionalSchema.optional(),
-    fechaDeNacimiento: OptionalIsoDateStringSchema.nullable().optional(),
+    fechaDeNacimiento: FechaIsoOpcionalSchema.nullable().optional(),
     fotoPerfil: z.string().url().nullable().optional(),
     universidad: CadenaOpcionalLimitada(2, 150).optional(),
     carrera: CadenaOpcionalLimitada(2, 50).optional(),

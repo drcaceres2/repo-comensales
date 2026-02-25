@@ -16,8 +16,8 @@ import {
 } from "../../shared/schemas/usuarios";
 import {
   Residencia,
-  createResidenciaSchema,
-  updateResidenciaSchema,
+  CreateResidenciaSchema,
+  UpdateResidenciaSchema,
   ConfiguracionResidencia,
 } from "../../shared/schemas/residencia";
 import { ConfigContabilidad } from "../../shared/schemas/contabilidad";
@@ -468,7 +468,7 @@ export const createResidencia = onCall(
             throw new HttpsError("invalid-argument", "residenciaId and profileData are required.");
         }
 
-        const validationResult = createResidenciaSchema.safeParse(data.profileData);
+        const validationResult = CreateResidenciaSchema.safeParse(data.profileData);
 
         if (!validationResult.success) {
             const zodErrors = validationResult.error.flatten();
@@ -525,7 +525,7 @@ export const createResidencia = onCall(
                 nombreCompleto: validatedData.nombre,
                 version: 0,
                 fechaHoraReferenciaUltimaSolicitud: now,
-                timestampUltimaSolicitud: now,
+                timestampUltimaSolicitud: FieldValue.serverTimestamp(),
                 dietas: {
                     'normal': defaultDieta
                 },
@@ -597,7 +597,7 @@ export const updateResidencia = onCall(
             throw new HttpsError("permission-denied", "You do not have permission to update this residencia.");
         }
 
-        const validationResult = updateResidenciaSchema.safeParse(profileData);
+        const validationResult = UpdateResidenciaSchema.safeParse(profileData);
 
         if (!validationResult.success) {
             const zodErrors = validationResult.error.flatten();
@@ -765,6 +765,7 @@ export const logAction = async (
     console.error(`[AUDIT ERROR] Falló log para ${payload.action}`, error);
   }
 };
+
 
 // --- VERY INSECURE - FOR LOCAL DEVELOPMENT ONLY ---
 // --- DELETE THIS BLOCK BEFORE PRODUCTION ---

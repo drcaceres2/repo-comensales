@@ -72,7 +72,7 @@ if (useEmulators) {
     if (!db._settings.host || (!db._settings.host.includes('127.0.0.1') && !db._settings.host.includes('localhost')) || (firestoreEmulatorHost && !db._settings.host.includes(firestoreEmulatorHost.split(':')[0]))) {
          try {
             let host = "127.0.0.1";
-            let port = 8080;
+            let port = 8081;
 
             if (firestoreEmulatorHost) {
                  console.log(`Using Firestore Emulator Host from env: ${firestoreEmulatorHost}`);
@@ -84,7 +84,7 @@ if (useEmulators) {
                  if (parts.length > 1) {
                      port = parseInt(parts[1], 10);
                  }
-                 // If port wasn't in the env variable string, keep the default 8080
+                 // If port wasn't in the env variable string, keep the default 8081
             }
 
             console.log(`Connecting Firestore Emulator to ${host}:${port}`);

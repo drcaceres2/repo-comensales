@@ -3,8 +3,8 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ComedorData, ComedorDataSchema } from 'shared/schemas/complemento1';
-import { CentroDeCosto } from 'shared/schemas/contabilidad';
+import { type ComedorData, ComedorDataSchema } from 'shared/schemas/complemento1';
+import { type CentroDeCosto } from 'shared/schemas/contabilidad';
 import { 
     Form, 
     FormControl, 

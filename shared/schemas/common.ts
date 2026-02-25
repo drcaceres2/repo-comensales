@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { ZonaHorariaIanaSchema } from './fechas';
+
 
 // IDs de Firestore (no vacíos)
 export const FirestoreIdSchema = z.string()
@@ -16,6 +18,14 @@ export const FirestoreIdSchema = z.string()
     .refine(val => !(val.startsWith('__') && val.endsWith('__')), {
         message: "ID no puede empezar y terminar con guiones bajos dobles, ya que está reservado para el sistema.",
     });
+
+export const TimestampSchema = z.any();
+
+// Formato ISO 8601 Completo (YYYY-MM-DDTHH:mm:ss.sssZ)
+export const TimestampStringSchema = z.string().datetime({
+    message: "El timestamp debe estar en formato ISO 8601 (YYYY-MM-DDTHH:mm:ss.sssZ)",
+});
+
 
 export const slugIdSchema = z.string()
     .min(1, "El slug no puede estar vacío")
@@ -51,6 +61,21 @@ export const CadenaOpcionalLimitada = (min: number = 1, max?: number) => {
     );
 };
 
+// ISO 3166-1 alpha-2 (ej: "HN", "MX")
+export const CodigoPaisIsoSchema = z.string().regex(
+    /^[A-Z]{2}$/,
+    "El código de país debe ser 2 letras mayúsculas (ISO 3166-1 alpha-2)"
+);
+
+// --- Interfaces ---
+export const UbicacionSchema = z.object({
+    pais: CodigoPaisIsoSchema,
+    region: z.string().optional(),
+    ciudad: z.string().min(1, "La ciudad es obligatoria"),
+    direccion: z.string().optional(),
+    zonaHoraria: ZonaHorariaIanaSchema,
+});
+
 export const TelefonoOpcionalSchema = z.preprocess(
     (val) => (val === "" || val === null) ? undefined : val,
     z.string().optional().pipe(
@@ -69,3 +94,11 @@ export const UrlOpcionalSchema = z.string()
     .trim()
     .transform(v => v === "" ? undefined : v)
     .pipe(z.string().url("El formato de la URL no es válido").optional());
+
+// Color HTML
+export const ColorHTMLSchema = z.string().regex(
+    /^#[0-9A-Fa-f]{6}$/,
+    "El color debe estar en formato #RRGGBB"
+);
+
+export type Ubicacion = z.infer<typeof UbicacionSchema>;

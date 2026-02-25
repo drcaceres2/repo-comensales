@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { ZodIssue } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -30,45 +31,64 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { 
-  NovedadOperativaCreateSchema,
-  NovedadOperativaCreate  
+  NovedadFormSchema,
+  NovedadFormValues,
+  CategoriaNovedadEnum,
 } from "shared/schemas/novedades";
 
 interface NovedadFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: NovedadOperativaCreate) => void;
-  defaultValues?: Partial<NovedadOperativaCreate>;
+  onSubmit: (data: NovedadFormValues) => void | Promise<void>;
+  defaultValues?: Partial<NovedadFormValues>;
+  serverErrors?: ZodIssue[] | null;
 }
 
-export function NovedadFormModal({
+export default function NovedadFormModal({
   isOpen,
   onClose,
   onSubmit,
   defaultValues,
+  serverErrors,
 }: NovedadFormModalProps) {
-  const form = useForm<NovedadOperativaCreate>({
-    resolver: zodResolver(NovedadOperativaCreateSchema),
-    defaultValues: {
-      texto: '',
-      categoria: 'otros',
-      ...defaultValues,
-    },
+
+  // Memoize the sanitized default values to prevent re-creating the object on every render,
+  // which would cause an infinite loop in the useEffect hook.
+  const sanitizedDefaultValues = useMemo(() => ({
+    texto: defaultValues?.texto || '',
+    categoria: defaultValues?.categoria || 'otros',
+  }), [defaultValues]);
+
+  const form = useForm<NovedadFormValues>({
+    resolver: zodResolver(NovedadFormSchema),
+    defaultValues: sanitizedDefaultValues,
   });
 
+  // Effect to apply server-side validation errors to the form
   useEffect(() => {
-    if (isOpen) {
-      form.reset({
-        texto: '',
-        categoria: 'otros',
-        ...defaultValues,
+    if (serverErrors) {
+      serverErrors.forEach((error) => {
+        const fieldName = error.path[0];
+        if (fieldName === 'texto' || fieldName === 'categoria') {
+          form.setError(fieldName, {
+            type: 'server',
+            message: error.message,
+          });
+        }
       });
     }
-  }, [isOpen, defaultValues, form]);
+  }, [serverErrors, form]);
 
-  const handleFormSubmit = form.handleSubmit((data) => {
-    onSubmit(data);
-    onClose();
+  // Effect to reset the form when the modal is opened or the default values change
+  useEffect(() => {
+    if (isOpen) {
+      form.reset(sanitizedDefaultValues);
+      if(serverErrors) form.clearErrors();
+    }
+  }, [isOpen, sanitizedDefaultValues, form, serverErrors]);
+
+  const handleFormSubmit = form.handleSubmit(async (data) => {
+    await onSubmit(data);
   });
 
   return (
@@ -107,8 +127,8 @@ export function NovedadFormModal({
                         <SelectValue placeholder="Selecciona una categoría" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
-                      {NovedadOperativaCreateSchema.shape.categoria.options.map((cat) => (
+                    <SelectContent className="z-[100]">
+                      {CategoriaNovedadEnum.options.map((cat) => (
                         <SelectItem key={cat} value={cat}>
                           {cat.charAt(0).toUpperCase() + cat.slice(1)}
                         </SelectItem>
@@ -125,7 +145,7 @@ export function NovedadFormModal({
                   Cancelar
                 </Button>
               </DialogClose>
-              <Button type="submit">
+              <Button type="submit" disabled={form.formState.isSubmitting}>
                 {defaultValues?.texto ? 'Guardar Cambios' : 'Crear'}
               </Button>
             </DialogFooter>

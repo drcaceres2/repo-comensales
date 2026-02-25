@@ -1,6 +1,5 @@
 import { getActividadesDisponibles } from './actions';
 import { ActividadesClient } from './actividades-client';
-import { ResidenciaId } from '@/../shared/models/types';
 
 export default async function InscripcionActividadesPage({
   params,

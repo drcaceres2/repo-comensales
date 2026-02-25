@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/hooks/useAuth';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { Usuario } from 'shared/schemas/usuarios';
+import { Usuario } from '../../../shared/schemas/usuarios';
 
 export function I18nLanguageSync() {
   const { i18n } = useTranslation();

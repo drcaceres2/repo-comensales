@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugCompuestoIdSchema, slugIdSchema } from './common';
-import { FechaIsoSchema, TimestampStringSchema } from './fechas';
+import {FirestoreIdSchema, slugCompuestoIdSchema, slugIdSchema, TimestampSchema } from './common';
+import {FechaHoraIsoSchema, FechaIsoSchema } from './fechas';
 
 // ============================================
 // ComensalSolicitado
@@ -57,7 +57,7 @@ export const ComensalSolicitadoSchema = z.object({
     // Trazabilidad
     origen: OrigenComensalSchema,
     referenciaOrigenId: slugCompuestoIdSchema.optional(),
-    timestampCreacion: TimestampStringSchema,
+    timestampCreacion: TimestampSchema
 }).strict();
 
 // ============================================
@@ -98,7 +98,8 @@ export const SolicitudConsolidadaSchema = z.object({
     id: slugIdSchema,
     residenciaId: slugIdSchema,
     fecha: FechaIsoSchema,
-    timestampCreacion: TimestampStringSchema,
+    timestampCreacion: TimestampSchema,
+    fechaHoraCreacion: FechaHoraIsoSchema,
     estadoSincronizacionERP: z.enum(['pendiente', 'sincronizado', 'error']),
 
     comensales: z.array(slugCompuestoIdSchema), // ComensalSolicitadoId[]

@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/lib/firebase';
-import { Ubicacion } from 'shared/models/types';
-import { Residencia, ConfiguracionResidencia, CampoPersonalizado } from 'shared/schemas/residencia';
+import { type Ubicacion } from 'shared/schemas/common';
+import { Residencia, ResidenciaConVersion, CampoPersonalizado } from 'shared/schemas/residencia';
 import { Usuario } from 'shared/schemas/usuarios';
 import countriesData from 'shared/data/countries.json';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -17,7 +17,6 @@ import {
   getDoc,
   getDocs,
   query,
-  where,
   orderBy
 } from 'firebase/firestore';
 
@@ -41,10 +40,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, AlertCircle, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
-
-
-
-type ResidenciaConVersion = Residencia & { version?: number };
 
 const getNewResidenciaDefaults = (): Partial<ResidenciaConVersion> => ({
   id: '',
@@ -92,7 +87,6 @@ function CrearResidenciaAdminPage() {
   const [currentResidencia, setCurrentResidencia] = useState<Partial<ResidenciaConVersion>>(getNewResidenciaDefaults());
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [formLoading, setFormLoading] = useState<boolean>(false);
-  const [antelacionError, setAntelacionError] = useState<string | null>(null);
   const [residenciaIdError, setResidenciaIdError] = useState<string | null>(null);
 
   const [residenciaFields, setResidenciaFields] = useState<{ id: number; key: string; value: string }[]>([]);
@@ -149,7 +143,6 @@ function CrearResidenciaAdminPage() {
     }));
   };
 
-  const [formData, setFormData] = useState<Partial<Omit<Residencia, 'id'>>>(getNewResidenciaDefaults());
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // --- useEffect: Handle Auth State & Fetch Profile ---
@@ -306,7 +299,7 @@ function CrearResidenciaAdminPage() {
     // Ensure the object to be edited conforms to the latest structure, merging defaults for missing top-level properties.
     const residenciaToEdit = { ...getNewResidenciaDefaults(), ...residencia };
 
-    // Handle legacy data: if `ubicacion` is missing, create it.
+    // Handle legacy data: if `ubicacion` is missing, create it
     if (!residenciaToEdit.ubicacion) {
         residenciaToEdit.ubicacion = {
             pais: 'HN',
@@ -314,10 +307,6 @@ function CrearResidenciaAdminPage() {
             zonaHoraria: 'America/Tegucigalpa',
             direccion: residencia.direccion
         };
-    } else if ((residenciaToEdit.ubicacion as any).timezone) {
-        // Handle legacy timezone property
-        residenciaToEdit.ubicacion.zonaHoraria = (residenciaToEdit.ubicacion as any).timezone;
-        delete (residenciaToEdit.ubicacion as any).timezone;
     }
 
     try {
@@ -348,13 +337,11 @@ function CrearResidenciaAdminPage() {
     setShowCreateForm(false);
     setIsEditing(false);
     setCurrentResidencia(getNewResidenciaDefaults());
-    setAntelacionError(null);
     // The TimezoneSelector will automatically pick up the zonaHoraria from currentResidencia
   };
 
   const handleSubmitForm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setAntelacionError(null);
 
     if (!userProfile || !isMasterUser) {
       toast({ title: t('gestionResidencias.accionNoPermitida'), description: t('gestionResidencias.sinPermisos'), variant: "destructive" });
@@ -415,7 +402,7 @@ function CrearResidenciaAdminPage() {
           setFormLoading(false);
           return;
         }
-        const result = await updateResidenciaCallable({ 
+        const result = await updateResidenciaCallable({
           residenciaIdToUpdate: existingResidenciaId,
           profileData: residenciaData,
           version: currentResidencia.version
@@ -443,8 +430,7 @@ function CrearResidenciaAdminPage() {
       }
       setShowCreateForm(false);
       setIsEditing(false);
-      setAntelacionError(null);
-      fetchResidences(); // Refresh the list
+      const result = await fetchResidences(); // Refresh the list
     } catch (error: any) {
       console.error("Error saving residencia:", error);
       
@@ -488,7 +474,7 @@ function CrearResidenciaAdminPage() {
         residenciaIdToDelete: residenciaId
       }) as any;
       toast({ title: t('gestionResidencias.residenciaEliminada'), description: t('gestionResidencias.residenciaEliminadaExito', { nombre: residenciaNombre }) });
-      fetchResidences();
+      const result2 = await fetchResidences();
     } catch (error: any) {
       const errorMessage = error.message || 'Error desconocido';
       toast({ title: t('gestionResidencias.errorEliminacion'), description: errorMessage, variant: "destructive" });

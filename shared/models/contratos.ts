@@ -1,6 +1,9 @@
-import { campoFechaConZonaHoraria } from "@/lib/fechasResidencia";
-import { UsuarioId, ResidenciaId, CodigoPaisIso, Ubicacion, FechaIso } from "./types"
-import { TimestampString } from "./types";
+import { type UsuarioId, type ResidenciaId, type CodigoPaisIso, Ubicacion } from "./types"
+import { type FechaIso } from '../schemas/fechas';
+import { type TimestampString } from "./types";
+
+//temporal
+type campoFechaConZonaHoraria = string;
 
 export type ContratoResidenciaId = string;
 export type ClienteId = string;

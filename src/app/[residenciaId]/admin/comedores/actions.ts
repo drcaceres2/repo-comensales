@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/firebaseAdmin';
 import { requireAuth } from '@/lib/serverAuth';
-import { ComedorData, ComedorDataSchema } from 'shared/schemas/complemento1';
+import { type ComedorData, ComedorDataSchema } from 'shared/schemas/complemento1';
 import * as admin from 'firebase-admin';
 
 /**

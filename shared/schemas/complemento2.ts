@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada } from './common';
-import { FechaIsoSchema, FechaHoraIsoSchema, TimestampStringSchema, ColorHTMLSchema } from './fechas';
+import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada, TimestampSchema, ColorHTMLSchema } from './common';
+import { FechaIsoSchema, FechaHoraIsoSchema } from './fechas';
 
 // ============================================
 // Enums compartidos
@@ -55,7 +55,7 @@ const RecordatorioBaseSchema = z.object({
 
 export const RecordatorioSchema = RecordatorioBaseSchema.extend({
     id: FirestoreIdSchema,
-    timestampCreacion: TimestampStringSchema,
+    timestampCreacion: TimestampSchema,
 });
 
 export const RecordatorioCreateSchema = RecordatorioBaseSchema;
@@ -83,7 +83,7 @@ const AtencionBaseSchema = z.object({
 
 export const AtencionSchema = AtencionBaseSchema.extend({
     id: FirestoreIdSchema,
-    timestampCreacion: TimestampStringSchema,
+    timestampCreacion: TimestampSchema,
 });
 
 export const AtencionCreateSchema = AtencionBaseSchema;

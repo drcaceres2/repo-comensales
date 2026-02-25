@@ -8,7 +8,7 @@ import { useHorariosAlmacen } from '../../_lib/useHorariosAlmacen';
 import { HorarioSolicitudDataSchema, type HorarioSolicitudData } from 'shared/schemas/horarios';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { slugify } from 'shared/utils/commonUtils';
-import { DiaDeLaSemanaSchema } from 'shared/schemas/fechas';
+import { type DiaDeLaSemana, DiaDeLaSemanaSchema } from 'shared/schemas/fechas';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
@@ -30,6 +30,7 @@ export default function Paso2Cortes() {
 
     // null = not editing, 'new' = creating, or the slug for editing
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [horaDiaria, setHoraDiaria] = useState('10:00');
 
     const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({
         resolver: zodResolver(HorarioSolicitudDataSchema.omit({ estaActivo: true })),
@@ -103,6 +104,26 @@ export default function Paso2Cortes() {
         setEditingId(null);
         reset();
     };
+
+    const handleCreateHorarioDiario = () => {
+        if (!/^\d{2}:\d{2}$/.test(horaDiaria)) {
+            alert("La hora debe tener el formato HH:MM.");
+            return;
+        }
+
+        DIAS_SEMANA.forEach(dia => {
+            const nombre = `${dia.charAt(0).toUpperCase() + dia.slice(1)} Principal`;
+            const id = slugify(nombre);
+            
+            upsertHorarioSolicitud(id, {
+                nombre: nombre,
+                dia: dia as DiaDeLaSemana,
+                horaSolicitud: horaDiaria,
+                esPrimario: true,
+                estaActivo: true,
+            });
+        });
+    };
     
     const renderForm = () => (
         <form onSubmit={handleSubmit(onSubmit)} className="bg-slate-100 dark:bg-slate-800 p-4 rounded-lg my-4 border border-slate-200 dark:border-slate-700">
@@ -146,6 +167,7 @@ export default function Paso2Cortes() {
                         <input
                             id="horaSolicitud"
                             type="time"
+                            step="60"
                             {...register('horaSolicitud')}
                             className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
@@ -270,6 +292,27 @@ export default function Paso2Cortes() {
                     </div>
                 ))}
             </div>
+
+            {!editingId && !hasActiveHorarios && (
+                <div className="text-center my-8 p-4 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                    <p className="text-slate-500 dark:text-slate-400 mb-4">No hay horarios de corte activos. Puede crear uno para cada día de la semana a una hora determinada.</p>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <input
+                            type="time"
+                            step="60"
+                            value={horaDiaria}
+                            onChange={(e) => setHoraDiaria(e.target.value)}
+                            className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                            onClick={handleCreateHorarioDiario}
+                            className="px-4 py-2 font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 w-full sm:w-auto"
+                        >
+                            Agregar un horario cada día
+                        </button>
+                    </div>
+                </div>
+            )}
             
             {!editingId && (
                  <button 
