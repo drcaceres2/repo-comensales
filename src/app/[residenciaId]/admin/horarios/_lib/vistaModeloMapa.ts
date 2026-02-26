@@ -6,6 +6,7 @@ import {
   type TiempoComida,
 } from 'shared/schemas/horarios';
 import { type DiaDeLaSemana, ArregloDiaDeLaSemana } from 'shared/schemas/fechas';
+import { DatosHorariosEnBruto } from 'shared/schemas/horarios';
 
 const mapaDiasANumero: Record<DiaDeLaSemana, number> = {
   lunes: 0,
@@ -51,14 +52,6 @@ const calcularAntelacion = (
 // #################################################################################
 // TIPOS DE ENTRADA (DTO de Base de Datos)
 // #################################################################################
-
-export interface DatosHorariosEnBruto {
-  gruposComidas: Record<string, GrupoComida>;
-  tiemposComidas: Record<string, TiempoComida>;
-  horariosSolicitud: Record<string, HorarioSolicitudData>;
-  definicionesAlternativas: Record<string, DefinicionAlternativa>;
-  configuracionesAlternativas: Record<string, ConfiguracionAlternativa>;
-}
 
 // #################################################################################
 // TIPOS DE SALIDA (View Model)
@@ -106,7 +99,7 @@ export const construirMatrizVistaHorarios = (
   datos: DatosHorariosEnBruto,
 ): MatrizVistaHorarios => {
   // 1. Filtrar grupos de comida activos y ordenarlos para las columnas.
-  const columnasOrdenadas = Object.entries(datos.gruposComidas)
+  const columnasOrdenadas = (Object.entries(datos.gruposComidas))
     .filter(([, grupo]) => grupo.estaActivo)
     .map(([id, grupo]) => ({ ...grupo, id }))
     .sort((a, b) => a.orden - b.orden);
@@ -114,7 +107,7 @@ export const construirMatrizVistaHorarios = (
   const idsGruposActivos = new Set(columnasOrdenadas.map(g => g.id));
 
   // 2. Filtrar tiempos de comida que pertenecen a grupos activos.
-  const tiemposComidaDeGrupoActivo = Object.entries(datos.tiemposComidas)
+  const tiemposComidaDeGrupoActivo = Object.entries(datos.esquemaSemanal)
     .filter(([, tc]) => idsGruposActivos.has(tc.grupoComida))
     .map(([id, tc]) => ({ ...tc, id }));
 
@@ -134,7 +127,7 @@ export const construirMatrizVistaHorarios = (
     ]),
   );
   const definicionesAlternativasMap = new Map(
-    Object.entries(datos.definicionesAlternativas).map(([id, item]) => [
+    Object.entries(datos.catalogoAlternativas).map(([id, item]) => [
       id,
       { ...item, id },
     ]),
@@ -317,16 +310,16 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Alerta[] {
   const alertas: Alerta[] = [];
   const {
     gruposComidas,
-    tiemposComidas,
+    esquemaSemanal,
     horariosSolicitud,
-    definicionesAlternativas,
+    catalogoAlternativas,
     configuracionesAlternativas
   } = raw;
 
   const gruposComidasActivos = Object.entries(gruposComidas).filter(([, g]) => g.estaActivo);
-  const tiemposComidasActivos = Object.entries(tiemposComidas).filter(([, t]) => t.estaActivo);
+  const tiemposComidasActivos = Object.entries(esquemaSemanal).filter(([, t]) => t.estaActivo);
   const horariosSolicitudActivos = Object.entries(horariosSolicitud).filter(([, h]) => h.estaActivo);
-  const definicionesAlternativasActivas = Object.entries(definicionesAlternativas).filter(([, d]) => d.estaActiva);
+  const definicionesAlternativasActivas = Object.entries(catalogoAlternativas).filter(([, d]) => d.estaActiva);
   const configuracionesAlternativasActivas = Object.entries(configuracionesAlternativas).filter(([, c]) => c.estaActivo);
 
   if (
@@ -420,7 +413,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Alerta[] {
       ([, c]) => c.tiempoComidaId === tiempoId
     );
     const hayDeTipoComedor = configsParaTiempo.some(([, config]) => {
-      const definicion = definicionesAlternativas[config.definicionAlternativaId];
+      const definicion = catalogoAlternativas[config.definicionAlternativaId];
       return definicion && definicion.tipo === 'comedor';
     });
     if (!hayDeTipoComedor) {
@@ -512,7 +505,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Alerta[] {
   // Hay dos o más `ConfiguracionAlternativa` con la misma `ventanaServicio` para el mismo `DiaDeLaSemana`
   const ventanasPorDia = new Map<string, { id: string, ventana: string }[]>();
   configuracionesAlternativasActivas.forEach(([id, c]) => {
-    const tiempo = tiemposComidas[c.tiempoComidaId];
+    const tiempo = esquemaSemanal[c.tiempoComidaId];
     if(tiempo) {
         const key = tiempo.dia;
         const ventanaStr = JSON.stringify(c.ventanaServicio);
@@ -563,7 +556,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Alerta[] {
   });
 
   // Hay un `TiempoComida` inactivo que tiene una `ConfiguracionAlternativa` activa asociada
-  const tiemposInactivosConConfigActiva = Object.entries(tiemposComidas).filter(([,t]) => !t.estaActivo);
+  const tiemposInactivosConConfigActiva = Object.entries(esquemaSemanal).filter(([,t]) => !t.estaActivo);
   tiemposInactivosConConfigActiva.forEach(([tId, t]) => {
       const tieneConfigActiva = configuracionesAlternativasActivas.some(([,c]) => c.tiempoComidaId === tId);
       if(tieneConfigActiva){

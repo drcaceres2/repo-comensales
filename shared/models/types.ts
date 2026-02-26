@@ -72,6 +72,7 @@ export type TiempoComidaId = string; // ID semántico: slug estilo kebab a parti
 export type AlternativaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export type ConfigAlternativaId = string;
 
+
 export interface AlteracionHorario {
     id: AlteracionHorarioId; // ID autogenerado por Firestore
     nombre: string;
@@ -458,12 +459,6 @@ export type LogActionType =
     | 'DIETA_CREADA' | 'DIETA_ACTUALIZADA' | 'DIETA_ELIMINADA'
     // Comedores
     | 'COMEDOR_CREADO' | 'COMEDOR_ACTUALIZADO' | 'COMEDOR_ELIMINADO'
-    // Horario de solicitud de comida
-    | 'HORARIO_SOLICITUD_COMIDA_CREADO' | 'HORARIO_SOLICITUD_COMIDA_ACTUALIZADO' | 'HORARIO_SOLICITUD_COMIDA_ELIMINADO'
-    // Tiempos de comida
-    | 'TIEMPO_COMIDA_CREADO' | 'TIEMPO_COMIDA_ACTUALIZADO' | 'TIEMPO_COMIDA_ELIMINADO'
-    // Alternativas de tiempo de comida
-    | 'ALTERNATIVA_TIEMPO_COMIDA_CREADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ACTUALIZADA' | 'ALTERNATIVA_TIEMPO_COMIDA_ELIMINADA'
     // La carga masiva de horarios incluye horarios de solicitud comida, tiempos de comida y alternativas
     | 'CARGA_MASIVA_HORARIOS'
     // Semanarios

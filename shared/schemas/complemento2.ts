@@ -44,7 +44,7 @@ const RecurrenciaRecordatorioSchema = z.object({
 
 const RecordatorioBaseSchema = z.object({
     residenciaId: slugIdSchema,
-    usuarioIniciadorId: FirestoreIdSchema,
+    autorId: FirestoreIdSchema,
     fecha: FechaIsoSchema,
     duracion: z.number().int().positive(),
     recurrencia: RecurrenciaRecordatorioSchema.optional(),
@@ -67,7 +67,7 @@ export const RecordatorioUpdateSchema = RecordatorioBaseSchema.partial();
 
 const AtencionBaseSchema = z.object({
     residenciaId: slugIdSchema,
-    usuarioId: FirestoreIdSchema,
+    autorId: FirestoreIdSchema,
     nombre: z.string().min(1).max(100),
     comentarios: CadenaOpcionalLimitada(1, 500).optional(),
     horarioSolicitudComidaId: slugIdSchema,
@@ -101,6 +101,7 @@ const DetalleAlteracionSchema = z.object({
 const AlteracionHorarioBaseObject = z.object({
     nombre: z.string().min(1).max(100),
     residenciaId: slugIdSchema,
+    autorId: FirestoreIdSchema,
     descripcion: CadenaOpcionalLimitada(1, 500).optional(),
     fechaInicio: FechaIsoSchema,
     fechaFin: FechaIsoSchema,

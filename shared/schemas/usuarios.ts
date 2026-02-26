@@ -21,6 +21,7 @@ export const ResidenteSchema = z.object({
 }).strict();
 
 export const AsistenteSchema = z.object({
+    usuarioAprobador: FirestoreIdSchema,
     usuariosAsistidos: z.record(FirestoreIdSchema, AsistentePermisosDetalleSchema),
     gestionActividades: AsistentePermisosDetalleSchema,
     gestionInvitados: AsistentePermisosDetalleSchema,
@@ -29,6 +30,8 @@ export const AsistenteSchema = z.object({
     gestionAtenciones: AsistentePermisosDetalleSchema,
     gestionAsistentes: AsistentePermisosDetalleSchema,
     gestionGrupos: AsistentePermisosDetalleSchema,
+    gestionHorariosYAlteraciones: AsistentePermisosDetalleSchema,
+    gestionComedores: AsistentePermisosDetalleSchema,
     solicitarComensales: AsistentePermisosDetalleSchema,
 }).strict();
 

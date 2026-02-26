@@ -1,10 +1,13 @@
 "use client";
 
+import { useParams } from 'next/navigation';
 import { useHorariosAlmacen } from '../../_lib/useHorariosAlmacen';
+import { useGuardarHorarios } from '../../_lib/useHorariosQuery';
 import { Matriz } from '../matriz/Matriz';
-import { DatosHorariosEnBruto, auditarIntegridadHorarios, Alerta, CatalogoErrores } from '../../_lib/vistaModeloMapa';
+import { auditarIntegridadHorarios, Alerta, CatalogoErrores } from '../../_lib/vistaModeloMapa';
+import {ResidenciaId} from "../../../../../../../shared/models/types";
 
-export default function Paso5Matriz() {
+export default function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: string }) {
   const {
     matriz,
     alertas,
@@ -12,7 +15,10 @@ export default function Paso5Matriz() {
     mostrarInactivos,
     setPasoActual,
     datosBorrador,
+    version,
   } = useHorariosAlmacen();
+
+  const { mutate: guardarHorarios, isPending } = useGuardarHorarios();
 
   const handleGuardar = () => {
     const auditoriaResultados = auditarIntegridadHorarios(datosBorrador);
@@ -36,9 +42,11 @@ export default function Paso5Matriz() {
       }
     }
     
-    console.log("PAYLOAD FINAL A FIREBASE:", datosBorrador);
-    // Aquí iría la llamada a la mutación de TanStack Query
-    alert('Configuración guardada (simulación). Revisa la consola para ver el payload.');
+    guardarHorarios({
+      residenciaId: residenciaIdProp,
+      datos: datosBorrador,
+      expectedVersion: version,
+    });
   };
 
   return (
@@ -85,9 +93,10 @@ export default function Paso5Matriz() {
         </button>
         <button
           onClick={handleGuardar}
-          className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 shadow-lg transition-transform transform hover:scale-105"
+          disabled={isPending}
+          className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 shadow-lg transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          Guardar Configuración Definitiva
+          {isPending ? 'Guardando...' : 'Guardar Configuración Definitiva'}
         </button>
       </div>
     </div>

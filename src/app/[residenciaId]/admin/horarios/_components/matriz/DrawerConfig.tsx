@@ -30,8 +30,8 @@ export function DrawerConfig({ tiempoComidaId, onClose }: DrawerConfigProps) {
 
   const tiempoComida = useMemo(() => {
     if (!tiempoComidaId) return null;
-    return datosBorrador.tiemposComidas[tiempoComidaId];
-  }, [tiempoComidaId, datosBorrador.tiemposComidas]);
+    return datosBorrador.esquemaSemanal[tiempoComidaId];
+  }, [tiempoComidaId, datosBorrador.esquemaSemanal]);
 
   const configuracionesFiltradas = useMemo(() => {
     return Object.entries(datosBorrador.configuracionesAlternativas)
@@ -162,7 +162,7 @@ export function DrawerConfig({ tiempoComidaId, onClose }: DrawerConfigProps) {
             <div>
               <label htmlFor="definicionAlternativaId" className="block text-sm font-medium text-gray-700">Definición</label>
               <select {...register('definicionAlternativaId')} id="definicionAlternativaId" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                {Object.entries(datosBorrador.definicionesAlternativas)
+                {Object.entries(datosBorrador.catalogoAlternativas)
                   .filter(([,def]) => def.estaActiva)
                   .map(([id, def]) => <option key={id} value={id}>{def.nombre}</option>)}
               </select>

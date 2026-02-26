@@ -101,7 +101,7 @@ La base de datos sigue una estructura de árbol estricta para aislar contextos y
 > │   │   ├── (campo) gruposUsuarios: Map<ID, GrupoUsuariosData>  
 > │   │   ├── (campo) dietas: Map<ID, DietaData>  
 > │   │   ├── (campo) gruposComidas: Map<ID, GrupoComida>  
-> │   │   ├── (campo) tiemposComidas: Map<ID, TiempoComida>  
+> │   │   ├── (campo) esquemaSemanal: Map<ID, TiempoComida>  
 > │   │   ├── (campo) catalogoAlternativas: Map<ID, DefinicionAlternativa>  
 > │   │   └── (campo) configuracionesAlternativas: Map<ID, ConfiguracionAlternativa>  
 > │   │  

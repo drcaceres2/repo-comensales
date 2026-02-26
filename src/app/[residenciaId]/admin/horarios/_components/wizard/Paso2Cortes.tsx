@@ -18,7 +18,6 @@ type FormValues = Omit<HorarioSolicitudData, 'estaActivo'>;
 const DIAS_SEMANA = DiaDeLaSemanaSchema.options; // ['lunes', 'martes', ...]
 const DIAS_SEMANA_ORDEN = Object.fromEntries(DIAS_SEMANA.map((dia, index) => [dia, index]));
 
-
 export default function Paso2Cortes() {
     const { 
         datosBorrador, 

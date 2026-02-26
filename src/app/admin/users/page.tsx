@@ -61,7 +61,7 @@ import {
     clientUpdateUserFormSchema,
     type ClientCreateUserForm,
     type ClientUpdateUserForm,
-    type ResidenteData,
+    type ResidenteData, AsistentePermisosDetalleSchema,
 } from 'shared/schemas/usuarios';
 import type {
     Residencia,
@@ -78,6 +78,7 @@ const defaultPermisoDetalle: AsistentePermisosDetalle = {
 };
 
 const defaultAsistentePermisos: AsistentePermisos = {
+    usuarioAprobador: '',
     usuariosAsistidos: {},
     gestionActividades: { ...defaultPermisoDetalle },
     gestionInvitados: { ...defaultPermisoDetalle },
@@ -85,6 +86,8 @@ const defaultAsistentePermisos: AsistentePermisos = {
     gestionDietas: { ...defaultPermisoDetalle },
     gestionAtenciones: { ...defaultPermisoDetalle },
     gestionAsistentes: { ...defaultPermisoDetalle },
+    gestionComedores: { ...defaultPermisoDetalle },
+    gestionHorariosYAlteraciones: { ...defaultPermisoDetalle },
     gestionGrupos: { ...defaultPermisoDetalle },
     solicitarComensales: { ...defaultPermisoDetalle },
 };

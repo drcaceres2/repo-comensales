@@ -62,6 +62,10 @@ export const TiempoComidaFormSchema = TiempoComidaSchema.omit({
 // DefinicionAlternativa (Catálogo global)
 // ============================================
 
+export const TipoAlternativaEnumSchema =
+    z.enum(['comedor', 'paraLlevar', 'noComoEnCasa', 'ayuno']);
+
+
 /**
  * DefinicionAlternativa: Define una alternativa de forma genérica.
  * Embebida como Record<AlternativaId, DefinicionAlternativa> en ConfiguracionResidencia.catalogoAlternativas.
@@ -70,12 +74,22 @@ export const DefinicionAlternativaSchema = z.object({
     nombre: z.string().min(1).max(100), // Este nombre se usa para construir el slug que sirve de ID semántico en singleton que contiene estos objetos embebidos. Es inmutable, si cambia el nombre, el ID permanece
     grupoComida: slugIdSchema,
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
-    tipo: z.enum(['comedor', 'para_llevar', 'comida_fuera', 'ayuno']),
+    tipo: TipoAlternativaEnumSchema,
     estaActiva: z.boolean().default(true),
 }).strict();
 
+export const CrearVariosSchema = DefinicionAlternativaSchema.pick({
+    tipo: true,
+    estaActiva: true,
+}).extend({
+    texto: z.string().min(1).max(25),
+    posicion: z.enum(['antes', 'despues']),
+});
+export type CrearVariosValues = z.infer<typeof CrearVariosSchema>;
+
+
 // ============================================
-// ConfiguracionAlternativa (Instanciación por día)
+// ConfiguracionAlternativa (Instancia por día)
 // ============================================
 
 const VentanaServicioComidaSchema = z.object({
@@ -105,6 +119,13 @@ export const ConfiguracionAlternativaSchema = z.object({
     estaActivo: z.boolean().default(true)
 }).strict();
 
+export const DatosHorariosEnBrutoSchema = z.object({
+    horariosSolicitud: z.record(HorarioSolicitudDataSchema),
+    gruposComidas: z.record(GrupoComidaSchema),
+    esquemaSemanal: z.record(TiempoComidaSchema),
+    catalogoAlternativas: z.record(DefinicionAlternativaSchema),
+    configuracionesAlternativas: z.record(ConfiguracionAlternativaSchema),
+});
 
 // Type exports
 
@@ -114,7 +135,7 @@ export type HorarioSolicitudData = z.infer<typeof HorarioSolicitudDataSchema>;
  * TiemposComida
  * Los tiempos de comida son como "desayuno lunes, almuerzo lunes,
  * cena lunes, desayuno martes, almuerzo martes, etc."
- * (Combinación de dia de la semana con "desayuno", "almuerzo", "cena", etc.)
+ * (Combinación de día de la semana con "desayuno", "almuerzo", "cena", etc.)
  */
 export type TiempoComida = z.infer<typeof TiempoComidaSchema>;
 export type GrupoComida = z.infer<typeof GrupoComidaSchema>;
@@ -126,4 +147,7 @@ export type GrupoComida = z.infer<typeof GrupoComidaSchema>;
  * Dos interfaces la conforman: DefinicionAlternativa y ConfiguracionAlternativa.
  */
 export type DefinicionAlternativa = z.infer<typeof DefinicionAlternativaSchema>;
+export type TipoAlternativaEnum = z.infer<typeof TipoAlternativaEnumSchema>;
 export type ConfiguracionAlternativa = z.infer<typeof ConfiguracionAlternativaSchema>;
+
+export type DatosHorariosEnBruto = z.infer<typeof DatosHorariosEnBrutoSchema>;

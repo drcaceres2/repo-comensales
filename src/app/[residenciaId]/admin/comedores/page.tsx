@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 
 // --- Firebase & Actions ---
@@ -10,8 +10,9 @@ import { doc, getDoc, updateDoc, deleteField, collection, getDocs } from 'fireba
 import { useAuth } from '@/hooks/useAuth';
 
 // --- Types & Schemas ---
-import { type ComedorId } from 'shared/models/types';
-import type { CentroDeCosto, ConfigContabilidad } from 'shared/schemas/contabilidad';
+import { type ComedorId, type RolUsuario } from 'shared/models/types';
+import { hoyEstamosEntreFechasResidencia } from "shared/utils/commonUtils";
+import type { CentroDeCosto } from 'shared/schemas/contabilidad';
 import { type ConfiguracionResidencia } from 'shared/schemas/residencia';
 import { type ComedorData } from 'shared/schemas/complemento1';
 import { type Usuario } from 'shared/schemas/usuarios';
@@ -53,14 +54,15 @@ import {
     AlertCircle,
     Utensils
 } from 'lucide-react';
+import {useResidencia} from "@/components/context/ResidenciaProvider";
 
 export default function GestionComedoresPage() {
-    const params = useParams();
     const router = useRouter();
-    const residenciaId = params.residenciaId as string;
     const { t } = useTranslation('comedores');
     const { toast } = useToast();
-    const { user: authUser, loading: authLoading } = useAuth();
+    const { user: authUser, claims, loading: authLoading } = useAuth();
+    const residenciaId = claims?.residenciaId as string;
+    const { residencia, loading: loadingResidencia } = useResidencia()
 
     // --- State ---
     const [comedores, setComedores] = useState<Record<ComedorId, ComedorData>>({});
@@ -69,6 +71,7 @@ export default function GestionComedoresPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [residenciaNombre, setResidenciaNombre] = useState('');
     const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+    const [soloPropios, setSoloPropios] = useState<boolean>(false);
 
     // --- Modal State ---
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -77,7 +80,15 @@ export default function GestionComedoresPage() {
 
     // --- Fetch Data ---
     const fetchData = useCallback(async () => {
-        if (!residenciaId || !authUser) return;
+
+        if (authLoading || loadingResidencia) {
+            return;
+        }
+        if (!residenciaId || !authUser || !residencia) {
+            setIsAuthorized(false);
+            setLoading(false);
+            return;
+        }
         
         // Authorization Check
         const userDocRef = doc(db, 'usuarios', authUser.uid);
@@ -88,10 +99,35 @@ export default function GestionComedoresPage() {
             return;
         }
 
+        setResidenciaNombre(residencia.nombre);
+
         const userData = userSnap.data() as Usuario;
-        const roles = userData.roles || [];
-        const isAllowed = roles.some((role: string) => ['admin', 'director', 'asistente', 'master'].includes(role)) 
-                         && (userData.residenciaId === residenciaId || roles.includes('master'));
+        const rolesDataBase: RolUsuario[] = userData.roles || [];
+        const rolesClaims = claims?.roles as RolUsuario[] || [];
+        const rolesAutorizadosResidencia = ['admin', 'director'];
+        let hasAuthRole = rolesDataBase.some(r => rolesAutorizadosResidencia.includes(r))
+            && rolesClaims.some(r => rolesAutorizadosResidencia.includes(r));
+        if(!hasAuthRole) {
+            if(rolesClaims.includes("asistente")
+                && rolesDataBase.includes("asistente")
+                && userData.asistente) {
+                const asisteComedores = userData.asistente.gestionComedores;
+                if (asisteComedores.nivelAcceso !== 'Ninguna') {
+                    const validezTiempo = await hoyEstamosEntreFechasResidencia(userData.asistente.gestionComedores.fechaInicio, userData.asistente.gestionComedores.fechaFin, residencia.ubicacion.zonaHoraria);
+                    if (asisteComedores.restriccionTiempo || validezTiempo === "dentro") {
+                        hasAuthRole = true;
+                    }
+                    if (asisteComedores.nivelAcceso === 'Propias') {
+                        setSoloPropios(true);
+                    }
+                }
+            }
+        }
+        const isMaster = rolesDataBase.includes('master') && rolesClaims.includes('master');
+        const isAllowed = isMaster
+            || (hasAuthRole
+                && (userData.residenciaId === residenciaId)
+                && (userData.residenciaId === residencia.id));
 
         if (!isAllowed) {
             setIsAuthorized(false);
@@ -112,12 +148,6 @@ export default function GestionComedoresPage() {
                 setComedores({});
             }
 
-            // Fetch Residencia Info & Centro Costos (client side is fine)
-            const resRef = doc(db, 'residencias', residenciaId);
-            const resSnap = await getDoc(resRef);
-            if (resSnap.exists()) {
-                setResidenciaNombre(resSnap.data().nombre);
-            }
             // ZONA HORARIA AQUÍ
             const ccCollRef = collection(db, 'residencias', residenciaId, 'centrosDeCosto');
             const ccSnap = await getDocs(ccCollRef);
@@ -134,13 +164,11 @@ export default function GestionComedoresPage() {
         } finally {
             setLoading(false);
         }
-    }, [residenciaId, t, toast, authUser]);
+    }, [residenciaId, t, toast, authUser, claims, authLoading, residencia, loadingResidencia]);
 
     useEffect(() => {
-        if (!authLoading && authUser) {
-            fetchData();
-        }
-    }, [authLoading, authUser, fetchData]);
+        fetchData();
+    }, [fetchData]);
 
     // --- Handlers ---
     const handleAdd = () => {
@@ -171,6 +199,7 @@ export default function GestionComedoresPage() {
 
             const cleanData: Partial<ComedorData> = {
                 nombre: data.nombre,
+                creadoPor: data.creadoPor,
             };
             if (data.descripcion) cleanData.descripcion = data.descripcion;
             if (data.aforoMaximo) cleanData.aforoMaximo = data.aforoMaximo;
@@ -254,7 +283,7 @@ export default function GestionComedoresPage() {
     };
 
     // --- Loading State ---
-    if (loading || authLoading) {
+    if (loading || authLoading || isAuthorized === null) {
         return (
             <div className="container mx-auto p-6 space-y-6">
                 <div className="flex justify-between items-center">
@@ -273,7 +302,7 @@ export default function GestionComedoresPage() {
         );
     }
 
-    if (isAuthorized === false) {
+    if (!isAuthorized || !authUser) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 text-center">
                 <AlertCircle className="h-12 w-12 text-destructive mb-4" />
@@ -286,7 +315,12 @@ export default function GestionComedoresPage() {
         );
     }
 
-    const comedoresList = Object.entries(comedores);
+    const comedoresList = Object.entries(comedores).filter(([_, data]) => {
+        if (soloPropios) {
+            return data.creadoPor === authUser.uid;
+        }
+        return true;
+    });
 
     return (
         <div className="container mx-auto p-6 space-y-8 animate-in fade-in duration-500">
@@ -312,50 +346,57 @@ export default function GestionComedoresPage() {
                     <div className="p-6 bg-muted rounded-full text-muted-foreground/50">
                         <Utensils size={64} />
                     </div>
-                    <h3 className="text-xl font-medium text-muted-foreground">No hay comedores registrados</h3>
+                    <h3 className="text-xl font-medium text-muted-foreground">
+                        {soloPropios ? "No has creado ningún comedor todavía" : "No hay comedores registrados"}
+                    </h3>
                     <Button variant="outline" onClick={handleAdd}>Empezar a añadir</Button>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {comedoresList.map(([id, data]) => (
-                        <Card key={id} className="overflow-hidden hover:shadow-md transition-shadow">
-                            <CardHeader className="bg-muted/50 pb-4">
-                                <div className="flex justify-between items-start">
-                                    <CardTitle className="text-xl">{data.nombre}</CardTitle>
-                                    <Badge variant="secondary">
-                                        {data.aforoMaximo || '∞'} personas
-                                    </Badge>
-                                </div>
-                                {data.centroCostoId && (
-                                    <CardDescription className="flex items-center gap-1 mt-1 font-medium">
-                                        CC: {data.centroCostoId}
-                                    </CardDescription>
-                                )}
-                            </CardHeader>
-                            <CardContent className="pt-6 space-y-4">
-                                <p className="text-muted-foreground line-clamp-3 min-h-[4.5rem]">
-                                    {data.descripcion || 'Sin descripción.'}
-                                </p>
-                                <div className="flex gap-2 pt-2">
-                                    <Button 
-                                        variant="outline" 
-                                        className="flex-1"
-                                        onClick={() => handleEdit(id)}
-                                    >
-                                        <Pencil className="mr-2 h-4 w-4" /> {t('form.submit_edit')}
-                                    </Button>
-                                    <Button 
-                                        variant="ghost" 
-                                        size="icon"
-                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                        onClick={() => setDeleteConfirmId(id)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+                    {comedoresList.map(([id, data]) => {
+                        const puedeEditar = !soloPropios || (soloPropios && data.creadoPor === authUser.uid);
+                        return (
+                            <Card key={id} className="overflow-hidden hover:shadow-md transition-shadow">
+                                <CardHeader className="bg-muted/50 pb-4">
+                                    <div className="flex justify-between items-start">
+                                        <CardTitle className="text-xl">{data.nombre}</CardTitle>
+                                        <Badge variant="secondary">
+                                            {data.aforoMaximo || '∞'} personas
+                                        </Badge>
+                                    </div>
+                                    {data.centroCostoId && (
+                                        <CardDescription className="flex items-center gap-1 mt-1 font-medium">
+                                            CC: {data.centroCostoId}
+                                        </CardDescription>
+                                    )}
+                                </CardHeader>
+                                <CardContent className="pt-6 space-y-4">
+                                    <p className="text-muted-foreground line-clamp-3 min-h-[4.5rem]">
+                                        {data.descripcion || 'Sin descripción.'}
+                                    </p>
+                                    <div className="flex gap-2 pt-2">
+                                        <Button 
+                                            variant="outline" 
+                                            className="flex-1"
+                                            onClick={() => handleEdit(id)}
+                                            disabled={!puedeEditar}
+                                        >
+                                            <Pencil className="mr-2 h-4 w-4" /> {t('form.submit_edit')}
+                                        </Button>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="icon"
+                                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                            onClick={() => setDeleteConfirmId(id)}
+                                            disabled={!puedeEditar}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
                 </div>
             )}
 
@@ -376,6 +417,7 @@ export default function GestionComedoresPage() {
                         onCancel={() => setIsFormOpen(false)}
                         isSaving={isSaving}
                         centroCostosList={centroCostos}
+                        creadoPorData={authUser.uid}
                     />
                 </DialogContent>
             </Dialog>

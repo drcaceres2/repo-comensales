@@ -55,7 +55,7 @@ export async function upsertComedor(residenciaId: string, id: string, data: unkn
             [`comedores.${id}`]: validatedData
         });
 
-        revalidatePath(`/${residenciaId}/gerencia/atenciones`);
+        revalidatePath(`/${residenciaId}/admin/comedores`);
         return { success: true };
     } catch (error: any) {
         console.error('Error upserting comedor:', error);
@@ -87,7 +87,7 @@ export async function deleteComedor(residenciaId: string, id: string) {
             [`comedores.${id}`]: admin.firestore.FieldValue.delete()
         });
 
-        revalidatePath(`/${residenciaId}/gerencia/atenciones`);
+        revalidatePath(`/${residenciaId}/admin/comedores`);
         return { success: true };
     } catch (error: any) {
         console.error('Error deleting comedor:', error);

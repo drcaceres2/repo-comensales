@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type ComedorData, ComedorDataSchema } from 'shared/schemas/complemento1';
 import { type CentroDeCosto } from 'shared/schemas/contabilidad';
+import { UsuarioId } from 'shared/models/types';
 import { 
     Form, 
     FormControl, 
@@ -27,9 +28,10 @@ interface ComedorFormProps {
     onCancel: () => void;
     isSaving: boolean;
     centroCostosList: CentroDeCosto[];
+    creadoPorData: UsuarioId;
 }
 
-export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroCostosList }: ComedorFormProps) {
+export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroCostosList, creadoPorData }: ComedorFormProps) {
     const { t } = useTranslation('comedores');
 
     const form = useForm<ComedorData>({
@@ -38,11 +40,11 @@ export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroC
             nombre: initialData?.nombre || '',
             descripcion: initialData?.descripcion || '',
             aforoMaximo: initialData?.aforoMaximo ?? undefined,
-            centroCostoId: initialData?.centroCostoId || undefined,
+            creadoPor: initialData?.creadoPor || creadoPorData,
+            centroCostoId: initialData?.centroCostoId || undefined
         },
     });
-
-
+    
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

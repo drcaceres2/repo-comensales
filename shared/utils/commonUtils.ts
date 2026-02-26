@@ -1,12 +1,68 @@
-import { isValid, format, Duration, add, intervalToDuration } from 'date-fns'
+import { parseISO, isValid, format, Duration, add, intervalToDuration, getTime } from 'date-fns'
 import { toDate, formatInTimeZone } from 'date-fns-tz'
+import { TZDate } from "@date-fns/tz";
+import { FechaIsoSchema } from "../schemas/fechas";
+
+import {esValidaZonaHoraria, FechaIso, ZonaHorariaIana} from "../schemas/fechas";
+
+// --- Helper Functions ---
+export const slugify = (text: string, longitudMax?: number): string => {
+    return text
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')           // Replace spaces with -
+        .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+        .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+        .replace(/^-+/, '')             // Trim - from start of text
+        .replace(/-+$/, '')            // Trim - from end of text
+        .substring(0, longitudMax);
+};
+
+// =======================================
+// Herramientas de fecha basadas en TZDate
+// =======================================
+
+export type resultadoFechaIntervalo = "dentro" | "fuera_antes" | "fuera_despues" | "error";
+
+export async function hoyEstamosEntreFechasResidencia (
+    fechaInicio: FechaIso | null | undefined,
+    fechaFin: FechaIso | null | undefined,
+    zonaHorariaResidencia: ZonaHorariaIana | null | undefined
+): Promise<resultadoFechaIntervalo> {
+    if (!fechaInicio || !fechaFin || !zonaHorariaResidencia) {
+        return "error";
+    }
+    try {
+        const timestampInicio = new TZDate(FechaIsoSchema.parse(fechaInicio)).getTime();
+        const timestampFin = new TZDate(FechaIsoSchema.parse(fechaFin)).getTime();
+        const respuestaFechaServidor = await fetch('/api/hora-servidor');
+        const { timestampServidor } = await respuestaFechaServidor.json();
+        if (!timestampServidor || (timestampInicio > timestampFin)) return "error";
+        if (timestampServidor >= timestampInicio && timestampServidor <= timestampFin) {
+            return "dentro"
+        } else if (timestampServidor <= timestampInicio) {
+            return "fuera_antes"
+        }
+        return "fuera_despues"
+    } catch (error) {
+        return 'error'
+    }
+}
+
+
+
+
+// ===============================================
+// Funciones de FECHA basadas en interfaz in-house
+// ===============================================
+
+export type resultadoComparacionFCZH = "mayor" | "igual" | "menor" | "invalido";
 
 export type campoFechaConZonaHoraria = {
     fecha: string;
     zonaHoraria: string;
 }
-
-export type resultadoComparacionFCZH = "mayor" | "igual" | "menor" | "invalido";
 
 export const toDateFCZH = (fczh: campoFechaConZonaHoraria | null | undefined): string | null => {
     if (!fczh || !fczh.fecha || !fczh.zonaHoraria) {
@@ -49,6 +105,8 @@ const prepareFechaStringForParsing = (fechaOriginal: string): string | null => {
     console.error(`prepareFechaStringForParsing: Fecha string "${fechaOriginal}" is not in an expected format for robust comparison (YYYY-MM-DD, YYYY-MM-DD HH:mm, or YYYY-MM-DD HH:mm:ss).`);
     return null;
 };
+
+
 
 /**
  * Creates a campoFechaConZonaHoraria object from a date string and timezone string.
@@ -378,17 +436,3 @@ export const intervalToDurationFCZH = (fczh1: campoFechaConZonaHoraria | null | 
     duration = intervalToDuration({ start, end });
     return duration;
 }
-
-// --- Helper Functions ---
-export const slugify = (text: string, longitudMax?: number): string => {
-  return text
-    .toString()
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, '-')           // Replace spaces with -
-    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
-    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
-    .replace(/^-+/, '')             // Trim - from start of text
-    .replace(/-+$/, '')            // Trim - from end of text
-    .substring(0, longitudMax);
-};

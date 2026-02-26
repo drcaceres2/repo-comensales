@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useHorariosAlmacen } from './_lib/useHorariosAlmacen';
-import { DatosHorariosEnBruto } from './_lib/vistaModeloMapa';
 import { BarraProgreso } from './_components/shared/BarraProgreso';
 import Paso1Grupos from './_components/wizard/Paso1Grupos';
 import Paso2Cortes from './_components/wizard/Paso2Cortes';
@@ -12,207 +11,39 @@ import Paso4Catalogo from './_components/wizard/Paso4Catalogo';
 import Paso5Matriz from './_components/wizard/Paso5Matriz';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar } from 'lucide-react';
-
-// Mock de datos y hook de fetching
-const mockDatosCrudos: DatosHorariosEnBruto = {
-    // 1. GRUPOS DE COMIDA (Desayuno, Almuerzo, Cena)
-    gruposComidas: {
-        'desayuno': {nombre: 'Desayuno', orden: 1, estaActivo: true},
-        'almuerzo': {nombre: 'Almuerzo', orden: 2, estaActivo: true},
-        'cena': {nombre: 'Cena', orden: 3, estaActivo: true},
-    },
-
-    // 2. HORARIOS LÍMITE PARA SOLICITUDES
-    horariosSolicitud: {
-        // NOTA: El schema 'HorarioSolicitudDataSchema' usa 'dia' de la semana, lo cual es probablemente incorrecto para un deadline.
-        // Se usa 'lunes' como placeholder para satisfacer el schema, pero la lógica sugiere un valor relativo como 'anterior' o 'mismo'.
-        'dia-anterior-2000': {
-            nombre: 'Día anterior 20:00',
-            dia: 'lunes',
-            horaSolicitud: '20:00',
-            esPrimario: true,
-            estaActivo: true
-        },
-        'mismo-dia-0900': {
-            nombre: 'Mismo día 09:00',
-            dia: 'lunes',
-            horaSolicitud: '09:00',
-            esPrimario: false,
-            estaActivo: true
-        },
-    },
-
-    // 3. CATÁLOGO DE ALTERNATIVAS DISPONIBLES
-    definicionesAlternativas: {
-        'des-normal': {
-            nombre: 'Normal en Comedor',
-            grupoComida: 'desayuno',
-            tipo: 'comedor',
-            estaActiva: true,
-            descripcion: 'Servicio de desayuno estándar en el comedor.'
-        },
-        'alm-normal': {
-            nombre: 'Normal en Comedor',
-            grupoComida: 'almuerzo',
-            tipo: 'comedor',
-            estaActiva: true,
-            descripcion: 'Servicio de almuerzo estándar en el comedor.'
-        },
-        'alm-llevar': {
-            nombre: 'Para Llevar',
-            grupoComida: 'almuerzo',
-            tipo: 'para_llevar',
-            estaActiva: true,
-            descripcion: 'Recoger el almuerzo en un empaque para llevar.'
-        },
-        'cen-normal': {
-            nombre: 'Normal en Comedor',
-            grupoComida: 'cena',
-            tipo: 'comedor',
-            estaActiva: true,
-            descripcion: 'Servicio de cena estándar en el comedor.'
-        },
-        'cen-fria': {
-            nombre: 'Cena Fría',
-            grupoComida: 'cena',
-            tipo: 'para_llevar',
-            estaActiva: true,
-            descripcion: 'Opción de cena fría para recoger y consumir más tarde.'
-        },
-    },
-
-    // 4. CONFIGURACIONES (INSTANCIAS) DE LAS ALTERNATIVAS
-    configuracionesAlternativas: {
-        // Lunes - Desayuno
-        'lun-des-normal': {
-            nombre: 'Lunes Desayuno Normal',
-            tiempoComidaId: 'lunes-desayuno',
-            definicionAlternativaId: 'des-normal',
-            horarioSolicitudComidaId: 'dia-anterior-2000',
-            ventanaServicio: {horaInicio: '07:30', horaFin: '09:30', tipoVentana: 'normal'},
-            estaActivo: true,
-            requiereAprobacion: false
-        },
-        // Lunes - Almuerzo
-        'lun-alm-normal': {
-            nombre: 'Lunes Almuerzo Normal',
-            tiempoComidaId: 'lunes-almuerzo',
-            definicionAlternativaId: 'alm-normal',
-            horarioSolicitudComidaId: 'mismo-dia-0900',
-            ventanaServicio: {horaInicio: '13:00', horaFin: '15:00', tipoVentana: 'normal'},
-            estaActivo: true,
-            requiereAprobacion: false
-        },
-        'lun-alm-llevar': {
-            nombre: 'Lunes Almuerzo para Llevar',
-            tiempoComidaId: 'lunes-almuerzo',
-            definicionAlternativaId: 'alm-llevar',
-            horarioSolicitudComidaId: 'mismo-dia-0900',
-            ventanaServicio: {horaInicio: '12:30', horaFin: '13:30', tipoVentana: 'normal'},
-            estaActivo: true,
-            requiereAprobacion: true
-        },
-        // Lunes - Cena
-        'lun-cen-normal': {
-            nombre: 'Lunes Cena Normal',
-            tiempoComidaId: 'lunes-cena',
-            definicionAlternativaId: 'cen-normal',
-            horarioSolicitudComidaId: 'mismo-dia-0900',
-            ventanaServicio: {horaInicio: '20:00', horaFin: '22:00', tipoVentana: 'normal'},
-            estaActivo: true,
-            requiereAprobacion: false
-        },
-        'lun-cen-fria': {
-            nombre: 'Lunes Cena Fría',
-            tiempoComidaId: 'lunes-cena',
-            definicionAlternativaId: 'cen-fria',
-            horarioSolicitudComidaId: 'dia-anterior-2000',
-            ventanaServicio: {horaInicio: '22:00', horaFin: '22:30', tipoVentana: 'normal'},
-            estaActivo: true,
-            requiereAprobacion: true,
-        }
-    },
-
-    // 5. TIEMPOS DE COMIDA (dias y grupos)
-    tiemposComidas: {
-        'lunes-desayuno': {
-            nombre: 'Desayuno del Lunes',
-            grupoComida: 'desayuno',
-            dia: 'lunes',
-            horaReferencia: '08:00',
-            alternativas: {
-                principal: 'lun-des-normal',
-                secundarias: [],
-            },
-            estaActivo: true,
-        },
-        'lunes-almuerzo': {
-            nombre: 'Almuerzo del Lunes',
-            grupoComida: 'almuerzo',
-            dia: 'lunes',
-            horaReferencia: '14:00',
-            alternativas: {
-                principal: 'lun-alm-normal',
-                secundarias: ['lun-alm-llevar'],
-            },
-            estaActivo: true,
-        },
-        'lunes-cena': {
-            nombre: 'Cena del Lunes',
-            grupoComida: 'cena',
-            dia: 'lunes',
-            horaReferencia: '21:00',
-            alternativas: {
-                principal: 'lun-cen-normal',
-                secundarias: ['lun-cen-fria']
-            },
-            estaActivo: true
-        },
-        // Martes (inactivo para mostrar la funcionalidad)
-        'martes-almuerzo': {
-            nombre: 'Almuerzo del Martes',
-            grupoComida: 'almuerzo',
-            dia: 'martes',
-            horaReferencia: '14:00',
-            alternativas: {
-                // Reutilizando config solo para el ejemplo, idealmente serían configs de martes.
-                principal: 'lun-alm-normal',
-                secundarias: ['lun-alm-llevar'],
-            },
-            estaActivo: false
-        }
-    },
-};
-
-const useObtenerConfiguracionHorarios = () => {
-    const [isLoading, setIsLoading] = useState(true);
-    const [data, setData] = useState<DatosHorariosEnBruto | null>(null);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setData(mockDatosCrudos);
-            setIsLoading(false);
-        }, 1500); // Simula una carga de 1.5 segundos
-        return () => clearTimeout(timer);
-    }, []);
-
-    return { data, isLoading };
-};
-
+import { useObtenerHorarios } from './_lib/useHorariosQuery';
+import type { ResidenciaId, RolUsuario } from 'shared/models/types';
+import { useAuth } from '@/hooks/useAuth';
 
 // --- Orquestador Principal ---
 export default function HorariosPage() {
-    const { residenciaId } = useParams<{ residenciaId: string }>();
-    const { data, isLoading } = useObtenerConfiguracionHorarios();
+    const { claims, loading: authLoading } = useAuth();
+    const router = useRouter();
+    const residenciaId = claims?.residenciaId as ResidenciaId;
+    const roles = claims?.roles as RolUsuario[]
+    const rolesPermitidos: RolUsuario[] = ['master','admin','asistente']
+
+    const { data: horariosData, isLoading } = useObtenerHorarios(residenciaId);
     const { pasoActual, inicializarDatos, datosOriginales } = useHorariosAlmacen();
 
     useEffect(() => {
-        if (data && !datosOriginales) {
-            inicializarDatos(data);
+        if (!authLoading && roles
+            && !(rolesPermitidos.some(
+                    (rol) => roles.includes(rol)
+                )
+            )
+        ) {
+            router.push('/acceso-no-autorizado?mensaje=No%20tienes%20permiso%20a%20esta%20pp%C3%A1gina.');
         }
-    }, [data, datosOriginales, inicializarDatos]);
+    }, [roles, authLoading, router]);
 
-    if (isLoading || !datosOriginales) {
+    useEffect(() => {
+        if (horariosData && !datosOriginales) {
+            inicializarDatos(horariosData.datos, horariosData.version);
+        }
+    }, [horariosData, datosOriginales, inicializarDatos]);
+
+    if (authLoading || isLoading || !datosOriginales) {
         return (
             <div className="p-4 sm:p-6 space-y-6">
                 <Skeleton className="h-16 w-full" />
@@ -236,7 +67,7 @@ export default function HorariosPage() {
             case 4:
                 return <Paso4Catalogo />;
             case 5:
-                return <Paso5Matriz />;
+                return <Paso5Matriz residenciaIdProp={residenciaId} />;
             default:
                 return <div>Paso desconocido</div>;
         }

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { DatosHorariosEnBruto } from 'shared/schemas/horarios';
 import type {
     ConfiguracionAlternativa,
     DefinicionAlternativa,
@@ -10,7 +11,6 @@ import {
     auditarIntegridadHorarios,
     construirMatrizVistaHorarios,
     type Alerta,
-    type DatosHorariosEnBruto,
     type MatrizVistaHorarios
 } from "./vistaModeloMapa";
 
@@ -23,6 +23,7 @@ export interface HorariosState {
     // 2. ESTADO DE DATOS (DRAFT PATTERN)
     datosOriginales: DatosHorariosEnBruto | null;
     datosBorrador: DatosHorariosEnBruto;
+    version: number;
     hayCambios: boolean;
 
     // 3. ESTADO COMPUTADO (Reactivo)
@@ -37,7 +38,7 @@ export interface HorariosState {
     toggleMostrarInactivos: () => void;
 
     // ACCIONES DE DATOS
-    inicializarDatos: (datosDelServidor: DatosHorariosEnBruto) => void;
+    inicializarDatos: (datosDelServidor: DatosHorariosEnBruto, version: number) => void;
     descartarCambios: () => void; // Restaura datosOriginales sobre datosBorrador y setea hayCambios = false
 
     // ACCIONES DE AUDITORÍA
@@ -65,8 +66,8 @@ export interface HorariosState {
 const datosVacios: DatosHorariosEnBruto = {
     gruposComidas: {},
     horariosSolicitud: {},
-    tiemposComidas: {},
-    definicionesAlternativas: {},
+    esquemaSemanal: {},
+    catalogoAlternativas: {},
     configuracionesAlternativas: {},
 };
 
@@ -78,6 +79,7 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
     // 2. ESTADO DE DATOS (DRAFT PATTERN)
     datosOriginales: null,
     datosBorrador: datosVacios,
+    version: 0,
     hayCambios: false,
 
     // 3. ESTADO COMPUTADO (Reactivo)
@@ -92,11 +94,12 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
     toggleMostrarInactivos: () => set((state) => ({ mostrarInactivos: !state.mostrarInactivos })),
 
     // ACCIONES DE DATOS
-    inicializarDatos: (datosDelServidor) => {
+    inicializarDatos: (datosDelServidor, version) => {
         const copiaDatos = JSON.parse(JSON.stringify(datosDelServidor));
         set({
             datosOriginales: datosDelServidor,
             datosBorrador: copiaDatos,
+            version: version,
             matriz: construirMatrizVistaHorarios(copiaDatos),
             hayCambios: false,
             alertas: [],
@@ -164,7 +167,7 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
             datosBorrador: nuevoBorrador,
             matriz: construirMatrizVistaHorarios(nuevoBorrador),
             hayCambios: true,
-        });
+});
     },
     archivarHorarioSolicitud: (id) => {
         const borradorActual = get().datosBorrador;
@@ -186,7 +189,7 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
         const borradorActual = get().datosBorrador;
         const nuevoBorrador = {
             ...borradorActual,
-            tiemposComidas: { ...borradorActual.tiemposComidas, [id]: tiempo },
+            esquemaSemanal: { ...borradorActual.esquemaSemanal, [id]: tiempo },
         };
         set({
             datosBorrador: nuevoBorrador,
@@ -196,11 +199,11 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
     },
     archivarTiempoComida: (id) => {
         const borradorActual = get().datosBorrador;
-        const target = borradorActual.tiemposComidas[id];
+        const target = borradorActual.esquemaSemanal[id];
         if (!target) return;
         const nuevoBorrador = {
             ...borradorActual,
-            tiemposComidas: { ...borradorActual.tiemposComidas, [id]: { ...target, estaActivo: false } },
+            esquemaSemanal: { ...borradorActual.esquemaSemanal, [id]: { ...target, estaActivo: false } },
         };
         set({
             datosBorrador: nuevoBorrador,
@@ -214,7 +217,7 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
         const borradorActual = get().datosBorrador;
         const nuevoBorrador = {
             ...borradorActual,
-            definicionesAlternativas: { ...borradorActual.definicionesAlternativas, [id]: definicion },
+            catalogoAlternativas: { ...borradorActual.catalogoAlternativas, [id]: definicion },
         };
         set({
             datosBorrador: nuevoBorrador,
@@ -224,11 +227,11 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
     },
     archivarDefinicionAlternativa: (id) => {
         const borradorActual = get().datosBorrador;
-        const target = borradorActual.definicionesAlternativas[id];
+        const target = borradorActual.catalogoAlternativas[id];
         if (!target) return;
         const nuevoBorrador = {
             ...borradorActual,
-            definicionesAlternativas: { ...borradorActual.definicionesAlternativas, [id]: { ...target, estaActiva: false } },
+            catalogoAlternativas: { ...borradorActual.catalogoAlternativas, [id]: { ...target, estaActiva: false } },
         };
         set({
             datosBorrador: nuevoBorrador,

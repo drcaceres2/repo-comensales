@@ -14,6 +14,8 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { type SafeParseReturnType } from 'zod';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+
 
 type FormValues = Omit<TiempoComida, 'estaActivo' | 'alternativas'>;
 
@@ -30,6 +32,8 @@ export default function Paso3Tiempos() {
     } = useHorariosAlmacen();
 
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [horasReferenciaGrupo, setHorasReferenciaGrupo] = useState<Record<string, string>>({});
 
     const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
         resolver: zodResolver(TiempoComidaFormSchema),
@@ -51,7 +55,7 @@ export default function Paso3Tiempos() {
                 .map(([id, grupo]) => [id, grupo.orden])
         );
 
-        return Object.entries(datosBorrador.tiemposComidas || {})
+        return Object.entries(datosBorrador.esquemaSemanal || {})
             .map(([id, datos]) => ({
                 id,
                 datos,
@@ -65,7 +69,7 @@ export default function Paso3Tiempos() {
                 const ordenB = grupoOrdenMap.get(b.datos.grupoComida) ?? Infinity;
                 return ordenA - ordenB;
             });
-    }, [datosBorrador.tiemposComidas, datosBorrador.gruposComidas]);
+    }, [datosBorrador.esquemaSemanal, datosBorrador.gruposComidas]);
     
 
     const filteredTiempos = mostrarInactivos ? validatedTiemposComida : validatedTiemposComida.filter(({ datos }) => datos.estaActivo);
@@ -106,7 +110,7 @@ export default function Paso3Tiempos() {
 
         if (editingId === 'new') {
             // CREATION
-            if (datosBorrador.tiemposComidas[id]) {
+            if (datosBorrador.esquemaSemanal[id]) {
                 alert(`Error: Ya existe un tiempo de comida con el nombre "${data.nombre}". El nombre debe ser único.`);
                 return;
             }
@@ -115,7 +119,7 @@ export default function Paso3Tiempos() {
             upsertTiempoComida(id, nuevoTiempo);
         } else {
             // MODIFICATION
-            const originalTiempo = datosBorrador.tiemposComidas[editingId!];
+            const originalTiempo = datosBorrador.esquemaSemanal[editingId!];
             if (!originalTiempo) {
                 console.error("No se encontró el tiempo de comida original para editar.");
                 return;
@@ -130,14 +134,21 @@ export default function Paso3Tiempos() {
         reset();
     };
 
-    const handleLlenarTabla = () => {
+    const handleLlenarTablaClick = () => {
         if (!gruposComidaActivos.length) {
             alert("No hay grupos de comida activos para generar los tiempos.");
             return;
         }
+        const initialHoras = Object.fromEntries(
+            gruposComidaActivos.map(([slug]) => [slug, '13:00'])
+        );
+        setHorasReferenciaGrupo(initialHoras);
+        setIsModalOpen(true);
+    };
 
+    const handleConfirmarLlenarTabla = () => {
         const tiemposExistentes = new Set(
-            Object.values(datosBorrador.tiemposComidas)
+            Object.values(datosBorrador.esquemaSemanal)
             .filter(t => t.estaActivo)
             .map(t => `${t.dia}-${t.grupoComida}`)
         );
@@ -147,12 +158,12 @@ export default function Paso3Tiempos() {
                 if (!tiemposExistentes.has(`${dia}-${grupoSlug}`)) {
                     const nombre = `${dia.charAt(0).toUpperCase() + dia.slice(1)} ${grupo.nombre}`;
                     const id = slugify(nombre);
-                    if (!datosBorrador.tiemposComidas[id]) {
+                    if (!datosBorrador.esquemaSemanal[id]) {
                         upsertTiempoComida(id, {
                             nombre,
                             dia,
                             grupoComida: grupoSlug,
-                            horaReferencia: '',
+                            horaReferencia: horasReferenciaGrupo[grupoSlug] || '',
                             alternativas: { principal: '' },
                             estaActivo: true
                         });
@@ -160,6 +171,7 @@ export default function Paso3Tiempos() {
                 }
             });
         });
+        setIsModalOpen(false);
     };
 
     const renderForm = () => (
@@ -224,6 +236,32 @@ export default function Paso3Tiempos() {
 
             {editingId && renderForm()}
 
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Establecer Horas de Referencia</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        {gruposComidaActivos.map(([slug, grupo]) => (
+                            <div key={slug} className="grid grid-cols-2 items-center gap-4">
+                                <Label htmlFor={`hora-${slug}`}>{grupo.nombre}</Label>
+                                <input
+                                    id={`hora-${slug}`}
+                                    type="time"
+                                    value={horasReferenciaGrupo[slug] || ''}
+                                    onChange={(e) => setHorasReferenciaGrupo(prev => ({ ...prev, [slug]: e.target.value }))}
+                                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 h-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+                        <Button onClick={handleConfirmarLlenarTabla}>Confirmar y Llenar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <div className="space-y-3">
                 {filteredTiempos.map(({ id, datos, validacion }) => {
                     const grupo = datosBorrador.gruposComidas[datos.grupoComida];
@@ -273,7 +311,7 @@ export default function Paso3Tiempos() {
                     <TooltipProvider>
                          <Tooltip>
                             <TooltipTrigger asChild>
-                                 <button onClick={handleLlenarTabla} disabled={!gruposComidaActivos.length} className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-blue-400 dark:border-blue-600 rounded-lg text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:border-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                 <button onClick={handleLlenarTablaClick} disabled={!gruposComidaActivos.length} className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-blue-400 dark:border-blue-600 rounded-lg text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:border-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                                     <Sparkles className="h-5 w-5" />
                                     Llenar Tabla
                                 </button>

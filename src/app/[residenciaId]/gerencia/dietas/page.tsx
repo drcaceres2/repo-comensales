@@ -234,12 +234,18 @@ function DietasResidenciaPage(): React.ReactElement | null {
     };
 
     const handleAddDieta = async () => {
+        if (!authUser) {
+            toast({ title: t('dietasPage.toastAccessDeniedTitle'), description: t('dietasPage.toastAccessDeniedDescription'), variant: "destructive" });
+            return;
+        }
         if (!formData.nombre?.trim()) {
-            toast({ title: t('dietasPage.toastErrorNombreRequeridoTitle'), description: t('dietasPage.toastErrorNombreRequeridoDescription'), variant: "destructive" }); return;
+            toast({ title: t('dietasPage.toastErrorNombreRequeridoTitle'), description: t('dietasPage.toastErrorNombreRequeridoDescription'), variant: "destructive" });
+            return;
         }
         const newDietaId = slugify(formData.nombre.trim());
         if (dietas.some(d => d.id.toLowerCase() === newDietaId.toLowerCase())) {
-            toast({ title: t('dietasPage.toastErrorNombreRequeridoTitle'), description: t('dietasPage.toastErrorNombreExistenteDescription'), variant: "destructive" }); return;
+            toast({ title: t('dietasPage.toastErrorNombreRequeridoTitle'), description: t('dietasPage.toastErrorNombreExistenteDescription'), variant: "destructive" });
+            return;
         }
         setIsSaving(true);
 
@@ -250,6 +256,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
             estaActiva: formData.estaActiva === undefined ? true : formData.estaActiva,
             identificadorAdministracion: '',
             estado: 'aprobada_director',
+            creadoPor: authUser.uid,
             avisoAdministracion: 'no_comunicado',
         };
 

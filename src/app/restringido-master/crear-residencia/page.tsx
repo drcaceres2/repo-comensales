@@ -483,8 +483,6 @@ function CrearResidenciaAdminPage() {
     }
   };
 
-
-
   const handleCampoPersonalizadoPorUsuarioChange = (index: number, path: string, value: any) => {
     setCurrentResidencia(prev => {
         const updatedCampos = (prev.camposPersonalizadosPorUsuario || []).map((campo, i) => {
@@ -504,8 +502,6 @@ function CrearResidenciaAdminPage() {
         return { ...prev, camposPersonalizadosPorUsuario: updatedCampos };
     });
   };
-
-
 
   const addCampoPersonalizadoPorUsuario = () => {
     const newCampo: CampoPersonalizado = {
@@ -532,15 +528,12 @@ function CrearResidenciaAdminPage() {
     }));
   };
 
-
-
   const removeCampoPersonalizadoPorUsuario = (index: number) => {
     setCurrentResidencia(prev => ({
       ...prev,
       camposPersonalizadosPorUsuario: (prev.camposPersonalizadosPorUsuario || []).filter((_, i) => i !== index),
     }));
   };
-
 
   const handleTipoChange = (field: keyof Residencia['tipo'], value: string) => {
     setCurrentResidencia(prev => ({
@@ -563,7 +556,6 @@ function CrearResidenciaAdminPage() {
     }));
   }, []);
 
-  
 
   // --- Render Logic ---
   if (authFirebaseLoading || (profileLoading && authUser)) {

@@ -102,7 +102,7 @@ export async function createActividad(
             details: { nombre: restData.nombre },
         }).catch(err => console.error("Error logging ACTIVIDAD_CREADA:", err));
 
-        revalidatePath(`/`); 
+        revalidatePath(`/${residenciaId}/gerencia/actividades`);
         return { success: true, data: { id: docRef.id, ...validationResult.data } };
     } catch (error) {
         console.error("Error creatingividad:", error);
@@ -203,7 +203,7 @@ export async function updateActividad(
             details: { changes: updateData },
         }).catch(err => console.error("Error logging ACTIVIDAD_ACTUALIZADA:", err));
 
-        revalidatePath(`/`);
+        revalidatePath(`/${residenciaId}/gerencia/actividades`);
         return { success: true, data: updateData };
     } catch (error) {
         console.error("Error updatingividad:", error);
@@ -228,7 +228,7 @@ export async function deleteActividad(actividadId: ActividadId, residenciaId: Re
             residenciaId,
         }).catch(err => console.error("Error logging ACTIVIDAD_ELIMINADA:", err));
 
-        revalidatePath(`/`);
+        revalidatePath(`/${residenciaId}/gerencia/actividades`);
         return { success: true };
     } catch (error) {
         console.error("Error deletingividad:", error);
@@ -308,7 +308,7 @@ export async function updateActividadEstado(
             details: { oldState: actividad.estado, newState: nuevoEstado },
         }).catch(err => console.error("Error logging ACTIVIDAD_ACTUALIZADA (estado):", err));
 
-        revalidatePath(`/`);
+        revalidatePath(`/${residenciaId}/gerencia/actividades`);
         return { success: true };
     } catch (error) {
         console.error("Error updating activity state:", error);
