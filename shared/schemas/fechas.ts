@@ -151,6 +151,16 @@ export const MapaDiaDeLaSemana: Record<DiaDeLaSemana, string> = {
 
 export const ArregloDiaDeLaSemana: DiaDeLaSemana[] = Object.keys(MapaDiaDeLaSemana) as DiaDeLaSemana[];
 
+export const mapaDiasANumero: Record<DiaDeLaSemana, number> = {
+    lunes: 0,
+    martes: 1,
+    miercoles: 2,
+    jueves: 3,
+    viernes: 4,
+    sabado: 5,
+    domingo: 6
+};
+
 export type DiaDeLaSemana = z.infer<typeof DiaDeLaSemanaSchema>;
 export type FechaIso = z.infer<typeof FechaIsoSchema>;
 export type FechaHoraIso = z.infer<typeof FechaHoraIsoSchema>;

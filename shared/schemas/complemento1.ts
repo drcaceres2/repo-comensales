@@ -19,6 +19,12 @@ export const ComedorDataSchema = z.object({
     centroCostoId: OptionalSlugIdSchema,
 }).strict();
 
+export const comedorDataSelectorSchema = ComedorDataSchema.pick({
+    nombre: true
+}).extend({
+    id: slugIdSchema
+});
+
 // ============================================
 // GrupoUsuariosData (Embebido en ConfiguracionResidencia)
 // ============================================
@@ -98,5 +104,7 @@ export const DietaDataSchema = z.object({
 
 // Type exports
 export type ComedorData = z.infer<typeof ComedorDataSchema>;
+export type ComedorDataSelector = z.infer<typeof comedorDataSelectorSchema>;
+
 export type GrupoUsuariosData = z.infer<typeof GrupoUsuariosDataSchema>;
 export type DietaData = z.infer<typeof DietaDataSchema>;

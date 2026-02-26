@@ -1,22 +1,13 @@
-import {
-  type ConfiguracionAlternativa,
-  type DefinicionAlternativa,
-  type GrupoComida,
-  type HorarioSolicitudData,
-  type TiempoComida,
+import type {
+  ConfiguracionAlternativa,
+  DefinicionAlternativa,
+  GrupoComida,
+  HorarioSolicitudData,
+  TiempoComida,
+  DatosHorariosEnBruto
 } from 'shared/schemas/horarios';
-import { type DiaDeLaSemana, ArregloDiaDeLaSemana } from 'shared/schemas/fechas';
-import { DatosHorariosEnBruto } from 'shared/schemas/horarios';
-
-const mapaDiasANumero: Record<DiaDeLaSemana, number> = {
-  lunes: 0,
-  martes: 1,
-  miercoles: 2,
-  jueves: 3,
-  viernes: 4,
-  sabado: 5,
-  domingo: 6
-};
+import { type DiaDeLaSemana, ArregloDiaDeLaSemana, mapaDiasANumero } from 'shared/schemas/fechas';
+import type { ComedorDataSelector } from 'shared/schemas/complemento1';
 
 const calcularAntelacion = (
   diaSolicitud: DiaDeLaSemana,
@@ -89,7 +80,8 @@ export interface FilaDia {
 
 export interface MatrizVistaHorarios {
   columnasOrdenadas: (GrupoComida & { id: string })[]; 
-  filasPorDia: FilaDia[]; 
+  filasPorDia: FilaDia[];
+  comedores: ComedorDataSelector[]
 }
 
 // #################################################################################
@@ -157,19 +149,21 @@ export const construirMatrizVistaHorarios = (
           const solicitud = horariosSolicitudMap.get(config.horarioSolicitudComidaId);
 
           if (definicion && solicitud) {
-            // --- INICIO: Lógica de cálculo de lead time ---
-            const diaComida = tiempoComida.dia;
-            const horaComida = config.ventanaServicio.horaInicio;
-            const comidaIniciaDiaAnterior = config.ventanaServicio.tipoVentana === 'inicia_dia_anterior';
+            let leadTimeHoras = -1; // Valor por defecto si no hay ventana de servicio
 
-            const leadTimeHoras = calcularAntelacion(
-              solicitud.dia,
-              solicitud.horaSolicitud, // Usamos la hora de la solicitud
-              diaComida, // Usamos el día de la comida (potencialmente ajustado)
-              horaComida, // Usamos la hora de inicio de la ventana de servicio
-              comidaIniciaDiaAnterior
-            );
-            // --- FIN: Lógica de cálculo de lead time ---
+            if (config.ventanaServicio) {
+              const diaComida = tiempoComida.dia;
+              const horaComida = config.ventanaServicio.horaInicio;
+              const comidaIniciaDiaAnterior = config.ventanaServicio.tipoVentana === 'inicia_dia_anterior';
+
+              leadTimeHoras = calcularAntelacion(
+                solicitud.dia,
+                solicitud.horaSolicitud,
+                diaComida,
+                horaComida,
+                comidaIniciaDiaAnterior
+              );
+            }
 
             const estaInactiva = !definicion.estaActiva || !solicitud.estaActivo;
 
@@ -203,9 +197,16 @@ export const construirMatrizVistaHorarios = (
     };
   });
 
+  // 6. Procesar y ordenar comedores para el selector.
+  const comedores: ComedorDataSelector[] = Object.entries(datos.comedores || {})
+    .map(([id, comedor]) => ({ ...comedor, id }))
+    .sort((a, b) => (b.aforoMaximo ?? 0) - (a.aforoMaximo ?? 0))
+    .map(({ id, nombre }) => ({ id, nombre }));
+
   return {
     columnasOrdenadas,
     filasPorDia,
+    comedores,
   };
 };
 
@@ -506,7 +507,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Alerta[] {
   const ventanasPorDia = new Map<string, { id: string, ventana: string }[]>();
   configuracionesAlternativasActivas.forEach(([id, c]) => {
     const tiempo = esquemaSemanal[c.tiempoComidaId];
-    if(tiempo) {
+    if(tiempo && c.ventanaServicio) { // <-- Check if ventanaServicio exists
         const key = tiempo.dia;
         const ventanaStr = JSON.stringify(c.ventanaServicio);
         if (!ventanasPorDia.has(key)) {
@@ -530,7 +531,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Alerta[] {
 
   // Hay una `ConfiguracionAlternativa` activa que tiene `VentanaServicioComidaSchema` de `tipo='normal'` con horaInicio > horaFin
   configuracionesAlternativasActivas.forEach(([id, c]) => {
-    if (c.ventanaServicio.tipoVentana === 'normal' && c.ventanaServicio.horaInicio > c.ventanaServicio.horaFin) {
+    if (c.ventanaServicio && c.ventanaServicio.tipoVentana === 'normal' && c.ventanaServicio.horaInicio > c.ventanaServicio.horaFin) {
       alertas.push({
         tipo: 'CFALT_TIEM_NEG',
         entidad: 'ConfiguracionAlternativa',

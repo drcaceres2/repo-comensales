@@ -69,6 +69,7 @@ const datosVacios: DatosHorariosEnBruto = {
     esquemaSemanal: {},
     catalogoAlternativas: {},
     configuracionesAlternativas: {},
+    comedores: {}
 };
 
 export const useHorariosAlmacen = create<HorariosState>((set, get) => ({

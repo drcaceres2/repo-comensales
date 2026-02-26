@@ -6,7 +6,7 @@ import {
   MatrizVistaHorarios as MatrizType
 } from '../../_lib/vistaModeloMapa';
 import { FilaDia } from './FilaDia';
-import { DrawerConfig } from './DrawerConfig';
+import DrawerConfig from './DrawerConfig';
 
 interface MatrizProps {
   datos: MatrizType;
@@ -54,7 +54,8 @@ export function Matriz({ datos, mostrarInactivos }: MatrizProps) {
       </div>
       <DrawerConfig 
         tiempoComidaId={tiempoSeleccionado} 
-        onClose={() => setTiempoSeleccionado(null)} 
+        onClose={() => setTiempoSeleccionado(null)}
+        comedores={datos.comedores}
       />
     </>
   );

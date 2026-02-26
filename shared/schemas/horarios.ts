@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CadenaOpcionalLimitada, slugIdSchema } from './common';
 import { HoraIsoSchema, DiaDeLaSemanaSchema } from './fechas';
+import {ComedorDataSchema, ComedorDataSelector} from "./complemento1";
 
 // ============================================
 // HorarioSolicitudData (Embebido en ConfiguracionResidencia)
@@ -92,10 +93,13 @@ export type CrearVariosValues = z.infer<typeof CrearVariosSchema>;
 // ConfiguracionAlternativa (Instancia por día)
 // ============================================
 
+const TipoVentanaConfigAlternativaSchema =
+    z.enum(['normal', 'inicia_dia_anterior', 'termina_dia_siguiente']).default('normal')
+
 const VentanaServicioComidaSchema = z.object({
     horaInicio: HoraIsoSchema,
     horaFin: HoraIsoSchema,
-    tipoVentana: z.enum(['normal', 'inicia_dia_anterior', 'termina_dia_siguiente']).default('normal')
+    tipoVentana: TipoVentanaConfigAlternativaSchema
 }).strict();
 
 /**
@@ -103,19 +107,13 @@ const VentanaServicioComidaSchema = z.object({
  * Embebida como Record<ConfigAlternativaId, ConfiguracionAlternativa> en ConfiguracionResidencia.configuracionAlternativas.
  */
 export const ConfiguracionAlternativaSchema = z.object({
-    nombre: z.string().min(1).max(100), // Este nombre se usa para construir el slug que sirve de ID semántico en singleton que contiene estos objetos embebidos. Es inmutable, si cambia el nombre, el ID permanece
-    
-    // Coordenadas
-    tiempoComidaId: slugIdSchema, // TiempoComidaId
-    definicionAlternativaId: slugIdSchema, // DefinicionAlternativaId
-
-    // Parámetros de Solicitud
+    nombre: z.string().min(1).max(100),
+    tiempoComidaId: slugIdSchema,
+    definicionAlternativaId: slugIdSchema,
     horarioSolicitudComidaId: slugIdSchema,
-    comedorId: slugIdSchema.nullable().optional(),
+    comedorId: z.preprocess(val => val === "" || val === null ? undefined : val, slugIdSchema.optional()),
     requiereAprobacion: z.boolean().default(false),
-
-    // Parámetros de Horario
-    ventanaServicio: VentanaServicioComidaSchema,
+    ventanaServicio: VentanaServicioComidaSchema.optional(),
     estaActivo: z.boolean().default(true)
 }).strict();
 
@@ -125,7 +123,48 @@ export const DatosHorariosEnBrutoSchema = z.object({
     esquemaSemanal: z.record(TiempoComidaSchema),
     catalogoAlternativas: z.record(DefinicionAlternativaSchema),
     configuracionesAlternativas: z.record(ConfiguracionAlternativaSchema),
+    comedores: z.record(ComedorDataSchema)
+}).superRefine((data, ctx) => {
+    for (const configId in data.configuracionesAlternativas) {
+        const config = data.configuracionesAlternativas[configId];
+        const definicion = data.catalogoAlternativas[config.definicionAlternativaId];
+
+        if (definicion) {
+            const esTipoAusencia = definicion.tipo === 'noComoEnCasa' || definicion.tipo === 'ayuno';
+
+            if (esTipoAusencia) {
+                if (config.comedorId) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['configuracionesAlternativas', configId, 'comedorId'],
+                        message: `Una configuración de tipo '${definicion.tipo}' no puede tener un comedor asignado.`,
+                    });
+                }
+                if (config.ventanaServicio) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['configuracionesAlternativas', configId, 'ventanaServicio'],
+                        message: `Una configuración de tipo '${definicion.tipo}' no puede tener una ventana de servicio.`,
+                    });
+                }
+            }
+        }
+    }
 });
+
+export const MultipleConfigSchema = ConfiguracionAlternativaSchema.pick({
+    definicionAlternativaId: true,
+    comedorId: true,
+    requiereAprobacion: true,
+    estaActivo: true,
+    ventanaServicio: true,
+}).extend({
+    dias: z.array(DiaDeLaSemanaSchema).nonempty("Debes seleccionar al menos un día"),
+    antelacion: z.preprocess(val => Number(val), z.number().int().min(0)),
+});
+
+export type MultipleConfigFormData = z.infer<typeof MultipleConfigSchema>;
+
 
 // Type exports
 
@@ -149,5 +188,6 @@ export type GrupoComida = z.infer<typeof GrupoComidaSchema>;
 export type DefinicionAlternativa = z.infer<typeof DefinicionAlternativaSchema>;
 export type TipoAlternativaEnum = z.infer<typeof TipoAlternativaEnumSchema>;
 export type ConfiguracionAlternativa = z.infer<typeof ConfiguracionAlternativaSchema>;
+export type TipoVentanaConfigAlternativa = z.infer<typeof TipoVentanaConfigAlternativaSchema>;
 
 export type DatosHorariosEnBruto = z.infer<typeof DatosHorariosEnBrutoSchema>;

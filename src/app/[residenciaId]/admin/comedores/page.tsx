@@ -104,7 +104,7 @@ export default function GestionComedoresPage() {
         const userData = userSnap.data() as Usuario;
         const rolesDataBase: RolUsuario[] = userData.roles || [];
         const rolesClaims = claims?.roles as RolUsuario[] || [];
-        const rolesAutorizadosResidencia = ['admin', 'director'];
+        const rolesAutorizadosResidencia: RolUsuario[] = ['admin', 'director'];
         let hasAuthRole = rolesDataBase.some(r => rolesAutorizadosResidencia.includes(r))
             && rolesClaims.some(r => rolesAutorizadosResidencia.includes(r));
         if(!hasAuthRole) {

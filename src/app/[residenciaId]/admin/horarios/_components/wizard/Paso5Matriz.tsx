@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useHorariosAlmacen } from '../../_lib/useHorariosAlmacen';
 import { useGuardarHorarios } from '../../_lib/useHorariosQuery';
 import { Matriz } from '../matriz/Matriz';
 import { auditarIntegridadHorarios, Alerta, CatalogoErrores } from '../../_lib/vistaModeloMapa';
 import {ResidenciaId} from "../../../../../../../shared/models/types";
+import DrawerConfigMultiple from '../matriz/DrawerConfigMultiple';
 
 export default function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: string }) {
   const {
@@ -18,6 +20,7 @@ export default function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: st
     version,
   } = useHorariosAlmacen();
 
+  const [isMultipleFormOpen, setIsMultipleFormOpen] = useState(false);
   const { mutate: guardarHorarios, isPending } = useGuardarHorarios();
 
   const handleGuardar = () => {
@@ -50,55 +53,70 @@ export default function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: st
   };
 
   return (
-    <div className="p-4 flex flex-col h-full bg-gray-50">
-      {/* Panel de Auditoría */}
-      <div className="mb-4 flex-shrink-0">
-        <button
-          onClick={ejecutarAuditoria}
-          className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors text-base"
-        >
-          Ejecutar Auditoría Global
-        </button>
-        {alertas.length > 0 && (
-          <div className="mt-4 space-y-2">
-            {alertas.map((alerta: Alerta, index) => (
-              <div
-                key={index}
-                className={`p-3 rounded-lg border ${
-                    CatalogoErrores[alerta.tipo].severidad === 'error'
-                    ? 'bg-red-50 border-red-400 text-red-800'
-                    : 'bg-yellow-50 border-yellow-400 text-yellow-800'
-                }`}
-              >
-                <p className="font-bold capitalize">{alerta.tipo}</p>
-                <p className="text-sm">{alerta.mensaje}</p>
-              </div>
-            ))}
+    <>
+      <div className="p-4 flex flex-col h-full bg-gray-50">
+        {/* Panel de Auditoría */}
+        <div className="mb-4 flex-shrink-0">
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={ejecutarAuditoria}
+              className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors text-base"
+            >
+              Ejecutar Auditoría Global
+            </button>
+            <button
+              onClick={() => setIsMultipleFormOpen(true)}
+              className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-purple-700 transition-colors text-base"
+            >
+              + Añadir a Varios Días
+            </button>
           </div>
-        )}
-      </div>
+          {alertas.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {alertas.map((alerta: Alerta, index) => (
+                <div
+                  key={index}
+                  className={`p-3 rounded-lg border ${
+                      CatalogoErrores[alerta.tipo].severidad === 'error'
+                      ? 'bg-red-50 border-red-400 text-red-800'
+                      : 'bg-yellow-50 border-yellow-400 text-yellow-800'
+                  }`}
+                >
+                  <p className="font-bold capitalize">{alerta.tipo}</p>
+                  <p className="text-sm">{alerta.mensaje}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-      {/* Cuerpo Principal */}
-      <div className="flex-grow overflow-auto">
-        {matriz && <Matriz datos={matriz} mostrarInactivos={mostrarInactivos} />}
-      </div>
+        {/* Cuerpo Principal */}
+        <div className="flex-grow overflow-auto">
+          {matriz && <Matriz datos={matriz} mostrarInactivos={mostrarInactivos} />}
+        </div>
 
-      {/* Navegación */}
-      <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0">
-        <button
-          onClick={() => setPasoActual(4)}
-          className="bg-gray-200 text-gray-700 font-bold py-2 px-6 rounded-lg hover:bg-gray-300 transition-colors"
-        >
-          Anterior
-        </button>
-        <button
-          onClick={handleGuardar}
-          disabled={isPending}
-          className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 shadow-lg transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed"
-        >
-          {isPending ? 'Guardando...' : 'Guardar Configuración Definitiva'}
-        </button>
+        {/* Navegación */}
+        <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0">
+          <button
+            onClick={() => setPasoActual(4)}
+            className="bg-gray-200 text-gray-700 font-bold py-2 px-6 rounded-lg hover:bg-gray-300 transition-colors"
+          >
+            Anterior
+          </button>
+          <button
+            onClick={handleGuardar}
+            disabled={isPending}
+            className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 shadow-lg transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {isPending ? 'Guardando...' : 'Guardar Configuración Definitiva'}
+          </button>
+        </div>
       </div>
-    </div>
+      <DrawerConfigMultiple
+        isOpen={isMultipleFormOpen}
+        onClose={() => setIsMultipleFormOpen(false)}
+        comedores={matriz?.comedores || []}
+      />
+    </>
   );
 }
