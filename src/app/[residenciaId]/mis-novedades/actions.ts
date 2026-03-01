@@ -7,7 +7,7 @@ import {
   NovedadFormSchema,
   NovedadOperativaUpdateSchema
 } from "shared/schemas/novedades";
-import {useInfoUsuarioServer} from "@/lib/useInfoUsuarioServer";
+import {obtenerInfoUsuarioServer} from "@/lib/obtenerInfoUsuarioServer";
 
 type NovedadCreatePayload = Omit<NovedadOperativa, "id" | "timestampCreacion" | "timestampActualizacion" | "autorId" | "residenciaId" | "estado" | "fechaProgramada">;
 
@@ -18,7 +18,7 @@ export async function crearNovedadAction(
   payload: NovedadCreatePayload
 ) {
   try {
-    const { usuarioId: autorId, residenciaId: userResidenciaId } = await useInfoUsuarioServer();
+    const { usuarioId: autorId, residenciaId: userResidenciaId } = await obtenerInfoUsuarioServer();
 
     if (residenciaId !== userResidenciaId) {
       return { success: false, error: "Acceso no autorizado." };
@@ -58,7 +58,7 @@ export async function actualizarNovedadAction(
   console.log(`[actualizarNovedadAction] Iniciando. Novedad ID: ${novedadId}`);
   try {
     console.log("[actualizarNovedadAction] 1. Autenticando usuario...");
-    const { usuarioId: autorId } = await useInfoUsuarioServer();
+    const { usuarioId: autorId } = await obtenerInfoUsuarioServer();
     console.log(`[actualizarNovedadAction] 2. Usuario autenticado: ${autorId}`);
 
     console.log("[actualizarNovedadAction] 3. Validando payload...", payload);
@@ -113,7 +113,7 @@ export async function actualizarNovedadAction(
 
 export async function eliminarNovedadAction(novedadId: string, residenciaId: string) {
   try {
-    const { usuarioId: autorId } = await useInfoUsuarioServer();
+    const { usuarioId: autorId } = await obtenerInfoUsuarioServer();
     const novedadRef = db.collection(getCollectionPath(residenciaId)).doc(novedadId);
     
     await db.runTransaction(async (transaction) => {

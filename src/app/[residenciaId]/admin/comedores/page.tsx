@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next';
 
 // --- Firebase & Actions ---
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, deleteField, collection, getDocs } from 'firebase/firestore';
-import { verificarPermisoGestion } from '@/lib/acceso-privilegiado'; // <-- Importar helper con nuevo nombre
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { verificarPermisoGestionWrapper, upsertComedor, deleteComedor } from './actions';
 
 // --- Types & Schemas ---
 import { type ComedorId } from 'shared/models/types';
@@ -18,8 +18,6 @@ import { type Usuario } from 'shared/schemas/usuarios';
 
 // --- Components ----
 import { ComedorForm } from './ComedorForm';
-import { logClientAction } from '@/lib/utils';
-import { slugify } from 'shared/utils/commonUtils';
 import { useInfoUsuario } from '@/components/layout/AppProviders';
 
 // --- UI components ---
@@ -59,7 +57,7 @@ export default function GestionComedoresPage() {
     const router = useRouter();
     const { t } = useTranslation('comedores');
     const { toast } = useToast();
-    const { usuarioId, roles, residenciaId, zonaHoraria } = useInfoUsuario();
+    const { usuarioId, residenciaId, zonaHoraria, roles } = useInfoUsuario();
 
     // --- State ---
     const [comedores, setComedores] = useState<Record<ComedorId, ComedorData>>({});
@@ -68,6 +66,7 @@ export default function GestionComedoresPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
     const [soloPropios, setSoloPropios] = useState<boolean>(false);
+    const [formErrors, setFormErrors] = useState<Record<string, string[]>>({});
 
     // --- Modal State ---
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -76,7 +75,7 @@ export default function GestionComedoresPage() {
 
     // --- Fetch Data ---
     const fetchData = useCallback(async () => {
-        if (!residenciaId || !usuarioId) {
+        if (!residenciaId || !usuarioId || !roles) {
             setIsAuthorized(false);
             setLoading(false);
             return;
@@ -84,16 +83,16 @@ export default function GestionComedoresPage() {
         
         setLoading(true);
         try {
-            // Verificación de autorización
-            const userDocRef = doc(db, 'usuarios', usuarioId);
-            const userSnap = await getDoc(userDocRef);
-            if (!userSnap.exists()) {
+            const resultadoAcceso = await verificarPermisoGestionWrapper();
+
+            if (resultadoAcceso.error) {
+                toast({
+                    title: resultadoAcceso.error,
+                    variant: 'destructive',
+                });
                 setIsAuthorized(false);
                 return;
             }
-            const userData = userSnap.data() as Usuario;
-
-            const resultadoAcceso = await verificarPermisoGestion(userData, residenciaId, 'gestionComedores', zonaHoraria);
 
             if (!resultadoAcceso.tieneAcceso) {
                 setIsAuthorized(false);
@@ -102,7 +101,6 @@ export default function GestionComedoresPage() {
             setIsAuthorized(true);
             setSoloPropios(resultadoAcceso.nivelAcceso === 'Propias');
 
-            // Fetch Comedores (client side directly)
             const configRef = doc(db, 'residencias', residenciaId, 'configuracion', 'general');
             const configSnap = await getDoc(configRef);
             if (configSnap.exists()) {
@@ -127,7 +125,7 @@ export default function GestionComedoresPage() {
         } finally {
             setLoading(false);
         }
-    }, [residenciaId, usuarioId, zonaHoraria, t, toast]);
+    }, [residenciaId, usuarioId, t, toast, zonaHoraria, roles]);
 
     useEffect(() => {
         fetchData();
@@ -136,149 +134,59 @@ export default function GestionComedoresPage() {
     // --- Handlers ---
     const handleAdd = () => {
         setEditingId(null);
+        setFormErrors({});
         setIsFormOpen(true);
     };
 
     const handleEdit = (id: string) => {
         setEditingId(id);
+        setFormErrors({});
         setIsFormOpen(true);
     };
 
     const handleFormSubmit = async (data: ComedorData) => {
         setIsSaving(true);
-        try {
-            // --- RE-VALIDACIÓN DE PERMISOS ---
-            const userDocRef = doc(db, 'usuarios', usuarioId!);
-            const userSnap = await getDoc(userDocRef);
-            if (!userSnap.exists()) throw new Error("Tu sesión ha expirado o el usuario no existe.");
-            
-            const resultadoAcceso = await verificarPermisoGestion(userSnap.data() as Usuario, residenciaId, 'gestionComedores', zonaHoraria);
-            if (!resultadoAcceso.tieneAcceso) {
-                toast({ title: "Acceso Denegado", description: "Tus permisos han cambiado. No puedes realizar esta acción.", variant: "destructive" });
-                setIsSaving(false);
-                router.refresh(); // Forzar recarga para reflejar el estado de permisos actual
-                return;
-            }
-            // Si el permiso es solo para 'Propias', no puede editar un comedor ajeno.
-            if (editingId && resultadoAcceso.nivelAcceso === 'Propias' && comedores[editingId]?.creadoPor !== usuarioId) {
-                toast({ title: "Acción no permitida", description: "No tienes permiso para editar este comedor.", variant: "destructive" });
-                setIsSaving(false);
-                return;
-            }
-            // --- FIN DE RE-VALIDACIÓN ---
+        setFormErrors({});
 
-            const id = editingId || slugify(data.nombre);
-            
-            // Check if ID exists for NEW comedor
-            if (!editingId && comedores[id]) {
-                toast({
-                    title: "Error",
-                    description: "Ya existe un comedor con ese nombre (o un nombre muy similar).",
-                    variant: "destructive"
-                });
-                setIsSaving(false);
-                return;
-            }
+        const result = await upsertComedor(residenciaId, editingId, data);
 
-            const cleanData: Partial<ComedorData> = {
-                nombre: data.nombre,
-                creadoPor: data.creadoPor,
-            };
-            if (data.descripcion) cleanData.descripcion = data.descripcion;
-            if (data.aforoMaximo) cleanData.aforoMaximo = data.aforoMaximo;
-            if (data.centroCostoId) cleanData.centroCostoId = data.centroCostoId;
-
-            const configRef = doc(db, 'residencias', residenciaId, 'configuracion', 'general');
-            await updateDoc(configRef, {
-                [`comedores.${id}`]: cleanData
-            });
-
-            await logClientAction(
-                editingId ? 'COMEDOR_ACTUALIZADO' : 'COMEDOR_CREADO',
-                {
-                    targetId: id,
-                    targetCollection: 'configuracion/general',
-                    residenciaId: residenciaId,
-                    details: { nombre: data.nombre }
-                }
-            );
-
+        if (result.success) {
             toast({ title: editingId ? t('messages.success_edit') : t('messages.success_add') });
             setIsFormOpen(false);
-            fetchData(); // Refresh list
-        } catch (error: any) {
-            console.error('Error upserting comedor:', error);
+            fetchData(); // Refresh list after successful server action
+        } else {
+            if (result.validationErrors) {
+                setFormErrors(result.validationErrors);
+            }
             toast({
-                title: t('messages.error_generic'),
-                description: error.message,
+                title: result.error || t('messages.error_generic'),
                 variant: 'destructive',
             });
-        } finally {
-            setIsSaving(false);
         }
+
+        setIsSaving(false);
     };
 
     const handleDelete = async () => {
         if (!deleteConfirmId) return;
 
-        // --- RE-VALIDACIÓN DE PERMISOS ---
-        const userDocRef = doc(db, 'usuarios', usuarioId!);
-        const userSnap = await getDoc(userDocRef);
-        if (!userSnap.exists()) throw new Error("Tu sesión ha expirado o el usuario no existe.");
-        
-        const resultadoAcceso = await verificarPermisoGestion(userSnap.data() as Usuario, residenciaId, 'gestionComedores', zonaHoraria);
-        // Para eliminar, se necesita acceso a 'Todas' o ser el creador si el acceso es 'Propias'.
-        const puedeEliminar = resultadoAcceso.tieneAcceso && (resultadoAcceso.nivelAcceso === 'Todas' || (resultadoAcceso.nivelAcceso === 'Propias' && comedores[deleteConfirmId]?.creadoPor === usuarioId));
-
-        if (!puedeEliminar) {
-            toast({ title: "Acceso Denegado", description: "No tienes permiso para eliminar este comedor.", variant: "destructive" });
-            setIsSaving(false);
-            setDeleteConfirmId(null);
-            router.refresh();
-            return;
-        }
-
-        // Prevention: Always keep at least one comedor
-        if (Object.keys(comedores).length <= 1) {
-            toast({
-                title: "Error",
-                description: t('last_comedor_error'),
-                variant: 'destructive',
-            });
-            setDeleteConfirmId(null);
-            return;
-        }
-
         setIsSaving(true);
-        try {
-            const configRef = doc(db, 'residencias', residenciaId, 'configuracion', 'general');
-            await updateDoc(configRef, {
-                [`comedores.${deleteConfirmId}`]: deleteField()
-            });
+        const result = await deleteComedor(residenciaId, deleteConfirmId);
 
-            await logClientAction(
-                'COMEDOR_ELIMINADO',
-                {
-                    targetId: deleteConfirmId,
-                    targetCollection: 'configuracion/general',
-                    residenciaId: residenciaId,
-                    details: { id: deleteConfirmId }
-                }
-            );
-
+        if (result.success) {
             toast({ title: t('messages.success_delete') });
             setDeleteConfirmId(null);
-            fetchData();
-        } catch (error: any) {
-            console.error('Error deleting comedor:', error);
+            fetchData(); // Refresh list
+        } else {
             toast({
-                title: t('messages.error_generic'),
-                description: error.message,
+                title: result.error || t('messages.error_generic'),
                 variant: 'destructive',
             });
-        } finally {
-            setIsSaving(false);
         }
+        
+        setIsSaving(false);
+        // Keep dialog open on failure to allow retry
+        if(result.success) setDeleteConfirmId(null);
     };
 
     // --- Loading State ---
@@ -417,6 +325,7 @@ export default function GestionComedoresPage() {
                         isSaving={isSaving}
                         centroCostosList={centroCostos}
                         creadoPorData={usuarioId}
+                        serverErrors={formErrors}
                     />
                 </DialogContent>
             </Dialog>

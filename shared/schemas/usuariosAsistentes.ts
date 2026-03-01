@@ -23,6 +23,14 @@ export const AsistenteSchema = z.object({
     solicitarComensales: AsistentePermisosDetalleSchema,
 }).strict();
 
+export const AsignarAsistentePayloadSchema = z.object({
+    asistidoId: FirestoreIdSchema, // Puede ser Residente o Invitado
+    asistenteId: FirestoreIdSchema, // El usuario que recibe la facultad
+    permisos: AsistentePermisosDetalleSchema,
+}).superRefine((data, ctx) => {
+    // Validamos las fechas usando la misma función pura del Blueprint 1
+    validarFechasPermiso(data.permisos, ctx, 'permisos');
+});
 
 // 1. Función de validación de integridad de fechas
 const validarFechasPermiso = (data: AsistentePermisosDetalle, ctx: z.RefinementCtx, basePath: string) => {
@@ -86,3 +94,4 @@ export const UpdateMatrizAccesosPayloadSchema = z.object({
 
 export type AsistentePermisosDetalle = z.infer<typeof AsistentePermisosDetalleSchema>;
 export type UpdateMatrizAccesosPayload = z.infer<typeof UpdateMatrizAccesosPayloadSchema>;
+export type AsignarAsistentePayload = z.infer<typeof AsignarAsistentePayloadSchema>;

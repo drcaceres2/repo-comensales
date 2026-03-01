@@ -1,15 +1,16 @@
 import { type RolUsuario } from 'shared/models/types';
 import { type Usuario, type AsistentePermisos } from 'shared/schemas/usuarios';
-import { hoyEstamosEntreFechasResidencia } from "shared/utils/commonUtils";
+import { EntreFechasResidencia } from "shared/utils/commonUtils";
 import { type UsuarioId } from 'shared/models/types';
 
 // La clave del permiso que coincide con las propiedades en `Usuario.asistente`
 // Omitimos los que no son permisos de "gestión"
-export type LlavePermisoGestion = keyof Omit<AsistentePermisos, 'usuarioAprobador' | 'usuariosAsistidos'>;
+export type LlavePermisoGestion = keyof Omit<AsistentePermisos, 'usuariosAsistidos'>;
 
 export interface ResultadoAcceso {
     tieneAcceso: boolean;
     nivelAcceso: 'Todas' | 'Propias' | 'Ninguna';
+    error: string | null;
 }
 
 /**
@@ -17,16 +18,18 @@ export interface ResultadoAcceso {
  * Maneja roles como 'master', 'admin', 'director' y la lógica delegada para 'asistente'.
  *
  * @param usuario - El objeto completo del usuario que realiza la acción.
- * @param residenciaId - El ID de la residencia sobre la que se actúa.
+ * @param residenciaIdAuth - El ID de la residencia sobre la que se actúa.
  * @param llavePermiso - La clave del permiso de gestión a verificar (e.g., 'gestionComedores').
  * @param zonaHoraria - La zona horaria para la validación de fechas.
+ * @param timestampServidor - es el ahora obtenido desde el servidor a través de API
  * @returns Un objeto ResultadoAcceso indicando si está autorizado y su nivel de acceso.
  */
 export async function verificarPermisoGestion(
-    usuario: Usuario,
-    residenciaId: string,
+    usuario: Partial<Usuario>,
+    residenciaIdAuth: string,
     llavePermiso: LlavePermisoGestion,
-    zonaHoraria: string
+    zonaHoraria: string,
+    timestampServidor: any
 ): Promise<ResultadoAcceso> {
     const roles = usuario.roles || [];
     
@@ -35,39 +38,40 @@ export async function verificarPermisoGestion(
 
     // Rol 'master' tiene acceso universal.
     if (roles.includes('master')) {
-        return { tieneAcceso: true, nivelAcceso: 'Todas' };
+        return { tieneAcceso: true, nivelAcceso: 'Todas', error: null };
     }
 
     // Roles privilegiados ('admin', 'director') tienen acceso si pertenecen a la residencia.
-    if (roles.some(r => rolesPrivilegiados.includes(r)) && usuario.residenciaId === residenciaId) {
-        return { tieneAcceso: true, nivelAcceso: 'Todas' };
+    if (roles.some(r => rolesPrivilegiados.includes(r)) && usuario.residenciaId === residenciaIdAuth) {
+        return { tieneAcceso: true, nivelAcceso: 'Todas', error: null };
     }
 
     // Lógica para rol 'asistente'
-    if (roles.includes('asistente') && usuario.asistente && usuario.residenciaId === residenciaId) {
+    if (roles.includes('asistente') && usuario.asistente && usuario.residenciaId === residenciaIdAuth) {
         const permisoAsistente = usuario.asistente[llavePermiso];
 
         if (permisoAsistente && permisoAsistente.nivelAcceso !== 'Ninguna') {
             // Si no hay restricción de tiempo, el permiso es permanente.
             if (!permisoAsistente.restriccionTiempo) {
-                return { tieneAcceso: true, nivelAcceso: permisoAsistente.nivelAcceso };
+                return { tieneAcceso: true, nivelAcceso: permisoAsistente.nivelAcceso, error: null };
             }
 
             // Si hay restricción, se validan las fechas.
-            const estaEnPlazo = await hoyEstamosEntreFechasResidencia(
+            const estaEnPlazo = EntreFechasResidencia(
                 permisoAsistente.fechaInicio,
                 permisoAsistente.fechaFin,
-                zonaHoraria
+                zonaHoraria,
+                timestampServidor
             ) === 'dentro';
 
             if (estaEnPlazo) {
-                return { tieneAcceso: true, nivelAcceso: permisoAsistente.nivelAcceso };
+                return { tieneAcceso: true, nivelAcceso: permisoAsistente.nivelAcceso, error: null };
             }
         }
     }
 
     // Acceso denegado por defecto
-    return { tieneAcceso: false, nivelAcceso: 'Ninguna' };
+    return { tieneAcceso: false, nivelAcceso: 'Ninguna', error: "Acceso denegado por defecto." };
 }
 
 
@@ -78,38 +82,41 @@ export async function verificarPermisoGestion(
  * @param usuarioAsistente - El objeto completo del usuario con rol 'asistente'.
  * @param idUsuarioAsistido - El ID del usuario sobre el que el asistente quiere actuar.
  * @param zonaHoraria - La zona horaria para la validación de fechas.
+ * @param timestampServidor - es el ahora obtenido desde el servidor a través de API
  * @returns Un objeto ResultadoAcceso indicando si está autorizado y su nivel de acceso.
  */
 export async function verificarPermisoUsuarioAsistido(
     usuarioAsistente: Usuario,
     idUsuarioAsistido: UsuarioId,
-    zonaHoraria: string
+    zonaHoraria: string,
+    timestampServidor: any
 ): Promise<ResultadoAcceso> {
     // Solo aplica a asistentes con la configuración correcta
     if (!usuarioAsistente.roles.includes('asistente') || !usuarioAsistente.asistente?.usuariosAsistidos) {
-        return { tieneAcceso: false, nivelAcceso: 'Ninguna' };
+        return { tieneAcceso: false, nivelAcceso: 'Ninguna', error: null };
     }
 
     const detallesPermiso = usuarioAsistente.asistente.usuariosAsistidos[idUsuarioAsistido];
 
     // Si no hay una entrada de permiso para ese usuario, no hay acceso.
     if (!detallesPermiso || detallesPermiso.nivelAcceso === 'Ninguna') {
-        return { tieneAcceso: false, nivelAcceso: 'Ninguna' };
+        return { tieneAcceso: false, nivelAcceso: 'Ninguna', error: null };
     }
 
     // Si no hay restricción de tiempo, el permiso es permanente.
     if (!detallesPermiso.restriccionTiempo) {
-        return { tieneAcceso: true, nivelAcceso: detallesPermiso.nivelAcceso };
+        return { tieneAcceso: true, nivelAcceso: detallesPermiso.nivelAcceso, error: null };
     }
 
     // Si hay restricción, se validan las fechas.
-    const estaEnPlazo = await hoyEstamosEntreFechasResidencia(
+    const estaEnPlazo = EntreFechasResidencia(
         detallesPermiso.fechaInicio,
         detallesPermiso.fechaFin,
-        zonaHoraria
+        zonaHoraria,
+        timestampServidor
     ) === 'dentro';
 
     return estaEnPlazo 
-      ? { tieneAcceso: true, nivelAcceso: detallesPermiso.nivelAcceso }
-      : { tieneAcceso: false, nivelAcceso: 'Ninguna' };
+      ? { tieneAcceso: true, nivelAcceso: detallesPermiso.nivelAcceso, error: null }
+      : { tieneAcceso: false, nivelAcceso: 'Ninguna', error: null };
 }

@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { InfoUsuario } from 'shared/models/types'
 
 // Función asíncrona utilitaria para Server Components y Server Actions
-export async function useInfoUsuarioServer(): Promise<InfoUsuario> {
+export async function obtenerInfoUsuarioServer(): Promise<InfoUsuario> {
     // En Next.js 15+, headers() es una promesa
     const headersList = await headers();
 

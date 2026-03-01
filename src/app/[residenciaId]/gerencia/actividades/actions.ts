@@ -18,7 +18,7 @@ import {
 } from '@/../shared/models/types';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase';
-import {useInfoUsuarioServer} from "@/lib/useInfoUsuarioServer";
+import {obtenerInfoUsuarioServer} from "@/lib/obtenerInfoUsuarioServer";
 
 // Helper to get the day of the week from a date string (YYYY-MM-DD)
 const getDayOfWeek = (dateString: string): string => {
@@ -59,7 +59,7 @@ export async function createActividad(
     data: unknown
 ) {
     try {
-        const user = await useInfoUsuarioServer();
+        const user = await obtenerInfoUsuarioServer();
         console.log("createActividad (server) triggered by user:", user.usuarioId);
 
         const validationResult = ActividadCreateSchema.safeParse(data);
@@ -118,7 +118,7 @@ export async function updateActividad(
     data: unknown
 ) {
     try {
-        const user = await useInfoUsuarioServer();
+        const user = await obtenerInfoUsuarioServer();
         
         const activityRef = db.collection('actividades').doc(actividadId);
         const activitySnap = await activityRef.get();
@@ -215,7 +215,7 @@ export async function updateActividad(
 
 export async function deleteActividad(actividadId: ActividadId, residenciaId: ResidenciaId) {
     try {
-        const user = await useInfoUsuarioServer();
+        const user = await obtenerInfoUsuarioServer();
         
         await db.collection('actividades').doc(actividadId).delete();
         // Async logging via Cloud Function
@@ -245,7 +245,7 @@ export async function updateActividadEstado(
     nuevoEstado: EstadoActividad
 ) {
     try {
-        const user = await useInfoUsuarioServer();
+        const user = await obtenerInfoUsuarioServer();
 
         const validationResult = ActividadEstadoUpdateSchema.safeParse({ estado: nuevoEstado });
         if (!validationResult.success) {

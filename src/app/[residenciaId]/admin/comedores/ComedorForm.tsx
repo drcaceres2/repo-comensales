@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type ComedorData, ComedorDataSchema } from 'shared/schemas/complemento1';
@@ -29,9 +29,18 @@ interface ComedorFormProps {
     isSaving: boolean;
     centroCostosList: CentroDeCosto[];
     creadoPorData: UsuarioId;
+    serverErrors?: Record<string, string[]>;
 }
 
-export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroCostosList, creadoPorData }: ComedorFormProps) {
+export function ComedorForm({ 
+    initialData, 
+    onSubmit, 
+    onCancel, 
+    isSaving, 
+    centroCostosList, 
+    creadoPorData,
+    serverErrors 
+}: ComedorFormProps) {
     const { t } = useTranslation('comedores');
 
     const form = useForm<ComedorData>({
@@ -44,6 +53,17 @@ export function ComedorForm({ initialData, onSubmit, onCancel, isSaving, centroC
             centroCostoId: initialData?.centroCostoId || undefined
         },
     });
+
+    useEffect(() => {
+        if (serverErrors) {
+            Object.entries(serverErrors).forEach(([field, messages]) => {
+                form.setError(field as keyof ComedorData, {
+                    type: 'server',
+                    message: messages.join(', '),
+                });
+            });
+        }
+    }, [serverErrors, form]);
     
     return (
         <Form {...form}>
