@@ -1,13 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useTransition } from 'react';
-import { useParams, useRouter } from 'next/navigation';
 import { 
     collection, doc, getDoc, getDocs,
     query, where, orderBy
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useAuth } from '@/hooks/useAuth';
 
 // UI Components
 import { Button } from "@/components/ui/button";
@@ -39,6 +37,7 @@ import type {
 
 import { ActivityForm } from './ActivityForm';
 import { deleteActividad, updateActividadEstado } from './actions';
+import {useInfoUsuario} from "@/components/layout/AppProviders";
 
 // Helper to get inscriptions count
 const getInscripcionesCount = (inscripciones: InscripcionActividad[], actividadId: ActividadId) => {
@@ -56,11 +55,11 @@ const getInvitacionesCount = (inscripciones: InscripcionActividad[], actividadId
 
 
 function AdminActividadesPage() {
-    const params = useParams();
-    const router = useRouter();
-    const residenciaId = params.residenciaId as ResidenciaId;
     const { toast } = useToast();
-    const { user: authUser, loading: authLoading } = useAuth();
+    const { usuarioId:authUser, residenciaId, ctxTraduccion } = useInfoUsuario();
+
+    // TODO: hidratar indicador de zona horaria
+
     const [isPending, startTransition] = useTransition();
 
     // Data State
@@ -78,7 +77,7 @@ function AdminActividadesPage() {
     const [editingActividad, setEditingActividad] = useState<Actividad | null>(null);
 
     const fetchData = useCallback(async () => {
-        if (!residenciaId || !authUser?.uid) return;
+        if (!residenciaId || !authUser) return;
         setIsLoadingPageData(true);
         setPageError(null);
         try {
@@ -123,15 +122,13 @@ function AdminActividadesPage() {
         } finally {
             setIsLoadingPageData(false);
         }
-    }, [residenciaId, authUser?.uid]);
+    }, [residenciaId, authUser]);
 
     useEffect(() => {
-        if (!authLoading && authUser) {
+        if (authUser) {
             fetchData();
-        } else if (!authLoading && !authUser) {
-             router.replace('/');
         }
-    }, [authLoading, authUser, fetchData, router]);
+    }, [authUser, fetchData]);
     
     // --- FORM MANAGEMENT ---
     const handleOpenAddForm = () => {
@@ -350,8 +347,7 @@ function AdminActividadesPage() {
             </div>
 
             {showActivityForm && (
-                <ActivityForm 
-                    residenciaId={residenciaId}
+                <ActivityForm
                     onClose={handleCloseForm}
                     actividad={editingActividad}
                     tiemposComidaList={tiemposComidaList}

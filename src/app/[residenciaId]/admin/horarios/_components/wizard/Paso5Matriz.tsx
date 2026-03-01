@@ -1,29 +1,34 @@
 "use client";
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
 import { useHorariosAlmacen } from '../../_lib/useHorariosAlmacen';
 import { useGuardarHorarios } from '../../_lib/useHorariosQuery';
 import { Matriz } from '../matriz/Matriz';
 import { auditarIntegridadHorarios, Alerta, CatalogoErrores } from '../../_lib/vistaModeloMapa';
-import {ResidenciaId} from "../../../../../../../shared/models/types";
-import DrawerConfigMultiple from '../matriz/DrawerConfigMultiple';
+import { DrawerConfigMultiple } from '../matriz/DrawerConfigMultiple';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { AlertCircle } from 'lucide-react';
 
-export default function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: string }) {
+export function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: string }) {
   const {
     matriz,
     alertas,
     ejecutarAuditoria,
     mostrarInactivos,
+    toggleMostrarInactivos,
     setPasoActual,
     datosBorrador,
     version,
+    errorDeGuardado,
+    setErrorDeGuardado,
   } = useHorariosAlmacen();
 
   const [isMultipleFormOpen, setIsMultipleFormOpen] = useState(false);
   const { mutate: guardarHorarios, isPending } = useGuardarHorarios();
 
   const handleGuardar = () => {
+    setErrorDeGuardado(null); // Limpiar errores previos antes de intentar guardar
     const auditoriaResultados = auditarIntegridadHorarios(datosBorrador);
     
     const errores = auditoriaResultados.filter(
@@ -55,24 +60,42 @@ export default function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: st
   return (
     <>
       <div className="p-4 flex flex-col h-full bg-gray-50">
-        {/* Panel de Auditoría */}
         <div className="mb-4 flex-shrink-0">
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={ejecutarAuditoria}
-              className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors text-base"
-            >
-              Ejecutar Auditoría Global
-            </button>
-            <button
-              onClick={() => setIsMultipleFormOpen(true)}
-              className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-purple-700 transition-colors text-base"
-            >
-              + Añadir a Varios Días
-            </button>
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center space-x-2">
+              <Switch id="show-inactive" checked={mostrarInactivos} onCheckedChange={toggleMostrarInactivos} />
+              <Label htmlFor="show-inactive">Mostrar Inactivos</Label>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={ejecutarAuditoria}
+                className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors"
+              >
+                Auditar
+              </button>
+              <button
+                onClick={() => setIsMultipleFormOpen(true)}
+                className="bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition-colors"
+              >
+                + Añadir Múltiples
+              </button>
+            </div>
           </div>
+          
+          {errorDeGuardado && (
+            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
+              <div className="flex">
+                <div className="py-1"><AlertCircle className="h-6 w-6 text-red-500 mr-4" /></div>
+                <div>
+                  <p className="font-bold">Error al Guardar</p>
+                  <p className="text-sm">{errorDeGuardado}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {alertas.length > 0 && (
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">
               {alertas.map((alerta: Alerta, index) => (
                 <div
                   key={index}
@@ -90,12 +113,10 @@ export default function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: st
           )}
         </div>
 
-        {/* Cuerpo Principal */}
         <div className="flex-grow overflow-auto">
           {matriz && <Matriz datos={matriz} mostrarInactivos={mostrarInactivos} />}
         </div>
 
-        {/* Navegación */}
         <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center flex-shrink-0">
           <button
             onClick={() => setPasoActual(4)}
@@ -108,7 +129,7 @@ export default function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: st
             disabled={isPending}
             className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 shadow-lg transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {isPending ? 'Guardando...' : 'Guardar Configuración Definitiva'}
+            {isPending ? 'Guardando...' : 'Guardar Configuración'}
           </button>
         </div>
       </div>

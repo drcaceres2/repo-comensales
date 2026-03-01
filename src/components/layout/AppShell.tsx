@@ -3,22 +3,34 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { LogOut, Loader2, AlertCircle, MessageSquare } from 'lucide-react';
 import { Navigation } from '@/components/Navigation';
 import { IndicadorZonaHoraria } from './IndicadorZonaHoraria';
+import { useInfoUsuario } from "@/components/layout/AppProviders";
+import { signOut } from "firebase/auth";
+import { auth } from '@/lib/firebase';
 
 function LayoutHeader() {
-  const { user, loading, error, logout } = useAuth();
+  const { usuarioId: user, email } = useInfoUsuario()
   const router = useRouter();
 
   const handleLogout = async () => {
     try {
-      await logout();
-      console.log('User signed out successfully');
+      // 1. Sign out from the Firebase client SDK
+      await signOut(auth);
+      console.log('User signed out from Firebase client.');
+
+      // 2. Invalidate the server-side session cookie
+      await fetch('/api/auth/logout', {
+          method: 'GET',
+      });
+      console.log('Server session cookie cleared.');
+
+      // 3. Redirect and refresh to ensure a clean state
       router.push('/');
+      router.refresh();
     } catch (errorMsg) {
       console.error("Error signing out: ", errorMsg);
     }
@@ -27,31 +39,13 @@ function LayoutHeader() {
   const contentPositioningClasses = "p-2 flex justify-end items-center pl-16 sm:pl-20";
   const commonHeaderStyles = "h-10 sticky top-0 z-40 w-full";
 
-  if (loading) {
-    return (
-      <header className={`bg-muted text-muted-foreground ${commonHeaderStyles} ${contentPositioningClasses}`}>
-        <Loader2 className="h-5 w-5 animate-spin" />
-      </header>
-    );
-  }
-
-  if (error) {
-    console.error("Auth Error in Header:", error);
-    return (
-      <header className={`bg-destructive text-destructive-foreground ${commonHeaderStyles} ${contentPositioningClasses}`}>
-        <AlertCircle className="h-5 w-5 mr-2" />
-        <span className="text-sm">Error de autenticación</span>
-      </header>
-    );
-  }
-
   if (user) {
     return (
       <header className={`bg-primary text-primary-foreground ${commonHeaderStyles} ${contentPositioningClasses}`}>
         <div className="mr-4">
           <IndicadorZonaHoraria />
         </div>
-        <span className="mr-4 text-sm truncate">{user.email}</span>
+        <span className="mr-4 text-sm truncate">{email}</span>
         <Button variant="ghost" size="sm" onClick={handleLogout} className="hover:bg-primary/90">
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión

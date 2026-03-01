@@ -7,9 +7,10 @@ import { useToast } from '@/hooks/useToast';
 
 import { db, functions } from '@/lib/firebase';
 import { ConfiguracionResidencia, CONFIG_RESIDENCIA_ID } from 'shared/schemas/residencia';
+import { HORARIOS_QUERY_KEY } from 'shared/models/types';
 import { DatosHorariosEnBruto } from 'shared/schemas/horarios';
+import { useHorariosAlmacen } from './useHorariosAlmacen';
 
-const HORARIOS_QUERY_KEY = 'horarios';
 
 // ============================================
 // Hook de Lectura (useObtenerHorarios)
@@ -71,20 +72,25 @@ interface GuardarHorariosPayload {
 export const useGuardarHorarios = () => {
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const setErrorDeGuardado = useHorariosAlmacen(s => s.setErrorDeGuardado);
 
     return useMutation({
         mutationFn: async (payload: GuardarHorariosPayload) => {
+            setErrorDeGuardado(null); // Limpiar errores previos
             return await guardarHorariosFn(payload);
         },
         onSuccess: (result, variables) => {
-            toast({ title: "Transacción completada", description: "Horarios guardados con éxito.", variant: "default" }); // Add toast for error
+            toast({ title: "Transacción completada", description: "Horarios guardados con éxito.", variant: "default" });
             queryClient.invalidateQueries({ queryKey: [HORARIOS_QUERY_KEY, variables.residenciaId] });
         },
-        onError: (error) => {
-            if (error.message.includes('failed-precondition')) {
-                toast({ title: "Error de concurrencia", description: "Otro usuario ha modificado los datos. Por favor, refresca la página.", variant: "destructive" }); // Add toast for error
+        onError: (error: any) => {
+            const details = error.details;
+            if (details && details.validationError) {
+                setErrorDeGuardado(details.message);
+            } else if (error.message.includes('failed-precondition')) {
+                setErrorDeGuardado("Error de concurrencia: Otro usuario ha modificado los datos. Por favor, refresca la página.");
             } else {
-                toast({ title: "Error al guardar", description: error.message, variant: "destructive" }); // Add toast for error
+                setErrorDeGuardado(`Error inesperado: ${error.message}`);
             }
         },
     });

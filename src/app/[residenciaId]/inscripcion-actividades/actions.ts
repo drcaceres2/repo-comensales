@@ -11,7 +11,7 @@ import {
     type RolUsuario,
     LogPayload
 } from '@/../shared/models/types';
-import { requireAuth } from '@/lib/serverAuth';
+import { useInfoUsuarioServer} from "@/lib/useInfoUsuarioServer";
 import { revalidatePath } from 'next/cache';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase';
@@ -46,7 +46,7 @@ interface ActividadDisponible extends Actividad {
 export async function getActividadesDisponibles(
   residenciaId: ResidenciaId
 ): Promise<ActividadDisponible[]> {
-  const { uid, roles } = await requireAuth();
+  const { usuarioId: uid, roles } = await useInfoUsuarioServer();
   
   const today = await getTodayInTimezone(residenciaId);
 
@@ -142,7 +142,7 @@ export async function getActividadesDisponibles(
 }
 
 export async function inscribirEnActividad(residenciaId: ResidenciaId, actividadId: string) {
-    const { uid, email } = await requireAuth();
+    const { usuarioId: uid, email } = await useInfoUsuarioServer();
 
     const actividadRef = db.collection(`residencias/${residenciaId}/actividades`).doc(actividadId);
     const actividadSnap = await actividadRef.get();
@@ -183,7 +183,7 @@ export async function inscribirEnActividad(residenciaId: ResidenciaId, actividad
 }
 
 export async function responderInvitacion(residenciaId: ResidenciaId, inscripcionId: string, aceptar: boolean) {
-    const { uid, email } = await requireAuth();
+    const { usuarioId: uid, email } = await useInfoUsuarioServer();
     
     const inscripcionRef = db.collection('inscripcionesActividades').doc(inscripcionId);
     const inscripcionSnap = await inscripcionRef.get();
@@ -213,7 +213,7 @@ export async function responderInvitacion(residenciaId: ResidenciaId, inscripcio
 }
 
 export async function cancelarInscripcion(residenciaId: ResidenciaId, inscripcionId: string) {
-    const { uid, email } = await requireAuth();
+    const { usuarioId: uid, email } = await useInfoUsuarioServer();
     
     const inscripcionRef = db.collection('inscripcionesActividades').doc(inscripcionId);
     const inscripcionSnap = await inscripcionRef.get();

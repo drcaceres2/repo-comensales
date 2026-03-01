@@ -41,7 +41,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { useAuth } from '@/hooks/useAuth';
+import { useInfoUsuario } from '@/components/layout/AppProviders';
 import { format } from 'date-fns'
 
 // Model Imports from the new 'shared' directory structure
@@ -115,10 +115,18 @@ function UserManagementPage(): JSX.Element | null {
     const router = useRouter();
     const { toast } = useToast();
 
-    const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
-    const [adminUserProfile, setAdminUserProfile] = useState<Usuario | null>(null);
-    const [adminProfileLoading, setAdminProfileLoading] = useState<boolean>(true);
-    const [adminProfileError, setAdminProfileError] = useState<string | null>(null);
+    const { usuarioId, roles: adminRoles, residenciaId: adminResidenciaId } = useInfoUsuario();
+    
+    const adminUserProfile = useMemo(() => {
+        if (!usuarioId) return null;
+        return {
+            id: usuarioId,
+            roles: adminRoles,
+            residenciaId: adminResidenciaId,
+        } as unknown as Usuario; // Cast for compatibility, review if full profile is needed
+    }, [usuarioId, adminRoles, adminResidenciaId]);
+
+
     const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
 
     const [hasAttemptedFetch, setHasAttemptedFetch] = useState<{ [key: string]: boolean }>({});
@@ -359,65 +367,41 @@ function UserManagementPage(): JSX.Element | null {
     }, [toast, hasAttemptedFetch]); 
 
     useEffect(() => {
-        if (authFirebaseLoading) {
-            setAdminProfileLoading(true);
-            setIsAuthorized(false);
+        if (!usuarioId) {
+            // This can happen briefly on mount, or if auth fails.
+            // The hook itself should handle redirection if permanently unauthenticated.
             return;
         }
 
-        if (authFirebaseError || !authUser) {
-            toast({ title: "Error de Autenticación", description: authFirebaseError?.message || 'No estás autenticado.', variant: "destructive" });
-            router.replace('/');
-            return;
-        }
-        
-        setAdminProfileLoading(true);
-        const adminDocRef = doc(db, "usuarios", authUser.uid);
-        getDoc(adminDocRef).then((docSnap) => {
-            if (docSnap.exists()) {
-                const fetchedProfile = { id: docSnap.id, ...docSnap.data() } as Usuario;
-                setAdminUserProfile(fetchedProfile);
-
-                if (fetchedProfile.residenciaId && !fetchedProfile.roles.includes('master')) {
-                    setFormData((prev: UserFormData) => ({ ...prev, residenciaId: fetchedProfile.residenciaId! }));
-                }
-            } else {
-                throw new Error("Perfil de administrador no encontrado. No estás autorizado.");
-            }
-        }).catch((error) => {
-            setAdminProfileError(`Error al cargar tu perfil: ${error.message}`);
-            toast({ title: "Error Cargando Perfil", description: error.message, variant: "destructive" });
-        }).finally(() => {
-            setAdminProfileLoading(false);
-        });
-    }, [authUser, authFirebaseLoading, authFirebaseError, router, toast]);
-
-    useEffect(() => {
-        if (adminProfileLoading) return;
-
-        if (adminProfileError || !adminUserProfile) {
-            setIsAuthorized(false);
-            return;
-        }
-
-        const isAdminAuthorized = adminUserProfile.roles.includes('admin') || adminUserProfile.roles.includes('master');
+        const isAdminAuthorized = adminRoles.includes('admin') || adminRoles.includes('master');
         setIsAuthorized(isAdminAuthorized);
 
         if (isAdminAuthorized) {
             let initialResFilter = NO_RESIDENCIA_FILTER_KEY;
-            if (adminUserProfile.roles.includes('master')) {
+            if (adminRoles.includes('master')) {
                 initialResFilter = ALL_RESIDENCIAS_FILTER_KEY;
-            } else if (adminUserProfile.residenciaId) {
-                initialResFilter = adminUserProfile.residenciaId;
-                fetchResidenciaData(adminUserProfile.residenciaId);
+            } else if (adminResidenciaId) {
+                initialResFilter = adminResidenciaId;
+                fetchResidenciaData(adminResidenciaId);
             }
             setSelectedResidenciaFilter(initialResFilter);
-            fetchResidences(adminUserProfile);
-            fetchUsersToManage(adminUserProfile);
+            
+            // We create a temporary profile object for the fetch functions
+            const profile = { id: usuarioId, roles: adminRoles, residenciaId: adminResidenciaId } as Usuario;
+            fetchResidences(profile);
+            fetchUsersToManage(profile);
+
+            // Set initial form data for non-master admins
+            if (!adminRoles.includes('master') && adminResidenciaId) {
+                setFormData(prev => ({ ...prev, residenciaId: adminResidenciaId }));
+            }
+
         } else {
             toast({ title: "Acceso Denegado", description: "No tienes los permisos (admin/master) para acceder a esta página.", variant: "destructive" });
+            router.replace('/');
         }
-    }, [adminUserProfile, adminProfileLoading, adminProfileError, fetchResidences, fetchUsersToManage, fetchResidenciaData, toast]);
+    }, [usuarioId, adminRoles, adminResidenciaId, fetchResidences, fetchUsersToManage, fetchResidenciaData, toast, router]);
+
 
     useEffect(() => {
         if (formData.residenciaId && formData.residenciaId !== currentResidenciaDetails?.id) {
@@ -708,26 +692,13 @@ function UserManagementPage(): JSX.Element | null {
     const isResidenciaRequired = formData.roles?.some((r: RolUsuario) => !['master', 'invitado'].includes(r));
     const isResidente = formData.roles?.includes('residente');
 
-    if (authFirebaseLoading || (authUser && adminProfileLoading)) {
+    if (!usuarioId) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
                 <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
                 <p className="text-lg font-medium text-muted-foreground">
-                    {authFirebaseLoading ? 'Verificando sesión...' : "Cargando perfil de administrador..."}
+                    Verificando sesión...
                 </p>
-            </div>
-        );
-    }
-
-    if (authFirebaseError || adminProfileError) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-                <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-                <h1 className="text-2xl font-bold text-destructive mb-2">Error Crítico</h1>
-                <p className="mb-4 text-destructive max-w-md">
-                    {authFirebaseError?.message || adminProfileError || 'Ocurrió un error al cargar la información de autenticación o tu perfil.'}
-                </p>
-                <Button onClick={() => router.replace('/')}>Volver al Inicio</Button>
             </div>
         );
     }

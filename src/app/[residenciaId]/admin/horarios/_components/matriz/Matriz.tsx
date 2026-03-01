@@ -6,7 +6,7 @@ import {
   MatrizVistaHorarios as MatrizType
 } from '../../_lib/vistaModeloMapa';
 import { FilaDia } from './FilaDia';
-import DrawerConfig from './DrawerConfig';
+import { DrawerConfig } from './DrawerConfig';
 
 interface MatrizProps {
   datos: MatrizType;

@@ -1,8 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db, auth as adminAuth } from '@/lib/firebaseAdmin';
-import { requireAuth } from '@/lib/serverAuth';
+import { db, admin } from '@/lib/firebaseAdmin';
 import { 
     type Actividad,
     type EstadoActividad,
@@ -19,7 +18,7 @@ import {
 } from '@/../shared/models/types';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase';
-import * as admin from 'firebase-admin';
+import {useInfoUsuarioServer} from "@/lib/useInfoUsuarioServer";
 
 // Helper to get the day of the week from a date string (YYYY-MM-DD)
 const getDayOfWeek = (dateString: string): string => {
@@ -60,8 +59,8 @@ export async function createActividad(
     data: unknown
 ) {
     try {
-        const user = await requireAuth();
-        console.log("createActividad (server) triggered by user:", user.uid);
+        const user = await useInfoUsuarioServer();
+        console.log("createActividad (server) triggered by user:", user.usuarioId);
 
         const validationResult = ActividadCreateSchema.safeParse(data);
         if (!validationResult.success) {
@@ -83,7 +82,7 @@ export async function createActividad(
         const docRef = await db.collection('actividades').add({
             ...restData,
             residenciaId,
-            organizadorId: user.uid,
+            organizadorId: user.usuarioId,
             tiempoComidaInicial,
             tiempoComidaFinal,
             fechaInicio,
@@ -119,7 +118,7 @@ export async function updateActividad(
     data: unknown
 ) {
     try {
-        const user = await requireAuth();
+        const user = await useInfoUsuarioServer();
         
         const activityRef = db.collection('actividades').doc(actividadId);
         const activitySnap = await activityRef.get();
@@ -216,7 +215,7 @@ export async function updateActividad(
 
 export async function deleteActividad(actividadId: ActividadId, residenciaId: ResidenciaId) {
     try {
-        const user = await requireAuth();
+        const user = await useInfoUsuarioServer();
         
         await db.collection('actividades').doc(actividadId).delete();
         // Async logging via Cloud Function
@@ -246,7 +245,7 @@ export async function updateActividadEstado(
     nuevoEstado: EstadoActividad
 ) {
     try {
-        const user = await requireAuth();
+        const user = await useInfoUsuarioServer();
 
         const validationResult = ActividadEstadoUpdateSchema.safeParse({ estado: nuevoEstado });
         if (!validationResult.success) {

@@ -7,11 +7,10 @@ import { useTranslation } from 'react-i18next';
 // --- Firebase & Actions ---
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, deleteField, collection, getDocs } from 'firebase/firestore';
-import { useAuth } from '@/hooks/useAuth';
+import { verificarPermisoGestion } from '@/lib/acceso-privilegiado'; // <-- Importar helper con nuevo nombre
 
 // --- Types & Schemas ---
-import { type ComedorId, type RolUsuario } from 'shared/models/types';
-import { hoyEstamosEntreFechasResidencia } from "shared/utils/commonUtils";
+import { type ComedorId } from 'shared/models/types';
 import type { CentroDeCosto } from 'shared/schemas/contabilidad';
 import { type ConfiguracionResidencia } from 'shared/schemas/residencia';
 import { type ComedorData } from 'shared/schemas/complemento1';
@@ -21,6 +20,7 @@ import { type Usuario } from 'shared/schemas/usuarios';
 import { ComedorForm } from './ComedorForm';
 import { logClientAction } from '@/lib/utils';
 import { slugify } from 'shared/utils/commonUtils';
+import { useInfoUsuario } from '@/components/layout/AppProviders';
 
 // --- UI components ---
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -54,22 +54,18 @@ import {
     AlertCircle,
     Utensils
 } from 'lucide-react';
-import {useResidencia} from "@/components/context/ResidenciaProvider";
 
 export default function GestionComedoresPage() {
     const router = useRouter();
     const { t } = useTranslation('comedores');
     const { toast } = useToast();
-    const { user: authUser, claims, loading: authLoading } = useAuth();
-    const residenciaId = claims?.residenciaId as string;
-    const { residencia, loading: loadingResidencia } = useResidencia()
+    const { usuarioId, roles, residenciaId, zonaHoraria } = useInfoUsuario();
 
     // --- State ---
     const [comedores, setComedores] = useState<Record<ComedorId, ComedorData>>({});
     const [centroCostos, setCentroCostos] = useState<CentroDeCosto[]>([]);
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [residenciaNombre, setResidenciaNombre] = useState('');
     const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
     const [soloPropios, setSoloPropios] = useState<boolean>(false);
 
@@ -80,64 +76,32 @@ export default function GestionComedoresPage() {
 
     // --- Fetch Data ---
     const fetchData = useCallback(async () => {
-
-        if (authLoading || loadingResidencia) {
-            return;
-        }
-        if (!residenciaId || !authUser || !residencia) {
+        if (!residenciaId || !usuarioId) {
             setIsAuthorized(false);
             setLoading(false);
             return;
         }
         
-        // Authorization Check
-        const userDocRef = doc(db, 'usuarios', authUser.uid);
-        const userSnap = await getDoc(userDocRef);
-        if (!userSnap.exists()) {
-            setIsAuthorized(false);
-            setLoading(false);
-            return;
-        }
-
-        setResidenciaNombre(residencia.nombre);
-
-        const userData = userSnap.data() as Usuario;
-        const rolesDataBase: RolUsuario[] = userData.roles || [];
-        const rolesClaims = claims?.roles as RolUsuario[] || [];
-        const rolesAutorizadosResidencia: RolUsuario[] = ['admin', 'director'];
-        let hasAuthRole = rolesDataBase.some(r => rolesAutorizadosResidencia.includes(r))
-            && rolesClaims.some(r => rolesAutorizadosResidencia.includes(r));
-        if(!hasAuthRole) {
-            if(rolesClaims.includes("asistente")
-                && rolesDataBase.includes("asistente")
-                && userData.asistente) {
-                const asisteComedores = userData.asistente.gestionComedores;
-                if (asisteComedores.nivelAcceso !== 'Ninguna') {
-                    const validezTiempo = await hoyEstamosEntreFechasResidencia(userData.asistente.gestionComedores.fechaInicio, userData.asistente.gestionComedores.fechaFin, residencia.ubicacion.zonaHoraria);
-                    if (asisteComedores.restriccionTiempo || validezTiempo === "dentro") {
-                        hasAuthRole = true;
-                    }
-                    if (asisteComedores.nivelAcceso === 'Propias') {
-                        setSoloPropios(true);
-                    }
-                }
-            }
-        }
-        const isMaster = rolesDataBase.includes('master') && rolesClaims.includes('master');
-        const isAllowed = isMaster
-            || (hasAuthRole
-                && (userData.residenciaId === residenciaId)
-                && (userData.residenciaId === residencia.id));
-
-        if (!isAllowed) {
-            setIsAuthorized(false);
-            setLoading(false);
-            return;
-        }
-
-        setIsAuthorized(true);
         setLoading(true);
         try {
+            // Verificación de autorización
+            const userDocRef = doc(db, 'usuarios', usuarioId);
+            const userSnap = await getDoc(userDocRef);
+            if (!userSnap.exists()) {
+                setIsAuthorized(false);
+                return;
+            }
+            const userData = userSnap.data() as Usuario;
+
+            const resultadoAcceso = await verificarPermisoGestion(userData, residenciaId, 'gestionComedores', zonaHoraria);
+
+            if (!resultadoAcceso.tieneAcceso) {
+                setIsAuthorized(false);
+                return;
+            }
+            setIsAuthorized(true);
+            setSoloPropios(resultadoAcceso.nivelAcceso === 'Propias');
+
             // Fetch Comedores (client side directly)
             const configRef = doc(db, 'residencias', residenciaId, 'configuracion', 'general');
             const configSnap = await getDoc(configRef);
@@ -148,7 +112,6 @@ export default function GestionComedoresPage() {
                 setComedores({});
             }
 
-            // ZONA HORARIA AQUÍ
             const ccCollRef = collection(db, 'residencias', residenciaId, 'centrosDeCosto');
             const ccSnap = await getDocs(ccCollRef);
             const ccList = ccSnap.docs
@@ -164,7 +127,7 @@ export default function GestionComedoresPage() {
         } finally {
             setLoading(false);
         }
-    }, [residenciaId, t, toast, authUser, claims, authLoading, residencia, loadingResidencia]);
+    }, [residenciaId, usuarioId, zonaHoraria, t, toast]);
 
     useEffect(() => {
         fetchData();
@@ -184,6 +147,26 @@ export default function GestionComedoresPage() {
     const handleFormSubmit = async (data: ComedorData) => {
         setIsSaving(true);
         try {
+            // --- RE-VALIDACIÓN DE PERMISOS ---
+            const userDocRef = doc(db, 'usuarios', usuarioId!);
+            const userSnap = await getDoc(userDocRef);
+            if (!userSnap.exists()) throw new Error("Tu sesión ha expirado o el usuario no existe.");
+            
+            const resultadoAcceso = await verificarPermisoGestion(userSnap.data() as Usuario, residenciaId, 'gestionComedores', zonaHoraria);
+            if (!resultadoAcceso.tieneAcceso) {
+                toast({ title: "Acceso Denegado", description: "Tus permisos han cambiado. No puedes realizar esta acción.", variant: "destructive" });
+                setIsSaving(false);
+                router.refresh(); // Forzar recarga para reflejar el estado de permisos actual
+                return;
+            }
+            // Si el permiso es solo para 'Propias', no puede editar un comedor ajeno.
+            if (editingId && resultadoAcceso.nivelAcceso === 'Propias' && comedores[editingId]?.creadoPor !== usuarioId) {
+                toast({ title: "Acción no permitida", description: "No tienes permiso para editar este comedor.", variant: "destructive" });
+                setIsSaving(false);
+                return;
+            }
+            // --- FIN DE RE-VALIDACIÓN ---
+
             const id = editingId || slugify(data.nombre);
             
             // Check if ID exists for NEW comedor
@@ -204,7 +187,6 @@ export default function GestionComedoresPage() {
             if (data.descripcion) cleanData.descripcion = data.descripcion;
             if (data.aforoMaximo) cleanData.aforoMaximo = data.aforoMaximo;
             if (data.centroCostoId) cleanData.centroCostoId = data.centroCostoId;
-
 
             const configRef = doc(db, 'residencias', residenciaId, 'configuracion', 'general');
             await updateDoc(configRef, {
@@ -238,6 +220,23 @@ export default function GestionComedoresPage() {
 
     const handleDelete = async () => {
         if (!deleteConfirmId) return;
+
+        // --- RE-VALIDACIÓN DE PERMISOS ---
+        const userDocRef = doc(db, 'usuarios', usuarioId!);
+        const userSnap = await getDoc(userDocRef);
+        if (!userSnap.exists()) throw new Error("Tu sesión ha expirado o el usuario no existe.");
+        
+        const resultadoAcceso = await verificarPermisoGestion(userSnap.data() as Usuario, residenciaId, 'gestionComedores', zonaHoraria);
+        // Para eliminar, se necesita acceso a 'Todas' o ser el creador si el acceso es 'Propias'.
+        const puedeEliminar = resultadoAcceso.tieneAcceso && (resultadoAcceso.nivelAcceso === 'Todas' || (resultadoAcceso.nivelAcceso === 'Propias' && comedores[deleteConfirmId]?.creadoPor === usuarioId));
+
+        if (!puedeEliminar) {
+            toast({ title: "Acceso Denegado", description: "No tienes permiso para eliminar este comedor.", variant: "destructive" });
+            setIsSaving(false);
+            setDeleteConfirmId(null);
+            router.refresh();
+            return;
+        }
 
         // Prevention: Always keep at least one comedor
         if (Object.keys(comedores).length <= 1) {
@@ -283,7 +282,7 @@ export default function GestionComedoresPage() {
     };
 
     // --- Loading State ---
-    if (loading || authLoading || isAuthorized === null) {
+    if (loading || isAuthorized === null) {
         return (
             <div className="container mx-auto p-6 space-y-6">
                 <div className="flex justify-between items-center">
@@ -302,7 +301,7 @@ export default function GestionComedoresPage() {
         );
     }
 
-    if (!isAuthorized || !authUser) {
+    if (!isAuthorized || !usuarioId) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 text-center">
                 <AlertCircle className="h-12 w-12 text-destructive mb-4" />
@@ -317,7 +316,7 @@ export default function GestionComedoresPage() {
 
     const comedoresList = Object.entries(comedores).filter(([_, data]) => {
         if (soloPropios) {
-            return data.creadoPor === authUser.uid;
+            return data.creadoPor === usuarioId;
         }
         return true;
     });
@@ -332,7 +331,7 @@ export default function GestionComedoresPage() {
                     </div>
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-                        <p className="text-muted-foreground">{residenciaNombre}</p>
+                        <p className="text-muted-foreground">{residenciaId}</p>
                     </div>
                 </div>
                 <Button onClick={handleAdd} className="w-full md:w-auto shadow-sm">
@@ -354,7 +353,7 @@ export default function GestionComedoresPage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {comedoresList.map(([id, data]) => {
-                        const puedeEditar = !soloPropios || (soloPropios && data.creadoPor === authUser.uid);
+                        const puedeEditar = !soloPropios || (soloPropios && data.creadoPor === usuarioId);
                         return (
                             <Card key={id} className="overflow-hidden hover:shadow-md transition-shadow">
                                 <CardHeader className="bg-muted/50 pb-4">
@@ -417,7 +416,7 @@ export default function GestionComedoresPage() {
                         onCancel={() => setIsFormOpen(false)}
                         isSaving={isSaving}
                         centroCostosList={centroCostos}
-                        creadoPorData={authUser.uid}
+                        creadoPorData={usuarioId}
                     />
                 </DialogContent>
             </Dialog>

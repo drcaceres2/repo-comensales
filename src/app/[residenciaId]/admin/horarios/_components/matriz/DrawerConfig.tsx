@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { X } from 'lucide-react';
+import { X, Star } from 'lucide-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useHorariosAlmacen } from '../../_lib/useHorariosAlmacen';
 import {
@@ -28,12 +28,12 @@ const mapaMensajeTipoVentana: Record<TipoVentanaConfigAlternativa, string> = {
   termina_dia_siguiente: "Termina al día siguiente"
 }
 
-export default function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfigProps) {
+export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfigProps) {
   const {
     datosBorrador,
     upsertConfiguracionAlternativa,
     archivarConfiguracionAlternativa,
-    upsertTiempoComida,
+    setAlternativaPrincipal,
     mostrarInactivos,
   } = useHorariosAlmacen();
 
@@ -80,7 +80,6 @@ export default function DrawerConfig({ tiempoComidaId, onClose, comedores }: Dra
 
   useEffect(() => {
     if (tiempoComidaId) {
-      setValue('tiempoComidaId', tiempoComidaId);
       reset({
         estaActivo: true,
         tiempoComidaId: tiempoComidaId,
@@ -89,7 +88,7 @@ export default function DrawerConfig({ tiempoComidaId, onClose, comedores }: Dra
       setIsFormOpen(false);
       setEditingId(null);
     }
-  }, [tiempoComidaId, setValue, reset]);
+  }, [tiempoComidaId, reset]);
 
   const handleClose = () => {
     reset();
@@ -99,28 +98,20 @@ export default function DrawerConfig({ tiempoComidaId, onClose, comedores }: Dra
   };
 
   const onSubmit = (data: FormData) => {
-    if (!tiempoComidaId || !tiempoComida) return;
+    if (!tiempoComidaId) return;
 
     const newId = editingId || slugify(`${data.nombre}-${Date.now()}`);
     
-    const newConfig: ConfiguracionAlternativa = {
+    let newConfig: ConfiguracionAlternativa = {
       ...data,
       tiempoComidaId,
     };
 
     if (esTipoAusencia) {
-      delete newConfig.comedorId;
       delete newConfig.ventanaServicio;
     }
 
     upsertConfiguracionAlternativa(newId, newConfig);
-
-    if (!tiempoComida.alternativas?.principal) {
-      upsertTiempoComida(tiempoComidaId, {
-        ...tiempoComida,
-        alternativas: { ...tiempoComida.alternativas, principal: newId },
-      });
-    }
 
     reset();
     setIsFormOpen(false);
@@ -129,12 +120,8 @@ export default function DrawerConfig({ tiempoComidaId, onClose, comedores }: Dra
 
   const handleEdit = (id: string, config: ConfiguracionAlternativa) => {
     setEditingId(id);
-    reset(config); // Usar reset para poblar todo el formulario
+    reset(config);
     setIsFormOpen(true);
-  };
-  
-  const handleArchive = (id: string) => {
-    archivarConfiguracionAlternativa(id);
   };
 
   if (!tiempoComidaId || !tiempoComida) {
@@ -163,7 +150,9 @@ export default function DrawerConfig({ tiempoComidaId, onClose, comedores }: Dra
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">{config.nombre}</span>
                       {tiempoComida.alternativas?.principal === config.id && (
-                        <span className="px-2 py-0.5 text-xs font-medium text-white bg-blue-500 rounded-full">Principal</span>
+                        <span className="px-2 py-0.5 text-xs font-medium text-white bg-blue-500 rounded-full flex items-center gap-1">
+                          <Star size={12} /> Principal
+                        </span>
                       )}
                     </div>
                     {config.ventanaServicio && (
@@ -173,8 +162,11 @@ export default function DrawerConfig({ tiempoComidaId, onClose, comedores }: Dra
                     )}
                   </div>
                   <div className="flex gap-2">
+                    {config.estaActivo && tiempoComida.alternativas?.principal !== config.id && (
+                      <button onClick={() => setAlternativaPrincipal(tiempoComidaId, config.id)} className="text-sm text-green-600 hover:underline">Hacer Principal</button>
+                    )}
                     <button onClick={() => handleEdit(config.id, config)} className="text-sm text-blue-600 hover:underline">Editar</button>
-                    {config.estaActivo && <button onClick={() => handleArchive(config.id)} className="text-sm text-red-600 hover:underline">Archivar</button>}
+                    {config.estaActivo && <button onClick={() => archivarConfiguracionAlternativa(config.id)} className="text-sm text-red-600 hover:underline">Archivar</button>}
                   </div>
                 </div>
               </div>
@@ -203,8 +195,15 @@ export default function DrawerConfig({ tiempoComidaId, onClose, comedores }: Dra
                 <select {...register('definicionAlternativaId')} id="definicionAlternativaId" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                   <option value="">Seleccione una definición</option>
                   {Object.entries(datosBorrador.catalogoAlternativas)
-                    .filter(([,def]) => def.estaActiva)
-                    .map(([id, def]) => <option key={id} value={id}>{def.nombre}</option>)}
+                    .filter(([,def]) => def.estaActiva && def.grupoComida === tiempoComida?.grupoComida)
+                    .map(([id, def]) => {
+                      const grupo = datosBorrador.gruposComidas[def.grupoComida];
+                      return (
+                        <option key={id} value={id}>
+                          {def.nombre} {grupo ? `(${grupo.nombre})` : ''}
+                        </option>
+                      );
+                    })}
                 </select>
                 {errors.definicionAlternativaId && <p className="text-red-500 text-xs mt-1">{errors.definicionAlternativaId.message}</p>}
               </div>

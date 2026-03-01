@@ -1,11 +1,13 @@
 "use client";
 
 import { useForm } from 'react-hook-form';
-import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
+import { useToast } from '@/hooks/useToast';
 import { useHorariosAlmacen } from '../../_lib/useHorariosAlmacen';
+import { Residencia } from 'shared/schemas/residencia'
 import {
-  ConfiguracionAlternativaSchema,
   TipoVentanaConfigAlternativa,
   type ConfiguracionAlternativa,
   MultipleConfigSchema,
@@ -14,7 +16,6 @@ import {
 import { ComedorDataSelector } from 'shared/schemas/complemento1';
 import { ArregloDiaDeLaSemana, DiaDeLaSemana } from 'shared/schemas/fechas';
 import { slugify } from 'shared/utils/commonUtils';
-import { useToast } from '@/hooks/useToast';
 
 interface DrawerConfigMultipleProps {
   isOpen: boolean;
@@ -38,7 +39,7 @@ const opcionesAntelacion = [
   { value: 6, label: "Seis días antes" },
 ];
 
-export default function DrawerConfigMultiple({ isOpen, onClose, comedores }: DrawerConfigMultipleProps) {
+export function DrawerConfigMultiple({ isOpen, onClose, comedores }: DrawerConfigMultipleProps) {
   const { datosBorrador, upsertConfiguracionAlternativa, upsertTiempoComida } = useHorariosAlmacen();
   const { toast } = useToast();
 
@@ -46,6 +47,7 @@ export default function DrawerConfigMultiple({ isOpen, onClose, comedores }: Dra
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<MultipleConfigFormData>({
     resolver: zodResolver(MultipleConfigSchema),
@@ -56,6 +58,10 @@ export default function DrawerConfigMultiple({ isOpen, onClose, comedores }: Dra
       ventanaServicio: { horaInicio: '00:00', horaFin: '00:00', tipoVentana: 'normal' }
     },
   });
+
+  const definicionIdSeleccionada = watch('definicionAlternativaId');
+  const definicionSeleccionada = datosBorrador.catalogoAlternativas[definicionIdSeleccionada];
+  const esTipoAusencia = definicionSeleccionada?.tipo === 'noComoEnCasa' || definicionSeleccionada?.tipo === 'ayuno';
 
   const onSubmit = (data: MultipleConfigFormData) => {
     const { definicionAlternativaId, dias, antelacion, ...restOfData } = data;
@@ -92,7 +98,8 @@ export default function DrawerConfigMultiple({ isOpen, onClose, comedores }: Dra
       }
 
       const nombre = `${definicion.nombre} ${diaDeLaComida}`;
-      const newId = slugify(`${nombre}-${Date.now()}`);
+      const fechaFormatoSlug = format(new Date(),"dd-mmm-yyyy/HH:mm:ss",{locale: es });
+      const newId = slugify(`${nombre.substring(0,50)}/${fechaFormatoSlug}`);
       
       const newConfig: ConfiguracionAlternativa = {
         nombre,
@@ -101,6 +108,10 @@ export default function DrawerConfigMultiple({ isOpen, onClose, comedores }: Dra
         horarioSolicitudComidaId: horarioPrincipalId,
         ...restOfData,
       };
+
+      if (esTipoAusencia) {
+        delete newConfig.ventanaServicio;
+      }
 
       upsertConfiguracionAlternativa(newId, newConfig);
 
@@ -152,7 +163,14 @@ export default function DrawerConfigMultiple({ isOpen, onClose, comedores }: Dra
               <option value="">Seleccione una definición</option>
               {Object.entries(datosBorrador.catalogoAlternativas)
                 .filter(([,def]) => def.estaActiva)
-                .map(([id, def]) => <option key={id} value={id}>{def.nombre}</option>)}
+                .map(([id, def]) => {
+                  const grupo = datosBorrador.gruposComidas[def.grupoComida];
+                  return (
+                    <option key={id} value={id}>
+                      {def.nombre} {grupo ? `(${grupo.nombre})` : ''}
+                    </option>
+                  );
+                })}
             </select>
             {errors.definicionAlternativaId && <p className="text-red-500 text-xs mt-1">{errors.definicionAlternativaId.message}</p>}
           </div>
@@ -170,37 +188,41 @@ export default function DrawerConfigMultiple({ isOpen, onClose, comedores }: Dra
             {errors.dias && <p className="text-red-500 text-xs mt-1">{errors.dias.message}</p>}
           </div>
 
-          <div>
-            <label htmlFor="comedorId" className="block text-sm font-medium text-gray-700">Comedor</label>
-            <select {...register('comedorId')} id="comedorId" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-              <option value="">(Ninguno)</option>
-              {comedores.map(comedor => <option key={comedor.id} value={comedor.id}>{comedor.nombre}</option>)}
-            </select>
-            {errors.comedorId && <p className="text-red-500 text-xs mt-1">{errors.comedorId.message}</p>}
-          </div>
+          {!esTipoAusencia && (
+            <>
+              <div>
+                <label htmlFor="comedorId" className="block text-sm font-medium text-gray-700">Comedor</label>
+                <select {...register('comedorId')} id="comedorId" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                  <option value="">(Ninguno)</option>
+                  {comedores.map(comedor => <option key={comedor.id} value={comedor.id}>{comedor.nombre}</option>)}
+                </select>
+                {errors.comedorId && <p className="text-red-500 text-xs mt-1">{errors.comedorId.message}</p>}
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="ventanaServicio.horaInicio" className="block text-sm font-medium text-gray-700">Inicio Servicio</label>
-              <input type="time" {...register('ventanaServicio.horaInicio')} id="ventanaServicio.horaInicio" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-              {errors.ventanaServicio?.horaInicio && <p className="text-red-500 text-xs mt-1">{errors.ventanaServicio.horaInicio.message}</p>}
-            </div>
-            <div>
-              <label htmlFor="ventanaServicio.horaFin" className="block text-sm font-medium text-gray-700">Fin Servicio</label>
-              <input type="time" {...register('ventanaServicio.horaFin')} id="ventanaServicio.horaFin" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
-              {errors.ventanaServicio?.horaFin && <p className="text-red-500 text-xs mt-1">{errors.ventanaServicio.horaFin.message}</p>}
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="ventanaServicio.horaInicio" className="block text-sm font-medium text-gray-700">Inicio Servicio</label>
+                  <input type="time" {...register('ventanaServicio.horaInicio')} id="ventanaServicio.horaInicio" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                  {errors.ventanaServicio?.horaInicio && <p className="text-red-500 text-xs mt-1">{errors.ventanaServicio.horaInicio.message}</p>}
+                </div>
+                <div>
+                  <label htmlFor="ventanaServicio.horaFin" className="block text-sm font-medium text-gray-700">Fin Servicio</label>
+                  <input type="time" {...register('ventanaServicio.horaFin')} id="ventanaServicio.horaFin" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                  {errors.ventanaServicio?.horaFin && <p className="text-red-500 text-xs mt-1">{errors.ventanaServicio.horaFin.message}</p>}
+                </div>
+              </div>
 
-          <div>
-            <label htmlFor="ventanaServicio.tipoVentana" className="block text-sm font-medium text-gray-700">Tipo de Ventana</label>
-            <select {...register('ventanaServicio.tipoVentana')} id="ventanaServicio.tipoVentana" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-              {Object.entries(mapaMensajeTipoVentana).map(([value, label]) => 
-                <option key={value} value={value}>{label}</option>
-              )}
-            </select>
-            {errors.ventanaServicio?.tipoVentana && <p className="text-red-500 text-xs mt-1">{errors.ventanaServicio.tipoVentana.message}</p>}
-          </div>
+              <div>
+                <label htmlFor="ventanaServicio.tipoVentana" className="block text-sm font-medium text-gray-700">Tipo de Ventana</label>
+                <select {...register('ventanaServicio.tipoVentana')} id="ventanaServicio.tipoVentana" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                  {Object.entries(mapaMensajeTipoVentana).map(([value, label]) => 
+                    <option key={value} value={value}>{label}</option>
+                  )}
+                </select>
+                {errors.ventanaServicio?.tipoVentana && <p className="text-red-500 text-xs mt-1">{errors.ventanaServicio.tipoVentana.message}</p>}
+              </div>
+            </>
+          )}
 
           <div>
             <label htmlFor="antelacion" className="block text-sm font-medium text-gray-700">Horario de Solicitud</label>

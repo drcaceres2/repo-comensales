@@ -1,35 +1,29 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import Backend from 'i18next-http-backend';
+import resourcesToBackend from 'i18next-resources-to-backend';
+import { ctxTraduccionSoportados } from "shared/models/types";
 
 i18n
-  // Carga los archivos json bajo demanda (lazy loading)
-  // Busca en /public/locales/{lenguaje}/{namespace}.json
-  .use(Backend)
-  // Pasa la instancia a react-i18next
+  // This backend uses dynamic imports with a relative path to load translations.
+  // This gives the bundler (Turbopack/Webpack) a clear context for finding the files.
+  .use(resourcesToBackend((language: string, namespace: string) => 
+    import(`../locales/${language}/${namespace}.json`)
+  ))
   .use(initReactI18next)
   .init({    
-    lng: 'es', // Idioma por defecto (por ejemplo para master)
-    // MODO DEBUG: Útil en desarrollo para ver qué claves faltan
+    lng: 'es',
     debug: process.env.NODE_ENV === 'development',
 
-    // ESTRATEGIA DE CASCADA
     fallbackLng: {
-      'es-HN': ['es'], // Si falta en HN, busca en ES
-      'es-ES': ['es'], // Si falta en MX, busca en ES
-      'default': ['es'] // Para cualquier otro caso, ve a ES
+      'es-HN': ['es'],
+      'es-ES': ['es'],
+      'default': ['es']
     },
 
-    // LENGUAJES SOPORTADOS
-    supportedLngs: ['es', 'es-HN', 'es-ES'],
+    supportedLngs: ctxTraduccionSoportados,
     
     interpolation: {
-      escapeValue: false, // React ya protege contra XSS, no necesitamos esto
-    },
-
-    // Configuración del Backend (dónde están tus archivos)
-    backend: {
-      loadPath: '/locales/{{lng}}/{{ns}}.json',
+      escapeValue: false, // React already protects against XSS
     },
     
     ns: ['common', 'comedores', 'dietas', 'glosario'],
@@ -39,15 +33,5 @@ i18n
       useSuspense: false,
     }
   });
-
-// Logs de depuración para desarrollo
-/*if (process.env.NODE_ENV === 'development') {
-  i18n.on('failedLoading', (lng, ns, msg) => {
-    console.error(`🌐 i18n Error: [${lng}] [${ns}] -> ${msg}`);
-  });
-  i18n.on('initialized', () => {
-    console.log('🌐 i18n: Listo. Idiomas cargados:', i18n.languages);
-  });
-}*/
 
 export default i18n;

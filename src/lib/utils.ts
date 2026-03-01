@@ -5,6 +5,7 @@ import { db, auth } from './firebase';
 import { LogActionType } from 'shared/models/types';
 import timezonesDataJson from 'shared/data/zonas_horarias_soportadas.json';
 import { doc } from 'firebase/firestore';
+import {ZonaHorariaIana} from "../../shared/schemas/fechas";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -12,23 +13,23 @@ export function cn(...inputs: ClassValue[]) {
 /**
  * Checks if the client's timezone differs from the provided residence timezone
  * and displays a toast warning if they are different.
- * @param residenceZoneHoraria The IANA timezone string of the residence.
+ * @param zonaHorariaResidencia The IANA timezone string of the residence.
  * @returns resultadoVerificacionZonaHoraria
  */
 export function verificarZonaHoraria(
-  residenceZoneHoraria: string | undefined | null
+  zonaHorariaResidencia: ZonaHorariaIana | undefined | null
 ): resultadoVerificacionZonaHoraria {
-  if (!residenceZoneHoraria) {
+  if (!zonaHorariaResidencia) {
     return 'no_hay_zona_horaria_residencia'; 
   }
 
   try {
-    const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const zonaHorariaCliente = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-    if (!clientTimezone) {
+    if (!zonaHorariaCliente) {
       return 'no_hay_zona_horaria_cliente';
     } else {
-      if(clientTimezone === residenceZoneHoraria)
+      if(zonaHorariaCliente === zonaHorariaResidencia)
         return 'igual';
       else
         return 'diferente';

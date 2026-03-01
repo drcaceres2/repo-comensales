@@ -1,9 +1,9 @@
 "use server"
 
 import { db } from "@/lib/firebaseAdmin";
-import { requireAuth } from "@/lib/serverAuth";
 import { CentroDeCostoSchema } from "shared/schemas/contabilidad";
 import { slugify } from "shared/utils/commonUtils";
+import {useInfoUsuarioServer} from "@/lib/useInfoUsuarioServer";
 
 /**
  * Interface consistente para las respuestas de las Server Actions
@@ -24,8 +24,8 @@ export async function crearCentroDeCosto(residenciaId: string, payload: unknown)
         console.log(`[crearCentroDeCosto] Iniciando para residencia: ${residenciaId}`, payload);
         
         // 1. Seguridad: Verificar auth y roles permitidos
-        const auth = await requireAuth();
-        console.log(`[crearCentroDeCosto] Auth verificado para UID: ${auth.uid}, Roles: ${auth.roles}`);
+        const auth = await useInfoUsuarioServer();
+        console.log(`[crearCentroDeCosto] Auth verificado para UID: ${auth.usuarioId}, Roles: ${auth.roles}`);
         
         const hasPermission = auth.roles.some(rol => ROLES_PERMITIDOS.includes(rol));
         
@@ -77,7 +77,7 @@ export async function crearCentroDeCosto(residenciaId: string, payload: unknown)
 export async function actualizarCentroDeCosto(residenciaId: string, id: string, payload: unknown): Promise<ActionResponse> {
     try {
         // 1. Seguridad: Verificar auth y roles
-        const auth = await requireAuth();
+        const auth = await useInfoUsuarioServer();
         const hasPermission = auth.roles.some(rol => ROLES_PERMITIDOS.includes(rol));
         
         if (!hasPermission) {
@@ -113,7 +113,7 @@ export async function actualizarCentroDeCosto(residenciaId: string, id: string, 
 export async function archivarCentroDeCosto(residenciaId: string, id: string): Promise<ActionResponse> {
     try {
         // 1. Seguridad: Verificar auth y roles
-        const auth = await requireAuth();
+        const auth = await useInfoUsuarioServer();
         const hasPermission = auth.roles.some(rol => ROLES_PERMITIDOS.includes(rol));
         
         if (!hasPermission) {

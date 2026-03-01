@@ -77,7 +77,7 @@ const AlternativaForm = ({
 
   const onSubmit = (data: FormValues) => {
     const isCreating = !alternativa;
-    const id = isCreating ? slugify(data.nombre) : alternativa.slug;
+    const id = isCreating ? slugify(data.nombre,50) : alternativa.slug;
 
     if (isCreating && catalogoAlternativas[id]) {
         form.setError("nombre", { type: "manual", message: "Ya existe una alternativa con este nombre." });
@@ -234,7 +234,7 @@ const CrearVariosForm = ({
                 ? `${data.texto} ${grupo.nombre}`
                 : `${grupo.nombre} ${data.texto}`;
             
-            const id = slugify(nombre);
+            const id = slugify(nombre,50);
 
             if (catalogoAlternativas[id]) {
                 console.warn(`La alternativa con id "${id}" ya existe. Omitiendo.`);
@@ -424,7 +424,7 @@ const CrearAusenciaForm = ({
 };
 
 
-export default function Paso4Catalogo() {
+export function Paso4Catalogo() {
   const catalogoAlternativas = useHorariosAlmacen(s => s.datosBorrador.catalogoAlternativas);
   const gruposComida = useHorariosAlmacen(s => s.datosBorrador.gruposComidas);
   const mostrarInactivos = useHorariosAlmacen(s => s.mostrarInactivos);

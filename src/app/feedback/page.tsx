@@ -4,9 +4,7 @@ import { useState, useEffect, useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/useToast";
-import { useAuth } from "@/hooks/useAuth";
-import { doc, getDoc } from "firebase/firestore";
-import { Usuario } from "shared/schemas/usuarios";
+import { useInfoUsuario } from "@/components/layout/AppProviders";
 import { submitFeedback } from "./actions";
 
 import { Button } from "@/components/ui/button";
@@ -16,8 +14,7 @@ import { Label } from "@/components/ui/label";
 
 export default function FeedbackPage() {
   const [feedbackText, setFeedbackText] = useState("");
-  const { user, loading, error } = useAuth();
-  const [userProfile, setUsuario] = useState<Usuario | null>(null);
+  const { usuarioId, email, residenciaId } = useInfoUsuario();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -35,22 +32,6 @@ export default function FeedbackPage() {
     }
   }, []);
 
-  useEffect(() => {
-    const fetchUsuario = async () => {
-      if (user) { 
-        try {
-          const userDocRef = doc((await import("@/lib/firebase")).db, "users", user.uid);
-          const userDocSnap = await getDoc(userDocRef);
-          if (userDocSnap.exists()) {
-            setUsuario(userDocSnap.data() as Usuario);
-          }
-        } catch (err) {
-          console.error("Error fetching user profile:", err);
-        }
-      }
-    };
-    fetchUsuario();
-  }, [user]);
   const [state, formAction] = useActionState(submitFeedback, null);
   const { pending } = useFormStatus();
 
@@ -64,26 +45,10 @@ export default function FeedbackPage() {
     }
   }, [state, toast]);
 
-  if (loading) {
+  if (!usuarioId) {
     return (
       <div className="container mx-auto p-4 sm:p-6 md:p-8 max-w-2xl text-center">
         <p>Cargando información de usuario...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto p-4 sm:p-6 md:p-8 max-w-2xl text-center">
-        <p className="text-red-600">Error al cargar la información de usuario: {error.message}</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="container mx-auto p-4 sm:p-6 md:p-8 max-w-2xl text-center">
-        <p>Por favor, <a href="/" className="underline">inicia sesión</a> para dejar tu feedback.</p>
       </div>
     );
   }
@@ -124,12 +89,12 @@ export default function FeedbackPage() {
         <input type="hidden" name="userAgent" value={userAgent} />
         <input type="hidden" name="screenResolution" value={screenResolution} />
         <input type="hidden" name="viewportSize" value={viewportSize} />
-        <input type="hidden" name="userId" value={user?.uid || ''} />
-        <input type="hidden" name="userEmail" value={user?.email || ''} />
-        <input type="hidden" name="residenciaId" value={userProfile?.residenciaId || ''} />
+        <input type="hidden" name="userId" value={usuarioId || ''} />
+        <input type="hidden" name="userEmail" value={email || ''} />
+        <input type="hidden" name="residenciaId" value={residenciaId || ''} />
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={isPending || !user} className="text-lg px-6 py-3">
+          <Button type="submit" disabled={isPending || !usuarioId} className="text-lg px-6 py-3">
             {isPending ? "Enviando..." : "Enviar Feedback"}
           </Button>
         </div>

@@ -168,15 +168,32 @@ export const createUser = onCall(
         }
 
         const newUserId = newUserRecord.uid;
-        const now = new Date().toISOString();
 
         try {
             const claimsToSet: Record<string, any> = {
                 roles: targetUserRoles,
                 isActive: validatedData.estaActivo ?? true,
+                email: email,
             };
             if (targetResidenciaId) {
                 claimsToSet.residenciaId = targetResidenciaId;
+                
+                const residenciaDoc = await db.collection("residencias").doc(targetResidenciaId).get();
+                if (residenciaDoc.exists) {
+                    const residenciaData = residenciaDoc.data() as Residencia;
+                    if (residenciaData.ubicacion.zonaHoraria) {
+                        claimsToSet.zonaHoraria = residenciaData.ubicacion.zonaHoraria;
+                    } else {
+                        functions.logger.warn(`Residencia document ${targetResidenciaId} found but no zonaHoraria found.`);
+                    }
+                    if (residenciaData.contextoTraduccion) {
+                        claimsToSet.contextoTraduccion = residenciaData.contextoTraduccion;
+                    } else {
+                        functions.logger.warn(`Residencia document ${targetResidenciaId} found but no contextoTraduccion found.`);
+                    }
+                } else {
+                    functions.logger.warn(`Residencia document ${targetResidenciaId} not found when setting claims for user ${newUserId}.`);
+                }
             }
             await admin.auth().setCustomUserClaims(newUserId, claimsToSet);
             functions.logger.info("Custom claims set for new user:", newUserId, claimsToSet);
@@ -188,8 +205,8 @@ export const createUser = onCall(
 
         const usuarioDoc: Usuario = {
             id: newUserId,
-            timestampCreacion: now,
-            timestampActualizacion: now,
+            timestampCreacion: FieldValue.serverTimestamp(),
+            timestampActualizacion: FieldValue.serverTimestamp(),
             // Spread the rest of the validated data, which conforms to the schema
             ...validatedData,
             // Ensure roles and residenciaId from validated data are used, with fallbacks
@@ -306,13 +323,32 @@ export const updateUser = onCall(
             claimsToSet.roles = validatedData.roles;
             claimsChanged = true;
         }
-        if (validatedData.residenciaId !== undefined) {
-            claimsToSet.residenciaId = validatedData.residenciaId;
-            claimsChanged = true;
-        }
         if (validatedData.estaActivo !== undefined) {
             claimsToSet.isActive = validatedData.estaActivo;
             claimsChanged = true;
+        }
+
+        if (validatedData.residenciaId !== undefined) {
+            claimsChanged = true;
+            const newResidenciaId = validatedData.residenciaId;
+
+            if (newResidenciaId) {
+                claimsToSet.residenciaId = newResidenciaId;
+                const residenciaDoc = await db.collection("residencias").doc(newResidenciaId).get();
+                if (residenciaDoc.exists) {
+                    const residenciaData = residenciaDoc.data() as Residencia;
+                    claimsToSet.zonaHoraria = residenciaData.ubicacion.zonaHoraria;
+                    claimsToSet.contextoTraduccion = residenciaData.contextoTraduccion;
+                } else {
+                    functions.logger.warn(`Residencia document ${newResidenciaId} not found for user ${userIdToUpdate}. Clearing related claims.`);
+                    delete claimsToSet.zonaHoraria;
+                    delete claimsToSet.contextoTraduccion;
+                }
+            } else { // residenciaId is null or empty
+                delete claimsToSet.residenciaId;
+                delete claimsToSet.zonaHoraria;
+                delete claimsToSet.contextoTraduccion;
+            }
         }
 
         try {
@@ -767,7 +803,10 @@ export const guardarHorariosResidencia = onCall(
             const errorMessages = Object.entries(zodErrors.fieldErrors).map(([field, messages]) => `${field}: ${messages.join(', ')}`);
             const errorMessage = `Validation failed: ${errorMessages.join('; ')}`;
             functions.logger.warn(`Validation failed for guardarHorariosResidencia:`, errorMessage);
-            throw new HttpsError("invalid-argument", errorMessage);
+            throw new HttpsError("invalid-argument", "Error de validación de datos.", {
+                validationError: true,
+                message: errorMessage,
+            });
         }
 
         const validatedData = validationResult.data;
@@ -936,7 +975,7 @@ export const createHardcodedMasterUser = onCall(
         const now = new Date().toISOString();
 
         try {
-            const claimsToSet = { roles: ["master"], isActive: true };
+            const claimsToSet = { roles: ["master"], isActive: true, email: hardcodedEmail };
             await admin.auth().setCustomUserClaims(newUserId, claimsToSet);
             functions.logger.info("Custom claims ('master') set for hardcoded user:", newUserId);
         } catch (error: any) {

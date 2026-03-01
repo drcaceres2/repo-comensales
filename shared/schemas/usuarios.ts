@@ -1,17 +1,12 @@
 import { z } from 'zod';
 import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema, TimestampSchema} from './common';
-import { FechaIsoSchema, FechaIsoOpcionalSchema, HoraIsoSchema } from './fechas';
+import { FechaIsoOpcionalSchema, HoraIsoSchema } from './fechas';
+import { AsistenteSchema, AsistentePermisosDetalleSchema } from './usuariosAsistentes';
+
 
 // ============================================
 // Esquemas para los nuevos objetos anidados de Usuario
 // ============================================
-
-export const AsistentePermisosDetalleSchema = z.object({
-    nivelAcceso: z.enum(['Todas', 'Propias', 'Ninguna']),
-    restriccionTiempo: z.boolean(),
-    fechaInicio: FechaIsoSchema.nullable().optional(),
-    fechaFin: FechaIsoSchema.nullable().optional(),
-}).strict();
 
 export const ResidenteSchema = z.object({
     dietaId: slugIdSchema,
@@ -19,22 +14,6 @@ export const ResidenteSchema = z.object({
     habitacion: z.string().min(1, "La habitación es obligatoria.").max(10),
     avisoAdministracion: z.enum(['convivente', 'no_comunicado', 'comunicado']),
 }).strict();
-
-export const AsistenteSchema = z.object({
-    usuarioAprobador: FirestoreIdSchema,
-    usuariosAsistidos: z.record(FirestoreIdSchema, AsistentePermisosDetalleSchema),
-    gestionActividades: AsistentePermisosDetalleSchema,
-    gestionInvitados: AsistentePermisosDetalleSchema,
-    gestionRecordatorios: AsistentePermisosDetalleSchema,
-    gestionDietas: AsistentePermisosDetalleSchema,
-    gestionAtenciones: AsistentePermisosDetalleSchema,
-    gestionAsistentes: AsistentePermisosDetalleSchema,
-    gestionGrupos: AsistentePermisosDetalleSchema,
-    gestionHorariosYAlteraciones: AsistentePermisosDetalleSchema,
-    gestionComedores: AsistentePermisosDetalleSchema,
-    solicitarComensales: AsistentePermisosDetalleSchema,
-}).strict();
-
 
 export const NotificacionPreferenciasSchema = z.object({
     canalEmail: z.boolean(),
@@ -56,7 +35,7 @@ const usuarioBaseObject = z.object({
     timestampCreacion: TimestampSchema,
     timestampActualizacion: TimestampSchema,
     timestampUltimoIngreso: TimestampSchema.nullable().optional(),
-    
+
     // Info de estado y configuración
     residenciaId: slugIdSchema.nullable().optional(),
     roles: z.array(z.enum(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador']))

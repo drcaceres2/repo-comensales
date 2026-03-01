@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/firebaseAdmin";
-import { requireAuth } from "@/lib/serverAuth";
 import {
   type NovedadOperativa,
   NovedadFormSchema,
   NovedadOperativaUpdateSchema
 } from "shared/schemas/novedades";
+import {useInfoUsuarioServer} from "@/lib/useInfoUsuarioServer";
 
 type NovedadCreatePayload = Omit<NovedadOperativa, "id" | "timestampCreacion" | "timestampActualizacion" | "autorId" | "residenciaId" | "estado" | "fechaProgramada">;
 
@@ -18,7 +18,7 @@ export async function crearNovedadAction(
   payload: NovedadCreatePayload
 ) {
   try {
-    const { uid: autorId, residenciaId: userResidenciaId } = await requireAuth();
+    const { usuarioId: autorId, residenciaId: userResidenciaId } = await useInfoUsuarioServer();
 
     if (residenciaId !== userResidenciaId) {
       return { success: false, error: "Acceso no autorizado." };
@@ -58,7 +58,7 @@ export async function actualizarNovedadAction(
   console.log(`[actualizarNovedadAction] Iniciando. Novedad ID: ${novedadId}`);
   try {
     console.log("[actualizarNovedadAction] 1. Autenticando usuario...");
-    const { uid: autorId } = await requireAuth();
+    const { usuarioId: autorId } = await useInfoUsuarioServer();
     console.log(`[actualizarNovedadAction] 2. Usuario autenticado: ${autorId}`);
 
     console.log("[actualizarNovedadAction] 3. Validando payload...", payload);
@@ -113,7 +113,7 @@ export async function actualizarNovedadAction(
 
 export async function eliminarNovedadAction(novedadId: string, residenciaId: string) {
   try {
-    const { uid: autorId } = await requireAuth();
+    const { usuarioId: autorId } = await useInfoUsuarioServer();
     const novedadRef = db.collection(getCollectionPath(residenciaId)).doc(novedadId);
     
     await db.runTransaction(async (transaction) => {

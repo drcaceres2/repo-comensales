@@ -18,7 +18,7 @@ type FormValues = Omit<HorarioSolicitudData, 'estaActivo'>;
 const DIAS_SEMANA = DiaDeLaSemanaSchema.options; // ['lunes', 'martes', ...]
 const DIAS_SEMANA_ORDEN = Object.fromEntries(DIAS_SEMANA.map((dia, index) => [dia, index]));
 
-export default function Paso2Cortes() {
+export function Paso2Cortes() {
     const { 
         datosBorrador, 
         mostrarInactivos, 
@@ -112,7 +112,7 @@ export default function Paso2Cortes() {
 
         DIAS_SEMANA.forEach(dia => {
             const nombre = `${dia.charAt(0).toUpperCase() + dia.slice(1)} Principal`;
-            const id = slugify(nombre);
+            const id = slugify(nombre,50);
             
             upsertHorarioSolicitud(id, {
                 nombre: nombre,

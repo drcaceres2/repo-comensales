@@ -12,7 +12,7 @@ import { slugify } from 'shared/utils/commonUtils';
 
 type FormValues = Omit<GrupoComida, 'estaActivo'>;
 
-export default function Paso1Grupos() {
+export function Paso1Grupos() {
     const { residenciaId } = useParams<{ residenciaId: string }>();
     const { 
         datosBorrador, 
@@ -68,7 +68,7 @@ export default function Paso1Grupos() {
     };
 
     const onSubmit: SubmitHandler<FormValues> = (data) => {
-        const id = editingId === 'new' ? slugify(data.nombre) : editingId;
+        const id = editingId === 'new' ? slugify(data.nombre,50) : editingId;
         if (!id) return;
         
         if (editingId === 'new' && datosBorrador.gruposComidas[id]) {

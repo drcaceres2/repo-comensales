@@ -17,11 +17,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, AlertCircle } from 'lucide-react';
 
 // --- Firebase Imports ---
-import { addDoc, collection, doc, getDoc, query, 
-    where, getDocs, updateDoc, deleteDoc, 
-    writeBatch, deleteField } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, writeBatch, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useAuth } from '@/hooks/useAuth';
+import { useInfoUsuario } from '@/components/layout/AppProviders';
 
 import { useTranslation } from 'react-i18next';
 
@@ -33,7 +31,6 @@ import {
     DietaId,
 } from 'shared/models/types';
 import { Residencia, ConfiguracionResidencia } from 'shared/schemas/residencia';
-import { Usuario } from 'shared/schemas/usuarios';
 import { DietaData } from 'shared/schemas/complemento1';
 import { slugify } from 'shared/utils/commonUtils';
 import { logClientAction } from '@/lib/utils';
@@ -44,14 +41,11 @@ type DietaConId = DietaData & { id: DietaId };
 function DietasResidenciaPage(): React.ReactElement | null {
     const params = useParams();
     const router = useRouter();
-    const residenciaId = params.residenciaId as ResidenciaId;
+    const residenciaIdParams = params.residenciaId as ResidenciaId;
     const { toast } = useToast();
 
     // --- Auth & Profile State ---
-    const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
-    const [adminUsuario, setAdminUsuario] = useState<Usuario | null>(null);
-    const [adminProfileLoading, setAdminProfileLoading] = useState<boolean>(true);
-    const [adminProfileError, setAdminProfileError] = useState<string | null>(null);
+    const { usuarioId, roles, residenciaId: residenciaIdUsuario } = useInfoUsuario();
     const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
 
     const { t } = useTranslation('dietas');
@@ -70,61 +64,12 @@ function DietasResidenciaPage(): React.ReactElement | null {
     const [isSaving, setIsSaving] = useState(false);
 
 
-    // --- useEffect: Handle Firebase Auth State & Fetch Admin's Profile ---
-    useEffect(() => {
-        if (authFirebaseLoading) {
-            setAdminProfileLoading(true);
-            setIsAuthorized(false);
-            return;
-        }
-        if (authFirebaseError) {
-            console.error("Firebase Auth Error:", authFirebaseError);
-            // Using a generic key or direct text as t() might not be ready
-            toast({ title: "Error de Autenticación", description: authFirebaseError.message, variant: "destructive" });
-            setAdminProfileLoading(false); setAdminUsuario(null); setAdminProfileError(authFirebaseError.message); setIsAuthorized(false);
-            router.replace('/');
-            return;
-        }
-        if (!authUser) {
-            // console.log("No Firebase user. Redirecting to login.");
-            setAdminProfileLoading(false); setAdminUsuario(null); setAdminProfileError(null); setIsAuthorized(false);
-            router.replace('/');
-            return;
-        }
-
-        // console.log("Admin user authenticated (UID:", authUser.uid,"). Fetching admin's profile...");
-        setAdminProfileLoading(true); setAdminProfileError(null);
-        const adminDocRef = doc(db, "usuarios", authUser.uid);
-        getDoc(adminDocRef)
-            .then((docSnap) => {
-                if (docSnap.exists()) {
-                    setAdminUsuario(docSnap.data() as Usuario);
-                    // console.log("Admin's profile fetched:", docSnap.data());
-                } else {
-                    console.error("Admin's profile not found for UID:", authUser.uid);
-                    setAdminUsuario(null); 
-                    // Using a generic key or direct text as t() might not be ready
-                    const errorMsg = "Perfil de administrador no encontrado.";
-                    setAdminProfileError(errorMsg);
-                    toast({ title: "Error de Perfil", description: "No se encontró tu perfil de administrador.", variant: "destructive" });
-                }
-            })
-            .catch((error) => {
-                console.error("Error fetching admin's profile:", error);
-                setAdminUsuario(null); 
-                const errorMsg = `Error al cargar tu perfil: ${error.message}`;
-                setAdminProfileError(errorMsg);
-                toast({ title: "Error Cargando Perfil", description: errorMsg, variant: "destructive" });
-            })
-            .finally(() => setAdminProfileLoading(false));
-    }, [authUser, authFirebaseLoading, authFirebaseError, router, toast]);
-
     // --- useEffect: Fetch Residencia Data (to get locale and name) ---
     useEffect(() => {
-        if (!residenciaId || !authUser) return; // Wait for authUser as well
+        if (!residenciaIdParams || !usuarioId) return; // Wait for authUser as well
 
         setIsLoadingResidencia(true);
-        const residenciaDocRef = doc(db, "residencias", residenciaId);
+        const residenciaDocRef = doc(db, "residencias", residenciaIdParams);
         getDoc(residenciaDocRef)
             .then((docSnap) => {
                 if (docSnap.exists()) {
@@ -132,8 +77,8 @@ function DietasResidenciaPage(): React.ReactElement | null {
                     setResidencia(residenciaData);
                     // console.log("Residencia data fetched:", residenciaData);
                 } else {
-                    console.error(`Residencia con ID: ${residenciaId} no encontrada.`);
-                    const errorMsg = t('toastResidenciaNotFound', { residenciaId });
+                    console.error(`Residencia con ID: ${residenciaIdParams} no encontrada.`);
+                    const errorMsg = t('toastResidenciaNotFound', { residenciaId: residenciaIdParams });
                     setErrorDietas(errorMsg); // Set main dietas error as residencia is crucial
                     setResidencia(null);
                 }
@@ -148,22 +93,21 @@ function DietasResidenciaPage(): React.ReactElement | null {
             .finally(() => {
                 setIsLoadingResidencia(false);
             });
-    }, [residenciaId, authUser, t]); // Added t to dependencies, though it might be stable initially
+    }, [residenciaIdParams, usuarioId, t]); // Added t to dependencies, though it might be stable initially
 
     // --- useEffect: Handle Authorization & Fetch Page Data (Dietas) ---
     const fetchResidenciaAndDietas = useCallback(async () => {
-        if (!residenciaId || !adminUsuario ) { // Ensure localeResidencia is set and texts are not loading
+        if (!residenciaIdParams || !usuarioId ) { 
             setIsAuthorized(false);
-            if (!adminUsuario) setIsLoadingDietas(false); // Stop dietas loading if no admin profile
+            if (!usuarioId) setIsLoadingDietas(false); 
             return;
         }
 
         // Authorization Check
-        const roles = adminUsuario.roles || [];
         let authorized = false;
         if (roles.includes('master' as RolUsuario) || roles.includes('admin' as RolUsuario)) {
             authorized = true;
-        } else if (roles.includes('director' as RolUsuario) && adminUsuario.residenciaId === residenciaId) {
+        } else if (roles.includes('director' as RolUsuario) && residenciaIdUsuario === residenciaIdParams) {
             authorized = true;
         }
 
@@ -177,13 +121,13 @@ function DietasResidenciaPage(): React.ReactElement | null {
         }
 
         setIsAuthorized(true);
-        // console.log(`User authorized. Fetching dietas for residenciaId: ${residenciaId}`);
+        // console.log(`User authorized. Fetching dietas for residenciaId: ${residenciaIdParams}`);
 
         // Fetch Dietas for the Residencia from the configuration document
         setIsLoadingDietas(true);
         setErrorDietas(null);
         try {
-            const configDocRef = doc(db, "residencias", residenciaId, "configuracion", "general");
+            const configDocRef = doc(db, "residencias", residenciaIdParams, "configuracion", "general");
             const configSnap = await getDoc(configDocRef);
 
             if (configSnap.exists()) {
@@ -200,7 +144,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
             } else {
                 // If the config doc doesn't exist, there are no dietas.
                 setDietas([]);
-                console.warn(`Configuration document not found for residencia ${residenciaId}. No dietas loaded.`);
+                console.warn(`Configuration document not found for residencia ${residenciaIdParams}. No dietas loaded.`);
             }
         } catch (err) {
             console.error("Error fetching dietas:", err);
@@ -209,17 +153,17 @@ function DietasResidenciaPage(): React.ReactElement | null {
         } finally {
             setIsLoadingDietas(false);
         }
-    }, [residenciaId, adminUsuario, toast, t]);
+    }, [residenciaIdParams, usuarioId, roles, residenciaIdUsuario, toast, t]);
 
     useEffect(() => {
-        // Trigger fetch when adminUsuario is loaded, and residenciaId is available
-        if (!adminProfileLoading && adminUsuario && residenciaId) {
+        // Trigger fetch when usuarioId is available, and residenciaId is available
+        if (usuarioId && residenciaIdParams) {
             fetchResidenciaAndDietas();
-        } else if (!adminProfileLoading && !adminUsuario) {
+        } else if (!usuarioId) {
             setIsAuthorized(false);
             setIsLoadingDietas(false);
         }
-    }, [adminProfileLoading, adminUsuario, residenciaId, fetchResidenciaAndDietas]);
+    }, [usuarioId, residenciaIdParams, fetchResidenciaAndDietas]);
 
 
     // --- Event Handlers (CRUD for Dietas) ---
@@ -234,7 +178,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
     };
 
     const handleAddDieta = async () => {
-        if (!authUser) {
+        if (!usuarioId) {
             toast({ title: t('dietasPage.toastAccessDeniedTitle'), description: t('dietasPage.toastAccessDeniedDescription'), variant: "destructive" });
             return;
         }
@@ -242,7 +186,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
             toast({ title: t('dietasPage.toastErrorNombreRequeridoTitle'), description: t('dietasPage.toastErrorNombreRequeridoDescription'), variant: "destructive" });
             return;
         }
-        const newDietaId = slugify(formData.nombre.trim());
+        const newDietaId = slugify(formData.nombre.trim(),50);
         if (dietas.some(d => d.id.toLowerCase() === newDietaId.toLowerCase())) {
             toast({ title: t('dietasPage.toastErrorNombreRequeridoTitle'), description: t('dietasPage.toastErrorNombreExistenteDescription'), variant: "destructive" });
             return;
@@ -256,12 +200,12 @@ function DietasResidenciaPage(): React.ReactElement | null {
             estaActiva: formData.estaActiva === undefined ? true : formData.estaActiva,
             identificadorAdministracion: '',
             estado: 'aprobada_director',
-            creadoPor: authUser.uid,
+            creadoPor: usuarioId,
             avisoAdministracion: 'no_comunicado',
         };
 
         try {
-            const configDocRef = doc(db, "residencias", residenciaId, "configuracion", "general");
+            const configDocRef = doc(db, "residencias", residenciaIdParams, "configuracion", "general");
             await updateDoc(configDocRef, {
                 [`dietas.${newDietaId}`]: newDietaData
             });
@@ -274,7 +218,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
                 {
                     targetId: newDietaWithId.id,
                     targetCollection: 'configuracion/general', // More accurate collection
-                    residenciaId: residenciaId,
+                    residenciaId: residenciaIdParams,
                     details: { message: `Created dieta: ${newDietaWithId.nombre}` }
                 }
             );
@@ -321,7 +265,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
 
 
         try {
-            const configDocRef = doc(db, "residencias", residenciaId, "configuracion", "general");
+            const configDocRef = doc(db, "residencias", residenciaIdParams, "configuracion", "general");
             await updateDoc(configDocRef, {
                 [`dietas.${editingDietaId}`]: dietaToSave
             });
@@ -334,7 +278,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
                 {
                     targetId: editingDietaId,
                     targetCollection: 'configuracion/general',
-                    residenciaId: residenciaId,
+                    residenciaId: residenciaIdParams,
                     details: { message: `Updated dieta: ${updatedDietaInState.nombre}` }
                 }
             );
@@ -353,7 +297,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
         const newStatus = !dietaToToggle.estaActiva;
         setIsSaving(true);
         try {
-            const configDocRef = doc(db, "residencias", residenciaId, "configuracion", "general");
+            const configDocRef = doc(db, "residencias", residenciaIdParams, "configuracion", "general");
             await updateDoc(configDocRef, {
                 [`dietas.${dietaToToggle.id}.estaActiva`]: newStatus
             });
@@ -365,7 +309,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
                 {
                     targetId: dietaToToggle.id,
                     targetCollection: 'configuracion/general',
-                    residenciaId: residenciaId,
+                    residenciaId: residenciaIdParams,
                     details: { message: `${newStatus ? 'Activated' : 'Deactivated'} dieta: ${dietaToToggle.nombre}` }
                 }
             );
@@ -390,7 +334,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
         }
         setIsSaving(true);
         
-        const configDocRef = doc(db, "residencias", residenciaId, "configuracion", "general");
+        const configDocRef = doc(db, "residencias", residenciaIdParams, "configuracion", "general");
         const batch = writeBatch(db);
 
         const updates: { [key: string]: boolean } = {};
@@ -418,7 +362,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
                 {
                     targetId: dietaToSetDefault.id,
                     targetCollection: 'configuracion/general',
-                    residenciaId: residenciaId,
+                    residenciaId: residenciaIdParams,
                     details: { message: `Set default dieta: ${dietaToSetDefault.nombre}` }
                 }
             );
@@ -438,7 +382,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
         }
         setIsSaving(true);
         try {
-            const configDocRef = doc(db, "residencias", residenciaId, "configuracion", "general");
+            const configDocRef = doc(db, "residencias", residenciaIdParams, "configuracion", "general");
             await updateDoc(configDocRef, {
                 [`dietas.${dietaToDelete.id}`]: deleteField()
             });
@@ -449,7 +393,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
                 {
                     targetId: dietaToDelete.id,
                     targetCollection: 'configuracion/general',
-                    residenciaId: residenciaId,
+                    residenciaId: residenciaIdParams,
                     details: { message: `Deleted dieta: ${dietaToDelete.nombre} (ID: ${dietaToDelete.id})` }
                 }
             );
@@ -467,10 +411,9 @@ function DietasResidenciaPage(): React.ReactElement | null {
     // =========================================================================
 
     // 1. Handle Initial Loading States
-    if (authFirebaseLoading || adminProfileLoading || isLoadingResidencia) {
+    if (!usuarioId || isLoadingResidencia) {
         let loadingMessage = t('loadingPreparando');
-        if (authFirebaseLoading) loadingMessage = t('loadingVerificandoSesion');
-        else if (adminProfileLoading) loadingMessage = t('loadingCargandoPerfilAdmin');
+        if (!usuarioId) loadingMessage = t('loadingVerificandoSesion');
         else if (isLoadingResidencia) loadingMessage = t('loadingCargandoDatosResidencia');
         
         return (
@@ -483,22 +426,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
         );
     }
 
-    // 2. Handle Critical Errors (Firebase Auth, Admin Profile)
-    const criticalErrorMessage = authFirebaseError?.message || adminProfileError;
-    if (criticalErrorMessage) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-                <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-                <h1 className="text-2xl font-bold text-destructive mb-2">{t('errorCriticoTitle')}</h1>
-                <p className="mb-4 text-destructive max-w-md">
-                    {criticalErrorMessage}
-                </p>
-                <Button onClick={() => router.replace('/')}>{t('errorCriticoButtonVolver')}</Button>
-            </div>
-        );
-    }
-
-    // 3. Handle Not Authorized (after auth, profile, and residencia are loaded)
+    // 2. Handle Not Authorized (after auth, profile, and residencia are loaded)
     if (!isAuthorized) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
@@ -515,9 +443,9 @@ function DietasResidenciaPage(): React.ReactElement | null {
     }
     
     // Fallback for residencia name if residencia object is not loaded but we passed authorization (should be rare)
-    const currentResidenciaNombre = residencia?.nombre || t('residenciaNameLoading') + ` (${residenciaId})`;
+    const currentResidenciaNombre = residencia?.nombre || t('residenciaNameLoading') + ` (${residenciaIdParams})`;
 
-    // 4. Handle Error Fetching Dietas (after authorization is confirmed)
+    // 3. Handle Error Fetching Dietas (after authorization is confirmed)
     if (errorDietas && errorDietas !== t('accesoDenegadoTitle')) {
         return (
              <div className="container mx-auto p-4">
@@ -535,7 +463,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
         );
     }
     
-    // 5. Render Main Page Content (Authorized and no critical errors)
+    // 4. Render Main Page Content (Authorized and no critical errors)
     const formTitleText = isAdding 
         ? t('formAddTitle') 
         : t('formEditTitle', { dietaNombre: dietas.find(d=>d.id===editingDietaId)?.nombre || '' });

@@ -2,9 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/firebaseAdmin';
-import { requireAuth } from '@/lib/serverAuth';
 import { type ComedorData, ComedorDataSchema } from 'shared/schemas/complemento1';
 import * as admin from 'firebase-admin';
+import {useInfoUsuarioServer} from "@/lib/useInfoUsuarioServer";
 
 /**
  * Los roles permitidos para gestionar comedores.
@@ -21,7 +21,7 @@ async function validateAccess(userRoles: string[]) {
  * Obtiene el registro de comedores desde el singleton de configuración.
  */
 export async function getComedores(residenciaId: string) {
-    const auth = await requireAuth();
+    const auth = await useInfoUsuarioServer();
     if (auth.residenciaId !== residenciaId) {
         throw new Error('FORBIDDEN: No puedes acceder a datos de otra residencia');
     }
@@ -41,7 +41,7 @@ export async function getComedores(residenciaId: string) {
  */
 export async function upsertComedor(residenciaId: string, id: string, data: unknown) {
     try {
-        const auth = await requireAuth();
+        const auth = await useInfoUsuarioServer();
         if (auth.residenciaId !== residenciaId) {
             throw new Error('FORBIDDEN: No puedes modificar datos de otra residencia');
         }
@@ -68,7 +68,7 @@ export async function upsertComedor(residenciaId: string, id: string, data: unkn
  */
 export async function deleteComedor(residenciaId: string, id: string) {
     try {
-        const auth = await requireAuth();
+        const auth = await useInfoUsuarioServer();
         if (auth.residenciaId !== residenciaId) {
             throw new Error('FORBIDDEN: No puedes modificar datos de otra residencia');
         }

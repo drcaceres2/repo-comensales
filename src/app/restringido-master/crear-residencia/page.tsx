@@ -1,15 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/useToast';
-import { useAuth } from '@/hooks/useAuth';
-import { auth, db } from '@/lib/firebase';
-import { type Ubicacion } from 'shared/schemas/common';
-import { Residencia, ResidenciaConVersion, CampoPersonalizado } from 'shared/schemas/residencia';
-import { Usuario } from 'shared/schemas/usuarios';
-import countriesData from 'shared/data/countries.json';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
   doc,
@@ -19,6 +10,18 @@ import {
   query,
   orderBy
 } from 'firebase/firestore';
+import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import { useRouter } from 'next/navigation';
+
+import { auth, db } from '@/lib/firebase';
+import { useToast } from '@/hooks/useToast';
+import { type Ubicacion } from 'shared/schemas/common';
+import { Residencia, ResidenciaConVersion, CampoPersonalizado } from 'shared/schemas/residencia';
+import { Usuario } from 'shared/schemas/usuarios';
+import { RolUsuario, HORARIOS_QUERY_KEY } from 'shared/models/types';
+import countriesData from 'shared/data/countries.json';
+
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,13 +43,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, AlertCircle, PlusCircle, Edit, Trash2, Eye } from 'lucide-react';
+import {useInfoUsuario} from "@/components/layout/AppProviders";
 
 const getNewResidenciaDefaults = (): Partial<ResidenciaConVersion> => ({
   id: '',
   nombre: '',
   direccion: '',
   logoUrl: '',
-  contextoTraduccion: 'es-HN',
+  contextoTraduccion: 'es',
   tipo: {
     tipoResidentes: 'estudiantes',
     modalidadResidencia: 'hombres',
@@ -68,14 +72,12 @@ function CrearResidenciaAdminPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const { toast } = useToast();
-  const { user: authUser, loading: authFirebaseLoading, error: authFirebaseError } = useAuth();
+  const { usuarioId: authUser, email: userEmail, roles: userRoles } = useInfoUsuario();
   const functionsInstance = getFunctions(auth.app);
   const createResidenciaCallable = httpsCallable(functionsInstance, 'createResidencia');
   const updateResidenciaCallable = httpsCallable(functionsInstance, 'updateResidencia');
   const deleteResidenciaCallable = httpsCallable(functionsInstance, 'deleteResidencia');
-  const [userProfile, setUserProfile] = useState<Usuario | null>(null);
-  const [profileLoading, setProfileLoading] = useState<boolean>(true);
-  const [profileError, setProfileError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
   const [isMasterUser, setIsMasterUser] = useState<boolean>(false);
 
@@ -90,6 +92,17 @@ function CrearResidenciaAdminPage() {
   const [residenciaIdError, setResidenciaIdError] = useState<string | null>(null);
 
   const [residenciaFields, setResidenciaFields] = useState<{ id: number; key: string; value: string }[]>([]);
+
+  const rolesAutorizados: RolUsuario[] = ['admin', 'master'];
+
+  useEffect(() => {
+    if (!authUser || !userRoles || !rolesAutorizados.some(r => userRoles.includes(r))) {
+      setIsAuthorized(false);
+    } else {
+      setIsAuthorized(true);
+    }
+    if (userRoles.includes('master')) setIsMasterUser(true);
+  }, [authUser, userRoles, isAuthorized] );
 
   useEffect(() => {
     // Sync UI state from form state when editing
@@ -145,67 +158,14 @@ function CrearResidenciaAdminPage() {
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // --- useEffect: Handle Auth State & Fetch Profile ---
-  useEffect(() => {
-    if (authFirebaseLoading) {
-      setProfileLoading(true);
-      return;
-    }
-    if (authFirebaseError) {
-      toast({ title: t('gestionResidencias.errorAutenticacion'), description: authFirebaseError.message, variant: "destructive" });
-      setProfileLoading(false); setUserProfile(null); setProfileError(authFirebaseError.message);
-      setIsAuthorized(false);
-      return;
-    }
-    if (!authUser) {
-      setProfileLoading(false); setUserProfile(null); setProfileError(null);
-      setIsAuthorized(false);
-      // Redirection handled by render logic
-      return;
-    }
-
-    const userDocRef = doc(db, "usuarios", authUser.uid);
-    getDoc(userDocRef)
-      .then((docSnap) => {
-        if (docSnap.exists()) {
-          const profile = docSnap.data() as Usuario;
-          setUserProfile(profile);
-          setProfileError(null);
-
-          const roles = profile.roles || [];
-          const canAccessPage = roles.includes('master');
-          setIsAuthorized(canAccessPage);
-          setIsMasterUser(canAccessPage);
-
-          if (!canAccessPage) {
-            toast({ title: t('gestionResidencias.accesoDenegado'), description: t('gestionResidencias.sinPermisos'), variant: "destructive" });
-          }
-        } else {
-          setUserProfile(null); setProfileError(t('gestionResidencias.perfilNoEncontrado'));
-          toast({ title: t('gestionResidencias.errorPerfil'), description: t('gestionResidencias.perfilNoEncontrado'), variant: "destructive" });
-          setIsAuthorized(false);
-        }
-      })
-      .catch((error) => {
-        setUserProfile(null); setProfileError(t('gestionResidencias.errorCargandoPerfil', { error: error.message }));
-        toast({ title: t('gestionResidencias.errorPerfil'), description: t('gestionResidencias.noSePudoCargarPerfil', { error: error.message }), variant: "destructive" });
-        setIsAuthorized(false);
-      })
-      .finally(() => {
-        setProfileLoading(false);
-      });
-  }, [authUser, authFirebaseLoading, authFirebaseError, toast, t]);
-
   // --- Redirect if not authenticated after loading ---
-  useEffect(() => {
-    if (!authFirebaseLoading && !profileLoading && !authUser) {
-        router.replace('/');
-    }
-  }, [authFirebaseLoading, profileLoading, authUser, router]);
+  if (!authUser) {
+    router.replace('/');
+  }
 
   // --- Fetch Residences Function ---
   const fetchResidences = useCallback(async () => {
-    if (!userProfile || !isAuthorized) {
+    if (!authUser || !isAuthorized) {
       setResidences([]);
       return;
     }
@@ -236,16 +196,16 @@ function CrearResidenciaAdminPage() {
     } finally {
       setIsLoadingResidences(false);
     }
-  }, [userProfile, isAuthorized, isMasterUser, toast, t]);
+  }, [authUser, isAuthorized, isMasterUser, toast, t]);
 
   // --- useEffect: Fetch residences when authorization changes ---
   useEffect(() => {
-    if (isAuthorized && userProfile) {
+    if (isAuthorized && authUser) {
       fetchResidences();
     } else {
       setResidences([]); // Clear residences if not authorized
     }
-  }, [isAuthorized, userProfile, fetchResidences]);
+  }, [isAuthorized, authUser, fetchResidences]);
 
   // --- Form Handling ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -343,7 +303,7 @@ function CrearResidenciaAdminPage() {
   const handleSubmitForm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!userProfile || !isMasterUser) {
+    if (!authUser || !isMasterUser) {
       toast({ title: t('gestionResidencias.accionNoPermitida'), description: t('gestionResidencias.sinPermisos'), variant: "destructive" });
       return;
     }
@@ -408,6 +368,7 @@ function CrearResidenciaAdminPage() {
           version: currentResidencia.version
         }) as any;
         toast({ title: t('gestionResidencias.residenciaActualizada'), description: t('gestionResidencias.residenciaActualizadaExito') });
+        queryClient.invalidateQueries({ queryKey: [HORARIOS_QUERY_KEY, existingResidenciaId] });
       } else if (!isEditing && isMasterUser) {
         // CREATE: Use Cloud Function
         const customId = currentResidencia.id?.trim();
@@ -474,6 +435,7 @@ function CrearResidenciaAdminPage() {
         residenciaIdToDelete: residenciaId
       }) as any;
       toast({ title: t('gestionResidencias.residenciaEliminada'), description: t('gestionResidencias.residenciaEliminadaExito', { nombre: residenciaNombre }) });
+      queryClient.invalidateQueries({ queryKey: [HORARIOS_QUERY_KEY, residenciaId] });
       const result2 = await fetchResidences();
     } catch (error: any) {
       const errorMessage = error.message || 'Error desconocido';
@@ -558,16 +520,7 @@ function CrearResidenciaAdminPage() {
 
 
   // --- Render Logic ---
-  if (authFirebaseLoading || (profileLoading && authUser)) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">{authFirebaseLoading ? t('gestionResidencias.cargandoAutenticacion') : t('gestionResidencias.cargandoPerfil')}</span>
-      </div>
-    );
-  }
-
-  if (!authUser && !authFirebaseLoading && !profileLoading) {
+  if (!authUser) {
     // User is not logged in, and all loading is complete.
     // The useEffect for redirection should have already handled it, but this is a fallback.
     return (
@@ -579,26 +532,14 @@ function CrearResidenciaAdminPage() {
         </div>
     );
   }
-  
-  if (profileError) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h1 className="text-2xl font-bold text-destructive mb-2">{t('gestionResidencias.errorPerfil')}</h1>
-        <p className="mb-4 text-muted-foreground max-w-md">{profileError}</p>
-        <Button onClick={() => router.push('/')}>{t('gestionResidencias.volverAlInicio')}</Button>
-        <Button onClick={() => auth.signOut().then(() => router.push('/'))} variant="outline" className="mt-2">{t('gestionResidencias.cerrarSesion')}</Button>
-      </div>
-    );
-  }
 
-  if (!isAuthorized && userProfile) {
+  if (!isAuthorized && authUser) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
         <AlertCircle className="h-12 w-12 text-destructive mb-4" />
         <h1 className="text-2xl font-bold text-destructive mb-2">{t('gestionResidencias.accesoDenegado')}</h1>
         <p className="mb-4 text-muted-foreground max-w-md">
-          {t('gestionResidencias.perfilSinRoles', { email: userProfile.email })}
+          {t('gestionResidencias.perfilSinRoles', { email: userEmail })}
         </p>
         <Button onClick={() => router.push('/')}>{t('gestionResidencias.volverAlInicio')}</Button>
         <Button onClick={() => auth.signOut().then(() => router.push('/'))} variant="outline" className="mt-2">{t('gestionResidencias.cerrarSesion')}</Button>
@@ -612,7 +553,7 @@ function CrearResidenciaAdminPage() {
       <div className="flex justify-between items-center">
         <div>
             <h1 className="text-3xl font-bold">{t('gestionResidencias.titulo')}</h1>
-            {userProfile && <p className="text-muted-foreground">{t('gestionResidencias.usuario', { email: userProfile.email, roles: userProfile.roles?.join(', ') || 'N/A' })}</p>}
+            {authUser && <p className="text-muted-foreground">{t('gestionResidencias.usuario', { email: userEmail, roles: userRoles?.join(', ') || 'N/A' })}</p>}
         </div>
         <Button onClick={() => auth.signOut().then(() => router.push('/'))} variant="outline">{t('gestionResidencias.cerrarSesion')}</Button>
       </div>

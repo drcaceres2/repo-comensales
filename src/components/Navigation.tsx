@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useState, useEffect, ReactNode } from 'react';
+import React, { ReactNode } from 'react';
 import {
   Sidebar, SidebarTrigger, SidebarContent,
   SidebarMenu, SidebarMenuItem,
   SidebarFooter, SidebarHeader,
-  useSidebar,  // Ensure SidebarHeader is imported from ./ui/sidebar
+  useSidebar,
 } from './ui/sidebar';
 
 import {
@@ -34,11 +34,8 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet';
 
-import { useAuth } from '@/hooks/useAuth';
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc } from "firebase/firestore";
-import { Usuario } from 'shared/schemas/usuarios';
-import { RolUsuario } from 'shared/models/types'
+import { useInfoUsuario } from '@/components/layout/AppProviders';
+import { RolUsuario, InfoUsuario } from 'shared/models/types';
 
 interface NavItem {
   id: string;
@@ -50,13 +47,13 @@ interface NavItem {
   isAccordion?: boolean;
   children?: NavItem[];
   isFeedbackLink?: boolean;
-  checkVisibility?: (profile: Usuario | null) => boolean;
+  checkVisibility?: (profile: InfoUsuario | null) => boolean;
   pathTemplate?: string;
 }
 
 const ALL_AUTHENTICATED_ROLES: RolUsuario[] = ['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador'];
 
-const getNavConfig = (profile: Usuario | null): NavItem[] => {
+const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
   const userRoles = profile?.roles || [];
   const residenciaId = profile?.residenciaId;
 
@@ -285,13 +282,13 @@ const getNavConfig = (profile: Usuario | null): NavItem[] => {
   ];
 };
 
-const isItemVisible = (item: NavItem, profile: Usuario | null): boolean => {
+const isItemVisible = (item: NavItem, profile: InfoUsuario | null): boolean => {
   if (item.checkVisibility) {
     return item.checkVisibility(profile);
   }
   const userRoles = profile?.roles || [];
   const residenciaId = profile?.residenciaId;
-  const isAuthenticated = !!profile;
+  const isAuthenticated = !!profile?.usuarioId;
 
   if (item.requiresResidenciaIdForHref && !residenciaId && item.href !== '#') return false;
 
@@ -312,62 +309,37 @@ const isItemVisible = (item: NavItem, profile: Usuario | null): boolean => {
 };
 
 export function Navigation() {
-  const { user: authUser, loading: authLoading } = useAuth();
-  const [userProfile, setUsuario] = useState<Usuario | null>(null);
-  const [profileLoading, setProfileLoading] = useState<boolean>(true);
+  const userInfo = useInfoUsuario();
   const { isMobile, setOpenMobile } = useSidebar(); 
 
-  useEffect(() => {
-    if (authLoading) {
-      setProfileLoading(true);
-      return;
-    }
-    if (authUser) {
-      setProfileLoading(true);
-      const userDocRef = doc(db, "usuarios", authUser.uid);
-      getDoc(userDocRef)
-        .then((docSnap) => {
-          setUsuario(docSnap.exists() ? (docSnap.data() as Usuario) : null);
-        })
-        .catch((error) => {
-          console.error("Error fetching user profile:", error);
-          setUsuario(null);
-        })
-        .finally(() => setProfileLoading(false));
-    } else {
-      setUsuario(null);
-      setProfileLoading(false);
-    }
-  }, [authUser, authLoading]);
-
-  const navConfig = getNavConfig(userProfile);
+  const navConfig = getNavConfig(userInfo);
   const feedbackLink = navConfig.find(item => item.isFeedbackLink);
   const menuItems = navConfig.filter(item => !item.isFeedbackLink);
 
   const renderNavItem = (item: NavItem): ReactNode => {
-    if (!isItemVisible(item, userProfile)) return null;
+    if (!isItemVisible(item, userInfo)) return null;
 
     let hrefPath = '#';
 
     if (typeof item.href === 'string') {
       hrefPath = item.href;
       if (item.requiresResidenciaIdForHref && item.href.includes('[residenciaId]')) {
-        if (userProfile?.residenciaId) {
-          hrefPath = item.href.replace('[residenciaId]', userProfile.residenciaId);
+        if (userInfo?.residenciaId) {
+          hrefPath = item.href.replace('[residenciaId]', userInfo.residenciaId);
         } else {
           hrefPath = '#';
         }
       }
     } else if (typeof item.href === 'function') {
-      if (userProfile?.residenciaId && item.pathTemplate) {
+      if (userInfo?.residenciaId && item.pathTemplate) {
         hrefPath = item.href(item.pathTemplate);
-      } else if (!userProfile?.residenciaId && item.requiresResidenciaIdForHref) {
+      } else if (!userInfo?.residenciaId && item.requiresResidenciaIdForHref) {
         hrefPath = '#';
       }
     }
 
     if (item.isAccordion) {
-      const visibleChildren = item.children?.filter(child => isItemVisible(child, userProfile)) || [];
+      const visibleChildren = item.children?.filter(child => isItemVisible(child, userInfo)) || [];
       if (visibleChildren.length === 0) return null;
 
       return (
@@ -404,23 +376,7 @@ export function Navigation() {
   };
 
   let triggerContent: ReactNode = null;
-  if (authLoading || (!authUser && profileLoading)) {
-    triggerContent = (
-      <SidebarTrigger asChild>
-        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" disabled title="Cargando menú">
-          <Loader2 size={24} className="animate-spin" />
-        </button>
-      </SidebarTrigger>
-    );
-  } else if (authUser) {
-    triggerContent = (
-      <SidebarTrigger asChild>
-        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" title="Abrir menú">
-          <Menu size={24} />
-        </button>
-      </SidebarTrigger>
-    );
-  } else {
+  if (!userInfo.usuarioId) {
     const unauthNavConfig = getNavConfig(null);
     const unauthVisibleItems = unauthNavConfig.filter(item => isItemVisible(item, null) && !item.isFeedbackLink);
     if (unauthVisibleItems.length > 0) {
@@ -432,35 +388,43 @@ export function Navigation() {
             </SidebarTrigger>
         );
     }
+  } else {
+    triggerContent = (
+      <SidebarTrigger asChild>
+        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" title="Abrir menú">
+          <Menu size={24} />
+        </button>
+      </SidebarTrigger>
+    );
   }
 
-  const currentNavConfig = authUser ? menuItems : menuItems.filter(item => isItemVisible(item, null));
-  const currentFeedbackLink = authUser ? feedbackLink : (feedbackLink && isItemVisible(feedbackLink, null) ? feedbackLink : undefined);
+  const isAuthenticated = !!userInfo.usuarioId;
+  const currentNavConfig = isAuthenticated ? menuItems : menuItems.filter(item => isItemVisible(item, null));
+  const currentFeedbackLink = isAuthenticated ? feedbackLink : (feedbackLink && isItemVisible(feedbackLink, null) ? feedbackLink : undefined);
 
   return (
     <Sidebar>
       {triggerContent}
-      {triggerContent && (authUser || currentNavConfig.some(item => !item.isAccordion && item.roles === 'unauthenticated') || currentNavConfig.some(item => item.isAccordion && item.children?.some(child => child.roles === 'unauthenticated'))) && (
+      {triggerContent && (isAuthenticated || currentNavConfig.some(item => !item.isAccordion && item.roles === 'unauthenticated') || currentNavConfig.some(item => item.isAccordion && item.children?.some(child => child.roles === 'unauthenticated'))) && (
         <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0">
-          {/* Use custom SidebarHeader and plain divs for title/description */}
           <SidebarHeader className="p-4 border-b dark:border-gray-700 text-left">
             {isMobile ? (
               <>
-                <SheetTitle className="sr-only">{authUser ? 'Menú Principal' : 'Navegación'}</SheetTitle>
+                <SheetTitle className="sr-only">{isAuthenticated ? 'Menú Principal' : 'Navegación'}</SheetTitle>
                 <SheetDescription className="sr-only">
-                  {userProfile?.email ? `Menú de navegación para ${userProfile.email}` : 'Menú de navegación para visitantes'}
+                  {userInfo?.email ? `Menú de navegación para ${userInfo.email}` : 'Menú de navegación para visitantes'}
                 </SheetDescription>
               </>
             ) : null}
             <div className="text-lg font-semibold">
-              {authUser ? 'Menú Principal' : 'Navegación'}
+              {isAuthenticated ? 'Menú Principal' : 'Navegación'}
             </div>
-            {!isMobile && userProfile?.email && (
+            {!isMobile && userInfo?.email && (
               <div className="sr-only">
-                 {`Menú de navegación para ${userProfile.email}`}
+                 {`Menú de navegación para ${userInfo.email}`}
               </div>
             )}
-            {!isMobile && !authUser && (
+            {!isMobile && !isAuthenticated && (
                 <div className="sr-only">
                     Menú de navegación para visitantes
                 </div>
@@ -476,11 +440,6 @@ export function Navigation() {
               {renderNavItem(currentFeedbackLink)}
             </SidebarFooter>
           )}
-        </SidebarContent>
-      )}
-      {(authLoading || (!authUser && profileLoading)) && authUser && ( 
-        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 flex items-center justify-center">
-            <Loader2 size={32} className="animate-spin" />
         </SidebarContent>
       )}
     </Sidebar>

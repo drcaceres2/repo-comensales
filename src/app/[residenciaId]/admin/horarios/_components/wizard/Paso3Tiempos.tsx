@@ -22,7 +22,7 @@ type FormValues = Omit<TiempoComida, 'estaActivo' | 'alternativas'>;
 const DIAS_SEMANA = DiaDeLaSemanaSchema.options;
 const DIAS_SEMANA_ORDEN = Object.fromEntries(DIAS_SEMANA.map((dia, index) => [dia, index]));
 
-export default function Paso3Tiempos() {
+export function Paso3Tiempos() {
     const {
         datosBorrador,
         mostrarInactivos,

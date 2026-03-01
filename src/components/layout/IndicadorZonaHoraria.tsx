@@ -9,11 +9,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { verificarZonaHoraria, resultadoVerificacionZonaHoraria } from '@/lib/utils';
-import { useResidencia } from '@/components/context/ResidenciaProvider';
+import {useInfoUsuario} from "@/components/layout/AppProviders";
 
 export function IndicadorZonaHoraria() {
-  const { residencia, loading } = useResidencia();
-
+  const loading = false;
+  const { zonaHoraria: zonaHorariaResidencia } = useInfoUsuario();
   if (loading) {
     return (
         <TooltipProvider>
@@ -30,7 +30,7 @@ export function IndicadorZonaHoraria() {
   }
 
   // The verification function handles null/undefined safely
-  const status = verificarZonaHoraria(residencia?.ubicacion.zonaHoraria);
+  const status: resultadoVerificacionZonaHoraria = verificarZonaHoraria(zonaHorariaResidencia);
 
   let color = 'text-white';
   let tooltipText = 'Zona horaria no verificada.';

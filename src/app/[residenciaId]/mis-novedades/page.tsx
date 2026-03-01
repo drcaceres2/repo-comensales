@@ -1,4 +1,3 @@
-import { requireAuth } from '@/lib/serverAuth';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/firebaseAdmin';
 import { type NovedadOperativa } from 'shared/schemas/novedades';
@@ -6,6 +5,7 @@ import TableroMisNovedades from './components/TableroMisNovedades';
 import { NotebookPen } from 'lucide-react';
 import NovedadesHeaderActions from './components/NovedadesHeaderActions';
 import { Timestamp } from 'firebase-admin/firestore'
+import {useInfoUsuarioServer} from "@/lib/useInfoUsuarioServer";
 
 // Helper to serialize data with Timestamps
 function serializeNovedad(doc: FirebaseFirestore.QueryDocumentSnapshot): NovedadOperativa {
@@ -25,8 +25,7 @@ function serializeNovedad(doc: FirebaseFirestore.QueryDocumentSnapshot): Novedad
 
 // The 'params' object in async Server Components is a Promise. We must await it.
 export default async function MisNovedadesPage({ params }: { params: Promise<{ residenciaId: string }> }) {
-    const { residenciaId } = await params;
-    const { uid } = await requireAuth();
+    const { usuarioId: uid, residenciaId } = await useInfoUsuarioServer();
     if (!uid) {
         redirect('/login');
     }

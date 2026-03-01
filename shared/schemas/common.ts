@@ -5,7 +5,7 @@ import { ZonaHorariaIanaSchema } from './fechas';
 // IDs de Firestore (no vacíos)
 export const FirestoreIdSchema = z.string()
     .min(1, "ID inválido")
-    .max(20, "ID no puede tener más de 20 caracteres")
+    .max(30, "ID no puede tener más de 20 caracteres")
     .refine(val => !val.includes('/'), {
         message: "ID no puede contener una barra inclinada (/)",
     })
@@ -29,7 +29,7 @@ export const TimestampStringSchema = z.string().datetime({
 
 export const slugIdSchema = z.string()
     .min(1, "El slug no puede estar vacío")
-    .max(30, "El slug no puede tener más de 30 caracteres")
+    .max(60, "El slug no puede tener más de 60 caracteres")
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "El slug debe contener solo letras minúsculas, números y guiones")
     .refine(val => !val.includes('--'), {
         message: "El slug no puede contener guiones dobles",
@@ -37,7 +37,7 @@ export const slugIdSchema = z.string()
 
 export const slugCompuestoIdSchema = z.string()
     .min(1, "El slug no puede estar vacío")
-    .max(50, "El slug no puede tener más de 50 caracteres")
+    .max(150, "El slug no puede tener más de 150 caracteres")
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "El slug debe contener solo letras minúsculas, números y guiones")
     .refine(val => !val.includes('--'), {
         message: "El slug no puede contener guiones dobles",
@@ -101,4 +101,11 @@ export const ColorHTMLSchema = z.string().regex(
     "El color debe estar en formato #RRGGBB"
 );
 
+export const EmailSchema = z.string()
+    .email("El formato del correo electrónico no es válido.")
+    .min(5, "El correo electrónico es demasiado corto.")
+    .max(254, "El correo electrónico es demasiado largo.")
+    .transform(val => val.trim().toLowerCase());
+
 export type Ubicacion = z.infer<typeof UbicacionSchema>;
+export type Email = z.infer<typeof EmailSchema>;

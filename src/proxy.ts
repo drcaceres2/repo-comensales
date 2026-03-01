@@ -1,139 +1,161 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { auth } from './lib/firebaseAdmin';
+import { NextRequest, NextResponse } from 'next/server';
+import { authMiddleware } from 'next-firebase-auth-edge';
 
-// 1. Filtro Técnico: Rutas a ignorar por el middleware
-const technicalRoutes = [
-  '/manifest.json',
-  '/favicon.ico',
-  '/locales/',
-  // Las imágenes y otros assets estáticos suelen estar en /public o servidos a través de _next/static
-  // Next.js ya es eficiente en esto, pero una regla explícita no hace daño.
-];
+// Matcher: Define las rutas donde se ejecutará el middleware.
+export const config = {
+  matcher: [
+    // Ejecuta el middleware en todas las rutas de páginas, excluyendo assets y la mayoría de rutas de API.
+    '/((?!api|locales|_next/static|_next/image|manifest.json|.*\\.png$|.*\\.ico$|.*\\.svg$).*)',
+    // Incluimos explícitamente las rutas de autenticación para que `authMiddleware` pueda
+    // interceptar el login/logout y gestionar la cookie de sesión.
+    '/api/auth/login',
+    '/api/auth/logout',
+  ],
+};
 
-// 2. Filtro Público: Rutas de acceso libre, sin necesidad de autenticación
-const publicRoutes = [
-  '/', // La home page es también la login page
-  '/about',
-  '/feedback',
-  '/privacidad',
-  '/acceso-no-autorizado',
-  '/licencia-vencida',
-  // --------------------------------------------------------------------
-  //  ADVERTENCIA: CÓDIGO PELIGROSO EN PRODUCCIÓN - SOLO PARA DESARROLLO
-  // --------------------------------------------------------------------
-  '/crear-master' // PARA DESARROLLO: Esta ruta es solo para crear el primer usuario master. Debe ser eliminada o protegida en producción.
-];
+// Filtros de rutas
+const rutasPublicas = ['/about', '/privacidad', '/acceso-no-autorizado', '/licencia-vencida', '/crear-master'];
+const rutasHibridas = ['/', '/feedback'];
+const rutasAutenticadasNoResidencia = ['/mi-perfil'];
+const rutasMaster = ['/restringido-master'];
+const rutasAdminRaiz = ['/admin', '/admin/users'];
+const rutasAdminResidencia = ['/admin/comedores', '/admin/horarios'];
 
-// Rutas que requieren un rol de 'master'
-const masterRoutesPrefix = ['/restringido-master', '/admin'];
+
+// Configuración de next-firebase-auth-edge
+const authConfig = {
+  loginPath: '/api/auth/login',
+  logoutPath: '/api/auth/logout',
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+  serviceAccount: {
+    projectId: process.env.FIREBASE_PROJECT_ID!,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY!,
+  },
+  cookieName: 'comensales-auth',
+  cookieSignatureKeys: [process.env.AUTH_COOKIE_SIGNATURE_KEY!],
+  cookieSerializeOptions: {
+    path: '/',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    maxAge: 12 * 60 * 60 * 24, // 12 días
+  },
+};
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Aplicar Filtro Técnico
-  if (technicalRoutes.some(path => pathname.endsWith(path))) {
-    return NextResponse.next();
-  }
-
-  // Aplicar Filtro de Rutas Públicas
-  if (publicRoutes.includes(pathname)) {
-    return NextResponse.next();
-  }
-
-  // 3. Validación de Sesión (Global)
-  const sessionCookie = request.cookies.get('__session')?.value;
-
-  if (!sessionCookie) {
-    // Si no hay cookie, redirigir a la página de login (//)
-    return NextResponse.redirect(new URL('/', request.url));
-  }
-
-  let decodedToken;
-  try {
-    // Verificar la cookie de sesión con Firebase Admin
-    decodedToken = await auth.verifySessionCookie(sessionCookie, true);
-  } catch (error) {
-    console.error('Error al verificar la cookie de sesión:', error);
-    // Si la cookie es inválida (expirada, malformada, etc.), redirigir a login
-    const response = NextResponse.redirect(new URL('/', request.url));
-    // Limpiar la cookie inválida del navegador del cliente
-    response.cookies.delete('__session');
-    return response;
-  }
-
-  // Si no hay token decodificado por alguna razón, tratar como no autenticado
-  if (!decodedToken) {
-    return NextResponse.redirect(new URL('/', request.url));
-  }
-
-  // >>> NUEVO: Verificar si el usuario está activo a través de la reclamación en la cookie.
-  // Esta es la defensa principal contra usuarios deshabilitados con sesiones activas.
-  if (decodedToken.isActive === false) {
-    const response = NextResponse.redirect(new URL('/', request.url));
-    response.cookies.delete('__session');
-    console.log(`Middleware: Usuario inactivo (UID: ${decodedToken.uid}) intentó acceder. Cerrando sesión.`);
-    return response;
-  }
-
-  // 4. Bifurcación de Lógica
-  const isMasterRoute = masterRoutesPrefix.some(prefix => pathname.startsWith(prefix));
-  const userRoles: string[] = decodedToken.roles || [];
-
-  // --- Caso 1: Es Ruta Global para 'master' y/o 'admin' ---
-  if (isMasterRoute) {
-    const isAdminRoute = pathname.startsWith('/admin');
-    const isStrictlyMasterRoute = pathname.startsWith('/restringido-master');
-
-    if (isStrictlyMasterRoute) {
-      // Solo 'master' puede acceder a /restringido-master
-      if (!userRoles.includes('master')) {
-        return NextResponse.redirect(new URL('/acceso-no-autorizado', request.url));
-      }
-    } else if (isAdminRoute) {
-      // 'master' o 'admin' pueden acceder a /admin
-      const isAuthorized = userRoles.includes('master') || userRoles.includes('admin');
-      if (!isAuthorized) {
-        return NextResponse.redirect(new URL('/acceso-no-autorizado', request.url));
-      }
+  const redirectTo = (path: string, clearCookie = false) => {
+    const url = request.nextUrl.clone();
+    if (url.pathname === path) {
+      console.log("Middleware: Redirigiendo al mismo luga...");
+      return NextResponse.next();
     }
-    
-    // Si pasa las validaciones específicas, permitir acceso.
-    return NextResponse.next();
-  }
-
-  // --- Caso 2: Es Ruta de Residencia ---
-  // Extraer el residenciaId del primer segmento de la URL.
-  // Ej: /res-abc/dashboard -> ["res-abc", "dashboard"] -> "res-abc"
-  const pathSegments = pathname.split('/').filter(Boolean);
-  if (pathSegments.length > 0) {
-    const urlResidenciaId = pathSegments[0];
-    const tokenResidenciaId = decodedToken.residenciaId;
-
-    // Verificar si el usuario tiene acceso a esta residencia
-    if (!tokenResidenciaId || urlResidenciaId !== tokenResidenciaId) {
-      // Si el usuario intenta acceder a una residencia incorrecta,
-      // o no tiene un residenciaId en su token, redirigir a la correcta si la tiene.
-      // Si no tiene `tokenResidenciaId`, se le redirige a una página de error genérica.
-      const destination = tokenResidenciaId ? `/${tokenResidenciaId}/elegir-comidas` : '/acceso-no-autorizado';
-      return NextResponse.redirect(new URL(destination, request.url));
+    url.pathname = path;
+    const response = NextResponse.redirect(url);
+    if (clearCookie) {
+      console.log("Middleware: Borrando cookie de autenticación...")
+      response.cookies.delete(authConfig.cookieName);
     }
-  } else {
-    // Esto podría pasar si se accede a una ruta no pública y no master sin segmentos,
-    // ej: /alguna-ruta-rara. Redirigir a un lugar seguro.
-    const destination = decodedToken.residenciaId ? `/${decodedToken.residenciaId}/elegir-comidas` : '/';
-     return NextResponse.redirect(new URL(destination, request.url));
-  }
+    console.log(`Middleware: redirigiendo a ${response.url}`);
+    return response;
+  };
 
+  console.log(`Middleware TEMPORAL.\nRuta: "${pathname}";\n URL: "${request.url}"`);
 
-  // Si todas las validaciones pasan, continuar con la solicitud.
-  return NextResponse.next();
+  return authMiddleware(request, {
+    ...authConfig,
+    handleValidToken: async ({ decodedToken }) => {
+      // This is called when the token is valid and not expired.
+      // We can still have custom logic to invalidate a session.
+      if (decodedToken.isActive === false) {
+        console.log(`Middleware: Inactive user (UID: ${decodedToken.uid}) tried to access.`);
+        return redirectTo('/', true);
+      }
+
+      const requestHeaders = new Headers(request.headers);
+      const userRoles = (decodedToken.roles as string[]) || [];
+
+      requestHeaders.set('x-usuario-id', decodedToken.uid as string || '');
+      requestHeaders.set('x-usuario-email', decodedToken.email as string || '');
+      requestHeaders.set('x-usuario-roles', JSON.stringify(userRoles));
+      requestHeaders.set('x-residencia-id', (decodedToken.residenciaId as string) || '');
+      requestHeaders.set('x-residencia-zh', (decodedToken.zonaHoraria as string) || '');
+      requestHeaders.set('x-residencia-ct', (decodedToken.ctxTraduccion as string) || 'es');
+
+      const responseWithHeaders = NextResponse.next({
+        request: { headers: requestHeaders },
+      });
+
+      // Master routes: only 'master' role
+      if (rutasMaster.some(p => pathname.startsWith(p))) {
+        if (!userRoles.includes('master')) {
+          console.log("Middleware: Ruta restringida para 'master', redirigiendo a 'acceso-no-autorizado'")
+          return redirectTo('/acceso-no-autorizado');
+        }
+        console.log("Middleware: Ruta master permitida");
+        return responseWithHeaders;
+      }
+
+      // Admin root routes: 'master' or 'admin' role
+      if (rutasAdminRaiz.includes(pathname)) {
+        if (!userRoles.includes('master') && !userRoles.includes('admin')) {
+          console.log("Middleware: Ruta restringida para 'admin' (raíz), redirigiendo a 'acceso-no-autorizado'")
+          return redirectTo('/acceso-no-autorizado');
+        }
+        console.log("Middleware: Ruta admin permitida");
+        return responseWithHeaders;
+      }
+      
+      // Check for other non-residence routes that don't need special role checks
+      const otherNonResidenciaRoutes = [
+        ...rutasPublicas,
+        ...rutasHibridas,
+        ...rutasAutenticadasNoResidencia,
+      ];
+      if (otherNonResidenciaRoutes.includes(pathname)) {
+        console.log(`Middleware: Ruta raíz permitida ${pathname}`);
+        return responseWithHeaders;
+      }
+
+      // If we are here, it's a residence route.
+      // All remaining routes are considered residence routes.
+
+      // Admin residence routes: 'admin' role
+      if (rutasAdminResidencia.some(r => pathname.endsWith(r))) {
+        if (!userRoles.includes('admin')) {
+          console.log("Middleware: Ruta restringida para 'admin' (residencia), redirigiendo a 'acceso-no-autorizado'")
+          return redirectTo('/acceso-no-autorizado');
+        }
+      }
+
+      // For all residence routes, check if the residenceId in the path matches the token
+      const residenciaIdFromPath = pathname.split('/')[1];
+      if (residenciaIdFromPath !== decodedToken.residenciaId) {
+        console.log("Middleware: prop no coincide con claim de token");
+        return redirectTo('/', true);
+      }
+
+      return responseWithHeaders;
+    },
+
+    handleInvalidToken: async () => {
+      // Token is invalid (expired, malformed, etc.)
+      // Allow access to public and hybrid routes
+      if (rutasPublicas.includes(pathname) || rutasHibridas.includes(pathname)) {
+        return NextResponse.next();
+      }
+      // For all other routes, redirect to home. The cookie is already invalid.
+      return redirectTo('/');
+    },
+
+    handleError: async (error: any) => {
+      console.error('Middleware Error:', error);
+      // On error, redirect to home and clear cookie just in case
+      return redirectTo('/', true);
+    },
+  });
 }
-
-// El matcher define en qué rutas se ejecutará este middleware.
-// Se excluyen las rutas de API, las de generación estática de Next.js y los archivos públicos.
-export const config = {
-  matcher: [
-    '/((?!api|locales|_next/static|_next/image|.*\\.png$|.*\\.ico$|.*\\.svg$).*)',
-  ],
-};

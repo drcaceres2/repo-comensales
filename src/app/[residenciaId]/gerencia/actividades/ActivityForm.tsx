@@ -38,9 +38,9 @@ import {
     DialogClose,
     DialogOverlay
 } from "@/components/ui/dialog";
+import {useInfoUsuario} from "@/components/layout/AppProviders";
 
 interface ActivityFormProps {
-    residenciaId: ResidenciaId;
     onClose: () => void;
     actividad?: Actividad | null;
     tiemposComidaList: (TiempoComida & { id: TiempoComidaId })[];
@@ -52,13 +52,13 @@ const ActividadFormSchema = z.union([ActividadCreateSchema, ActividadUpdateSchem
 export type ActividadFormData = z.infer<typeof ActividadCreateSchema>;
 
 export function ActivityForm({
-    residenciaId,
     onClose,
     actividad,
     tiemposComidaList,
     centroCostosList,
     comedoresList
 }: ActivityFormProps) {
+    const { residenciaId } = useInfoUsuario();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
     const [showEmptyPlanWarning, setShowEmptyPlanWarning] = useState(false);

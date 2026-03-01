@@ -1,5 +1,9 @@
 {
   "projects": {
-    "default": "comensales-residencia"
-  }
+    "default": "comensales-dcv-ceh-pruebas",
+    "produccion": "comensales-dcv-ceh",
+    "pruebas": "comensales-dcv-ceh-pruebas"
+  },
+  "targets": {},
+  "etags": {}
 }

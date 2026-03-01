@@ -19,6 +19,7 @@ export interface HorariosState {
     // 1. ESTADO DE UI Y NAVEGACIÓN
     pasoActual: number; // 1 a 5
     mostrarInactivos: boolean;
+    errorDeGuardado: string | null;
 
     // 2. ESTADO DE DATOS (DRAFT PATTERN)
     datosOriginales: DatosHorariosEnBruto | null;
@@ -31,19 +32,20 @@ export interface HorariosState {
 
     // 4. ESTADO DE AUDITORÍA (A demanda)
     alertas: Alerta[];
-    alertasIgnoradas: string[]; // Arreglo de IDs deterministas de alertas que el usuario ocultó
+    alertasIgnoradas: string[];
 
     // ACCIONES DE UI
     setPasoActual: (paso: number) => void;
     toggleMostrarInactivos: () => void;
+    setErrorDeGuardado: (error: string | null) => void;
 
     // ACCIONES DE DATOS
     inicializarDatos: (datosDelServidor: DatosHorariosEnBruto, version: number) => void;
-    descartarCambios: () => void; // Restaura datosOriginales sobre datosBorrador y setea hayCambios = false
+    descartarCambios: () => void;
 
     // ACCIONES DE AUDITORÍA
     ejecutarAuditoria: () => void;
-    ignorarAlerta: (idAviso: string) => void; // Agrega el ID al arreglo alertasIgnoradas
+    ignorarAlerta: (idAviso: string) => void;
 
     // ACCIONES CRUD
     // GrupoComida
@@ -61,6 +63,7 @@ export interface HorariosState {
     // ConfiguracionAlternativa
     upsertConfiguracionAlternativa: (id: string, config: ConfiguracionAlternativa) => void;
     archivarConfiguracionAlternativa: (id: string) => void;
+    setAlternativaPrincipal: (tiempoComidaId: string, nuevaPrincipalId: string) => void;
 }
 
 const datosVacios: DatosHorariosEnBruto = {
@@ -72,10 +75,54 @@ const datosVacios: DatosHorariosEnBruto = {
     comedores: {}
 };
 
+// --- Helper Interno para Sincronización ---
+const _sincronizarAlternativas = (
+    tiempoComidaId: string,
+    borrador: DatosHorariosEnBruto
+): DatosHorariosEnBruto => {
+    const tiempoComida = borrador.esquemaSemanal[tiempoComidaId];
+    if (!tiempoComida) return borrador;
+
+    const alternativasParaTiempo = Object.entries(borrador.configuracionesAlternativas)
+        .filter(([, config]) => config.tiempoComidaId === tiempoComidaId && config.estaActivo)
+        .map(([id]) => id);
+
+    let principalActual = tiempoComida.alternativas?.principal || '';
+    
+    // Si la principal actual ya no es válida (no existe o está inactiva), la deseleccionamos
+    if (principalActual && !alternativasParaTiempo.includes(principalActual)) {
+        principalActual = '';
+    }
+
+    // Si no hay principal pero hay alternativas disponibles, promovemos la primera
+    if (!principalActual && alternativasParaTiempo.length > 0) {
+        principalActual = alternativasParaTiempo[0];
+    }
+
+    const secundariasNuevas = alternativasParaTiempo.filter(id => id !== principalActual);
+
+    const tiempoComidaActualizado = {
+        ...tiempoComida,
+        alternativas: {
+            principal: principalActual,
+            secundarias: secundariasNuevas,
+        },
+    };
+
+    return {
+        ...borrador,
+        esquemaSemanal: {
+            ...borrador.esquemaSemanal,
+            [tiempoComidaId]: tiempoComidaActualizado,
+        },
+    };
+};
+
 export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
-    // 1. ESTADO DE UI Y NAVEGACIÓN
+    // ESTADOS...
     pasoActual: 1,
     mostrarInactivos: false,
+    errorDeGuardado: null,
 
     // 2. ESTADO DE DATOS (DRAFT PATTERN)
     datosOriginales: null,
@@ -93,6 +140,7 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
     // ACCIONES DE UI
     setPasoActual: (paso) => set({ pasoActual: paso }),
     toggleMostrarInactivos: () => set((state) => ({ mostrarInactivos: !state.mostrarInactivos })),
+    setErrorDeGuardado: (error) => set({ errorDeGuardado: error }),
 
     // ACCIONES DE DATOS
     inicializarDatos: (datosDelServidor, version) => {
@@ -106,6 +154,7 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
             alertas: [],
             alertasIgnoradas: [],
             pasoActual: 1,
+            errorDeGuardado: null,
         });
     },
     descartarCambios: () => {
@@ -129,125 +178,63 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
     ignorarAlerta: (idAviso) => set((state) => ({ alertasIgnoradas: [...state.alertasIgnoradas, idAviso] })),
 
     // ACCIONES CRUD
-    // --- GrupoComida ---
     upsertGrupoComida: (id, grupo) => {
         const borradorActual = get().datosBorrador;
-        const nuevoBorrador = {
-            ...borradorActual,
-            gruposComidas: { ...borradorActual.gruposComidas, [id]: grupo },
-        };
-        set({
-            datosBorrador: nuevoBorrador,
-            matriz: construirMatrizVistaHorarios(nuevoBorrador),
-            hayCambios: true,
-        });
+        const nuevoBorrador = { ...borradorActual, gruposComidas: { ...borradorActual.gruposComidas, [id]: grupo } };
+        set({ datosBorrador: nuevoBorrador, matriz: construirMatrizVistaHorarios(nuevoBorrador), hayCambios: true });
     },
     archivarGrupoComida: (id) => {
         const borradorActual = get().datosBorrador;
         const target = borradorActual.gruposComidas[id];
         if (!target) return;
-        const nuevoBorrador = {
-            ...borradorActual,
-            gruposComidas: { ...borradorActual.gruposComidas, [id]: { ...target, estaActivo: false } },
-        };
-        set({
-            datosBorrador: nuevoBorrador,
-            matriz: construirMatrizVistaHorarios(nuevoBorrador),
-            hayCambios: true,
-        });
+        const nuevoBorrador = { ...borradorActual, gruposComidas: { ...borradorActual.gruposComidas, [id]: { ...target, estaActivo: false } } };
+        set({ datosBorrador: nuevoBorrador, matriz: construirMatrizVistaHorarios(nuevoBorrador), hayCambios: true });
     },
-
-    // --- HorarioSolicitudData ---
     upsertHorarioSolicitud: (id, horario) => {
         const borradorActual = get().datosBorrador;
-        const nuevoBorrador = {
-            ...borradorActual,
-            horariosSolicitud: { ...borradorActual.horariosSolicitud, [id]: horario },
-        };
-        set({
-            datosBorrador: nuevoBorrador,
-            matriz: construirMatrizVistaHorarios(nuevoBorrador),
-            hayCambios: true,
-});
+        const nuevoBorrador = { ...borradorActual, horariosSolicitud: { ...borradorActual.horariosSolicitud, [id]: horario } };
+        set({ datosBorrador: nuevoBorrador, matriz: construirMatrizVistaHorarios(nuevoBorrador), hayCambios: true });
     },
     archivarHorarioSolicitud: (id) => {
         const borradorActual = get().datosBorrador;
         const target = borradorActual.horariosSolicitud[id];
         if (!target) return;
-        const nuevoBorrador = {
-            ...borradorActual,
-            horariosSolicitud: { ...borradorActual.horariosSolicitud, [id]: { ...target, estaActivo: false } },
-        };
-        set({
-            datosBorrador: nuevoBorrador,
-            matriz: construirMatrizVistaHorarios(nuevoBorrador),
-            hayCambios: true,
-        });
+        const nuevoBorrador = { ...borradorActual, horariosSolicitud: { ...borradorActual.horariosSolicitud, [id]: { ...target, estaActivo: false } } };
+        set({ datosBorrador: nuevoBorrador, matriz: construirMatrizVistaHorarios(nuevoBorrador), hayCambios: true });
     },
-
-    // --- TiempoComida ---
     upsertTiempoComida: (id, tiempo) => {
         const borradorActual = get().datosBorrador;
-        const nuevoBorrador = {
-            ...borradorActual,
-            esquemaSemanal: { ...borradorActual.esquemaSemanal, [id]: tiempo },
-        };
-        set({
-            datosBorrador: nuevoBorrador,
-            matriz: construirMatrizVistaHorarios(nuevoBorrador),
-            hayCambios: true,
-        });
+        const nuevoBorrador = { ...borradorActual, esquemaSemanal: { ...borradorActual.esquemaSemanal, [id]: tiempo } };
+        set({ datosBorrador: nuevoBorrador, matriz: construirMatrizVistaHorarios(nuevoBorrador), hayCambios: true });
     },
     archivarTiempoComida: (id) => {
         const borradorActual = get().datosBorrador;
         const target = borradorActual.esquemaSemanal[id];
         if (!target) return;
-        const nuevoBorrador = {
-            ...borradorActual,
-            esquemaSemanal: { ...borradorActual.esquemaSemanal, [id]: { ...target, estaActivo: false } },
-        };
-        set({
-            datosBorrador: nuevoBorrador,
-            matriz: construirMatrizVistaHorarios(nuevoBorrador),
-            hayCambios: true,
-        });
+        const nuevoBorrador = { ...borradorActual, esquemaSemanal: { ...borradorActual.esquemaSemanal, [id]: { ...target, estaActivo: false } } };
+        set({ datosBorrador: nuevoBorrador, matriz: construirMatrizVistaHorarios(nuevoBorrador), hayCambios: true });
     },
-
-    // --- DefinicionAlternativa ---
     upsertDefinicionAlternativa: (id, definicion) => {
         const borradorActual = get().datosBorrador;
-        const nuevoBorrador = {
-            ...borradorActual,
-            catalogoAlternativas: { ...borradorActual.catalogoAlternativas, [id]: definicion },
-        };
-        set({
-            datosBorrador: nuevoBorrador,
-            matriz: construirMatrizVistaHorarios(nuevoBorrador),
-            hayCambios: true,
-        });
+        const nuevoBorrador = { ...borradorActual, catalogoAlternativas: { ...borradorActual.catalogoAlternativas, [id]: definicion } };
+        set({ datosBorrador: nuevoBorrador, matriz: construirMatrizVistaHorarios(nuevoBorrador), hayCambios: true });
     },
     archivarDefinicionAlternativa: (id) => {
         const borradorActual = get().datosBorrador;
         const target = borradorActual.catalogoAlternativas[id];
         if (!target) return;
-        const nuevoBorrador = {
-            ...borradorActual,
-            catalogoAlternativas: { ...borradorActual.catalogoAlternativas, [id]: { ...target, estaActiva: false } },
-        };
-        set({
-            datosBorrador: nuevoBorrador,
-            matriz: construirMatrizVistaHorarios(nuevoBorrador),
-            hayCambios: true,
-        });
+        const nuevoBorrador = { ...borradorActual, catalogoAlternativas: { ...borradorActual.catalogoAlternativas, [id]: { ...target, estaActivo: false } } };
+        set({ datosBorrador: nuevoBorrador, matriz: construirMatrizVistaHorarios(nuevoBorrador), hayCambios: true });
     },
 
-    // --- ConfiguracionAlternativa ---
+    // --- ACCIONES CRUD CON SINCRONIZACIÓN ---
     upsertConfiguracionAlternativa: (id, config) => {
         const borradorActual = get().datosBorrador;
-        const nuevoBorrador = {
+        let nuevoBorrador = {
             ...borradorActual,
             configuracionesAlternativas: { ...borradorActual.configuracionesAlternativas, [id]: config },
         };
+        nuevoBorrador = _sincronizarAlternativas(config.tiempoComidaId, nuevoBorrador);
         set({
             datosBorrador: nuevoBorrador,
             matriz: construirMatrizVistaHorarios(nuevoBorrador),
@@ -256,12 +243,37 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
     },
     archivarConfiguracionAlternativa: (id) => {
         const borradorActual = get().datosBorrador;
-        const target = borradorActual.configuracionesAlternativas[id];
-        if (!target) return;
-        const nuevoBorrador = {
+        const config = borradorActual.configuracionesAlternativas[id];
+        if (!config) return;
+
+        let nuevoBorrador = {
             ...borradorActual,
-            configuracionesAlternativas: { ...borradorActual.configuracionesAlternativas, [id]: { ...target, estaActivo: false } },
+            configuracionesAlternativas: { ...borradorActual.configuracionesAlternativas, [id]: { ...config, estaActivo: false } },
         };
+        nuevoBorrador = _sincronizarAlternativas(config.tiempoComidaId, nuevoBorrador);
+        set({
+            datosBorrador: nuevoBorrador,
+            matriz: construirMatrizVistaHorarios(nuevoBorrador),
+            hayCambios: true,
+        });
+    },
+    setAlternativaPrincipal: (tiempoComidaId, nuevaPrincipalId) => {
+        const borradorActual = get().datosBorrador;
+        const tiempoComida = borradorActual.esquemaSemanal[tiempoComidaId];
+        if (!tiempoComida) return;
+
+        const tiempoComidaActualizado = {
+            ...tiempoComida,
+            alternativas: { ...tiempoComida.alternativas, principal: nuevaPrincipalId },
+        };
+        
+        let nuevoBorrador = {
+            ...borradorActual,
+            esquemaSemanal: { ...borradorActual.esquemaSemanal, [tiempoComidaId]: tiempoComidaActualizado },
+        };
+
+        nuevoBorrador = _sincronizarAlternativas(tiempoComidaId, nuevoBorrador);
+
         set({
             datosBorrador: nuevoBorrador,
             matriz: construirMatrizVistaHorarios(nuevoBorrador),

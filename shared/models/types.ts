@@ -1,10 +1,22 @@
 import type { TiempoComida } from '../../shared/schemas/horarios';
-import type { FechaIso, FechaHoraIso, HoraIso, DiaDeLaSemana } from '../../shared/schemas/fechas';
+import type { FechaIso, FechaHoraIso, HoraIso, DiaDeLaSemana, ZonaHorariaIana } from '../../shared/schemas/fechas';
+import {Email} from "../schemas/common";
+
+export const ctxTraduccionSoportados = ['es', 'es-HN', 'es-ES'];
+
+export interface InfoUsuario {
+    usuarioId: UsuarioId,
+    email: Email,
+    roles: RolUsuario[],
+    residenciaId: ResidenciaId,
+    zonaHoraria: ZonaHorariaIana,
+    ctxTraduccion: string
+}
+
 export type TimestampString = string; // ISO 8601 (ejemplo "2023-10-25T14:00:00.000Z"
 
 // Tipos para ubicaciones, zonas horarias, fechas y horas
 export type CodigoPaisIso = string; // ISO 3166-1 alpha-2 (ej: "HN", "MX", "ES")
-export type ZonaHorariaIana = string; // Identificador IANA (ej: "America/Tegucigalpa", "Europe/Madrid")
 export interface Ubicacion {
   // Geografía Política
   pais: CodigoPaisIso;      // Estricto 2 letras
@@ -92,6 +104,8 @@ export interface DetalleAlteracion {
 export type EstadoAvisoAdministracion =
     | 'no_comunicado' | 'comunicacion_preliminar' 
     | 'comunicacion_final' | 'evento_cancelado';
+
+export const HORARIOS_QUERY_KEY = 'horarios';
 
 // --------------------------------------------------------
 // 1. MODELO DE INTENCIÓN (Mutable por el usuario/reglas)

@@ -16,15 +16,15 @@ import {
     actualizarCentroDeCosto, 
     archivarCentroDeCosto 
 } from "../actions";
-import { useAuth } from "@/hooks/useAuth";
 import { type CentroDeCosto } from "shared/schemas/contabilidad";
+import {useInfoUsuario} from "@/components/layout/AppProviders";
 
 /**
  * Hook para gestionar los Centros de Costo de una residencia.
  * Implementa lectura en tiempo real (Client-side) y escrituras vía Server Actions con Optimistic UI.
  */
 export function useCentrosDeCosto(residenciaId: string) {
-    const { user } = useAuth();
+    const { usuarioId: user } = useInfoUsuario();
     const queryClient = useQueryClient();
     const queryKey = useMemo(() => ["centrosDeCosto", residenciaId], [residenciaId]);
 

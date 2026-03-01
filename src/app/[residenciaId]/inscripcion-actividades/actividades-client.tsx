@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Actividad, InscripcionActividad } from '@/../shared/schemas/actividades';
 import type { ResidenciaId, RolUsuario } from '@/../shared/models/types';
-import { useAuth } from '@/hooks/useAuth';
 import { Loader2, UserPlus, Info, Users, Soup, CheckCircle, XCircle } from 'lucide-react';
 import {
   inscribirEnActividad,
@@ -20,6 +19,7 @@ import {
 } from './actions';
 import { useToast } from '@/hooks/useToast';
 import { Badge } from '@/components/ui/badge';
+import {useInfoUsuario} from "@/components/layout/AppProviders";
 
 interface ActividadDisponible extends Actividad {
   inscritos: number;
@@ -35,7 +35,7 @@ export function ActividadesClient({
   actividadesIniciales,
   residenciaId,
 }: ActividadesClientProps) {
-  const { user, claims: profile } = useAuth();
+  const { usuarioId: uid, zonaHoraria: tz, roles, ctxTraduccion: loc } = useInfoUsuario();
   const { toast } = useToast();
   const [actividades, setActividades] = useState(actividadesIniciales);
   const [isPending, startTransition] = useTransition();
@@ -43,7 +43,7 @@ export function ActividadesClient({
   const userInscriptions = new Map<string, InscripcionActividad>();
     actividades.forEach(act => {
         act.invitaciones.forEach(inv => {
-            if (inv.usuarioInscritoId === user?.uid) {
+            if (inv.usuarioInscritoId === uid) {
                 userInscriptions.set(act.id, inv);
             }
         })
@@ -96,9 +96,9 @@ export function ActividadesClient({
   }
 
   const isInviteAccordionVisible = (actividad: ActividadDisponible): boolean => {
-    if (!user || !profile) return false;
-    const userRoles = (profile.roles || []) as RolUsuario[];
-    if (actividad.organizadorId === user.uid || userRoles.includes('director')) return true;
+    if (!uid || !roles) return false;
+    const userRoles = (roles || []) as RolUsuario[];
+    if (actividad.organizadorId === uid || userRoles.includes('director')) return true;
     if ((userRoles.includes('residente') || userRoles.includes('invitado')) && actividad.modoAccesoResidentes?.accesoUsuario === 'abierto') {
       return true;
     }

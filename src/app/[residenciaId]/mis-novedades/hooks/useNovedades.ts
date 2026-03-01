@@ -11,7 +11,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '@/lib/firebase'; // Client-side firebase
 import { collection, query, where, orderBy, limit, getDocs, Timestamp, DocumentSnapshot } from 'firebase/firestore';
-import { useAuth } from "@/hooks/useAuth";
+import {useInfoUsuario} from "@/components/layout/AppProviders";
 
 // Definimos el tipo para el payload de creación, omitiendo los campos que genera el servidor.
 type NovedadCreatePayload = Omit<NovedadOperativa, "id" | "timestampCreacion" | "timestampActualizacion" | "autorId" | "residenciaId" | "estado" | "fechaProgramada">;
@@ -33,9 +33,9 @@ function serializeNovedad(doc: DocumentSnapshot): NovedadOperativa {
 
 // The query function now gets its parameters from the queryKey, which is the most robust pattern.
 async function fetchNovedades({ queryKey }: { queryKey: readonly unknown[] }): Promise<NovedadOperativa[]> {
-    const [_key, { residenciaId, userId }] = queryKey as [string, { residenciaId?: string; userId?: string }];
+    const [_key, { residenciaId, usuarioId }] = queryKey as [string, { residenciaId?: string; usuarioId?: string }];
 
-    if (!userId || !residenciaId) {
+    if (!usuarioId || !residenciaId) {
         // This case should ideally be prevented by the 'enabled' option in useQuery
         // but it's a good safeguard for type safety and early exit.
         return [];
@@ -45,7 +45,7 @@ async function fetchNovedades({ queryKey }: { queryKey: readonly unknown[] }): P
 
     const novedadesQuery = query(
         collection(db, collectionPath),
-        where('autorId', '==', userId),
+        where('autorId', '==', usuarioId),
         orderBy('timestampCreacion', 'desc'),
         limit(50)
     );
@@ -64,22 +64,18 @@ async function fetchNovedades({ queryKey }: { queryKey: readonly unknown[] }): P
 export function useNovedades(initialData: NovedadOperativa[]) {
     const queryClient = useQueryClient();
     const { toast } = useToast();
-    const { user, claims } = useAuth();
-
-    // Extract residenciaId from claims, which is more reliable for client-side operations
-    const residenciaId = claims?.residenciaId as string | undefined;
-    const userId = user?.uid;
+    const { usuarioId, residenciaId } = useInfoUsuario();
 
     // The queryKey is now the single source of truth for the query's parameters.
     // This helps prevent stale closures and race conditions.
-    const queryKey = ["novedades", { residenciaId, userId }];
+    const queryKey = ["novedades", { residenciaId, usuarioId }];
 
     const { data: novedades } = useQuery({
         queryKey,
         queryFn: fetchNovedades, // Pass the function reference
         initialData,
         // Only run query if user is available AND residenciaId is available from claims
-        enabled: !!userId && !!residenciaId,
+        enabled: !!usuarioId && !!residenciaId,
     });
 
     const createMutation = useMutation({
@@ -94,7 +90,7 @@ export function useNovedades(initialData: NovedadOperativa[]) {
                 estado: 'pendiente' as NovedadEstado,
                 timestampCreacion: new Date().toISOString(),
                 timestampActualizacion: new Date().toISOString(),
-                autorId: userId!, // Assert userId is present
+                autorId: usuarioId!, // Assert usuarioId is present
                 residenciaId: residenciaId!, // Assert residenciaId is present
                 fechaProgramada: new Date().toISOString().split('T')[0],
             };
