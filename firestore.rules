@@ -91,6 +91,7 @@ service cloud.firestore {
       }
       match /recordatorios/{recordatorioId} {
         allow read:   if isMaster() || (isMember(residenciaId) && resource.data.residenciaId == residenciaId);
+        allow list:   if isMaster() || (isMember(residenciaId) && resource.data.residenciaId == residenciaId);
         allow create, update:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
         allow delete:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
       }

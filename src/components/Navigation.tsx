@@ -206,6 +206,15 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           roles: ['admin'],
           requiresResidenciaIdForHref: true,
         },
+        {
+          id: 'adminRecordatorios',
+          label: 'Recordatorios',
+          icon: Bell,
+          href: rLink,
+          pathTemplate: '/gerencia/recordatorios',
+          roles: ['admin', 'master'],
+          requiresResidenciaIdForHref: true,
+        },
       ],
     },
 

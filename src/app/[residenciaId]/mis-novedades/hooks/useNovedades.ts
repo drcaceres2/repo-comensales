@@ -16,16 +16,19 @@ import {useInfoUsuario} from "@/components/layout/AppProviders";
 // Definimos el tipo para el payload de creación, omitiendo los campos que genera el servidor.
 type NovedadCreatePayload = Omit<NovedadOperativa, "id" | "timestampCreacion" | "timestampActualizacion" | "autorId" | "residenciaId" | "estado" | "fechaProgramada">;
 
-// Helper to serialize data with Timestamps, just like on the server
+// Helper to serialize data with Timestamps or legacy ISO strings, mirroring server logic
 function serializeNovedad(doc: DocumentSnapshot): NovedadOperativa {
     const data = doc.data()!;
     const serializedData: { [key: string]: any } = { id: doc.id };
 
     for (const key in data) {
-        if (data[key] instanceof Timestamp) {
-            serializedData[key] = data[key].toDate().toISOString();
+        const value = data[key];
+        if (value instanceof Timestamp) {
+            serializedData[key] = value.toDate().toISOString();
+        } else if (typeof value === 'string' && !isNaN(Date.parse(value))) {
+            serializedData[key] = new Date(value).toISOString();
         } else {
-            serializedData[key] = data[key];
+            serializedData[key] = value;
         }
     }
     return serializedData as NovedadOperativa;

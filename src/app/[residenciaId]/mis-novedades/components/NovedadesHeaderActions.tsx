@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useInfoUsuario } from "@/components/layout/AppProviders";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
@@ -13,20 +15,38 @@ export default function NovedadesHeaderActions({ residenciaId }: { residenciaId:
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
+  const queryClient = useQueryClient();
+  const { usuarioId } = useInfoUsuario();
+
   const handleCreateNovedad = (data: NovedadFormValues) => {
     startTransition(async () => {
-      const result = await crearNovedadAction(residenciaId, data);
-      if (result.success) {
-        toast({
-          title: "Éxito",
-          description: "Novedad creada correctamente.",
-        });
-        setIsModalOpen(false);
-      } else {
+      try {
+        const result = await crearNovedadAction(residenciaId, data);
+        if (result.success) {
+          toast({
+            title: "Éxito",
+            description: "Novedad creada correctamente.",
+          });
+          // refresh the list managed by useNovedades so the new item appears
+          if (usuarioId) {
+            queryClient.invalidateQueries({
+              queryKey: ["novedades", { residenciaId, usuarioId }],
+            });
+          }
+          setIsModalOpen(false);
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: result.error || "No se pudo crear la novedad.",
+          });
+        }
+      } catch (e: any) {
+        console.error("[NovedadesHeaderActions] create error", e);
         toast({
           variant: "destructive",
-          title: "Error",
-          description: result.error || "No se pudo crear la novedad.",
+          title: "Error inesperado",
+          description: e?.message || "No se pudo ejecutar la acción.",
         });
       }
     });

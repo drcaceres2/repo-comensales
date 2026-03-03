@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/firebaseAdmin";
+import { db, admin } from "@/lib/firebaseAdmin";
 import {
   type NovedadOperativa,
   NovedadFormSchema,
@@ -17,16 +17,19 @@ export async function crearNovedadAction(
   residenciaId: string,
   payload: NovedadCreatePayload
 ) {
+  console.log("[crearNovedadAction] payload:", payload, "residenciaId", residenciaId);
   try {
     const { usuarioId: autorId, residenciaId: userResidenciaId } = await obtenerInfoUsuarioServer();
 
     if (residenciaId !== userResidenciaId) {
+      console.warn("[crearNovedadAction] residencia mismatch", residenciaId, userResidenciaId);
       return { success: false, error: "Acceso no autorizado." };
     }
 
     const validatedData = NovedadFormSchema.safeParse(payload);
 
     if (!validatedData.success) {
+      console.warn("[crearNovedadAction] validación fallida", validatedData.error);
       return { success: false, error: "Datos inválidos.", details: validatedData.error.issues };
     }
 
@@ -35,11 +38,13 @@ export async function crearNovedadAction(
       residenciaId,
       autorId,
       estado: "pendiente" as const,
-      timestampCreacion: new Date().toISOString(),
-      timestampActualizacion: new Date().toISOString(),
+      // use server-side timestamps to keep clock consistent and sortable
+      timestampCreacion: admin.firestore.FieldValue.serverTimestamp(),
+      timestampActualizacion: admin.firestore.FieldValue.serverTimestamp(),
     };
 
     const docRef = await db.collection(getCollectionPath(residenciaId)).add(nuevaNovedad);
+    console.log("[crearNovedadAction] document created with id", docRef.id);
 
     revalidatePath(`/${residenciaId}/mis-novedades`);
 
@@ -95,7 +100,7 @@ export async function actualizarNovedadAction(
     console.log("[actualizarNovedadAction] 9. Actualizando documento...");
     await novedadRef.update({ 
         ...validatedData.data,
-        timestampActualizacion: new Date().toISOString(),
+        timestampActualizacion: admin.firestore.FieldValue.serverTimestamp(),
     });
     console.log("[actualizarNovedadAction] 10. Documento actualizado.");
     

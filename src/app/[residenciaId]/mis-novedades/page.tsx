@@ -7,16 +7,21 @@ import NovedadesHeaderActions from './components/NovedadesHeaderActions';
 import { Timestamp } from 'firebase-admin/firestore'
 import {obtenerInfoUsuarioServer} from "@/lib/obtenerInfoUsuarioServer";
 
-// Helper to serialize data with Timestamps
+// Helper to serialize data with Timestamps or legacy ISO strings
 function serializeNovedad(doc: FirebaseFirestore.QueryDocumentSnapshot): NovedadOperativa {
     const data = doc.data();
     const serializedData: { [key: string]: any } = { id: doc.id };
 
     for (const key in data) {
-        if (data[key] instanceof Timestamp) {
-            serializedData[key] = data[key].toDate().toISOString();
+        const value = data[key];
+        // Firestore serverTimestamp() resolves to a Timestamp instance
+        if (value instanceof Timestamp) {
+            serializedData[key] = value.toDate().toISOString();
+        } else if (typeof value === 'string' && !isNaN(Date.parse(value))) {
+            // legacy string dates, keep them normalized
+            serializedData[key] = new Date(value).toISOString();
         } else {
-            serializedData[key] = data[key];
+            serializedData[key] = value;
         }
     }
 

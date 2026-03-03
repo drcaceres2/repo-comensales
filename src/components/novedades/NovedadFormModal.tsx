@@ -88,6 +88,7 @@ export default function NovedadFormModal({
   }, [isOpen, sanitizedDefaultValues, form, serverErrors]);
 
   const handleFormSubmit = form.handleSubmit(async (data) => {
+    console.debug("[NovedadFormModal] submitting data", data);
     await onSubmit(data);
   });
 

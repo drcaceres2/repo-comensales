@@ -349,24 +349,6 @@ export interface Falta {
 }
 
 export type RecordatorioId = string;
-export interface Recordatorio {
-    id: RecordatorioId;
-    residenciaId: ResidenciaId;
-    usuarioIniciadorId: UsuarioId;
-
-    fecha: FechaIso;
-    duracion: number;
-    recurrencia?: {
-        fechaFin: FechaIso;
-        periodicidad: 'semanal' | 'quincenal' | 'mensual-diasemana' | 'mensual-diames' | 'anual';
-    }
-
-    titulo: string;
-    descripcion?: string;
-    color: ColorHTML;
-
-    timestampCreacion: TimestampString;
-}
 
 // --- Actividades ---
 export type ActividadId = string; 
