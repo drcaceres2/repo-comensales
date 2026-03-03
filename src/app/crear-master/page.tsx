@@ -18,14 +18,14 @@
 // =================================================================================================
 
 import { useState } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/useToast';
+import { functions } from '@/lib/firebase';
 
 export default function CreateMasterUserPage() {
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
-    const functions = getFunctions();
 
     const createHardcodedMasterUserCallable = httpsCallable(functions, 'createHardcodedMasterUser');
 

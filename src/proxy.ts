@@ -4,8 +4,8 @@ import { authMiddleware } from 'next-firebase-auth-edge';
 // Matcher: Define las rutas donde se ejecutará el middleware.
 export const config = {
   matcher: [
-    // Ejecuta el middleware en todas las rutas de páginas, excluyendo assets y la mayoría de rutas de API.
-    '/((?!api|locales|_next/static|_next/image|manifest.json|.*\\.png$|.*\\.ico$|.*\\.svg$).*)',
+    // Ejecuta el middleware en todas las rutas de páginas, excluyendo assets, metadatos y la mayoría de rutas de API.
+    '/((?!api|locales|_next/static|_next/image|manifest.json|\\.well-known|.*\\.png$|.*\\.ico$|.*\\.svg$).*)',
     // Incluimos explícitamente las rutas de autenticación para que `authMiddleware` pueda
     // interceptar el login/logout y gestionar la cookie de sesión.
     '/api/auth/login',

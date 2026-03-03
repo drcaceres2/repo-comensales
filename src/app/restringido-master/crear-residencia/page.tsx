@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 import {
   doc,
   collection,
@@ -14,7 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 
-import { auth, db } from '@/lib/firebase';
+import { auth, db, functions } from '@/lib/firebase';
 import { useToast } from '@/hooks/useToast';
 import { type Ubicacion } from 'shared/schemas/common';
 import { Residencia, ResidenciaConVersion, CampoPersonalizado } from 'shared/schemas/residencia';
@@ -73,10 +73,9 @@ function CrearResidenciaAdminPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { usuarioId: authUser, email: userEmail, roles: userRoles } = useInfoUsuario();
-  const functionsInstance = getFunctions(auth.app);
-  const createResidenciaCallable = httpsCallable(functionsInstance, 'createResidencia');
-  const updateResidenciaCallable = httpsCallable(functionsInstance, 'updateResidencia');
-  const deleteResidenciaCallable = httpsCallable(functionsInstance, 'deleteResidencia');
+  const createResidenciaCallable = httpsCallable(functions, 'createResidencia');
+  const updateResidenciaCallable = httpsCallable(functions, 'updateResidencia');
+  const deleteResidenciaCallable = httpsCallable(functions, 'deleteResidencia');
   const queryClient = useQueryClient();
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
   const [isMasterUser, setIsMasterUser] = useState<boolean>(false);

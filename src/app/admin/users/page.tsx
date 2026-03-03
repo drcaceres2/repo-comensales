@@ -38,9 +38,9 @@ import { useRouter } from 'next/navigation';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 // --- Firebase & New Auth Hook Imports ---
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 import { doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { db, functions } from '@/lib/firebase';
 import { useInfoUsuario } from '@/components/layout/AppProviders';
 import { format } from 'date-fns'
 
@@ -108,11 +108,9 @@ function UserManagementPage(): JSX.Element | null {
     const ALL_RESIDENCIAS_FILTER_KEY = 'all_residencias';
     const NO_RESIDENCIA_FILTER_KEY = 'no_residencia_assigned';
 
-    const functionsInstance = getFunctions(auth.app);
-
-    const createUserCallable = httpsCallable(functionsInstance, 'createUser');
-    const updateUserCallable = httpsCallable(functionsInstance, 'updateUser');
-    const deleteUserCallable = httpsCallable(functionsInstance, 'deleteUser');
+    const createUserCallable = httpsCallable(functions, 'createUser');
+    const updateUserCallable = httpsCallable(functions, 'updateUser');
+    const deleteUserCallable = httpsCallable(functions, 'deleteUser');
 
     const router = useRouter();
     const { toast } = useToast();

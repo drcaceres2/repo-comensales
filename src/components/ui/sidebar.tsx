@@ -218,7 +218,7 @@ const Sidebar = ({
         <SheetContent
           data-sidebar="sidebar"
           data-mobile="true"
-          className="w-[var(--sidebar-width-mobile,18rem)] bg-sidebar p-0 text-sidebar-foreground flex flex-col"
+          className="w-[var(--sidebar-width-mobile,18rem)] bg-sidebar p-0 text-sidebar-foreground flex flex-col [&>button]:!opacity-100 [&>button]:!text-black [&>button_svg]:!h-4 [&>button_svg]:!w-4"
           style={{ "--sidebar-width-mobile": SIDEBAR_WIDTH_MOBILE } as React.CSSProperties}
           side={side}
         >

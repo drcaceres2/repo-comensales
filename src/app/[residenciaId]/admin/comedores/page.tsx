@@ -7,7 +7,8 @@ import { useTranslation } from 'react-i18next';
 // --- Firebase & Actions ---
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
-import { verificarPermisoGestionWrapper, upsertComedor, deleteComedor } from './actions';
+import { upsertComedor, deleteComedor } from './actions';
+import { verificarPermisoGestionWrapper } from '@/lib/acceso-privilegiado'
 
 // --- Types & Schemas ---
 import { type ComedorId } from 'shared/models/types';
@@ -83,7 +84,7 @@ export default function GestionComedoresPage() {
         
         setLoading(true);
         try {
-            const resultadoAcceso = await verificarPermisoGestionWrapper();
+            const resultadoAcceso = await verificarPermisoGestionWrapper('gestionComedores');
 
             if (resultadoAcceso.error) {
                 toast({

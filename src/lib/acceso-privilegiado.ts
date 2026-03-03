@@ -2,15 +2,55 @@ import { type RolUsuario } from 'shared/models/types';
 import { type Usuario, type AsistentePermisos } from 'shared/schemas/usuarios';
 import { EntreFechasResidencia } from "shared/utils/commonUtils";
 import { type UsuarioId } from 'shared/models/types';
+import { obtenerInfoUsuarioServer } from "@/lib/obtenerInfoUsuarioServer";
+import { db } from '@/lib/firebaseAdmin';
+import * as admin from 'firebase-admin';
 
 // La clave del permiso que coincide con las propiedades en `Usuario.asistente`
-// Omitimos los que no son permisos de "gestión"
 export type LlavePermisoGestion = keyof Omit<AsistentePermisos, 'usuariosAsistidos'>;
 
 export interface ResultadoAcceso {
     tieneAcceso: boolean;
     nivelAcceso: 'Todas' | 'Propias' | 'Ninguna';
     error: string | null;
+}
+
+/**
+ * Wrapper de `verificarPermisoGestion` que obtiene la información del usuario y el timestamp del servidor.
+ * Esto centraliza la lógica de obtención de datos para la verificación de permisos.
+ * @param llavePermiso - La clave del permiso de gestión a verificar.
+ * @returns Un objeto ResultadoAcceso.
+ */
+export async function verificarPermisoGestionWrapper(llavePermiso: LlavePermisoGestion): Promise<ResultadoAcceso> {
+    const { usuarioId, residenciaId: residenciaIdAuth, roles, zonaHoraria } = await obtenerInfoUsuarioServer();
+    let usuario: Partial<Usuario> = {
+        id: usuarioId,
+        roles: roles,
+        residenciaId: residenciaIdAuth,
+    };
+
+    if (roles.includes('asistente')) {
+        try {
+            const userDoc = await db.collection('usuarios').doc(usuarioId).get();
+            if (userDoc.exists) {
+                const fullUserData = userDoc.data() as Usuario;
+                usuario.asistente = fullUserData.asistente;
+            }
+        } catch (error) {
+            console.error("acceso-privilegiado.ts (verificarPermisoGestionWrapper): Error en la consulta de usuario asistente.", error);
+            return { tieneAcceso: false, nivelAcceso: 'Ninguna', error: 'Error en la consulta de datos del asistente.' };
+        }
+    }
+
+    const timestampServidor = admin.firestore.Timestamp.now();
+
+    return await verificarPermisoGestion(
+        usuario,
+        residenciaIdAuth,
+        llavePermiso,
+        zonaHoraria,
+        timestampServidor
+    );
 }
 
 /**
@@ -34,7 +74,7 @@ export async function verificarPermisoGestion(
     const roles = usuario.roles || [];
     
     // Roles privilegiados que tienen acceso total en su residencia
-    const rolesPrivilegiados: RolUsuario[] = ['admin', 'director']; 
+    const rolesPrivilegiados: RolUsuario[] = ['admin', 'director'];
 
     // Rol 'master' tiene acceso universal.
     if (roles.includes('master')) {

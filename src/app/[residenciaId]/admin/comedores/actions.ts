@@ -3,47 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/firebaseAdmin';
 import { ComedorDataSchema } from 'shared/schemas/complemento1';
-import { type Usuario } from 'shared/schemas/usuarios';
 import * as admin from 'firebase-admin';
 import { obtenerInfoUsuarioServer } from "@/lib/obtenerInfoUsuarioServer";
-import { type ResultadoAcceso, verificarPermisoGestion } from "@/lib/acceso-privilegiado";
+import { verificarPermisoGestionWrapper } from "@/lib/acceso-privilegiado";
 import { ZodError } from 'zod';
 import { logServer } from 'shared/utils/commonUtils';
 import { slugify } from 'shared/utils/commonUtils';
-
-/**
- * Wrapper de `verificarPermisoGestion` que obtiene el timestamp del servidor.
- * Esto asegura que la validación de tiempo sea consistente y segura.
- */
-export async function verificarPermisoGestionWrapper(): Promise<ResultadoAcceso> {
-    const { usuarioId, residenciaId: residenciaIdAuth, roles, zonaHoraria  } = await obtenerInfoUsuarioServer();
-    let usuario: Partial<Usuario> = {
-        id: usuarioId,
-        roles: roles,
-        residenciaId: residenciaIdAuth,
-    };
-
-    if (roles.includes('asistente')) {
-        try {
-            const userDoc = await db.collection('usuarios').doc(usuarioId).get();
-            const fullUserData = userDoc.data() as Usuario;
-            usuario.asistente = fullUserData.asistente;
-        } catch (error) {
-            console.error("Comedores/actions.ts (verificarPermisoGestionWrapper): Error en la consulta de usuario asistente.\n",error);
-            return { tieneAcceso: false, nivelAcceso: 'Ninguna', error: 'Error en la consulta de usuario asistente.' };
-        }
-    }
-
-    const timestampServidor = admin.firestore.Timestamp.now();
-
-    return await verificarPermisoGestion(
-        usuario,
-        residenciaIdAuth,
-        'gestionComedores',
-        zonaHoraria,
-        timestampServidor
-    );
-}
 
 type ActionState = {
     success: boolean;
@@ -62,7 +27,7 @@ export async function upsertComedor(
     try {
         const auth = await obtenerInfoUsuarioServer();
 
-        const resultadoAcceso = await verificarPermisoGestionWrapper();
+        const resultadoAcceso = await verificarPermisoGestionWrapper('gestionComedores');
 
         if(resultadoAcceso.error) {
             return ({ success: false, error: resultadoAcceso.error })
@@ -125,7 +90,7 @@ export async function deleteComedor(residenciaId: string, id: string): Promise<A
     try {
         const auth = await obtenerInfoUsuarioServer();
 
-        const resultadoAcceso = await verificarPermisoGestionWrapper();
+        const resultadoAcceso = await verificarPermisoGestionWrapper('gestionComedores');
 
         if(resultadoAcceso.error) {
             return { success: false, error: resultadoAcceso.error };

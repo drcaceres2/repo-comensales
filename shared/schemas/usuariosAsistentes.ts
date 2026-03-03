@@ -32,6 +32,11 @@ export const AsignarAsistentePayloadSchema = z.object({
     validarFechasPermiso(data.permisos, ctx, 'permisos');
 });
 
+export const RevocarAsistentePayloadSchema = z.object({
+    asistidoId: FirestoreIdSchema,
+    asistenteId: FirestoreIdSchema,
+});
+
 // 1. Función de validación de integridad de fechas
 const validarFechasPermiso = (data: AsistentePermisosDetalle, ctx: z.RefinementCtx, basePath: string) => {
     if (data.restriccionTiempo) {
@@ -95,3 +100,4 @@ export const UpdateMatrizAccesosPayloadSchema = z.object({
 export type AsistentePermisosDetalle = z.infer<typeof AsistentePermisosDetalleSchema>;
 export type UpdateMatrizAccesosPayload = z.infer<typeof UpdateMatrizAccesosPayloadSchema>;
 export type AsignarAsistentePayload = z.infer<typeof AsignarAsistentePayloadSchema>;
+export type RevocarAsistentePayload = z.infer<typeof RevocarAsistentePayloadSchema>;

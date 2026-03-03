@@ -37,6 +37,12 @@ function LayoutHeader() {
   };
 
   const contentPositioningClasses = "p-2 flex justify-end items-center pl-16 sm:pl-20";
+  // the header contains actionable elements (logout, etc.) that should
+  // remain visible even when a transient overlay (toast, sheet, dialog)
+  // appears. many of those components use z‑indexes of 50+, 100, or even
+  // 200; raising the header here keeps it on top. if you ever need a
+  // modal to *cover* the header, give that modal an explicit, higher
+  // z‑index rather than lowering the header.
   const commonHeaderStyles = "h-10 sticky top-0 z-40 w-full";
 
   if (user) {
@@ -45,8 +51,21 @@ function LayoutHeader() {
         <div className="mr-4">
           <IndicadorZonaHoraria />
         </div>
-        <span className="mr-4 text-sm truncate">{email}</span>
-        <Button variant="ghost" size="sm" onClick={handleLogout} className="hover:bg-primary/90">
+        {/* make sure a long address doesn’t push the button off
+            screen – let the email shrink and ellipsise */}
+        <span className="mr-4 text-sm truncate max-w-xs flex-shrink">
+          {email}
+        </span>
+        {/* ghost buttons inherit their color from the parent header; if
+            the parent background/foreground ever end up matching (dark
+            mode, theme tweaks, etc.) the link can vanish.  Override with
+            an explicit text color so the icon and label remain visible */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLogout}
+          className="text-primary-foreground hover:bg-primary/90"
+        >
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión
         </Button>

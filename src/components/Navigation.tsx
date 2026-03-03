@@ -209,6 +209,36 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
       ],
     },
 
+    // --- NEW Group: Asistentes ---
+    {
+      id: 'asistentesGroup',
+      label: 'Asistentes',
+      icon: Handshake,
+      isAccordion: true,
+      roles: ['admin', 'director', 'asistente'],
+      requiresResidenciaIdForHref: true,
+      children: [
+        {
+          id: 'permisosEspeciales',
+          label: 'Permisos Especiales',
+          icon: UserCog,
+          href: rLink,
+          pathTemplate: '/gerencia/accesos-especiales',
+          roles: ['admin', 'director', 'asistente'],
+          requiresResidenciaIdForHref: true,
+        },
+        {
+          id: 'usuariosAsistidos',
+          label: 'Usuarios Asistidos',
+          icon: UsersRound,
+          href: rLink,
+          pathTemplate: '/gerencia/usuarios-asistidos',
+          roles: ['admin', 'director', 'asistente'],
+          requiresResidenciaIdForHref: true,
+        },
+      ],
+    },
+
     // --- Group: Novedades ---
     {
       id: 'novedadesGroup',
@@ -381,20 +411,33 @@ export function Navigation() {
     const unauthVisibleItems = unauthNavConfig.filter(item => isItemVisible(item, null) && !item.isFeedbackLink);
     if (unauthVisibleItems.length > 0) {
         triggerContent = (
-            <SidebarTrigger asChild>
-                <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" title="Abrir menú">
-                    <Menu size={24} />
-                </button>
-            </SidebarTrigger>
+<SidebarTrigger asChild>
+  <button 
+    className="fixed top-1 left-1 z-[45] !h-12 !w-12 p-2 bg-transparent text-gray-800 rounded-md hover:bg-gray-800 hover:text-white transition-all duration-300 flex items-center justify-center" 
+    title="Abrir menú"
+  >
+    <Menu 
+      className="!w-9 !h-9" 
+      strokeWidth={1.5} 
+    />
+  </button>
+</SidebarTrigger>
         );
     }
   } else {
     triggerContent = (
-      <SidebarTrigger asChild>
-        <button className="fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md" title="Abrir menú">
-          <Menu size={24} />
-        </button>
-      </SidebarTrigger>
+<SidebarTrigger asChild>
+  <button 
+    className="fixed top-[1px] left-1 z-[45] !h-9 !w-9 p-2 bg-transparent text-gray-800 rounded-md hover:bg-gray-800 hover:text-white transition-all duration-300 flex items-center justify-center" 
+    title="Abrir menú"
+  >
+    <Menu 
+      className="!w-7 !h-7" 
+      strokeWidth={1.5} 
+      color="white"
+    />
+  </button>
+</SidebarTrigger>
     );
   }
 
@@ -412,7 +455,7 @@ export function Navigation() {
               <>
                 <SheetTitle className="sr-only">{isAuthenticated ? 'Menú Principal' : 'Navegación'}</SheetTitle>
                 <SheetDescription className="sr-only">
-                  {userInfo?.email ? `Menú de navegación para ${userInfo.email}` : 'Menú de navegación para visitantes'}
+                  {userInfo?.email ? `Menú de navegación para ${userInfo.email}` : 'Menú de navegación para usuarios'}
                 </SheetDescription>
               </>
             ) : null}
