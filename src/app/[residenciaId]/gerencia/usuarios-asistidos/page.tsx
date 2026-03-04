@@ -1,4 +1,4 @@
-import 'server-only';
+"use server";
 import { redirect } from 'next/navigation';
 import { ResultadoAcceso, verificarPermisoGestionWrapper } from '@/lib/acceso-privilegiado';
 import { GestionAsistidosClient } from './components/GestionAsistidosClient';

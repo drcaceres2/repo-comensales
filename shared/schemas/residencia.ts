@@ -104,6 +104,7 @@ export const ConfiguracionResidenciaSchema = z.object({
     residenciaId: slugIdSchema,
     nombreCompleto: z.string().min(1).max(80),
     version: z.number().int().nonnegative().default(1),
+    //bloqueoIntencionResidentes: z.boolean().default(false),
 
     // Muro móvil
     fechaHoraReferenciaUltimaSolicitud: FechaHoraIsoSchema,

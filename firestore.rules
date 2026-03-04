@@ -84,7 +84,7 @@ service cloud.firestore {
         allow create, update: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
         allow delete: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
       }
-      match /alteraciones/{alteracionId} {
+      match /alteracionesHorario/{alteracionId} {
         allow read:   if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
         allow create, update: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
         allow delete: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);

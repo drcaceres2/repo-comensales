@@ -1,4 +1,4 @@
-import 'server-only'; // Patrón de seguridad: Evita que este archivo se importe en componentes 'use client'
+"use server"
 import { headers } from 'next/headers';
 import { InfoUsuario } from 'shared/models/types'
 

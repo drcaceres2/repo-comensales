@@ -7,7 +7,7 @@ import * as admin from 'firebase-admin';
 import { obtenerInfoUsuarioServer } from "@/lib/obtenerInfoUsuarioServer";
 import { verificarPermisoGestionWrapper } from "@/lib/acceso-privilegiado";
 import { ZodError } from 'zod';
-import { logServer } from 'shared/utils/commonUtils';
+import { logServer } from 'shared/utils/serverUtils';
 import { slugify } from 'shared/utils/commonUtils';
 
 type ActionState = {

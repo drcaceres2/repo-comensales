@@ -3,10 +3,6 @@ import { toDate, formatInTimeZone } from 'date-fns-tz'
 import { TZDate } from "@date-fns/tz";
 import { FechaIsoSchema } from "../schemas/fechas";
 import { esValidaZonaHoraria, FechaIso, ZonaHorariaIana } from "../schemas/fechas";
-import { LogPayload } from "../models/types";
-import { db } from '@/lib/firebaseAdmin'; 
-import { FieldValue } from 'firebase-admin/firestore';
-import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 
 // --- Helper Functions ---
 export const slugify = (text: string, longitudMax?: number): string => {
@@ -76,27 +72,3 @@ export function EntreFechasResidencia(
         return 'error'
     }
 }
-
-export const logServer = async (payload: LogPayload): Promise<void> => {
-    try {
-        const auth = await obtenerInfoUsuarioServer();
-        const actorId = auth?.usuarioId || 'SYSTEM';
-        const actorEmail = auth?.email || 'system@internal';
-
-        const entry = {
-            userId: actorId,
-            userEmail: actorEmail,
-            action: payload.action,
-            targetId: payload.targetId || null,
-            targetCollection: payload.targetCollection || null,
-            residenciaId: payload.residenciaId || auth.residenciaId || null,
-            details: payload.details || {},
-            timestamp: FieldValue.serverTimestamp(),
-            source: 'server-action'
-        };
-
-        await db.collection("logs").add(entry);
-    } catch (error) {
-        console.error(`[AUDIT ERROR] Falló log para ${payload.action}`, error);
-    }
-};

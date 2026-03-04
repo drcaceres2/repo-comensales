@@ -179,14 +179,14 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
       label: 'Administrar Residencia',
       icon: ClipboardEdit,
       isAccordion: true,
-      roles: ['admin', 'master'],
+      roles: ['director', 'admin', 'master'],
       children: [
         {
           id: 'adminGlobalUsers',
           label: 'Crear usuarios (Global)',
           icon: Users,
           href: '/admin/users',
-          roles: ['admin', 'master'],
+          roles: ['director', 'admin', 'master', 'asistente'],
         },
         {
           id: 'adminHorariosComida',
@@ -194,7 +194,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           icon: Clock,
           href: rLink,
           pathTemplate: '/admin/horarios',
-          roles: ['admin'],
+          roles: ['director', 'admin', 'asistente'],
           requiresResidenciaIdForHref: true,
         },
         {
@@ -203,7 +203,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           icon: Home,
           href: rLink,
           pathTemplate: '/admin/comedores',
-          roles: ['admin'],
+          roles: ['director', 'admin', 'asistente'],
           requiresResidenciaIdForHref: true,
         },
         {
@@ -212,7 +212,16 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           icon: Bell,
           href: rLink,
           pathTemplate: '/gerencia/recordatorios',
-          roles: ['admin', 'master'],
+          roles: ['director', 'admin', 'master', 'asistente'],
+          requiresResidenciaIdForHref: true,
+        },
+        {
+          id: 'adminAlteracionesHorarios',
+          label: 'Alteraciones de Horarios',
+          icon: CalendarDays,
+          href: rLink,
+          pathTemplate: '/gerencia/alteraciones',
+          roles: ['director', 'admin', 'asistente'],
           requiresResidenciaIdForHref: true,
         },
       ],

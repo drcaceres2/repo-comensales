@@ -89,44 +89,6 @@ export const AtencionSchema = AtencionBaseSchema.extend({
 export const AtencionCreateSchema = AtencionBaseSchema;
 export const AtencionUpdateSchema = AtencionBaseSchema.partial();
 
-// ============================================
-// AlteracionHorario
-// ============================================
-
-const DetalleAlteracionSchema = z.object({
-    tiempoComida: z.any(), // TiempoComida (referencia al objeto completo)
-    alternativas: z.array(slugIdSchema), // ConfigAlternativaId[]
-}).strict();
-
-const AlteracionHorarioBaseObject = z.object({
-    nombre: z.string().min(1).max(100),
-    residenciaId: slugIdSchema,
-    autorId: FirestoreIdSchema,
-    descripcion: CadenaOpcionalLimitada(1, 500).optional(),
-    fechaInicio: FechaIsoSchema,
-    fechaFin: FechaIsoSchema,
-    alteraciones: z.record(slugIdSchema, DetalleAlteracionSchema),
-    estado: z.enum(['propuesta', 'aprobada', 'cancelada']),
-    avisoAdministracion: EstadoAvisoAdministracionSchema,
-});
-
-const AlteracionHorarioBaseSchema = AlteracionHorarioBaseObject
-    .strict().refine(data => data.fechaFin >= data.fechaInicio, {
-        message: "La fecha de fin no puede ser anterior a la fecha de inicio",
-        path: ["fechaFin"],
-    });
-
-export const AlteracionHorarioSchema = AlteracionHorarioBaseObject
-    .extend({ id: FirestoreIdSchema })
-    .strict().refine(data => data.fechaFin >= data.fechaInicio, {
-        message: "La fecha de fin no puede ser anterior a la fecha de inicio",
-        path: ["fechaFin"],
-    });
-
-
-export const AlteracionHorarioCreateSchema = AlteracionHorarioBaseSchema;
-export const AlteracionHorarioUpdateSchema = AlteracionHorarioBaseObject.partial();
-
 // Type exports
 export type Falta = z.infer<typeof FaltaSchema>;
 export type FaltaCreate = z.infer<typeof FaltaCreateSchema>;
@@ -139,8 +101,4 @@ export type RecordatorioUpdate = z.infer<typeof RecordatorioUpdateSchema>;
 export type Atencion = z.infer<typeof AtencionSchema>;
 export type AtencionCreate = z.infer<typeof AtencionCreateSchema>;
 export type AtencionUpdate = z.infer<typeof AtencionUpdateSchema>;
-
-export type AlteracionHorario = z.infer<typeof AlteracionHorarioSchema>;
-export type AlteracionHorarioCreate = z.infer<typeof AlteracionHorarioCreateSchema>;
-export type AlteracionHorarioUpdate = z.infer<typeof AlteracionHorarioUpdateSchema>;
 
