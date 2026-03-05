@@ -6,8 +6,8 @@ import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/useToast';
 
 import { db, functions } from '@/lib/firebase';
-import { ConfiguracionResidencia, CONFIG_RESIDENCIA_ID } from 'shared/schemas/residencia';
-import { HORARIOS_QUERY_KEY } from 'shared/models/types';
+import { ConfiguracionResidencia } from 'shared/schemas/residencia';
+import { CONFIG_RESIDENCIA_ID, HORARIOS_QUERY_KEY } from 'shared/models/types';
 import { DatosHorariosEnBruto } from 'shared/schemas/horarios';
 import { useHorariosAlmacen } from './useHorariosAlmacen';
 

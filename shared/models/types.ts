@@ -50,6 +50,7 @@ export type RolUsuario =
 
 // --- Residencias y propiedades esenciales ---
 export type ResidenciaId = string;
+export const CONFIG_RESIDENCIA_ID = "general";
 export type HorarioSolicitudComidaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export type ComedorId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export interface GrupoUsuariosData {

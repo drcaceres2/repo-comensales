@@ -15,7 +15,6 @@ import {
   updateResidencia,
   deleteResidencia,
 } from "./residencias";
-import { createAlteracionFn } from "./alteraciones";
 import { guardarHorariosResidencia } from "./horarios";
 import {
   actualizarMatrizAccesos,
@@ -33,7 +32,6 @@ export {
   createResidencia,
   updateResidencia,
   deleteResidencia,
-  createAlteracionFn,
   guardarHorariosResidencia,
   actualizarMatrizAccesos,
   asignarAsistenteProxy,

@@ -120,7 +120,7 @@ export const ConfiguracionResidenciaSchema = z.object({
     catalogoAlternativas: z.record(slugIdSchema, DefinicionAlternativaSchema),
     configuracionAlternativas: z.record(slugIdSchema, ConfiguracionAlternativaSchema),
 }).strict();
-export const CONFIG_RESIDENCIA_ID = "general";
+
 
 // ============================================
 // Type Exports
