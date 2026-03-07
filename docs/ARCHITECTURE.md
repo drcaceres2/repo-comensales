@@ -1,7 +1,7 @@
 # ARCHITECTURE.md
 
 **Proyecto:** Comensales Residencia (Web App)
-**Versión del Documento:** 8.0
+**Versión del Documento:** 8.1
 **Rol:** Arquitectura de Software & Estrategia
 
 ---
@@ -110,7 +110,7 @@ La base de datos sigue una estructura de árbol estricta para aislar contextos y
 > │   │  
 > │   ├── atenciones/ {auto-id}  
 > │   │  
-> │   ├── alteraciones/ {auto-id}  
+> │   ├── alteracionesHorario/ {auto-id}  
 > │   │  
 > │   ├── actividades/ {auto-id}  
 > │   │   └── inscripciones/ {uid}  

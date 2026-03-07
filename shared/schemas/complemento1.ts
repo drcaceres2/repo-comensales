@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, CadenaOpcionalLimitada, OptionalSlugIdSchema, slugIdSchema } from './common';
+import {FirestoreIdSchema, CadenaOpcionalLimitada, OptionalSlugIdSchema, slugIdSchema, AuthIdSchema} from './common';
 import { HoraIsoSchema } from './fechas';
 
 // ============================================
@@ -15,7 +15,7 @@ export const ComedorDataSchema = z.object({
     nombre: z.string().min(1, "El nombre es obligatorio").max(50),
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
     aforoMaximo: z.number().int().positive("El aforo debe ser positivo").optional(),
-    creadoPor: FirestoreIdSchema,
+    creadoPor: AuthIdSchema,
     centroCostoId: OptionalSlugIdSchema,
 }).strict();
 
@@ -95,8 +95,9 @@ export const DietaDataSchema = z.object({
         'aprobada_director', 'cancelada',
     ]),
     avisoAdministracion: z.enum([
-        'no_comunicado', 'comunicacion_preliminar',
-        'comunicacion_final', 'dieta_cancelada',
+        'no_comunicado', 
+        'comunicado', 
+        'dieta_cancelada',
     ]),
     creadoPor: FirestoreIdSchema,
     estaActiva: z.boolean(),

@@ -1,22 +1,43 @@
 import { z } from 'zod';
 import { ZonaHorariaIanaSchema } from './fechas';
 
+export const AuthIdSchema = z.string()
+    .min(1, "ID inválido")
+    .max(29, "ID no puede tener más de 29 caracteres")
+    .regex(/^[A-Za-z0-9]+$/, "ID solo puede contener caracteres Base62 (A-Z, a-z, 0-9)");
 
 // IDs de Firestore (no vacíos)
 export const FirestoreIdSchema = z.string()
     .min(1, "ID inválido")
-    .max(30, "ID no puede tener más de 20 caracteres")
-    .refine(val => !val.includes('/'), {
-        message: "ID no puede contener una barra inclinada (/)",
-    })
-    .refine(val => val !== '.', {
-        message: "ID no puede ser un punto simple (.)",
-    })
-    .refine(val => val !== '..', {
-        message: "ID no puede ser puntos dobles (..)",
-    })
-    .refine(val => !(val.startsWith('__') && val.endsWith('__')), {
-        message: "ID no puede empezar y terminar con guiones bajos dobles, ya que está reservado para el sistema.",
+    .max(21, "ID no puede tener más de 21 caracteres")
+    .superRefine((val, ctx) => {
+        if (val.includes('/')) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "ID no puede contener una barra inclinada (/)",
+            });
+        }
+
+        if (val === '.') {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "ID no puede ser un punto simple (.)",
+            });
+        }
+
+        if (val === '..') {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "ID no puede ser puntos dobles (..)",
+            });
+        }
+
+        if (val.startsWith('__') && val.endsWith('__')) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "ID no puede empezar y terminar con guiones bajos dobles, ya que está reservado para el sistema.",
+            });
+        }
     });
 
 export const TimestampSchema = z.any();
@@ -109,3 +130,4 @@ export const EmailSchema = z.string()
 
 export type Ubicacion = z.infer<typeof UbicacionSchema>;
 export type Email = z.infer<typeof EmailSchema>;
+export type SlugId = z.infer<typeof slugIdSchema>;

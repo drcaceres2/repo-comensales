@@ -118,7 +118,7 @@ export const ConfiguracionResidenciaSchema = z.object({
     gruposComidas: z.record(slugIdSchema, GrupoComidaSchema),
     esquemaSemanal: z.record(slugIdSchema, TiempoComidaSchema),
     catalogoAlternativas: z.record(slugIdSchema, DefinicionAlternativaSchema),
-    configuracionAlternativas: z.record(slugIdSchema, ConfiguracionAlternativaSchema),
+    configuracionesAlternativas: z.record(slugIdSchema, ConfiguracionAlternativaSchema),
 }).strict();
 
 

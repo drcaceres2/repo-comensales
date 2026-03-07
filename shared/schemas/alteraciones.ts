@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { slugIdSchema } from './common';
+import {AuthIdSchema, slugIdSchema} from './common';
 import { FechaIsoSchema } from './fechas';
 import { ConfiguracionAlternativaSchema } from './horarios';
 
@@ -38,7 +38,7 @@ export const AfectacionTiempoComidaSchema = z.object({
     
     // Trazabilidad indispensable en modelos de comandos
     audit: z.object({
-        creadoPor: slugIdSchema,
+        creadoPor: AuthIdSchema,
         timestampActualizacion: z.number(),
     }).optional()
 });

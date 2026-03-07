@@ -2,17 +2,17 @@
 
 // =================================================================================================
 // **ADVERTENCIA DE SEGURIDAD IMPORTANTE**
-//
+// 
 // Esta página está diseñada EXCLUSIVAMENTE para el entorno de desarrollo local.
 // Su propósito es facilitar la creación inicial de un usuario "master" para configurar el sistema
 // por primera vez.
-//
+// 
 // NO DEBE EXPONERSE EN UN ENTORNO DE PRODUCCIÓN O CUALQUIER ENTORNO ACCESIBLE PÚBLICAMENTE.
-//
+// 
 // **Acciones requeridas antes de desplegar a producción:**
 // 1. Eliminar el archivo de esta página: `src/app/crear-master/page.tsx`.
 // 2. Eliminar la función de Firebase asociada: `createHardcodedMasterUser` en `functions/src/index.ts`.
-//
+// 
 // Exponer esta funcionalidad en producción crearía una vulnerabilidad de seguridad crítica
 // que permitiría a cualquier persona crear un usuario con privilegios de administrador.
 // =================================================================================================
@@ -25,9 +25,11 @@ import { functions } from '@/lib/firebase';
 
 export default function CreateMasterUserPage() {
     const [isLoading, setIsLoading] = useState(false);
+    const [isSeeding, setIsSeeding] = useState(false);
     const { toast } = useToast();
 
     const createHardcodedMasterUserCallable = httpsCallable(functions, 'createHardcodedMasterUser');
+    const seedDatabaseCallable = httpsCallable(functions, 'seedDatabase');
 
     const handleCreateHardcodedMasterUser = async () => {
         setIsLoading(true);
@@ -61,6 +63,38 @@ export default function CreateMasterUserPage() {
         setIsLoading(false);
     };
 
+    const handleSeedDatabase = async () => {
+        setIsSeeding(true);
+        toast({ title: 'Inyectando datos de prueba en la base de datos...' });
+
+        try {
+            const result = await seedDatabaseCallable({});
+            const data = result.data as { success: boolean; message: string };
+
+            if (data.success) {
+                toast({
+                    title: '¡Éxito!',
+                    description: data.message,
+                    variant: 'default',
+                });
+            } else {
+                toast({
+                    title: 'Advertencia',
+                    description: data.message || 'No se pudieron inyectar los datos.',
+                    variant: 'destructive',
+                });
+            }
+        } catch (error: any) {
+            console.error('Error al llamar a seedDatabase:', error);
+            toast({
+                title: 'Error al inyectar datos',
+                description: error.message || 'Ocurrió un error inesperado.',
+                variant: 'destructive',
+            });
+        }
+        setIsSeeding(false);
+    };
+
     return (
         <div className="container mx-auto p-4">
             <h1 className="text-2xl font-bold mb-4">Crear Usuario Master (Solo Desarrollo Local)</h1>
@@ -88,9 +122,16 @@ export default function CreateMasterUserPage() {
                 Consulta los logs del emulador de Firebase para más detalles.
             </p>
 
-            <Button onClick={handleCreateHardcodedMasterUser} disabled={isLoading}>
-                {isLoading ? 'Procesando...' : 'Crear Usuario Master Hardcoded'}
-            </Button>
+            <div className="flex flex-col space-y-4">
+                <Button onClick={handleCreateHardcodedMasterUser} disabled={isLoading || isSeeding}>
+                    {isLoading ? 'Procesando...' : 'Crear Usuario Master Hardcoded'}
+                </Button>
+
+                <Button onClick={handleSeedDatabase} disabled={isLoading || isSeeding} variant="secondary">
+                    {isSeeding ? 'Inyectando Datos...' : 'Poblar Base de Datos de Prueba'}
+                </Button>
+            </div>
+
 
             <div className="mt-8 p-4 border border-gray-300 rounded">
                 <h2 className="text-xl font-semibold mb-2">Siguientes Pasos:</h2>
@@ -113,4 +154,3 @@ export default function CreateMasterUserPage() {
         </div>
     );
 }
-

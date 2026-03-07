@@ -20,7 +20,7 @@ export async function createAlteracionCommand(
     residenciaId,
   };
 
-  const docRef = doc(db, `residencias/${residenciaId}/alteraciones`, newAlteracionData.fecha);
+  const docRef = doc(db, `residencias/${residenciaId}/alteracionesHorario`, newAlteracionData.fecha);
   await setDoc(docRef, newAlteracionData);
 
   return newAlteracionData;
@@ -42,6 +42,6 @@ export async function updateAlteracion(
     throw new Error("Update operation requires a date.");
   }
 
-  const docRef = doc(db, `residencias/${residenciaId}/alteraciones`, fecha);
+  const docRef = doc(db, `residencias/${residenciaId}/alteracionesHorario`, fecha);
   await setDoc(docRef, updateData, { merge: true });
 }

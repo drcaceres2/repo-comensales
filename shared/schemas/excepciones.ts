@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugCompuestoIdSchema, slugIdSchema, TimestampSchema } from './common';
+import {AuthIdSchema, FirestoreIdSchema, slugCompuestoIdSchema, slugIdSchema, TimestampSchema} from './common';
 import {FechaHoraIsoSchema, FechaIsoSchema } from './fechas';
 
 // ============================================
@@ -12,7 +12,7 @@ const AutorizacionExcepcionSchema = z.object({
         'no_requiere_aprobacion', 'pendiente_aprobacion',
         'aprobado', 'rechazado',
     ]),
-    autorizadoPor: FirestoreIdSchema.optional(),
+    autorizadoPor: AuthIdSchema.optional(),
     fechaHoraAutorizacion: FechaHoraIsoSchema,
     alternativaRespaldoId: slugIdSchema.nullable().optional(),
 }).strict();

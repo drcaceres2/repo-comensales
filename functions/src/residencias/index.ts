@@ -104,7 +104,7 @@ export const createResidencia = onCall(
         descripcion: { tipo: "texto_corto", descripcion: "Ningún régimen especial." },
         esPredeterminada: true,
         estado: "aprobada_director",
-        avisoAdministracion: "comunicacion_final",
+        avisoAdministracion: "comunicado",
         creadoPor: callerInfo.uid,
         estaActiva: true,
       };
@@ -129,7 +129,7 @@ export const createResidencia = onCall(
         gruposComidas: {},
         esquemaSemanal: {},
         catalogoAlternativas: {},
-        configuracionAlternativas: {},
+        configuracionesAlternativas: {},
       };
       batch.set(defaultConfigRef, initialConfig);
       functions.logger.info("Successfully created default Dieta for Residencia:", data.residenciaId);

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import {FirestoreIdSchema, slugCompuestoIdSchema, slugIdSchema, TimestampSchema } from './common';
+import {AuthIdSchema, FirestoreIdSchema, slugCompuestoIdSchema, slugIdSchema, TimestampSchema} from './common';
 import {FechaHoraIsoSchema, FechaIsoSchema } from './fechas';
 
 // ============================================
@@ -42,7 +42,7 @@ export const ComensalSolicitadoSchema = z.object({
 
     // Coordenadas
     residenciaId: slugIdSchema,
-    usuarioComensalId: FirestoreIdSchema,
+    usuarioComensalId: AuthIdSchema,
     nombreUsuarioComensal: z.string(),
     dietaId: slugIdSchema,
     solicitudConsolidadaId: slugIdSchema,
@@ -65,7 +65,7 @@ export const ComensalSolicitadoSchema = z.object({
 // ============================================
 
 const DetalleMovimientoUsuarioSchema = z.object({
-    usuarioId: FirestoreIdSchema,
+    usuarioId: AuthIdSchema,
     accion: z.enum(['entrada', 'salida', 'cambio_informacion']),
     comentario: z.string().max(500).optional(),
 }).strict();

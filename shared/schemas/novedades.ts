@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugIdSchema, TimestampSchema } from './common';
+import {AuthIdSchema, FirestoreIdSchema, slugIdSchema, TimestampSchema} from './common';
 import { FechaIsoSchema } from './fechas';
 
 // Definición centralizada para el estado de la novedad
@@ -21,9 +21,9 @@ export const CategoriaNovedadEnum = z.enum([
 
 const NovedadOperativaBaseSchema = z.object({
   residenciaId: slugIdSchema,
-  autorId: FirestoreIdSchema,
-  aprobadorId: FirestoreIdSchema.optional(), // Quien la revisó (Director/Asistente)
-  consolidadorId: FirestoreIdSchema.optional(), // Reemplaza 'usuarioSolicitanteAdminId' (más claro)
+  autorId: AuthIdSchema,
+  aprobadorId: AuthIdSchema.optional(), // Quien la revisó (Director/Asistente)
+  consolidadorId: AuthIdSchema.optional(), // Reemplaza 'usuarioSolicitanteAdminId' (más claro)
   solicitudConsolidadaId: FirestoreIdSchema.optional(), // Vínculo estricto e inmutable al Snapshot
   fechaProgramada: FechaIsoSchema,
 

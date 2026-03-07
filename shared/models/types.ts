@@ -84,24 +84,7 @@ export type TiempoComidaId = string; // ID semántico: slug estilo kebab a parti
  */
 export type AlternativaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export type ConfigAlternativaId = string;
-
-
-export interface AlteracionHorario {
-    id: AlteracionHorarioId; // ID autogenerado por Firestore
-    nombre: string;
-    residenciaId: ResidenciaId;
-    descripcion?: string;
-    fechaInicio: FechaIso;
-    fechaFin: FechaIso;
-    alteraciones: Record<TiempoComidaId, DetalleAlteracion>;
-    estado: 'propuesta' | 'aprobada' | 'cancelada';
-    avisoAdministracion: EstadoAvisoAdministracion;
-}
 export type AlteracionHorarioId = string;
-export interface DetalleAlteracion {
-    tiempoComida: TiempoComida;
-    alternativas: ConfigAlternativaId[];
-}
 export type EstadoAvisoAdministracion =
     | 'no_comunicado' | 'comunicacion_preliminar' 
     | 'comunicacion_final' | 'evento_cancelado';

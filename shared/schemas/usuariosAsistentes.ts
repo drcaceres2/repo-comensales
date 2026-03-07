@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import {FirestoreIdSchema, slugIdSchema} from './common';
+import {AuthIdSchema, FirestoreIdSchema, slugIdSchema} from './common';
 import {FechaIsoSchema, HoraIsoSchema} from "./fechas";
 
 export const AsistentePermisosDetalleSchema = z.object({
@@ -10,7 +10,7 @@ export const AsistentePermisosDetalleSchema = z.object({
 }).strict();
 
 export const AsistenteSchema = z.object({
-    usuariosAsistidos: z.record(FirestoreIdSchema, AsistentePermisosDetalleSchema),
+    usuariosAsistidos: z.record(AuthIdSchema, AsistentePermisosDetalleSchema),
     gestionActividades: AsistentePermisosDetalleSchema,
     gestionInvitados: AsistentePermisosDetalleSchema,
     gestionRecordatorios: AsistentePermisosDetalleSchema,
@@ -24,8 +24,8 @@ export const AsistenteSchema = z.object({
 }).strict();
 
 export const AsignarAsistentePayloadSchema = z.object({
-    asistidoId: FirestoreIdSchema, // Puede ser Residente o Invitado
-    asistenteId: FirestoreIdSchema, // El usuario que recibe la facultad
+    asistidoId: AuthIdSchema, // Puede ser Residente o Invitado
+    asistenteId: AuthIdSchema, // El usuario que recibe la facultad
     permisos: AsistentePermisosDetalleSchema,
 }).superRefine((data, ctx) => {
     // Validamos las fechas usando la misma función pura del Blueprint 1
@@ -33,8 +33,8 @@ export const AsignarAsistentePayloadSchema = z.object({
 });
 
 export const RevocarAsistentePayloadSchema = z.object({
-    asistidoId: FirestoreIdSchema,
-    asistenteId: FirestoreIdSchema,
+    asistidoId: AuthIdSchema,
+    asistenteId: AuthIdSchema,
 });
 
 // 1. Función de validación de integridad de fechas
@@ -81,7 +81,7 @@ const validarFechasPermiso = (data: AsistentePermisosDetalle, ctx: z.RefinementC
 
 // 2. Esquema de Payload para el Server Action (Matriz de Sistema)
 export const UpdateMatrizAccesosPayloadSchema = z.object({
-    targetUserId: FirestoreIdSchema,
+    targetUserId: AuthIdSchema,
 
     // Heredamos omitiendo lo que pertenece al Blueprint 2 (Proxy)
     permisos: AsistenteSchema.omit({

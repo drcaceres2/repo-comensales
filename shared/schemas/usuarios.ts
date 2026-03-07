@@ -1,5 +1,7 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada, TelefonoOpcionalSchema, TimestampSchema} from './common';
+import { slugIdSchema, CadenaOpcionalLimitada, 
+    TelefonoOpcionalSchema, TimestampSchema, 
+    AuthIdSchema} from './common';
 import { FechaIsoOpcionalSchema, HoraIsoSchema } from './fechas';
 import { AsistenteSchema, AsistentePermisosDetalleSchema } from './usuariosAsistentes';
 
@@ -31,7 +33,7 @@ export const NotificacionPreferenciasSchema = z.object({
 
 const usuarioBaseObject = z.object({
     // Info interna (Controlada por el servidor)
-    id: FirestoreIdSchema,
+    id: AuthIdSchema,
     timestampCreacion: TimestampSchema,
     timestampActualizacion: TimestampSchema,
     timestampUltimoIngreso: TimestampSchema.nullable().optional(),
@@ -167,7 +169,7 @@ export const updateUsuarioSchema = updateUsuarioObject
 // ============================================
 
 export const UserSelectorItemSchema = z.object({
-    id: FirestoreIdSchema,
+    id: AuthIdSchema,
     nombreCorto: z.string().nullable().optional(),
     email: z.string().email(),
     roles: z.array(z.string()),

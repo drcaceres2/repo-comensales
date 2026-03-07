@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugIdSchema, TimestampSchema } from './common';
+import { AuthIdSchema, FirestoreIdSchema, slugIdSchema, TimestampSchema } from './common';
 import { FechaIsoSchema, HoraIsoSchema} from './fechas';
 
 // ============================================
@@ -81,7 +81,7 @@ const ActividadBaseSchema = z.object({
     // Campos generales
     id: FirestoreIdSchema,
     residenciaId: slugIdSchema,
-    organizadorId: FirestoreIdSchema,
+    organizadorId: AuthIdSchema,
     nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(25, 'El nombre no puede exceder los 25 caracteres'),
     descripcion: z.string().trim().max(255, 'La descripción no puede exceder los 255 caracteres').optional(),
     estado: EstadoActividadEnum,
@@ -194,8 +194,8 @@ export const InscripcionActividadSchema = z.object({
     id: FirestoreIdSchema,
     residenciaId: slugIdSchema,
     actividadId: FirestoreIdSchema,
-    usuarioInscritoId: FirestoreIdSchema,
-    invitadoPorUsuarioId: FirestoreIdSchema.optional(),
+    usuarioInscritoId: AuthIdSchema,
+    invitadoPorUsuarioId: AuthIdSchema.optional(),
 
     fechaInvitacion: FechaIsoSchema.nullable(),
     estadoInscripcion: EstadoInscripcionActividadEnum,

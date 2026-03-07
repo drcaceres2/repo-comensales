@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada, TimestampSchema, ColorHTMLSchema } from './common';
+import {
+    FirestoreIdSchema,
+    slugIdSchema,
+    CadenaOpcionalLimitada,
+    TimestampSchema,
+    ColorHTMLSchema,
+    AuthIdSchema
+} from './common';
 import { FechaIsoSchema, FechaHoraIsoSchema } from './fechas';
 
 // ============================================
@@ -18,7 +25,7 @@ export const EstadoAvisoAdministracionSchema = z.enum([
 const FaltaBaseSchema = z.object({
     fecha: FechaIsoSchema,
     residencia: slugIdSchema,
-    usuario: FirestoreIdSchema,
+    usuario: AuthIdSchema,
     titulo: CadenaOpcionalLimitada(1, 100),
     descripcion: CadenaOpcionalLimitada(1, 500).optional(),
     notificada: z.boolean(),
@@ -44,7 +51,7 @@ const RecurrenciaRecordatorioSchema = z.object({
 
 const RecordatorioBaseSchema = z.object({
     residenciaId: slugIdSchema,
-    autorId: FirestoreIdSchema,
+    autorId: AuthIdSchema,
     fecha: FechaIsoSchema,
     duracion: z.number().int().positive(),
     recurrencia: RecurrenciaRecordatorioSchema.optional(),
@@ -67,7 +74,7 @@ export const RecordatorioUpdateSchema = RecordatorioBaseSchema.partial();
 
 const AtencionBaseSchema = z.object({
     residenciaId: slugIdSchema,
-    autorId: FirestoreIdSchema,
+    autorId: AuthIdSchema,
     nombre: z.string().min(1).max(100),
     comentarios: CadenaOpcionalLimitada(1, 500).optional(),
     horarioSolicitudComidaId: slugIdSchema,

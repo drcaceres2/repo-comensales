@@ -4,8 +4,6 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/firebaseAdmin';
 import { ComedorDataSchema } from 'shared/schemas/complemento1';
 import * as admin from 'firebase-admin';
-import { obtenerInfoUsuarioServer } from "@/lib/obtenerInfoUsuarioServer";
-import { verificarPermisoGestionWrapper } from "@/lib/acceso-privilegiado";
 import { ZodError } from 'zod';
 import { logServer } from 'shared/utils/serverUtils';
 import { slugify } from 'shared/utils/commonUtils';
@@ -25,18 +23,6 @@ export async function upsertComedor(
     data: unknown
 ): Promise<ActionState> {
     try {
-        const auth = await obtenerInfoUsuarioServer();
-
-        const resultadoAcceso = await verificarPermisoGestionWrapper('gestionComedores');
-
-        if(resultadoAcceso.error) {
-            return ({ success: false, error: resultadoAcceso.error })
-        }
-
-        if (!resultadoAcceso.tieneAcceso) {
-            return { success: false, error: 'No tienes permiso para realizar esta acción.' };
-        }
-
         const validatedData = ComedorDataSchema.parse(data);
         const id = editingId || slugify(validatedData.nombre);
 
@@ -46,10 +32,6 @@ export async function upsertComedor(
 
         if (!editingId && comedores[id]) {
             return { success: false, error: 'Ya existe un comedor con un nombre similar.' };
-        }
-
-        if (editingId && resultadoAcceso.nivelAcceso === 'Propias' && comedores[editingId]?.creadoPor !== auth.usuarioId) {
-            return { success: false, error: 'No tienes permiso para editar este comedor.' };
         }
 
         await configRef.set({
@@ -88,24 +70,9 @@ export async function upsertComedor(
  */
 export async function deleteComedor(residenciaId: string, id: string): Promise<ActionState> {
     try {
-        const auth = await obtenerInfoUsuarioServer();
-
-        const resultadoAcceso = await verificarPermisoGestionWrapper('gestionComedores');
-
-        if(resultadoAcceso.error) {
-            return { success: false, error: resultadoAcceso.error };
-        }
-
         const configRef = db.collection('residencias').doc(residenciaId).collection('configuracion').doc('general');
         const doc = await configRef.get();
         const comedores = doc.data()?.comedores || {};
-
-        const puedeEliminar = resultadoAcceso.tieneAcceso &&
-            (resultadoAcceso.nivelAcceso === 'Todas' || (resultadoAcceso.nivelAcceso === 'Propias' && comedores[id]?.creadoPor === auth.usuarioId));
-
-        if (!puedeEliminar) {
-            return { success: false, error: 'No tienes permiso para eliminar este comedor.' };
-        }
 
         if (Object.keys(comedores).length <= 1) {
             return { success: false, error: 'No es posible eliminar el último comedor.' };

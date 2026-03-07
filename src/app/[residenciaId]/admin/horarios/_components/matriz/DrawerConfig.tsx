@@ -135,7 +135,7 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
         <div className="relative w-full bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto p-4 transition-transform duration-300 ease-in-out transform translate-y-0">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold">Alternativas para: {tiempoComida.nombre}</h2>
-            <button onClick={handleClose} className="p-1 rounded-full hover:bg-gray-200">
+            <button type="button" onClick={handleClose} className="p-1 rounded-full hover:bg-gray-200" title="Cerrar">
               <X size={24} />
             </button>
           </div>
@@ -175,7 +175,7 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
 
           {!isFormOpen && (
             <div className="flex gap-2">
-              <button onClick={() => { setIsFormOpen(true); setEditingId(null); reset({estaActivo: true, tiempoComidaId, ventanaServicio: { horaInicio: '00:00', horaFin: '00:00', tipoVentana: 'normal' }}); }} className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold">
+              <button type="button" onClick={() => { setIsFormOpen(true); setEditingId(null); reset({estaActivo: true, tiempoComidaId, ventanaServicio: { horaInicio: '00:00', horaFin: '00:00', tipoVentana: 'normal' }}); }} className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold">
                 + Añadir Alternativa
               </button>
             </div>

@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { FirestoreIdSchema, slugIdSchema, CadenaOpcionalLimitada, slugCompuestoIdSchema, TimestampSchema } from './common';
+import {
+    slugIdSchema,
+    CadenaOpcionalLimitada,
+    TimestampSchema,
+    AuthIdSchema
+} from './common';
 import { FechaIsoSchema } from './fechas';
 
 // ============================================
@@ -7,7 +12,7 @@ import { FechaIsoSchema } from './fechas';
 // ============================================
 
 const AusenciaBaseObject = z.object({
-    usuarioId: FirestoreIdSchema,
+    usuarioId: AuthIdSchema,
     residenciaId: slugIdSchema,
     fechaInicio: FechaIsoSchema,
     primerTiempoAusente: slugIdSchema.nullable().optional(), // TiempoComidaId

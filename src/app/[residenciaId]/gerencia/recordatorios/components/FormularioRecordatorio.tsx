@@ -61,7 +61,7 @@ export function FormularioRecordatorio({
     return (
         <form onSubmit={handleFormSubmit} className="flex flex-col h-full">
             {/* Contenedor principal que se hará scrollable */}
-            <div className="flex-grow space-y-6 overflow-y-auto max-h-[70vh] pr-4">
+            <div className="flex-grow space-y-6 overflow-y-auto max-h-[70vh] px-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="titulo">Título</Label>

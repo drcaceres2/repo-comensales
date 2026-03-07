@@ -28,7 +28,7 @@ const fetchHorarios = async (residenciaId: string): Promise<{ datos: DatosHorari
                 gruposComidas: data.gruposComidas || {},
                 esquemaSemanal: data.esquemaSemanal || {},
                 catalogoAlternativas: data.catalogoAlternativas || {},
-                configuracionesAlternativas: data.configuracionAlternativas || {},
+                configuracionesAlternativas: data.configuracionesAlternativas || {},
                 comedores: data.comedores || {},
             },
             version: data.version || 0,

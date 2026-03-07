@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import {ColorHTMLSchema, FirestoreIdSchema, slugIdSchema, TimestampSchema} from "./common";
+import {AuthIdSchema, ColorHTMLSchema, FirestoreIdSchema, slugIdSchema, TimestampSchema} from "./common";
 import {FechaIsoOpcionalSchema, FechaIsoSchema} from "./fechas";
 
 // Valida que empiece con FREQ y contenga solo los modificadores que permitimos en V1
@@ -39,7 +39,7 @@ export const RRULEString = z.string().superRefine((val, ctx) => {
 export const RecordatorioSchema = z.object({
     id: FirestoreIdSchema,
     residenciaId: slugIdSchema,
-    usuarioIniciadorId: FirestoreIdSchema,
+    usuarioIniciadorId: AuthIdSchema,
 
     // Clasificación para saber cómo renderizarlo o si se puede editar manualmente
     tipo: z.enum(['manual', 'cumpleanos', 'sistema']),
