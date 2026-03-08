@@ -38,9 +38,10 @@ import { useRouter } from 'next/navigation';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 // --- Firebase & New Auth Hook Imports ---
-import { httpsCallable } from "firebase/functions";
-import { doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
-import { db, functions } from '@/lib/firebase';
+import { 
+    db, doc, getDoc, getDocs, collection, query, where, 
+    functions, httpsCallable
+} from '@/lib/firebase';
 import { useInfoUsuario } from '@/components/layout/AppProviders';
 import { format } from 'date-fns'
 

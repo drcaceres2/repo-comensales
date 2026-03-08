@@ -1,6 +1,6 @@
 'use server';
 
-import { db, admin } from '@/lib/firebaseAdmin';
+import { db, FieldValue } from '@/lib/firebaseAdmin';
 
 export async function submitFeedback(prevState: any, formData: FormData) {
   try {
@@ -19,7 +19,7 @@ export async function submitFeedback(prevState: any, formData: FormData) {
       userEmail: formData.get('userEmail')?.toString() || null,
       residenciaId: formData.get('residenciaId')?.toString() || null,
       status: 'nuevo',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     };
 
     await db.collection('feedback').add(payload);

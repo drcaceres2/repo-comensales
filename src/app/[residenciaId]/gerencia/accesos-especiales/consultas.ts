@@ -1,14 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { httpsCallable } from "firebase/functions";
 import {
   UpdateMatrizAccesosPayload,
   AsistentePermisosDetalle,
 } from "shared/schemas/usuariosAsistentes";
 import { Usuario } from "shared/schemas/usuarios";
-import { db, functions } from "@/lib/firebase";
-import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
+import { db, functions, 
+  collection, query, where, getDocs, doc, getDoc,
+  httpsCallable
+} from "@/lib/firebase";
 
 // --- Cloud Functions (Mutations) ---
 

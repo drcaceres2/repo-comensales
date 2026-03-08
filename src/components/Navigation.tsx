@@ -123,15 +123,6 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           requiresResidenciaIdForHref: true,
         },
         {
-          id: 'adminGruposUsuarios',
-          label: 'Restringir residentes',
-          icon: UsersRound,
-          href: rLink,
-          pathTemplate: '/gerencia/grupos-usuarios',
-          roles: ['director', 'asistente'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
           id: 'configDelegacionAsistente',
           label: 'Delegar',
           icon: UserCog,
@@ -187,6 +178,15 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           icon: Users,
           href: '/admin/users',
           roles: ['director', 'admin', 'master', 'asistente'],
+        },
+        {
+          id: 'adminGruposUsuariosResidencia',
+          label: 'Restringir residentes',
+          icon: UsersRound,
+          href: rLink,
+          pathTemplate: '/gerencia/grupos-usuarios',
+          roles: ['admin', 'director', 'asistente'],
+          requiresResidenciaIdForHref: true,
         },
         {
           id: 'adminHorariosComida',

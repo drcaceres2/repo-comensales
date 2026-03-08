@@ -7,11 +7,12 @@ import {
     TimestampSchema
 } from './common';
 import { FechaHoraIsoSchema } from './fechas';
-import { ComedorDataSchema, GrupoUsuariosDataSchema, DietaDataSchema } from './complemento1';
+import { ComedorDataSchema, DietaDataSchema } from './complemento1';
 import { HorarioSolicitudDataSchema, TiempoComidaSchema, 
     DefinicionAlternativaSchema, ConfiguracionAlternativaSchema,
     GrupoComidaSchema
 } from './horarios';
+import { GrupoUsuario, GrupoUsuarioSchema, RestriccionCatalogoSchema } from './usuariosGrupos';
 
 // ============================================
 // CampoPersonalizado (nueva estructura)
@@ -113,12 +114,13 @@ export const ConfiguracionResidenciaSchema = z.object({
     // Datos Embebidos (Embed Pattern)
     horariosSolicitud: z.record(slugIdSchema, HorarioSolicitudDataSchema),
     comedores: z.record(slugIdSchema, ComedorDataSchema),
-    gruposUsuarios: z.record(slugIdSchema, GrupoUsuariosDataSchema),
+    gruposUsuarios: z.record(slugIdSchema, GrupoUsuarioSchema),
     dietas: z.record(slugIdSchema, DietaDataSchema),
     gruposComidas: z.record(slugIdSchema, GrupoComidaSchema),
     esquemaSemanal: z.record(slugIdSchema, TiempoComidaSchema),
     catalogoAlternativas: z.record(slugIdSchema, DefinicionAlternativaSchema),
     configuracionesAlternativas: z.record(slugIdSchema, ConfiguracionAlternativaSchema),
+    restriccionesCatalogo: z.record(slugIdSchema, RestriccionCatalogoSchema),
 }).strict();
 
 

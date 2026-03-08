@@ -8,7 +8,7 @@ import {
     RecordatorioSchema,
 } from 'shared/schemas/recordatorios';
 import { FirestoreIdSchema } from 'shared/schemas/common';
-import { db, admin } from '@/lib/firebaseAdmin';
+import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 
 // --- Tipos de Retorno de la Acción ---
@@ -57,7 +57,7 @@ export async function crearRecordatorio(
         usuarioIniciadorId,
         estaActivo: true,
         // timestampCreacion será un Timestamp de servidor; z.any() acepta esto
-        timestampCreacion: admin.firestore.FieldValue.serverTimestamp() as any,
+        timestampCreacion: FieldValue.serverTimestamp() as any,
     } as any; // lo casteamos porque FieldValue no es exactamente string, pero TimestampSchema es z.any()
 
     // 3. validación con Zod (TimestampSchema permite cualquier valor)

@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 
 // --- Firebase & Actions ---
-import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { db, doc, getDoc, collection, getDocs } from '@/lib/firebase';
 import { upsertComedor, deleteComedor } from './actions';
 
 // --- Types & Schemas ---

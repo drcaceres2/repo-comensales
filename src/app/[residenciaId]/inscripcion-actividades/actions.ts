@@ -1,6 +1,6 @@
 'use server';
 
-import { db, admin } from '@/lib/firebaseAdmin';
+import { db, FieldPath } from '@/lib/firebaseAdmin';
 import type {
   Actividad,
   InscripcionActividad,
@@ -13,8 +13,7 @@ import {
 } from '@/../shared/models/types';
 import { obtenerInfoUsuarioServer} from "@/lib/obtenerInfoUsuarioServer";
 import { revalidatePath } from 'next/cache';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/lib/firebase';
+import { httpsCallable, functions } from '@/lib/firebase';
 
 async function getResidencia(residenciaId: ResidenciaId): Promise<Residencia | null> {
     const residenciaRef = db.collection('residencias').doc(residenciaId);
@@ -125,7 +124,7 @@ export async function getActividadesDisponibles(
   const invitedActividadIds = userInvitations.map((ins) => ins.actividadId);
   if (invitedActividadIds.length > 0) {
     const invitedActivitiesQuery = db.collection(`residencias/${residenciaId}/actividades`)
-        .where(admin.firestore.FieldPath.documentId(), 'in', invitedActividadIds);
+        .where(FieldPath.documentId(), 'in', invitedActividadIds);
         
     const invitedActivitiesSnap = await invitedActivitiesQuery.get();
     const invitedActivities = invitedActivitiesSnap.docs.map(doc => ({...doc.data(), id: doc.id}) as Actividad);

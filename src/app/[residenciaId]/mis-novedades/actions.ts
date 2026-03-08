@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { db, admin } from "@/lib/firebaseAdmin";
+import { db, FieldValue } from "@/lib/firebaseAdmin";
 import {
   type NovedadOperativa,
   NovedadFormSchema,
@@ -39,8 +39,8 @@ export async function crearNovedadAction(
       autorId,
       estado: "pendiente" as const,
       // use server-side timestamps to keep clock consistent and sortable
-      timestampCreacion: admin.firestore.FieldValue.serverTimestamp(),
-      timestampActualizacion: admin.firestore.FieldValue.serverTimestamp(),
+      timestampCreacion: FieldValue.serverTimestamp(),
+      timestampActualizacion: FieldValue.serverTimestamp(),
     };
 
     const docRef = await db.collection(getCollectionPath(residenciaId)).add(nuevaNovedad);
@@ -100,7 +100,7 @@ export async function actualizarNovedadAction(
     console.log("[actualizarNovedadAction] 9. Actualizando documento...");
     await novedadRef.update({ 
         ...validatedData.data,
-        timestampActualizacion: admin.firestore.FieldValue.serverTimestamp(),
+        timestampActualizacion: FieldValue.serverTimestamp(),
     });
     console.log("[actualizarNovedadAction] 10. Documento actualizado.");
     

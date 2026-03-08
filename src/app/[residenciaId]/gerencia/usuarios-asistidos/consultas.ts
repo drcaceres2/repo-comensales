@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { httpsCallable } from "firebase/functions";
 import { AsignarAsistentePayload, RevocarAsistentePayload, AsistentePermisosDetalle } from "shared/schemas/usuariosAsistentes";
 import { Usuario } from "shared/schemas/usuarios";
-import { db, functions } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { 
+  db, collection, query, where, getDocs,
+  functions, httpsCallable
+} from "@/lib/firebase";
 import { useInfoUsuario } from "@/components/layout/AppProviders";
 
 // --- Tipos de Datos para la UI ---

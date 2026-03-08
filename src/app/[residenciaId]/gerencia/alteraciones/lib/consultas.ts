@@ -4,8 +4,7 @@ import { AlteracionDiaria } from 'shared/schemas/alteraciones';
 import { CreateAlteracionDiaria, UpdateAlteracionDiaria } from './esquemas';
 import { ConfiguracionResidencia } from 'shared/schemas/residencia';
 import { CONFIG_RESIDENCIA_ID, HORARIOS_QUERY_KEY, ResidenciaId} from "shared/models/types";
-import {doc, getDoc, collection, getDocs} from "firebase/firestore";
-import {db} from "@/lib/firebase";
+import {doc, getDoc, collection, getDocs, db} from "@/lib/firebase";
 
 const fetchHorarios = async (residenciaId: ResidenciaId): Promise<Partial<ConfiguracionResidencia>> => {
     const docRef = doc(db, `residencias/${residenciaId}/configuracion/${CONFIG_RESIDENCIA_ID}`);

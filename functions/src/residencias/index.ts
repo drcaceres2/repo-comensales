@@ -130,6 +130,7 @@ export const createResidencia = onCall(
         esquemaSemanal: {},
         catalogoAlternativas: {},
         configuracionesAlternativas: {},
+        restriccionesCatalogo: {},
       };
       batch.set(defaultConfigRef, initialConfig);
       functions.logger.info("Successfully created default Dieta for Residencia:", data.residenciaId);

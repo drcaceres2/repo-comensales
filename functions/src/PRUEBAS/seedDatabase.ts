@@ -200,13 +200,20 @@ export const seedDatabase = onCall(
       };
 
       const catalogoAlternativas: Record<string, DefinicionAlternativa> = {};
-      const tiposAlternativa = ['normal', 'temprano', 'tarde', 'no-como', 'ayuno'];
+      const tiposAlternativa = ['normal', 'temprano', 'tarde', 'no_como', 'ayuno'];
+      const etiquetasTipoAlternativa: Record<string, string> = {
+        'normal': 'normal',
+        'temprano': 'temprano',
+        'tarde': 'tarde',
+        'no_como': 'no como en casa',
+        'ayuno': 'ayuno',
+      };
       
       Object.keys(gruposComidas).forEach(grupoId => {
         tiposAlternativa.forEach(tipoAlt => {
-          const tipo = (tipoAlt === 'no-como' ? 'noComoEnCasa' : tipoAlt === 'ayuno' ? 'ayuno' : 'comedor');
+          const tipo = (tipoAlt === 'no_como' ? 'noComoEnCasa' : tipoAlt === 'ayuno' ? 'ayuno' : 'comedor');
           catalogoAlternativas[`${grupoId}_${tipoAlt}`] = {
-            nombre: `${tipoAlt.charAt(0).toUpperCase() + tipoAlt.slice(1)} de ${gruposComidas[grupoId].nombre}`,
+            nombre: `${gruposComidas[grupoId].nombre} ${etiquetasTipoAlternativa[tipoAlt]}`,
             grupoComida: grupoId,
             tipo: tipo,
             estaActiva: true,
@@ -227,7 +234,7 @@ export const seedDatabase = onCall(
             const requiereAprobacion = !["sabado", "domingo"].includes(dia) && ['temprano', 'tarde'].includes(defAltId.split('_')[1]);
             
             configuracionesAlternativas[confAltId] = {
-              nombre: catalogoAlternativas[defAltId].nombre,
+              nombre: `${catalogoAlternativas[defAltId].nombre} ${dia}`,
               tiempoComidaId,
               definicionAlternativaId: defAltId,
               horarioSolicitudComidaId: `${dia}_2000`,
@@ -293,6 +300,7 @@ export const seedDatabase = onCall(
         configuracionesAlternativas,
         dietas,
         gruposUsuarios: {},
+        restriccionesCatalogo: {},
       };
 
       await configRef.set(finalConfig);

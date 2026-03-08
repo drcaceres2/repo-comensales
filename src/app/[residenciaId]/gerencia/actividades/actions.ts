@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db, admin } from '@/lib/firebaseAdmin';
+import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { 
     type Actividad,
     type EstadoActividad,
@@ -16,8 +16,7 @@ import {
     type ResidenciaId,
     LogPayload
 } from '@/../shared/models/types';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/lib/firebase';
+import { httpsCallable, functions } from '@/lib/firebase';
 import {obtenerInfoUsuarioServer} from "@/lib/obtenerInfoUsuarioServer";
 
 // Helper to get the day of the week from a date string (YYYY-MM-DD)
@@ -87,8 +86,8 @@ export async function createActividad(
             tiempoComidaFinal,
             fechaInicio,
             fechaFin,
-            fechaHoraCreacion: admin.firestore.FieldValue.serverTimestamp(),
-            fechaHoraModificacion: admin.firestore.FieldValue.serverTimestamp(),
+            fechaHoraCreacion: FieldValue.serverTimestamp(),
+            fechaHoraModificacion: FieldValue.serverTimestamp(),
         });
 
         // Async logging via Cloud Function
@@ -188,7 +187,7 @@ export async function updateActividad(
 
         const finalUpdate = {
             ...updateData,
-            fechaHoraModificacion: admin.firestore.FieldValue.serverTimestamp(),
+            fechaHoraModificacion: FieldValue.serverTimestamp(),
         };
         await activityRef.update(finalUpdate);
         
@@ -286,14 +285,14 @@ export async function updateActividadEstado(
             inscripcionesSnap.forEach(inscDoc => {
                 batch.update(inscDoc.ref, { 
                     estadoInscripcion: 'cancelado_admin',
-                    fechaHoraModificacion: admin.firestore.FieldValue.serverTimestamp()
+                    fechaHoraModificacion: FieldValue.serverTimestamp()
                 });
             });
         }
 
         batch.update(actividadRef, { 
             estado: nuevoEstado,
-            fechaHoraModificacion: admin.firestore.FieldValue.serverTimestamp()
+            fechaHoraModificacion: FieldValue.serverTimestamp()
         });
         await batch.commit();
         

@@ -17,8 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, AlertCircle } from 'lucide-react';
 
 // --- Firebase Imports ---
-import { doc, getDoc, updateDoc, writeBatch, deleteField } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { doc, getDoc, updateDoc, writeBatch, deleteField, db } from '@/lib/firebase';
 import { useInfoUsuario } from '@/components/layout/AppProviders';
 
 import { useTranslation } from 'react-i18next';

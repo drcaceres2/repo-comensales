@@ -1,20 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { httpsCallable } from 'firebase/functions';
-import {
-  doc,
-  collection,
-  getDoc,
-  getDocs,
-  query,
-  orderBy
-} from 'firebase/firestore';
+import { 
+  auth, 
+  db, doc, collection, getDoc,
+  getDocs, query, orderBy,
+  functions, httpsCallable
+} from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 
-import { auth, db, functions } from '@/lib/firebase';
+
 import { useToast } from '@/hooks/useToast';
 import { type Ubicacion } from 'shared/schemas/common';
 import { Residencia, ResidenciaConVersion, CampoPersonalizado } from 'shared/schemas/residencia';
@@ -225,8 +222,8 @@ function CrearResidenciaAdminPage() {
     } else if (name === 'id') { // Specific handling for custom ID
       processedValue = value
           .toLowerCase()
-          .replace(/\s+/g, '-') // Replace spaces with hyphens
-          .replace(/[^a-z0-9-]/g, ''); // Remove disallowed characters
+          .replace(/\s+/g, '_') // Replace spaces with underscores
+          .replace(/[^a-z0-9_]/g, ''); // Remove disallowed characters
     } else { // For text, textarea, select (not type='number')
       processedValue = value;
     }

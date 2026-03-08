@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, useTransition } from 'react';
-import { 
+import { db,
     collection, doc, getDoc, getDocs,
     query, where, orderBy
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+} from '@/lib/firebase';
 
 // UI Components
 import { Button } from "@/components/ui/button";

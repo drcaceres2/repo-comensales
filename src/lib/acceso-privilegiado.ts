@@ -3,8 +3,7 @@ import { type Usuario, type AsistentePermisos } from 'shared/schemas/usuarios';
 import { EntreFechasResidencia } from "shared/utils/commonUtils";
 import { type UsuarioId } from 'shared/models/types';
 import { obtenerInfoUsuarioServer } from "@/lib/obtenerInfoUsuarioServer";
-import { db } from '@/lib/firebaseAdmin';
-import * as admin from 'firebase-admin';
+import { db, Timestamp } from '@/lib/firebaseAdmin';
 
 // La clave del permiso que coincide con las propiedades en `Usuario.asistente`
 export type LlavePermisoGestion = keyof Omit<AsistentePermisos, 'usuariosAsistidos'>;
@@ -42,7 +41,7 @@ export async function verificarPermisoGestionWrapper(llavePermiso: LlavePermisoG
         }
     }
 
-    const timestampServidor = admin.firestore.Timestamp.now();
+    const timestampServidor = Timestamp.now();
 
     return await verificarPermisoGestion(
         usuario,

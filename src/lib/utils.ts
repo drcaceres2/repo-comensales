@@ -1,10 +1,10 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { Timestamp, collection, addDoc, serverTimestamp, WriteBatch } from 'firebase/firestore';
-import { db, auth } from './firebase';
+import { db, auth,
+  Timestamp, collection, doc, addDoc, serverTimestamp, WriteBatch 
+ } from './firebase';
 import { LogActionType } from 'shared/models/types';
 import timezonesDataJson from 'shared/data/zonas_horarias_soportadas.json';
-import { doc } from 'firebase/firestore';
 import {ZonaHorariaIana} from "../../shared/schemas/fechas";
 
 export function cn(...inputs: ClassValue[]) {
@@ -112,7 +112,7 @@ export const logClientAction = async (
       details: options.details || {},
 
       // Metadata Técnica
-      // OJO: Usamos el serverTimestamp del CLIENT SDK (importado de 'firebase/firestore')
+      // OJO: Usamos el serverTimestamp del CLIENT SDK (importado de '@/lib/firebase')
       // NO el de 'firebase-admin' que usamos en functions. Son objetos diferentes.
       timestamp: serverTimestamp(), 
       source: 'web-client'

@@ -6,15 +6,21 @@ import { esValidaZonaHoraria, FechaIso, ZonaHorariaIana } from "../schemas/fecha
 
 // --- Helper Functions ---
 export const slugify = (text: string, longitudMax?: number): string => {
-    return text
-        .toString()
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '-')           // Replace spaces with -
-        .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
-        .replace(/\-\-+/g, '-')         // Replace multiple - with single -
-        .replace(/^-+/, '')             // Trim - from start of text
-        .replace(/-+$/, '')            // Trim - from end of text
+    // Reemplazo de caracteres acentuados y ñ
+    const from = 'áéíóúüÁÉÍÓÚÜñÑ-';
+    const to   = 'aeiouuAEIOUUnN_';
+    let slug = text.toString().toLowerCase().trim();
+    // Reemplazar tildes y ñ
+    slug = slug.split('').map((char, i) => {
+        const idx = from.indexOf(char);
+        return idx > -1 ? to[idx] : char;
+    }).join('');
+    return slug
+        .replace(/\s+/g, '_')           // Reemplaza espacios por _
+        .replace(/[^a-z0-9_]+/g, '')     // Solo permite a-z, 0-9 y _
+        .replace(/__+/g, '_')            // Reemplaza múltiples _ por uno solo
+        .replace(/^_+/, '')              // Quita _ al inicio
+        .replace(/_+$/, '')              // Quita _ al final
         .substring(0, longitudMax);
 };
 

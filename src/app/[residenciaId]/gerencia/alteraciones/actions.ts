@@ -1,7 +1,6 @@
 'use server';
 
-import { db } from '@/lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { db, doc, setDoc } from '@/lib/firebase';
 import { CreateAlteracionDiaria, UpdateAlteracionDiaria, CreateAlteracionDiariaSchema, UpdateAlteracionDiariaSchema } from './lib/esquemas';
 import { AlteracionDiaria } from 'shared/schemas/alteraciones';
 

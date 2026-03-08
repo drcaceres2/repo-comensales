@@ -18,10 +18,9 @@
 // =================================================================================================
 
 import { useState } from 'react';
-import { httpsCallable } from 'firebase/functions';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/useToast';
-import { functions } from '@/lib/firebase';
+import { functions, httpsCallable } from '@/lib/firebase';
 
 export default function CreateMasterUserPage() {
     const [isLoading, setIsLoading] = useState(false);

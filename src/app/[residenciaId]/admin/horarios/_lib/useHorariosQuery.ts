@@ -1,11 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { doc, getDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import { useToast } from '@/hooks/useToast';
 
-import { db, functions } from '@/lib/firebase';
+import { db, functions, doc, getDoc, httpsCallable } from '@/lib/firebase';
 import { ConfiguracionResidencia } from 'shared/schemas/residencia';
 import { CONFIG_RESIDENCIA_ID, HORARIOS_QUERY_KEY } from 'shared/models/types';
 import { DatosHorariosEnBruto } from 'shared/schemas/horarios';

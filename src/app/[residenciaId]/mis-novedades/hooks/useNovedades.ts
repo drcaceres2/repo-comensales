@@ -9,8 +9,7 @@ import {
     eliminarNovedadAction
 } from "../actions";
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '@/lib/firebase'; // Client-side firebase
-import { collection, query, where, orderBy, limit, getDocs, Timestamp, DocumentSnapshot } from 'firebase/firestore';
+import { db, collection, query, where, orderBy, limit, getDocs, Timestamp, DocumentSnapshot } from '@/lib/firebase'; // Client-side firebase
 import {useInfoUsuario} from "@/components/layout/AppProviders";
 
 // Definimos el tipo para el payload de creación, omitiendo los campos que genera el servidor.

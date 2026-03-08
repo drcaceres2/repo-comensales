@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { useEffect, useState, useMemo } from 'react';
-import { onSnapshot, Query, DocumentReference } from 'firebase/firestore';
+import { onSnapshot, Query, DocumentReference } from '@/lib/firebase';
 
 interface SubscriptionResult<T> {
   data: T | null;

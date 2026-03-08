@@ -29,7 +29,7 @@
 ## 3. Capa de Acceso a Datos (consultas.ts)
 
     import { useMutation } from '@tanstack/react-query';
-    import { httpsCallable } from 'firebase/functions';
+    import { httpsCallable } from '@/lib/firebase';
     import { functions } from '@/lib/firebase-client';
     import { AsignarAsistentePayload } from './schema';
 

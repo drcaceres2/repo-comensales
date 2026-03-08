@@ -1,7 +1,18 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, browserLocalPersistence, setPersistence } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
-import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
+import { getFirestore, connectFirestoreEmulator, initializeFirestore } from "firebase/firestore";
+import { 
+    doc, getDoc, getDocs, addDoc,
+    setDoc, updateDoc,
+    collection, 
+    DocumentReference,
+    DocumentSnapshot, onSnapshot, 
+    Query, query, 
+    where, orderBy, limit,
+    WriteBatch, writeBatch, deleteField, 
+    Timestamp, serverTimestamp
+} from 'firebase/firestore';
+import { getFunctions, connectFunctionsEmulator, httpsCallable } from "firebase/functions";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
 
 // --- Configuration ---
@@ -22,7 +33,16 @@ if (!firebaseConfig.projectId) {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 const auth = getAuth(app);
-const db = getFirestore(app);
+const db = (() => {
+    try {
+        // Auto-detect long polling improves connectivity in proxied/local preview environments.
+        return initializeFirestore(app, {
+            experimentalAutoDetectLongPolling: true,
+        });
+    } catch {
+        return getFirestore(app);
+    }
+})();
 const functions = getFunctions(app);
 const storage = getStorage(app);
 
@@ -36,6 +56,20 @@ const functionsEmulatorHost = process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_HOST;  
 const storageEmulatorHost = process.env.NEXT_PUBLIC_STORAGE_EMULATOR_HOST;      // Expected format: hostname or hostname:port or http://hostname:port or https://hostname:port
 
 const useEmulators = true; // Keep forcing emulator connection for now
+
+const resolveDefaultHost = (): string => {
+    if (typeof window === "undefined") {
+        return "127.0.0.1";
+    }
+
+    const browserHost = window.location.hostname;
+    if (browserHost === "localhost" || browserHost === "127.0.0.1") {
+        return "127.0.0.1";
+    }
+
+    // When accessed from LAN/tunnel/dev container, using the page host is usually the reachable emulator host.
+    return browserHost;
+};
 
 if (useEmulators) {
     console.log("Attempting to connect to Firebase Emulators...");
@@ -85,6 +119,8 @@ if (useEmulators) {
                      port = parseInt(parts[1], 10);
                  }
                  // If port wasn't in the env variable string, keep the default 8081
+            } else {
+                 host = resolveDefaultHost();
             }
 
             console.log(`Connecting Firestore Emulator to ${host}:${port}`);
@@ -148,3 +184,15 @@ setPersistence(auth, browserLocalPersistence)
   });
 
 export { app, auth, db, functions, storage };
+export { 
+    doc, getDoc, getDocs, addDoc,
+    setDoc, updateDoc,
+    WriteBatch, writeBatch, deleteField,
+    collection, 
+    DocumentReference,
+    DocumentSnapshot, onSnapshot, 
+    Query, query, 
+    where, orderBy, limit,
+    Timestamp, serverTimestamp
+};
+export { httpsCallable }

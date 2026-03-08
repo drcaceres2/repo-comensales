@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ZonaHorariaIanaSchema } from './fechas';
+import { slugify } from '../utils/commonUtils';
 
 export const AuthIdSchema = z.string()
     .min(1, "ID inválido")
@@ -9,7 +10,7 @@ export const AuthIdSchema = z.string()
 // IDs de Firestore (no vacíos)
 export const FirestoreIdSchema = z.string()
     .min(1, "ID inválido")
-    .max(21, "ID no puede tener más de 21 caracteres")
+    .max(21, "ID con demasiados caracteres")
     .superRefine((val, ctx) => {
         if (val.includes('/')) {
             ctx.addIssue({
@@ -49,12 +50,9 @@ export const TimestampStringSchema = z.string().datetime({
 
 
 export const slugIdSchema = z.string()
-    .min(1, "El slug no puede estar vacío")
-    .max(60, "El slug no puede tener más de 60 caracteres")
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "El slug debe contener solo letras minúsculas, números y guiones")
-    .refine(val => !val.includes('--'), {
-        message: "El slug no puede contener guiones dobles",
-    });
+    .min(1, "El ID no puede estar vacío")
+    .transform((val) => slugify(String(val || ''),60));
+
 
 export const slugCompuestoIdSchema = z.string()
     .min(1, "El slug no puede estar vacío")
