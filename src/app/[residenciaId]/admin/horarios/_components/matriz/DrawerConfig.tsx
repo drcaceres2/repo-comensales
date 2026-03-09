@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { X, Star } from 'lucide-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useHorariosAlmacen } from '../../_lib/useHorariosAlmacen';
+import { useToast } from '@/hooks/useToast';
 import {
   ConfiguracionAlternativaSchema,
   type ConfiguracionAlternativa,
@@ -29,6 +30,7 @@ const mapaMensajeTipoVentana: Record<TipoVentanaConfigAlternativa, string> = {
 }
 
 export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfigProps) {
+  const { toast } = useToast();
   const {
     datosBorrador,
     upsertConfiguracionAlternativa,
@@ -112,10 +114,11 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
     }
 
     upsertConfiguracionAlternativa(newId, newConfig);
-
-    reset();
-    setIsFormOpen(false);
-    setEditingId(null);
+    toast({
+      title: 'Configuracion guardada',
+      description: 'La alternativa se guardo correctamente.',
+    });
+    handleClose();
   };
 
   const handleEdit = (id: string, config: ConfiguracionAlternativa) => {

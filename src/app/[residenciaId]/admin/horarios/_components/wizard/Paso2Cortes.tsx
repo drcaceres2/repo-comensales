@@ -11,6 +11,7 @@ import { slugify } from 'shared/utils/commonUtils';
 import { type DiaDeLaSemana, DiaDeLaSemanaSchema } from 'shared/schemas/fechas';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/useToast';
 
 // Omitting 'estaActivo' as it's handled by the archive toggle, not the form.
 type FormValues = Omit<HorarioSolicitudData, 'estaActivo'>;
@@ -30,6 +31,7 @@ export function Paso2Cortes() {
     // null = not editing, 'new' = creating, or the slug for editing
     const [editingId, setEditingId] = useState<string | null>(null);
     const [horaDiaria, setHoraDiaria] = useState('10:00');
+    const { toast } = useToast();
 
     const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({
         resolver: zodResolver(HorarioSolicitudDataSchema.omit({ estaActivo: true })),
@@ -91,8 +93,11 @@ export function Paso2Cortes() {
         if (!id) return;
         
         if (editingId === 'new' && datosBorrador.horariosSolicitud[id]) {
-            // A simple alert is fine for this client-side validation
-            alert(`Error: El horario con el nombre "${data.nombre}" ya existe. El nombre debe ser único.`);
+            toast({
+                variant: 'destructive',
+                title: 'No se pudo crear el horario',
+                description: `El horario con el nombre "${data.nombre}" ya existe. El nombre debe ser único.`,
+            });
             return;
         }
         
@@ -106,7 +111,11 @@ export function Paso2Cortes() {
 
     const handleCreateHorarioDiario = () => {
         if (!/^\d{2}:\d{2}$/.test(horaDiaria)) {
-            alert("La hora debe tener el formato HH:MM.");
+            toast({
+                variant: 'destructive',
+                title: 'Hora no valida',
+                description: 'La hora debe tener el formato HH:MM.',
+            });
             return;
         }
 
@@ -136,6 +145,8 @@ export function Paso2Cortes() {
                     <input
                         id="nombre"
                         type="text"
+                        placeholder="Ej: Desayuno"
+                        title="Nombre del horario de corte"
                         {...register('nombre')}
                         className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
                         readOnly={editingId !== 'new'}
@@ -167,6 +178,7 @@ export function Paso2Cortes() {
                             id="horaSolicitud"
                             type="time"
                             step="60"
+                            title="Hora de solicitud"
                             {...register('horaSolicitud')}
                             className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
@@ -299,6 +311,8 @@ export function Paso2Cortes() {
                         <input
                             type="time"
                             step="60"
+                            title="Hora para los horarios diarios"
+                            placeholder="Seleccionar hora"
                             value={horaDiaria}
                             onChange={(e) => setHoraDiaria(e.target.value)}
                             className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500"

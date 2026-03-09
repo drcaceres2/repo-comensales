@@ -59,7 +59,14 @@ async function createUser(
   const now = new Date().toISOString();
 
   try {
-    const claimsToSet = { roles: profileData.roles, isActive: true, email, residenciaId: profileData.residenciaId };
+    const claimsToSet = {
+      roles: profileData.roles,
+      isActive: true,
+      email,
+      residenciaId: profileData.residenciaId,
+      zonaHoraria: "America/Tegucigalpa",
+      contextoTraduccion: "es"
+    };
     await admin.auth().setCustomUserClaims(newUserId, claimsToSet);
     functions.logger.info(`Custom claims set for user: ${email}`);
   } catch (error: any) {
@@ -110,24 +117,24 @@ export const seedDatabase = onCall(
     try {
       // Create Users
       const adminUser = await createUser("admin1@test.com", "123456", {
-        nombre: "Admin", apellido: "Uno", nombreCorto: "A1", roles: ["admin"], estaActivo: true, email: "admin1@test.com", tieneAutenticacion: true, grupos: [], puedeTraerInvitados: "no", residenciaId: "guaymura",
+        nombre: "Admin", apellido: "Uno", nombreCorto: "A1", roles: ["admin"], estaActivo: true, email: "admin1@test.com", tieneAutenticacion: true, gruposAnaliticosIds: [], puedeTraerInvitados: "no", residenciaId: "guaymura",
       });
       const directorUser = await createUser("director1@test.com", "123456", {
-        nombre: "Director", apellido: "Uno", nombreCorto: "D1", roles: ["director"], estaActivo: true, email: "director1@test.com", tieneAutenticacion: true, grupos: [], puedeTraerInvitados: "si", residenciaId: "guaymura",
+        nombre: "Director", apellido: "Uno", nombreCorto: "D1", roles: ["director"], estaActivo: true, email: "director1@test.com", tieneAutenticacion: true, gruposAnaliticosIds: [], puedeTraerInvitados: "si", residenciaId: "guaymura",
       });
       for (let i = 1; i <= 10; i++) {
         await createUser(`residente${i}@test.com`, "123456", {
-          nombre: `Residente`, apellido: `${i}`, nombreCorto: `R${i}`, roles: ["residente"], estaActivo: true, email: `residente${i}@test.com`, tieneAutenticacion: true, grupos: [], puedeTraerInvitados: "no", residenciaId: "guaymura",
+          nombre: `Residente`, apellido: `${i}`, nombreCorto: `R${i}`, roles: ["residente"], estaActivo: true, email: `residente${i}@test.com`, tieneAutenticacion: true, gruposAnaliticosIds: [], puedeTraerInvitados: "no", residenciaId: "guaymura",
         });
       }
       await createUser("asistente1@test.com", "123456", {
-        nombre: "Asistente", apellido: "Uno", nombreCorto: "AS1", roles: ["asistente"], estaActivo: true, email: "asistente1@test.com", tieneAutenticacion: true, grupos: [], puedeTraerInvitados: "no", residenciaId: "guaymura",
+        nombre: "Asistente", apellido: "Uno", nombreCorto: "AS1", roles: ["asistente"], estaActivo: true, email: "asistente1@test.com", tieneAutenticacion: true, gruposAnaliticosIds: [], puedeTraerInvitados: "no", residenciaId: "guaymura",
       });
       await createUser("asistente2@test.com", "123456", {
-        nombre: "Asistente", apellido: "Dos", nombreCorto: "AS2", roles: ["asistente"], estaActivo: true, email: "asistente2@test.com", tieneAutenticacion: true, grupos: [], puedeTraerInvitados: "no", residenciaId: "guaymura",
+        nombre: "Asistente", apellido: "Dos", nombreCorto: "AS2", roles: ["asistente"], estaActivo: true, email: "asistente2@test.com", tieneAutenticacion: true, gruposAnaliticosIds: [], puedeTraerInvitados: "no", residenciaId: "guaymura",
       });
       await createUser("asistente3@test.com", "123456", {
-        nombre: "Asistente", apellido: "Tres (Residente)", nombreCorto: "AS3", roles: ["asistente", "residente"], estaActivo: true, email: "asistente3@test.com", tieneAutenticacion: true, grupos: [], puedeTraerInvitados: "no", residenciaId: "guaymura",
+        nombre: "Asistente", apellido: "Tres (Residente)", nombreCorto: "AS3", roles: ["asistente", "residente"], estaActivo: true, email: "asistente3@test.com", tieneAutenticacion: true, gruposAnaliticosIds: [], puedeTraerInvitados: "no", residenciaId: "guaymura",
       });
 
       // Create Residences

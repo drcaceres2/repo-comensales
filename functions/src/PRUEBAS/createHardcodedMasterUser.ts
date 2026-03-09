@@ -32,7 +32,7 @@ export const createHardcodedMasterUser = onCall(
       estaActivo: true,
       email: hardcodedEmail,
       tieneAutenticacion: true,
-      grupos: [],
+      gruposAnaliticosIds: [],
       puedeTraerInvitados: "si" as const,
     };
 

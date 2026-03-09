@@ -53,42 +53,19 @@ export type ResidenciaId = string;
 export const CONFIG_RESIDENCIA_ID = "general";
 export type HorarioSolicitudComidaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export type ComedorId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
-export interface GrupoUsuariosData {
-    nombre: string;
-    etiqueta: string;
-    tipoGrupo: 'gestion-comidas' | 'centro-de-costo' | 'presentacion-reportes';
-    descripcion?: string;
-    centroCostoId?: CentroDeCostoId;
-    gestionComida?: {
-        usoSemanario: boolean;
-        usoExcepciones: boolean;
-        confirmacionAsistencia: boolean;
-        confirmacionDiariaElecciones: boolean;
-        horarioConfirmacionDiaria?: HoraIso; // Hora en ISO 8601 hh:mm en zona horaria de la residencia
-        restriccionAlternativas: boolean;
-        alternativasRestringidas: Record<ConfigAlternativaId, 'no_permitida' | 'requiere_aprobacion'>;
-        localizacionObligatoria: boolean;
-    }
-}
 export type GrupoUsuariosId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export type DietaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 
 // --- Comidas disponibles para elegir ---
 export type TiempoComidaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
-
-/**
- * Alternativa
- * Distintas opciones de horario que el usuario escoge para cada tiempo de comida.
- * 
- * Dos interfaces la conforman: DefinicionAlternativa y ConfiguracionAlternativa.
- */
 export type AlternativaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export type ConfigAlternativaId = string;
 export type AlteracionHorarioId = string;
-export type EstadoAvisoAdministracion =
+export type EstadoAvisoAdministracionDoble =
     | 'no_comunicado' | 'comunicacion_preliminar' 
-    | 'comunicacion_final' | 'evento_cancelado';
-
+    | 'comunicacion_final' | 'cancelado';
+export type EstadoAvisoAdministracionSimple = 
+    | 'no_comunicado' | 'comunicado' | 'cancelado';
 export const HORARIOS_QUERY_KEY = 'horarios';
 
 // --------------------------------------------------------
@@ -347,7 +324,7 @@ export type InscripcionActividadId = string;
 export interface Atencion {
     id: AtencionId;
     residenciaId: ResidenciaId;
-    usuarioId: UsuarioId;
+    autorId: UsuarioId;
     nombre: string;
     comentarios?: string;
     timestampCreacion: TimestampString

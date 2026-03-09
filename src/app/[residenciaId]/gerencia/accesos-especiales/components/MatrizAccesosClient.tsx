@@ -17,6 +17,7 @@ import { SelectorUsuarios } from "./SelectorUsuarios";
 import { FacultadCard } from "./FacultadCard";
 import { CategoriaPermisosAcordeon } from "./CategoriaPermisosAcordeon";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/useToast";
 
 const categorias = {
   "Operación Diaria": [
@@ -43,6 +44,7 @@ interface GestionAsistidosClientProps {
 
 export const MatrizAccesosClient = ({ residenciaId }: GestionAsistidosClientProps) => {
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
+  const { toast } = useToast();
   const { data: usuarios, isLoading: isLoadingUsuarios } = useUsuariosElegiblesQuery(residenciaId!);
   const { data: privilegios, isLoading: isLoadingPrivilegios } = usePrivilegiosUsuarioQuery(targetUserId);
   const { mutate: actualizarMatriz, isPending: isUpdating } = useActualizarMatrizMutation();
@@ -82,23 +84,38 @@ export const MatrizAccesosClient = ({ residenciaId }: GestionAsistidosClientProp
 
   const onSubmit = (data: UpdateMatrizAccesosPayload) => {
     if (!residenciaId) {
-      alert("Error: No se ha encontrado el ID de la residencia.");
+      toast({
+        variant: "destructive",
+        title: "No se pudo guardar",
+        description: "No se ha encontrado el ID de la residencia.",
+      });
       return;
     }
     actualizarMatriz({ payload: data, residenciaId }, {
       onSuccess: () => {
-        alert("Permisos actualizados con éxito");
+        toast({
+          title: "Permisos actualizados",
+          description: "Los permisos se actualizaron con exito.",
+        });
         reset(data);
       },
       onError: (error) => {
-        alert(`Error: ${error.message}`);
+        toast({
+          variant: "destructive",
+          title: "Error al actualizar permisos",
+          description: error.message,
+        });
       }
     });
   };
 
   const onInvalid = (errors: FieldErrors<UpdateMatrizAccesosPayload>) => {
     console.error("Falló la validación del formulario:", errors);
-    alert("Hay errores en el formulario. Por favor, revise los campos marcados.");
+    toast({
+      variant: "destructive",
+      title: "Formulario con errores",
+      description: "Revise los campos marcados antes de guardar.",
+    });
   };
 
   const usuariosParaSelector = usuarios

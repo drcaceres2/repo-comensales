@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { type SafeParseReturnType } from 'zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/useToast';
 
 
 type FormValues = Omit<TiempoComida, 'estaActivo' | 'alternativas'>;
@@ -34,6 +35,7 @@ export function Paso3Tiempos() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [horasReferenciaGrupo, setHorasReferenciaGrupo] = useState<Record<string, string>>({});
+    const { toast } = useToast();
 
     const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
         resolver: zodResolver(TiempoComidaFormSchema),
@@ -111,7 +113,11 @@ export function Paso3Tiempos() {
         if (editingId === 'new') {
             // CREATION
             if (datosBorrador.esquemaSemanal[id]) {
-                alert(`Error: Ya existe un tiempo de comida con el nombre "${data.nombre}". El nombre debe ser único.`);
+                toast({
+                    variant: 'destructive',
+                    title: 'No se pudo crear el tiempo de comida',
+                    description: `Ya existe un tiempo de comida con el nombre "${data.nombre}". El nombre debe ser único.`,
+                });
                 return;
             }
             // Crea un objeto que coincide con TiempoComidaCreateSchema (sin campo 'alternativas')
@@ -136,7 +142,11 @@ export function Paso3Tiempos() {
 
     const handleLlenarTablaClick = () => {
         if (!gruposComidaActivos.length) {
-            alert("No hay grupos de comida activos para generar los tiempos.");
+            toast({
+                variant: 'destructive',
+                title: 'No se pudo generar la tabla',
+                description: 'No hay grupos de comida activos para generar los tiempos.',
+            });
             return;
         }
         const initialHoras = Object.fromEntries(
@@ -248,6 +258,7 @@ export function Paso3Tiempos() {
                                 <input
                                     id={`hora-${slug}`}
                                     type="time"
+                                    title={`Hora de referencia para ${grupo.nombre}`}
                                     value={horasReferenciaGrupo[slug] || ''}
                                     onChange={(e) => setHorasReferenciaGrupo(prev => ({ ...prev, [slug]: e.target.value }))}
                                     className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 h-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

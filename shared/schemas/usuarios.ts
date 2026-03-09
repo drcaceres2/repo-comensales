@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { slugIdSchema, CadenaOpcionalLimitada, 
+import { slugIdSchema, OptionalSlugIdSchema, 
+    CadenaOpcionalLimitada, 
     TelefonoOpcionalSchema, TimestampSchema, 
     AuthIdSchema} from './common';
 import { FechaIsoOpcionalSchema, HoraIsoSchema } from './fechas';
@@ -60,7 +61,11 @@ const usuarioBaseObject = z.object({
     carrera: CadenaOpcionalLimitada(2, 50).optional(),
 
     // Info funcional
-    grupos: z.array(slugIdSchema),
+    grupoContableId: OptionalSlugIdSchema,
+    grupoRestrictivoId: OptionalSlugIdSchema,
+    gruposAnaliticosIds: z.array(OptionalSlugIdSchema)
+        .max(20, "Límite de seguridad para evitar arrays masivos en el documento")
+        .default([]),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable(),
     camposPersonalizados: z.record(z.string()).optional(),
 
@@ -139,7 +144,9 @@ const createUsuarioObject = usuarioBaseObject
         // Usamos extend para inyectar los .default() específicos de creación
         estaActivo: z.boolean().default(true),
         tieneAutenticacion: z.boolean().default(true),
-        grupos: z.array(slugIdSchema).default([]),
+        grupoContableId: z.string().default(''),
+        grupoRestrictivoId: z.string().default(''),
+        gruposAnaliticosIds: z.array(z.string()).default([]),
         puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().default('no'),
     });
 export const createUsuarioSchema = createUsuarioObject
@@ -163,19 +170,6 @@ const updateUsuarioObject = usuarioBaseObject
 export const updateUsuarioSchema = updateUsuarioObject
     .strict()
     .superRefine(userRoleRefinement);
-
-// ============================================
-// Esquema para selector (dropdown)
-// ============================================
-
-export const UserSelectorItemSchema = z.object({
-    id: AuthIdSchema,
-    nombreCorto: z.string().nullable().optional(),
-    email: z.string().email(),
-    roles: z.array(z.string()),
-    residente: z.object({ habitacion: CadenaOpcionalLimitada().optional() }).optional(),
-    estaActivo: z.boolean(),
-}).strip();
 
 // ============================================
 // Esquemas para formularios del cliente

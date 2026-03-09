@@ -158,7 +158,9 @@ function UserManagementPage(): JSX.Element | null {
         centroCostoPorDefectoId: '',
         puedeTraerInvitados: 'no',
         camposPersonalizados: {},
-        grupos: [],
+        grupoContableId: '',
+        grupoRestrictivoId: '',
+        gruposAnaliticosIds: [],
         tieneAutenticacion: true,
     });
     
@@ -188,8 +190,27 @@ function UserManagementPage(): JSX.Element | null {
 
     const availableGroups = useMemo(() => {
         if (!configuracionResidencia?.gruposUsuarios) return [];
-        return Object.entries(configuracionResidencia.gruposUsuarios).map(([id, data]) => ({ id, nombre: data.nombre }));
+        return Object.entries(configuracionResidencia.gruposUsuarios).map(([id, data]) => ({
+            id,
+            nombre: data.nombre,
+            tipo: data.tipo,
+        }));
     }, [configuracionResidencia]);
+
+    const availableContableGroups = useMemo(
+        () => availableGroups.filter((group) => group.tipo === 'CONTABLE'),
+        [availableGroups]
+    );
+
+    const availableRestrictivoGroups = useMemo(
+        () => availableGroups.filter((group) => group.tipo === 'RESTRICTIVO'),
+        [availableGroups]
+    );
+
+    const availableAnaliticoGroups = useMemo(
+        () => availableGroups.filter((group) => group.tipo === 'ANALITICO'),
+        [availableGroups]
+    );
 
 
     const filteredUsers = useMemo(() => {
@@ -472,6 +493,9 @@ function UserManagementPage(): JSX.Element | null {
             const residenciaRequired = updatedRoles.some((r: RolUsuario) => !['master', 'invitado'].includes(r));
             if (!residenciaRequired) {
                 newFormData.residenciaId = '';
+                newFormData.grupoContableId = '';
+                newFormData.grupoRestrictivoId = '';
+                newFormData.gruposAnaliticosIds = [];
                 delete newFormData.residente;
             } else if (!adminUserProfile?.roles.includes('master') && adminUserProfile?.residenciaId) {
                 newFormData.residenciaId = adminUserProfile.residenciaId;
@@ -481,12 +505,24 @@ function UserManagementPage(): JSX.Element | null {
         });
     };
 
-    const handleSelectChange = (field: 'residenciaId' | 'puedeTraerInvitados' | 'centroCostoPorDefectoId' | 'residente.dietaId', value: string) => {
+    const handleSelectChange = (
+        field:
+            | 'residenciaId'
+            | 'puedeTraerInvitados'
+            | 'centroCostoPorDefectoId'
+            | 'residente.dietaId'
+            | 'grupoContableId'
+            | 'grupoRestrictivoId',
+        value: string
+    ) => {
         handleFormChange(field, value);
 
         if (field === 'residenciaId') {
             handleFormChange('residente.dietaId', '');
             handleFormChange('centroCostoPorDefectoId', '');
+            handleFormChange('grupoContableId', '');
+            handleFormChange('grupoRestrictivoId', '');
+            handleFormChange('gruposAnaliticosIds', []);
             handleFormChange('camposPersonalizados', {});
         }
     };
@@ -512,6 +548,8 @@ function UserManagementPage(): JSX.Element | null {
 
             if (dataForValidation.residenciaId === '') dataForValidation.residenciaId = undefined;
             if (dataForValidation.centroCostoPorDefectoId === '') dataForValidation.centroCostoPorDefectoId = undefined;
+            if (dataForValidation.grupoContableId === '') dataForValidation.grupoContableId = undefined;
+            if (dataForValidation.grupoRestrictivoId === '') dataForValidation.grupoRestrictivoId = undefined;
             if (!dataForValidation.roles?.includes('residente')) delete dataForValidation.residente;
             if (!dataForValidation.roles?.includes('asistente')) delete dataForValidation.asistente;
             if (dataForValidation.residente?.dietaId === '') delete (dataForValidation.residente as any).dietaId;
@@ -612,7 +650,11 @@ function UserManagementPage(): JSX.Element | null {
             camposPersonalizados: userToEdit.camposPersonalizados || {},
             asistente: userToEdit.asistente,
             residente: userToEdit.residente,
-            grupos: userToEdit.grupos || [],
+            grupoContableId: userToEdit.grupoContableId || '',
+            grupoRestrictivoId: userToEdit.grupoRestrictivoId || '',
+            gruposAnaliticosIds: (userToEdit.gruposAnaliticosIds || []).filter(
+                (groupId): groupId is string => typeof groupId === 'string' && groupId.length > 0
+            ),
             tieneAutenticacion: true,
             notificacionPreferencias: userToEdit.notificacionPreferencias,
         });
@@ -635,12 +677,18 @@ function UserManagementPage(): JSX.Element | null {
             centroCostoPorDefectoId: '',
             puedeTraerInvitados: 'no',
             camposPersonalizados: {},
-            grupos: [],
+            grupoContableId: '',
+            grupoRestrictivoId: '',
+            gruposAnaliticosIds: [],
             tieneAutenticacion: true,
         });
     };
 
     const handleDeleteUser = (userId: string) => {
+        if (userId === usuarioId) {
+            toast({ title: "Acción no permitida", description: "No puedes eliminar tu propio usuario.", variant: "destructive" });
+            return;
+        }
         setUserToDeleteId(userId);
         setIsConfirmingDelete(true);
     };
@@ -831,30 +879,72 @@ function UserManagementPage(): JSX.Element | null {
                                 </div>
                             </div>
                             
-                            <div className="space-y-2">
+                            <div className="space-y-4">
                                 <Label className="font-medium">Grupos</Label>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border p-3 rounded-md bg-slate-50/50 dark:bg-slate-900/20 min-h-[100px]">
-                                    {availableGroups.length > 0 ? (
-                                        availableGroups.map((group) => (
-                                            <div key={group.id} className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id={`group-${group.id}`}
-                                                    checked={formData.grupos?.includes(group.id)}
-                                                    onCheckedChange={(checked) => {
-                                                        const current = formData.grupos || [];
-                                                        const updated = checked ? [...current, group.id] : current.filter(id => id !== group.id);
-                                                        handleFormChange('grupos', updated);
-                                                    }}
-                                                    disabled={isSaving}
-                                                />
-                                                <Label htmlFor={`group-${group.id}`} className="font-normal text-xs">{group.nombre}</Label>
+
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="grupoContableId" className="text-xs uppercase tracking-wide text-muted-foreground">Grupo Contable</Label>
+                                    <Select
+                                        value={formData.grupoContableId || ''}
+                                        onValueChange={(v) => handleSelectChange('grupoContableId', v)}
+                                        disabled={isSaving || !formData.residenciaId || isLoadingResidenciaData}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={formData.residenciaId ? 'Seleccione grupo contable...' : 'Seleccione residencia primero'} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {availableContableGroups.map((group) => (
+                                                <SelectItem key={group.id} value={group.id}>{group.nombre}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="grupoRestrictivoId" className="text-xs uppercase tracking-wide text-muted-foreground">Grupo Restrictivo</Label>
+                                    <Select
+                                        value={formData.grupoRestrictivoId || ''}
+                                        onValueChange={(v) => handleSelectChange('grupoRestrictivoId', v)}
+                                        disabled={isSaving || !formData.residenciaId || isLoadingResidenciaData}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={formData.residenciaId ? 'Seleccione grupo restrictivo...' : 'Seleccione residencia primero'} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {availableRestrictivoGroups.map((group) => (
+                                                <SelectItem key={group.id} value={group.id}>{group.nombre}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-xs uppercase tracking-wide text-muted-foreground">Grupos Analiticos</Label>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border p-3 rounded-md bg-slate-50/50 dark:bg-slate-900/20 min-h-[80px]">
+                                        {availableAnaliticoGroups.length > 0 ? (
+                                            availableAnaliticoGroups.map((group) => (
+                                                <div key={group.id} className="flex items-center space-x-2">
+                                                    <Checkbox
+                                                        id={`group-analitico-${group.id}`}
+                                                        checked={formData.gruposAnaliticosIds?.includes(group.id)}
+                                                        onCheckedChange={(checked) => {
+                                                            const current = formData.gruposAnaliticosIds || [];
+                                                            const updated = checked
+                                                                ? [...new Set([...current, group.id])]
+                                                                : current.filter(id => id !== group.id);
+                                                            handleFormChange('gruposAnaliticosIds', updated);
+                                                        }}
+                                                        disabled={isSaving || !formData.residenciaId || isLoadingResidenciaData}
+                                                    />
+                                                    <Label htmlFor={`group-analitico-${group.id}`} className="font-normal text-xs">{group.nombre}</Label>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="col-span-full flex items-center justify-center text-xs text-muted-foreground italic">
+                                                {formData.residenciaId ? 'No hay grupos analiticos configurados' : 'Seleccione una residencia para ver grupos'}
                                             </div>
-                                        ))
-                                    ) : (
-                                        <div className="col-span-full flex items-center justify-center text-xs text-muted-foreground italic">
-                                            {formData.residenciaId ? 'No hay grupos configurados' : 'Seleccione una residencia para ver grupos'}
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1026,7 +1116,15 @@ function UserManagementPage(): JSX.Element | null {
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <Button variant="outline" size="sm" onClick={() => handleEditUser(user.id)} disabled={isSaving || (!!editingUserId && editingUserId !== user.id)}>Editar</Button>
-                                            <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(user.id)} disabled={isSaving || !!editingUserId} className="ml-2">Eliminar</Button>
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={() => handleDeleteUser(user.id)}
+                                                disabled={isSaving || !!editingUserId || user.id === usuarioId}
+                                                className="ml-2"
+                                            >
+                                                Eliminar
+                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 ))}

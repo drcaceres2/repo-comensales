@@ -9,6 +9,7 @@ import { useHorariosAlmacen } from '../../_lib/useHorariosAlmacen';
 import { GrupoComidaSchema, type GrupoComida } from 'shared/schemas/horarios';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { slugify } from 'shared/utils/commonUtils';
+import { useToast } from '@/hooks/useToast';
 
 type FormValues = Omit<GrupoComida, 'estaActivo'>;
 
@@ -23,6 +24,7 @@ export function Paso1Grupos() {
     } = useHorariosAlmacen();
 
     const [editingId, setEditingId] = useState<string | null>(null); // null = not editing, 'new' = creating, or the slug for editing
+    const { toast } = useToast();
 
     const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
         resolver: zodResolver(GrupoComidaSchema.omit({ estaActivo: true })),
@@ -72,7 +74,11 @@ export function Paso1Grupos() {
         if (!id) return;
         
         if (editingId === 'new' && datosBorrador.gruposComidas[id]) {
-            alert(`Error: El grupo con el nombre "${data.nombre}" ya existe.`);
+            toast({
+                variant: 'destructive',
+                title: 'No se pudo crear el grupo',
+                description: `El grupo con el nombre "${data.nombre}" ya existe.`,
+            });
             return;
         }
         

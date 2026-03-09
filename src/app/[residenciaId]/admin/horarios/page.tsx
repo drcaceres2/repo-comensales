@@ -63,7 +63,7 @@ export default function HorariosPage() {
     };
 
     return (
-        <div className="container mx-auto p-4 sm:p-6">
+        <div className="container mx-auto px-2 py-4 sm:px-6 sm:py-6">
             <header className="mb-8">
                 <div className="flex items-center gap-3 mb-1">
                     <Calendar className="text-slate-600 dark:text-slate-400 h-8 w-8" />
@@ -79,7 +79,7 @@ export default function HorariosPage() {
 
             <main>
                 <BarraProgreso pasoActual={pasoActual} />
-                <div className="mt-8 max-w-3xl mx-auto">
+                <div className={pasoActual === 5 ? 'mt-6' : 'mt-8 max-w-3xl mx-auto'}>
                     {renderPaso()}
                 </div>
             </main>

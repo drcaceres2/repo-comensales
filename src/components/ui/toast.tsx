@@ -15,7 +15,7 @@ const ToastViewport = ({
 }: React.ComponentProps<typeof ToastPrimitives.Viewport>) => (
   <ToastPrimitives.Viewport
     className={cn(
-      'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]',
+      'fixed bottom-0 right-0 z-[1000] flex max-h-screen w-full flex-col p-4 sm:max-w-[420px]',
       className
     )}
     {...props}
@@ -28,7 +28,7 @@ const toastVariants = cva(
   {
     variants: {
       variant: {
-        default: 'border bg-background text-foreground',
+        default: 'border border-blue-600 bg-[#3b82f6] text-white',
         destructive:
           'destructive group border-destructive bg-destructive text-destructive-foreground',
       },

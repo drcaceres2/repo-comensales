@@ -213,7 +213,7 @@ export const construirMatrizVistaHorarios = (
 export const CatalogoErrores = {
   GENERAL: {
     codigo: "GENERAL",
-    severidad: "advertencia",
+    severidad: "error",
     descripcion: "No hay ninguna entidad de horarios activa. La configuración de horarios está completamente vacía."
   },
   HSC_DIA: { 
@@ -233,7 +233,7 @@ export const CatalogoErrores = {
   },
   CFALT_TC: { 
     codigo: "CFALT_TC",
-    severidad: "advertencia",
+    severidad: "error",
     descripcion: "No hay ninguna `ConfiguracionAlternativa` activa para algún `TiempoComida` activo"
   },
   CFALT_TCxCOM: { 
@@ -243,27 +243,27 @@ export const CatalogoErrores = {
   },
   HSC_REP: { 
     codigo: "HSC_REP",
-    severidad: "advertencia",
+    severidad: "error",
     descripcion: "Hay nombres repetidos en dos o más `HorarioSolicitudData` activos"
   },
   TC_REP: { 
     codigo: "TC_REP",
-    severidad: "advertencia",
+    severidad: "error",
     descripcion: "Hay nombres repetidos en dos o más `TiempoComida` activos"
   },
   DFALT_REP: { 
     codigo: "DFALT_REP",
-    severidad: "advertencia",
+    severidad: "error",
     descripcion: "Hay nombres repetidos en dos o más `DefinicionAlternativa` activas"
   },
   CFALT_REP: { 
     codigo: "CFALT_REP",
-    severidad: "advertencia",
+    severidad: "error",
     descripcion: "Hay nombres repetidos en dos o más `ConfiguracionAlternativa` activas"
   },
   CFALT_CONC: {
     codigo: "CFALT_CONC",
-    severidad: "advertencia",
+    severidad: "error",
     descripcion: "Hay dos o más `ConfiguracionAlternativa` con la misma `ventanaServicio` para el mismo `DiaDeLaSemana`"
   },
   CFALT_CONC_COM: {
@@ -273,7 +273,7 @@ export const CatalogoErrores = {
   },
   CFALT_TIEM_NEG: {
     codigo: "CFALT_TIEM_NEG",
-    severidad: "advertencia",
+    severidad: "error",
     descripcion: "Hay una `ConfiguracionAlternativa` activa que tiene `VentanaServicioComidaSchema` de `tipo='normal'` con horaInicio > horaFin"
   },
   HSC_INACT_ASOC: {
