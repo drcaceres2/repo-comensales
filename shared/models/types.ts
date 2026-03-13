@@ -1,5 +1,4 @@
-import type { TiempoComida } from '../../shared/schemas/horarios';
-import type { FechaIso, FechaHoraIso, HoraIso, DiaDeLaSemana, ZonaHorariaIana } from '../../shared/schemas/fechas';
+import type { FechaIso, FechaHoraIso, HoraIso, DiaDeLaSemana, ZonaHorariaIana } from '../schemas/fechas';
 import {Email} from "../schemas/common";
 
 export const ctxTraduccionSoportados = ['es', 'es-HN', 'es-ES'];
@@ -61,146 +60,26 @@ export type TiempoComidaId = string; // ID semántico: slug estilo kebab a parti
 export type AlternativaId = string; // ID semántico: slug estilo kebab a partir del nombre (INMUTABLE)
 export type ConfigAlternativaId = string;
 export type AlteracionHorarioId = string;
-export type EstadoAvisoAdministracionDoble =
-    | 'no_comunicado' | 'comunicacion_preliminar' 
-    | 'comunicacion_final' | 'cancelado';
-export type EstadoAvisoAdministracionSimple = 
-    | 'no_comunicado' | 'comunicado' | 'cancelado';
 export const HORARIOS_QUERY_KEY = 'horarios';
+export const SEMANARIOS_QUERY_KEY = 'semanarios';
 
 // --------------------------------------------------------
 // 1. MODELO DE INTENCIÓN (Mutable por el usuario/reglas)
 // --------------------------------------------------------
 
-/**
- * Excepcion: Representa la voluntad del usuario de desviarse de su Semanario.
- * Si no existe este documento, aplica el Semanario.
- * Corresponde al Nivel 3 de la Cascada de la Verdad.
- */
-export interface ExcepcionUsuario {
-    id?: ExcepcionId; 
-    residenciaId: ResidenciaId;
-    fecha: FechaIso;
-    tiempoComidaId: TiempoComidaId;
-    alternativaId: ConfigAlternativaId;
-    origen: 'residente' | 'director' | 'asistente' | 'wizard_invitados';
-    timestampCreacion: TimestampString;
-    // Solo para excepciones que requieren aprobación
-    autorizacion?: {
-        motivo: string;
-        estadoAprobacion: 'no_requiere_aprobacion' | 'pendiente_aprobacion' | 'aprobado' | 'rechazado';
-        autorizadoPor?: UsuarioId;
-        timestampAutorizacion: TimestampString;
-        // Si el usuario selecciona una alternativa que requiere aprobación, debe también 
-        // seleccionar la "alternativa de respaldo" que quedará en caso que no sea aprobada.
-        alternativaRespaldoId?: ConfigAlternativaId | null; 
-    }
-}
 export type ExcepcionId = string;
-
-/**
- * Ausencia: Negación de servicio declarada por el usuario.
- * Corresponde al Nivel 2 de la Cascada de la Verdad.
- */
-export interface Ausencia {
-    id?: AusenciaId;
-    usuarioId: UsuarioId;
-    residenciaId: ResidenciaId;
-    fechaInicio: FechaIso;
-    primerTiempoAusente?: TiempoComidaId | null; 
-    fechaFin: FechaIso;
-    ultimoTiempoAusente?: TiempoComidaId | null; 
-    retornoPendienteConfirmacion?: boolean; 
-    timestampCreacion: TimestampString;
-    motivo?: string; 
-}
 export type AusenciaId = string;
-
-/**
- * Semanario: 
- * Entidad cíclica de elección de comidas. 
- * El usuario define su rutina semanal.
- */
-export interface SemanarioUsuario {
-  id: SemanarioUsuarioId;
-  residenciaId: ResidenciaId;
-  
-  timestampCreacion: TimestampString;
-  
-  // VIGENCIA:
-  // A partir de qué día aplica esta plantilla.
-  // Permite planificar cambios de régimen (ej. "A partir del lunes me pongo a dieta").
-  fechaDesde: FechaIso; 
-
-  // LA PLANTILLA:
-  // Mapa: Día -> TiempoComidaId -> AlternativaId
-  elecciones: Record<DiaDeLaSemana, Record<TiempoComidaId, ConfigAlternativaId>>;
-
-  // UX:
-  recordatorioCambio?: {
-    fechaNotificacion: FechaIso;
-    mensaje: string;
-    visto: boolean;
-  };
-}
 export type SemanarioUsuarioId = string;
 
-// --- TIPOS DE ENUMERACIÓN Y ESTADOS ---
-
-/**
- * Indica de dónde provino la decisión de qué comer.
- * Fundamental para el coloreado de la UI y la trazabilidad.
- */
-export type OrigenEleccion = 
-  | 'SEMANARIO'     // Automático (Azul)
-  | 'EXCEPCION'     // Manual puntual (Amarillo)
-  | 'ASISTENTE_INVITADOS' // Manual puntual (Amarillo)
-  | 'AUSENCIA'      // No está (Gris)
-  | 'ACTIVIDAD'     // Evento (Morado)
-  | 'NO_APLICA';    // No hay servicio ese día/hora
-
-/**
- * Estado de la celda en la UI para el usuario.
- * Define si puede hacer clic o editar.
- */
-export type EstadoInteraccion = 
-  | 'ABIERTO'       // Editable en la semana presente
-  | 'SOLICITADO'    // Edición afecta semanas siguientes
-
-/**
- * EstadoCeltaComida. CRÍTICO: NO ES PARA ALMACENAMIENTO.
- * Junto con VistaGrillaSemanal son una proyección en memoria calculada al vuelo
- * en el navegador del cliente.
- */
-export interface EstadoCeldaComida {
-  // --- ESTADO PRINCIPAL (Semáforo) ---
-  origen: OrigenEleccion;    // SEMANARIO, EXCEPCION, AUSENCIA, ACTIVIDAD
-  estado: EstadoInteraccion; // ABIERTO, BLOQUEADO, SOLO_LECTURA
- 
-  // --- PAYLOAD (Horario seleccionado y disponiblea para seleccionar) ---
-  alternativaSeleccionada?: ConfigAlternativaId; 
-  alternativasDisponibles: ConfigAlternativaId[];
-
-  // --- CONTEXTO ADICIONAL (Tus campos enriquecidos) ---
-  contexto: {
-    esAlteracion: boolean;      // True si hay AlteracionHorario vigente
-    alteracionId?: AlteracionHorarioId;
-    mensajeAlteracion?: string; // Ej: "Horario adelantado 1h"
-
-    hayRestriccionGrupo: boolean;
-
-    nombresActividadesDisponibles?: string[];
-  }
-}
-/**
- * VistaGrillaSemanal. CRÍTICO: NO ES PARA ALMACENAMIENTO.
- * Mapa: Fecha -> { TiempoComidaId -> EstadoCelda }
- */
-export interface VistaGrillaSemanal { 
-    elecciones: Record<FechaIso, Record<TiempoComidaId, EstadoCeldaComida>>;
-    actividadesDisponibles: ActividadId[];
-    recordatoriosAplicables: RecordatorioId[];
-}
+export type ActionResponse<T = void> = {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: 'UNAUTHORIZED' | 'MURO_MOVIL_CERRADO' | 'AUTORIDAD_RESTRINGIDA' | 'VALIDATION_ERROR' | 'INTERNAL';
+    message: string;
+    detalles?: any; // Para pasar ZodIssues al formulario
+  };
+};
 
 // --------------------------------------------------------
 // 2. MODELO DE HECHO (Inmutable / Snapshot)
@@ -297,77 +176,18 @@ export type ComensalSolicitadoId = string;
 
 // --- Novedades Operativas ---
 export type NovedadOperativaId = string;
-export interface Falta {
-    id: string;
-    fecha: FechaIso;
-    residencia: ResidenciaId;
-    usuario: UsuarioId;
-    titulo: string;
-    descripcion?: string;
-    notificada: boolean;
-    confirmada: boolean;
-    origen: string;
-}
-
 export type RecordatorioId = string;
 
 // --- Actividades ---
 export type ActividadId = string; 
 export type DetalleActividadId = string; 
 export type InscripcionActividadId = string; 
-
-/*
- * Atenciones
- * Solicitudes extra a la administración que requiere registro y seguimiento, tales como:
- * aperitivos, coffee-break, flores para actividad académica, etc.
- */
-export interface Atencion {
-    id: AtencionId;
-    residenciaId: ResidenciaId;
-    autorId: UsuarioId;
-    nombre: string;
-    comentarios?: string;
-    timestampCreacion: TimestampString
-    horarioSolicitudComidaId: HorarioSolicitudComidaId;
-    fechaSolicitudComida: FechaIso;
-    fechaHoraAtencion: FechaHoraIso;
-    estado: 'pendiente' | 'aprobada' | 'cancelada';
-    avisoAdministracion: 'no_comunicado' | 'comunicacion_preliminar' 
-                        | 'comunicacion_final' | 'atencion_cancelada';
-    centroCostoId?: CentroDeCostoId;
-}
 export type AtencionId = string;
 
 // --- Notificaciones ---
 export type NotificacionId = string;
 export type NotificacionTipo = 'info' | 'accion_requerida' | 'recordatorio' | 'alerta'; // New
 export type NotificacionPrioridad = 'baja' | 'media' | 'alta'; // New
-export interface Notificacion {
-    id: NotificacionId;
-    residenciaId: ResidenciaId;
-    usuarioId: UsuarioId; // Recipient
-    tipo: NotificacionTipo; // e.g., 'info', 'accion_requerida'
-    prioridad: NotificacionPrioridad; // e.g., 'alta', 'media'
-    titulo: string; // e.g., "Recordatorio: Elige tu comida"
-    mensaje: string; // e.g., "Tienes hasta las 8 PM para elegir tu almuerzo."
-    relacionadoA?: {
-        coleccion: 'excepcion' | 'actividad' | 'ausencia' | 'mealCount';
-        documentoId: string;
-    };
-    leido: boolean; // Whether the user has read the notification
-    creadoEn: number; // Timestamp stored as number (millis)
-    venceEn?: number; // Timestamp stored as number (millis)
-    entregadoCorreoEn?: number; // Timestamp stored as number (millis)
-    enviadoCorreoA?: string; // Email address
-    estadoCorreo?: 'pendiente' | 'enviado' | 'fallido';
-    errorcorreo?: string; // Error message if failed
-    entregadoSMSEn?: number; // Timestamp stored as number (millis)
-    entregadoWAEn?: number; // Timestamp stored as number (millis)
-    enviadoWAA: string; // Phone number
-    estadoWA: 'pendiente' | 'enviado' | 'fallido';
-    errorWA?: string; // Error message if failed
-    entregadoEnAppEn?: number; // Timestamp stored as number (millis)
-}
 export interface NotificacionPreferencias {
     canalEmail: boolean; // Opt-in for email
     canalWhatsApp: boolean; // Opt-in for WhatsApp
@@ -383,20 +203,6 @@ export type CentroDeCostoId = string;
 
 // --- Registro de actividad ---
 export type LogEntryId = string;
-export interface LogEntry {
-    id: string;
-    usuarioId: string;          // Quién lo hizo
-    userEmail?: string;      // (Opcional) Ayuda visual rápida
-    action: LogActionType;   // Qué hizo
-    // GENERALIZACIÓN: En vez de targetUid, usamos targetId y colección
-    targetId?: string | null;         // ID del objeto afectado (User, Menu, Factura)
-    targetCollection?: string | null; // 'users', 'menus', etc.
-    residenciaId?: string;   // Contexto
-    details?: Record<string, any>; // Flexible para guardar el "antes y después"
-    timestamp: any; // En lectura será un Firestore.Timestamp. 
-                    // No lo fuerces a string aquí o te pelearás con el SDK.
-    source: 'web-client' | 'cloud-function' | 'system';
-}
 export type LogActionType =
     // Clientes
     | 'CLIENTE_CREADO' | 'CLIENTE_ACTUALIZADO' | 'CLIENTE_ELIMINADO'
@@ -434,6 +240,8 @@ export type LogActionType =
     | 'MODO_ELECCION_CREADO' | 'MODO_ELECCION_ACTUALIZADO' | 'MODO_ELECCION_ELIMINADO'
     // Elecciones (Meal selections)
     | 'ELECCION_CREADA' | 'ELECCION_ACTUALIZADA' | 'ELECCION_ELIMINADA'
+    // Semanarios
+    | 'SEMANARIO_ACTUALIZADO'
     // Actividades
     | 'ACTIVIDAD_CREADA' | 'ACTIVIDAD_ACTUALIZADA' | 'ACTIVIDAD_ELIMINADA'
     // Inscripciones a actividades

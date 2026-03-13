@@ -7,6 +7,11 @@ export const AuthIdSchema = z.string()
     .max(29, "ID no puede tener más de 29 caracteres")
     .regex(/^[A-Za-z0-9]+$/, "ID solo puede contener caracteres Base62 (A-Z, a-z, 0-9)");
 
+export const OptionalAuthIdSchema = z.preprocess(
+    (val) => (val === "" || val === null) ? undefined : val,
+    AuthIdSchema.optional()
+);
+
 // IDs de Firestore (no vacíos)
 export const FirestoreIdSchema = z.string()
     .min(1, "ID inválido")
@@ -41,6 +46,11 @@ export const FirestoreIdSchema = z.string()
         }
     });
 
+export const OptionalFirestoreIdSchema = z.preprocess(
+    (val) => (val === "" || val === null) ? undefined : val,
+    FirestoreIdSchema.optional()
+);
+
 export const TimestampSchema = z.any();
 
 // Formato ISO 8601 Completo (YYYY-MM-DDTHH:mm:ss.sssZ)
@@ -49,7 +59,7 @@ export const TimestampStringSchema = z.string().datetime({
 });
 
 
-export const slugIdSchema = z.string()
+export const SlugIdSchema = z.string()
     .min(1, "El ID no puede estar vacío")
     .transform((val) => slugify(String(val || ''),60));
 
@@ -64,7 +74,7 @@ export const slugCompuestoIdSchema = z.string()
 
 export const OptionalSlugIdSchema = z.preprocess(
     (val) => (val === "" || val === null) ? undefined : val,
-    slugIdSchema.optional()
+    SlugIdSchema.optional()
 );
 
 export const CadenaOpcionalLimitada = (min: number = 1, max?: number) => {
@@ -128,4 +138,4 @@ export const EmailSchema = z.string()
 
 export type Ubicacion = z.infer<typeof UbicacionSchema>;
 export type Email = z.infer<typeof EmailSchema>;
-export type SlugId = z.infer<typeof slugIdSchema>;
+export type SlugId = z.infer<typeof SlugIdSchema>;

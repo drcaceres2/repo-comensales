@@ -10,6 +10,7 @@ const regexHoraISO = /^T([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/;
 const regexHora = /^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/;
 const regexFechaHoraIsoHoraObligatoria = /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?)?$/;
 const regexFechaIsoSoloFecha = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const regexSemanaIso = /^\d{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$/;
 
 /**
  * Valida formatos YYYY-MM-DD, YYYY-MM-DD HH:mm, YYYY-MM-DDTHH:mm:ss, etc.
@@ -123,6 +124,17 @@ export const FechaHoraIsoSchema = z.preprocess(
         })
 );
 
+/**
+ * Valida semanas ISO en formato YYYY-Www, solo semanas 01-53.
+ */
+export const SemanaIsoSchema = z.preprocess(
+  (val) => (val === '' || val === null ? undefined : val),
+  z.string({ required_error: 'La semana es obligatoria' })
+    .trim()
+    .regex(regexSemanaIso, 'Formato requerido: YYYY-Www (semana 01-53)')
+);
+
+
 // Identificador IANA (ej: "America/Tegucigalpa")
 // Valida contra la lista de zonas soportadas
 export const ZonaHorariaIanaSchema = z.string().refine(
@@ -136,8 +148,11 @@ export const OpcionZonaHorariaSchema = z.object({
 });
 
 // Día de la semana
-export const DiaDeLaSemanaSchema = z.enum(['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']);
-
+export const DiaDeLaSemanaSchema = z.enum([
+  'lunes', 'martes', 'miercoles', 
+  'jueves', 'viernes', 
+  'sabado', 'domingo'
+]);
 
 export const MapaDiaDeLaSemana: Record<DiaDeLaSemana, string> = {
   lunes: 'Lunes',
@@ -147,6 +162,20 @@ export const MapaDiaDeLaSemana: Record<DiaDeLaSemana, string> = {
   viernes: 'Viernes',
   sabado: 'Sábado',
   domingo: 'Domingo'
+};
+
+/**
+ * Abreviatura de una sola letra por día de la semana.
+ * Punto de origen para internacionalización futura.
+ */
+export const MapaAbreviaturaDiaDeLaSemana: Record<DiaDeLaSemana, string> = {
+  lunes: 'L',
+  martes: 'M',
+  miercoles: 'M',
+  jueves: 'J',
+  viernes: 'V',
+  sabado: 'S',
+  domingo: 'D',
 };
 
 export const ArregloDiaDeLaSemana: DiaDeLaSemana[] = Object.keys(MapaDiaDeLaSemana) as DiaDeLaSemana[];

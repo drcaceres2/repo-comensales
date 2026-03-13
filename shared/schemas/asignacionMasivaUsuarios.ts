@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { AuthIdSchema, slugIdSchema } from "./common";
+import { AuthIdSchema, SlugIdSchema } from "./common";
 
-const GrupoIdNullableSchema = z.union([slugIdSchema, z.null()]);
+const GrupoIdNullableSchema = z.union([SlugIdSchema, z.null()]);
 
 export const AsignacionUsuarioMutacionSchema = z.object({
   usuarioId: AuthIdSchema,
   grupoContableId: GrupoIdNullableSchema,
   grupoRestrictivoId: GrupoIdNullableSchema,
-  otrosGruposIds: z.array(slugIdSchema).max(20),
+  otrosGruposIds: z.array(SlugIdSchema).max(20),
 }).strict();
 
 export const AsignacionMasivaUsuariosPayloadSchema = z.object({

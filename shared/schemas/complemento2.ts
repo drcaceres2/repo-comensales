@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
     FirestoreIdSchema,
-    slugIdSchema,
+    SlugIdSchema,
     CadenaOpcionalLimitada,
     TimestampSchema,
     ColorHTMLSchema,
@@ -24,7 +24,7 @@ export const EstadoAvisoAdministracionSchema = z.enum([
 
 const FaltaBaseSchema = z.object({
     fecha: FechaIsoSchema,
-    residencia: slugIdSchema,
+    residencia: SlugIdSchema,
     usuario: AuthIdSchema,
     titulo: CadenaOpcionalLimitada(1, 100),
     descripcion: CadenaOpcionalLimitada(1, 500).optional(),
@@ -50,7 +50,7 @@ const RecurrenciaRecordatorioSchema = z.object({
 }).strict();
 
 const RecordatorioBaseSchema = z.object({
-    residenciaId: slugIdSchema,
+    residenciaId: SlugIdSchema,
     autorId: AuthIdSchema,
     fecha: FechaIsoSchema,
     duracion: z.number().int().positive(),
@@ -73,11 +73,11 @@ export const RecordatorioUpdateSchema = RecordatorioBaseSchema.partial();
 // ============================================
 
 const AtencionBaseSchema = z.object({
-    residenciaId: slugIdSchema,
+    residenciaId: SlugIdSchema,
     autorId: AuthIdSchema,
     nombre: z.string().min(1).max(100),
     comentarios: CadenaOpcionalLimitada(1, 500).optional(),
-    horarioSolicitudComidaId: slugIdSchema,
+    horarioSolicitudComidaId: SlugIdSchema,
     fechaSolicitudComida: FechaIsoSchema,
     fechaHoraAtencion: FechaHoraIsoSchema,
     estado: z.enum(['pendiente', 'aprobada', 'cancelada']),
@@ -85,7 +85,7 @@ const AtencionBaseSchema = z.object({
         'no_comunicado', 'comunicacion_preliminar',
         'comunicacion_final', 'atencion_cancelada',
     ]),
-    centroCostoId: slugIdSchema.optional(),
+    centroCostoId: SlugIdSchema.optional(),
 }).strict();
 
 export const AtencionSchema = AtencionBaseSchema.extend({

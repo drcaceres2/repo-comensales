@@ -1,11 +1,7 @@
 import { z } from 'zod';
-import { CadenaOpcionalLimitada, slugIdSchema } from './common';
+import { CadenaOpcionalLimitada, SlugIdSchema } from './common';
 import { HoraIsoSchema, DiaDeLaSemanaSchema } from './fechas';
 import {ComedorDataSchema, ComedorDataSelector} from "./complemento1";
-
-// ============================================
-// HorarioSolicitudData (Embebido en ConfiguracionResidencia)
-// ============================================
 
 /**
  * HorarioSolicitudData: Datos de un horario de solicitud de comida.
@@ -19,10 +15,10 @@ export const HorarioSolicitudDataSchema = z.object({
     estaActivo: z.boolean().default(true),
 }).strict();
 
-// ============================================
-// TiempoComida (Embebido en ConfiguracionResidencia.esquemaSemanal)
-// ============================================
-
+/**
+ * GrupoComida: Abstracción de "desayuno", "almuerzo", "merienda", etc.
+ * Embebido como Record<GrupoComidaId, GrupoComida>
+ */
 export const GrupoComidaSchema = z.object({
     nombre: z.string().min(1).max(20), // Este nombre se usa para construir el slug que sirve de ID semántico en singleton que contiene estos objetos embebidos. Es inmutable, si cambia el nombre, el ID permanece
     orden: z.number().int().nonnegative(),
@@ -37,13 +33,13 @@ export const GrupoComidaSchema = z.object({
 export const TiempoComidaSchema = z.object({
     nombre: z.string().min(1).max(100), // Este nombre se usa para construir el slug que sirve de ID semántico en singleton que contiene estos objetos embebidos. Es inmutable, si cambia el nombre, el ID permanece
 
-    grupoComida: slugIdSchema,
+    grupoComida: SlugIdSchema,
     dia: DiaDeLaSemanaSchema,
     horaReferencia: HoraIsoSchema,
 
     alternativas: z.object({
-        principal: slugIdSchema, // Apunta a una ConfiguracionAlternativa
-        secundarias: z.array(slugIdSchema).optional(), // Apunta a ConfiguracionesAlternativas
+        principal: SlugIdSchema, // Apunta a una ConfiguracionAlternativa
+        secundarias: z.array(SlugIdSchema).optional(), // Apunta a ConfiguracionesAlternativas
     }).strict(),
 
     estaActivo: z.boolean().default(true),
@@ -58,11 +54,6 @@ export const TiempoComidaFormSchema = TiempoComidaSchema.omit({
     alternativas: true
 })
 
-
-// ============================================
-// DefinicionAlternativa (Catálogo global)
-// ============================================
-
 export const TipoAlternativaEnumSchema =
     z.enum(['comedor', 'paraLlevar', 'noComoEnCasa', 'ayuno']);
 
@@ -73,7 +64,7 @@ export const TipoAlternativaEnumSchema =
  */
 export const DefinicionAlternativaSchema = z.object({
     nombre: z.string().min(1).max(100), // Este nombre se usa para construir el slug que sirve de ID semántico en singleton que contiene estos objetos embebidos. Es inmutable, si cambia el nombre, el ID permanece
-    grupoComida: slugIdSchema,
+    grupoComida: SlugIdSchema,
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
     tipo: TipoAlternativaEnumSchema,
     estaActiva: z.boolean().default(true),
@@ -88,10 +79,6 @@ export const CrearVariosSchema = DefinicionAlternativaSchema.pick({
 });
 export type CrearVariosValues = z.infer<typeof CrearVariosSchema>;
 
-
-// ============================================
-// ConfiguracionAlternativa (Instancia por día)
-// ============================================
 
 const TipoVentanaConfigAlternativaSchema =
     z.enum(['normal', 'inicia_dia_anterior', 'termina_dia_siguiente']).default('normal')
@@ -108,10 +95,10 @@ const VentanaServicioComidaSchema = z.object({
  */
 export const ConfiguracionAlternativaSchema = z.object({
     nombre: z.string().min(1).max(100),
-    tiempoComidaId: slugIdSchema,
-    definicionAlternativaId: slugIdSchema,
-    horarioSolicitudComidaId: slugIdSchema,
-    comedorId: z.preprocess(val => val === "" || val === null ? undefined : val, slugIdSchema.optional()),
+    tiempoComidaId: SlugIdSchema,
+    definicionAlternativaId: SlugIdSchema,
+    horarioSolicitudComidaId: SlugIdSchema,
+    comedorId: z.preprocess(val => val === "" || val === null ? undefined : val, SlugIdSchema.optional()),
     requiereAprobacion: z.boolean().default(false),
     ventanaServicio: VentanaServicioComidaSchema.optional(),
     estaActivo: z.boolean().default(true)

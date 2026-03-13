@@ -1,5 +1,7 @@
 import { z } from 'zod';
-import {AuthIdSchema, FirestoreIdSchema, slugIdSchema, TimestampSchema} from './common';
+import {
+  AuthIdSchema, OptionalAuthIdSchema,
+  FirestoreIdSchema, SlugIdSchema, TimestampSchema} from './common';
 import { FechaIsoSchema } from './fechas';
 
 // Definición centralizada para el estado de la novedad
@@ -20,11 +22,10 @@ export const CategoriaNovedadEnum = z.enum([
 // ============================================
 
 const NovedadOperativaBaseSchema = z.object({
-  residenciaId: slugIdSchema,
+  residenciaId: SlugIdSchema,
   autorId: AuthIdSchema,
-  aprobadorId: AuthIdSchema.optional(), // Quien la revisó (Director/Asistente)
-  consolidadorId: AuthIdSchema.optional(), // Reemplaza 'usuarioSolicitanteAdminId' (más claro)
-  solicitudConsolidadaId: FirestoreIdSchema.optional(), // Vínculo estricto e inmutable al Snapshot
+  aprobadorId: OptionalAuthIdSchema, // Quien la revisó (Director/Asistente)
+  consolidadorId: OptionalAuthIdSchema, // Reemplaza 'usuarioSolicitanteAdminId' (más claro)
   fechaProgramada: FechaIsoSchema,
 
   texto: z.string().min(5, "La descripción debe tener al menos 5 caracteres.").max(500),

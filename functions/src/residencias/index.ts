@@ -5,17 +5,21 @@ import {
   CallableRequest,
 } from "firebase-functions/v2/https";
 import * as functions from "firebase-functions/v2";
+import { format } from "date-fns";
 
 import {
   Residencia,
   CreateResidenciaSchema,
   UpdateResidenciaSchema,
   ConfiguracionResidencia,
+  ConfiguracionResidenciaSchema,
 } from "../../../shared/schemas/residencia";
 import { ConfigContabilidad } from "../../../shared/schemas/contabilidad";
 import {
-  ComedorData as ComedorDataSchemaType,
+  ComedorData,
+  ComedorDataSchema,
   DietaData,
+  DietaDataSchema,
 } from "../../../shared/schemas/complemento1";
 import { getCallerSecurityInfo } from "../common/security";
 import { logAction } from "../common/logging";
@@ -94,9 +98,9 @@ export const createResidencia = onCall(
       };
       const residenciaRef = db.collection("residencias").doc(data.residenciaId);
       batch.set(residenciaRef, residenciaDoc);
-      functions.logger.info("Successfully created Residencia in Firestore:", data.residenciaId);
+      functions.logger.info("Comenzando la creación de nueva residencia:", data.residenciaId);
 
-      const now = new Date().toISOString();
+      const now = format(new Date().toISOString(), "yyyy-MM-dd'T'HH:mm");
       const defaultConfigRef = db.collection("residencias").doc(data.residenciaId).collection("configuracion").doc("general");
       const defaultDieta: DietaData = {
         nombre: "Normal",
@@ -108,10 +112,22 @@ export const createResidencia = onCall(
         creadoPor: callerInfo.uid,
         estaActiva: true,
       };
-      const defaultComedor: ComedorDataSchemaType = {
+      const validacionDieta = DietaDataSchema.safeParse(defaultDieta);
+      if (!validacionDieta.success) {
+        functions.logger.error("Initial DietaData failed validation:", validacionDieta.error);
+        throw new HttpsError("internal", "Initial dieta data is invalid.");
+      }
+
+      const defaultComedor: ComedorData = {
         nombre: "Comedor Principal",
         creadoPor: callerInfo.uid,
       };
+      const validacionComedor = ComedorDataSchema.safeParse(defaultComedor);
+      if (!validacionComedor.success) {
+        functions.logger.error("Initial ComedorData failed validation:", validacionComedor.error);
+        throw new HttpsError("internal", "Initial comedor data is invalid.");
+      }
+
       const initialConfig: ConfiguracionResidencia = {
         residenciaId: data.residenciaId,
         nombreCompleto: validatedData.nombre,
@@ -132,6 +148,12 @@ export const createResidencia = onCall(
         configuracionesAlternativas: {},
         restriccionesCatalogo: {},
       };
+      const validacionConfig = ConfiguracionResidenciaSchema.safeParse(initialConfig);
+      if (!validacionConfig.success) {
+        functions.logger.error("Initial ConfiguracionResidencia failed validation:", validacionConfig.error);
+        throw new HttpsError("internal", "Initial configuration data is invalid.");
+      }
+
       batch.set(defaultConfigRef, initialConfig);
       functions.logger.info("Successfully created default Dieta for Residencia:", data.residenciaId);
 
@@ -243,6 +265,11 @@ export const updateResidencia = onCall(
         const configUpdateData: any = { version: newVersion };
         if (validatedData.nombre) {
           configUpdateData.nombreCompleto = validatedData.nombre;
+        }
+        const validacionConfigUpdate = ConfiguracionResidenciaSchema.pick({ version: true, nombreCompleto: true }).safeParse(configUpdateData);
+        if (!validacionConfigUpdate.success) {
+          functions.logger.error("Config update data failed validation:", validacionConfigUpdate.error);
+          throw new HttpsError("internal", "Configuration update data is invalid.");
         }
         transaction.update(configRef, configUpdateData);
       });

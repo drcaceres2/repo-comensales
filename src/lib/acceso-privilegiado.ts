@@ -159,3 +159,44 @@ export async function verificarPermisoUsuarioAsistido(
       ? { tieneAcceso: true, nivelAcceso: detallesPermiso.nivelAcceso, error: null }
       : { tieneAcceso: false, nivelAcceso: 'Ninguna', error: null };
 }
+
+/**
+ * Verifica acceso para funcionalidades donde aplica:
+ * - Acceso total para rol 'director' sin más validaciones.
+ * - Acceso para rol 'asistente' solo si tiene al menos un usuario asistido.
+ *
+ * @param usuario - El objeto completo del usuario autenticado.
+ * @returns Un objeto ResultadoAcceso indicando si está autorizado.
+ */
+export function verificarPermisoEleccionesOtros(
+    usuario: Usuario
+): ResultadoAcceso {
+    if (!usuario || !usuario.id || !usuario.roles) {
+        return { 
+            tieneAcceso: false, 
+            nivelAcceso: 'Ninguna', 
+            error: "Usuario no válido" 
+        };
+    }
+
+    if (usuario.roles.includes('director')) {
+        return { 
+            tieneAcceso: true, 
+            nivelAcceso: 'Todas', 
+            error: null 
+        };
+    }
+
+    if (usuario.roles.includes('asistente')) {
+        const cantidadUsuariosAsistidos = Object.keys(usuario.asistente?.usuariosAsistidos || {}).length;
+
+        if (cantidadUsuariosAsistidos > 0) {
+            return { 
+                tieneAcceso: true, 
+                nivelAcceso: 'Propias', 
+                error: null };
+        }
+    }
+
+    return { tieneAcceso: false, nivelAcceso: 'Ninguna', error: null };
+}

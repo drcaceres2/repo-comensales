@@ -91,6 +91,7 @@ export const createHardcodedMasterUser = onCall(
       residenciaId: null,
       timestampCreacion: now,
       timestampActualizacion: now,
+      semanarios: {},
     };
 
     try {

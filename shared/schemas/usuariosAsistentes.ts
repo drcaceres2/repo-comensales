@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import {AuthIdSchema, FirestoreIdSchema, slugIdSchema} from './common';
+import {AuthIdSchema, FirestoreIdSchema, SlugIdSchema} from './common';
 import {FechaIsoSchema, HoraIsoSchema} from "./fechas";
 
 export const AsistentePermisosDetalleSchema = z.object({

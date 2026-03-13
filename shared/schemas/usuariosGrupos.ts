@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { slugIdSchema } from "./common";
+import { SlugIdSchema } from "./common";
 import { HoraIsoSchema } from "./fechas";
 
 // 1. Catálogo de Restricciones
 export const RestriccionCatalogoSchema = z.object({
-  id: slugIdSchema, // ID único de la restricción, dentro del singleton de ConfiguracionResidencia
+  id: SlugIdSchema, // ID único de la restricción, dentro del singleton de ConfiguracionResidencia
   nombre: z.string().min(3),
   reglasAlternativas: z.record(
-    slugIdSchema, // ID de la alternativa
+    SlugIdSchema, // ID de la alternativa
     z.enum(["BLOQUEADA", "REQUIERE_APROBACION"])
   ),
 });
@@ -15,7 +15,7 @@ export type RestriccionCatalogo = z.infer<typeof RestriccionCatalogoSchema>;
 
 // 2. Taxonomía de Grupos
 const GrupoBaseSchema = z.object({
-  id: slugIdSchema,
+  id: SlugIdSchema,
   nombre: z.string().min(3,"El nombre debe tener al menos tres caracteres"),
   estaActivo: z.boolean().default(true),
 });
@@ -23,7 +23,7 @@ export type GrupoBase = z.infer<typeof GrupoBaseSchema>;
 
 export const GrupoContableSchema = GrupoBaseSchema.extend({
   tipo: z.literal("CONTABLE"),
-  centroCostoId: slugIdSchema,
+  centroCostoId: SlugIdSchema,
 });
 export type GrupoContable = z.infer<typeof GrupoContableSchema>;
 
@@ -42,7 +42,7 @@ export const GrupoRestrictivoSchema = GrupoBaseSchema.extend({
       });
     }
   }),
-  restriccionesIds: z.array(slugIdSchema),
+  restriccionesIds: z.array(SlugIdSchema),
 });
 export type GrupoRestrictivo = z.infer<typeof GrupoRestrictivoSchema>;
 

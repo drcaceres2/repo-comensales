@@ -1,10 +1,13 @@
 import { z } from 'zod';
-import { slugIdSchema, OptionalSlugIdSchema, 
+import { SlugIdSchema, OptionalSlugIdSchema, 
     CadenaOpcionalLimitada, 
     TelefonoOpcionalSchema, TimestampSchema, 
     AuthIdSchema} from './common';
-import { FechaIsoOpcionalSchema, HoraIsoSchema } from './fechas';
+import { FechaIsoOpcionalSchema, HoraIsoSchema, SemanaIsoSchema } from './fechas';
 import { AsistenteSchema, AsistentePermisosDetalleSchema } from './usuariosAsistentes';
+import { SemanarioUsuarioSchema } from './elecciones/domain.schema';
+import { verificarCoherenciaRoles } from '../utils/commonUtils';
+import { RolUsuario } from '../models/types';
 
 
 // ============================================
@@ -12,7 +15,7 @@ import { AsistenteSchema, AsistentePermisosDetalleSchema } from './usuariosAsist
 // ============================================
 
 export const ResidenteSchema = z.object({
-    dietaId: slugIdSchema,
+    dietaId: SlugIdSchema,
     numeroDeRopa: z.string().min(1, "El número de ropa es obligatorio.").max(10),
     habitacion: z.string().min(1, "La habitación es obligatoria.").max(10),
     avisoAdministracion: z.enum(['convivente', 'no_comunicado', 'comunicado']),
@@ -32,7 +35,7 @@ export const NotificacionPreferenciasSchema = z.object({
 // Esquemas Base para Usuario
 // ============================================
 
-const usuarioBaseObject = z.object({
+export const UsuarioBaseObject = z.object({
     // Info interna (Controlada por el servidor)
     id: AuthIdSchema,
     timestampCreacion: TimestampSchema,
@@ -40,13 +43,13 @@ const usuarioBaseObject = z.object({
     timestampUltimoIngreso: TimestampSchema.nullable().optional(),
 
     // Info de estado y configuración
-    residenciaId: slugIdSchema.nullable().optional(),
+    residenciaId: SlugIdSchema.nullable().optional(),
     roles: z.array(z.enum(['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador']))
             .min(1, "Debe seleccionar al menos un rol."),
     email: z.string().email("El formato del email no es válido."),
     tieneAutenticacion: z.boolean(),
     estaActivo: z.boolean(),
-    centroCostoPorDefectoId: slugIdSchema.nullable().optional(),
+    centroCostoPorDefectoId: SlugIdSchema.nullable().optional(),
     notificacionPreferencias: NotificacionPreferenciasSchema.nullable().optional(),
 
     // Info personal
@@ -68,6 +71,7 @@ const usuarioBaseObject = z.object({
         .default([]),
     puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable(),
     camposPersonalizados: z.record(z.string()).optional(),
+    semanarios: z.record(SemanaIsoSchema, SemanarioUsuarioSchema),
 
     // Propiedades anidadas por rol
     asistente: AsistenteSchema.optional(),
@@ -78,8 +82,7 @@ const usuarioBaseObject = z.object({
 // Refinamiento base de roles
 // ============================================
 
-
-const userRoleRefinement = (data: { roles?: string[], residente?: any, asistente?: any }, ctx: z.RefinementCtx) => {
+export const userRoleRefinement = (data: { roles?: RolUsuario[], residente?: any, asistente?: any }, ctx: z.RefinementCtx) => {
     if (!data.roles) return;
     // Regla para rol 'residente'
     if (data.roles.includes('residente')) {
@@ -118,6 +121,22 @@ const userRoleRefinement = (data: { roles?: string[], residente?: any, asistente
             });
         }
     }
+
+    const { sonCoherentes, error } = verificarCoherenciaRoles(data.roles);
+    if (error) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: error,
+            path: ['roles'],
+        });
+    }
+    if (!sonCoherentes) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Configuración de roles inválida. Contacta al administrador.",
+            path: ['roles'],
+        });
+    }
 };
 
 // ============================================
@@ -125,7 +144,7 @@ const userRoleRefinement = (data: { roles?: string[], residente?: any, asistente
 // ============================================
 
 
-export const usuarioSchema = usuarioBaseObject
+export const UsuarioSchema = UsuarioBaseObject
     .strict()
     .superRefine(userRoleRefinement);
 
@@ -133,7 +152,7 @@ export const usuarioSchema = usuarioBaseObject
 // Esquemas para CREATE
 // ============================================
 
-const createUsuarioObject = usuarioBaseObject
+const CreateUsuarioObject = UsuarioBaseObject
     .omit({
         id: true,
         timestampCreacion: true,
@@ -149,7 +168,7 @@ const createUsuarioObject = usuarioBaseObject
         gruposAnaliticosIds: z.array(z.string()).default([]),
         puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().default('no'),
     });
-export const createUsuarioSchema = createUsuarioObject
+export const createUsuarioSchema = CreateUsuarioObject
     .strict()
     .superRefine(userRoleRefinement);
 
@@ -158,7 +177,7 @@ export const createUsuarioSchema = createUsuarioObject
 // ============================================
 
 // Prácticamente todo es opcional en una actualización
-const updateUsuarioObject = usuarioBaseObject
+const UpdateUsuarioObject = UsuarioBaseObject
     .omit({
         id: true,
         timestampCreacion: true,
@@ -167,7 +186,7 @@ const updateUsuarioObject = usuarioBaseObject
     })
     .partial();
 
-export const updateUsuarioSchema = updateUsuarioObject
+export const UpdateUsuarioSchema = UpdateUsuarioObject
     .strict()
     .superRefine(userRoleRefinement);
 
@@ -175,7 +194,7 @@ export const updateUsuarioSchema = updateUsuarioObject
 // Esquemas para formularios del cliente
 // ============================================
 
-export const clientCreateUserFormSchema = createUsuarioObject
+export const clientCreateUserFormSchema = CreateUsuarioObject
     .extend({
         password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
         confirmPassword: z.string().min(6),
@@ -187,15 +206,15 @@ export const clientCreateUserFormSchema = createUsuarioObject
         path: ['confirmPassword'],
     });
 
-export const clientUpdateUserFormSchema = updateUsuarioSchema;
+export const clientUpdateUserFormSchema = UpdateUsuarioSchema;
 
 // ============================================
 // Type Exports
 // ============================================
 
-export type Usuario = z.infer<typeof usuarioSchema>;
+export type Usuario = z.infer<typeof UsuarioSchema>;
 export type CreateUsuario = z.infer<typeof createUsuarioSchema>;
-export type UpdateUsuario = z.infer<typeof updateUsuarioSchema>;
+export type UpdateUsuario = z.infer<typeof UpdateUsuarioSchema>;
 
 export type AsistentePermisos = z.infer<typeof AsistenteSchema>;
 export type AsistentePermisosDetalle = z.infer<typeof AsistentePermisosDetalleSchema>;

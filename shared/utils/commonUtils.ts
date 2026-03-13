@@ -3,6 +3,7 @@ import { toDate, formatInTimeZone } from 'date-fns-tz'
 import { TZDate } from "@date-fns/tz";
 import { FechaIsoSchema } from "../schemas/fechas";
 import { esValidaZonaHoraria, FechaIso, ZonaHorariaIana } from "../schemas/fechas";
+import { RolUsuario } from '../models/types';
 
 // --- Helper Functions ---
 export const slugify = (text: string, longitudMax?: number): string => {
@@ -77,4 +78,35 @@ export function EntreFechasResidencia(
     } catch (error) {
         return 'error'
     }
+}
+
+type ResultadoVerificacionRoles = {
+    sonCoherentes: boolean;
+    error: string | null;
+}
+
+export function verificarCoherenciaRoles(roles: RolUsuario[]): ResultadoVerificacionRoles {
+    if (!roles || roles.length === 0) {
+        return {
+            sonCoherentes: false,
+            error: "Error interno: La verificación de roles no se ha podido realizar."
+        }
+    }
+    const esResidente = roles.includes('residente');
+    const esInvitado = roles.includes('invitado');
+    const esAsistente = roles.includes('asistente');
+    const esDirector = roles.includes('director');
+    if (
+        (esInvitado && (esResidente || esAsistente || esDirector))
+        || (esAsistente && esDirector)
+    ) {
+        return {
+            sonCoherentes: false,
+            error: null
+        }
+    }
+    return {
+        sonCoherentes: true,
+        error: null
+    };
 }

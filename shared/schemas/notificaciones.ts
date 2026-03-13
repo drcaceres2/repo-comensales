@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import {AuthIdSchema, FirestoreIdSchema, slugIdSchema} from './common';
+import {AuthIdSchema, FirestoreIdSchema, SlugIdSchema} from './common';
 import { HoraIsoSchema } from './fechas';
 
 // ============================================
@@ -15,7 +15,7 @@ export const NotificacionRelacionadaSchema = z.object({
 }).strict();
 
 const NotificacionBaseSchema = z.object({
-    residenciaId: slugIdSchema,
+    residenciaId: SlugIdSchema,
     usuarioId: AuthIdSchema,
     tipo: NotificacionTipoSchema,
     prioridad: NotificacionPrioridadSchema,

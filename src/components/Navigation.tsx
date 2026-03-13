@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import React, { ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import React, { ReactNode, useState, useEffect } from 'react';
+import { useTheme } from 'next-themes';
 import {
   Sidebar, SidebarTrigger, SidebarContent,
   SidebarMenu, SidebarMenuItem,
@@ -18,16 +20,18 @@ import {
 
 import {
   Menu, Users,
-  Building, Settings,
+  Building, CalendarSync,
   ListChecks, CalendarDays,
   UsersRound, Bell, FileText,
   Home, PlusCircle, MessageSquare,
-  Loader2, ShieldCheck, UserCog,
+  ShieldCheck, UserCog,
   LucideIcon, Info, Clock,
   ConciergeBell, Briefcase, UserSquare, 
   Drama, Handshake, ClipboardEdit, 
   BookCopy, UserCircle2, UserPlus,
+  Utensils, LogOut
 } from 'lucide-react';
+import { Sun, Moon } from 'lucide-react';
 
 import {
   SheetTitle,
@@ -36,6 +40,8 @@ import {
 
 import { useInfoUsuario } from '@/components/layout/AppProviders';
 import { RolUsuario, InfoUsuario } from 'shared/models/types';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 interface NavItem {
   id: string;
@@ -134,6 +140,32 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
       ],
     },
 
+    // --- Group: Residentes ---
+    {
+      id: 'residentesGroup',
+      label: 'Residentes',
+      icon: UserSquare,
+      isAccordion: true,
+      roles: ['director', 'residente', 'invitado', 'asistente'],
+      children: [
+        {
+          id: 'elegirHorariosComidas',
+          label: 'Elegir Horarios de Comidas',
+          icon: Utensils,
+          href: rLink,
+          pathTemplate: '/elegir-horarios-comida',
+          roles: ['director', 'residente', 'invitado', 'asistente'],
+        },
+        {
+          id: 'semanarios',
+          label: 'Horario base (Semanario)',
+          icon: CalendarSync,
+          href: rLink,
+          pathTemplate: '/semanarios',
+          roles: ['director', 'residente', 'invitado', 'asistente'],
+        },
+      ],
+    },
     // --- Group: Actividades ---
     {
       id: 'actividadesGroup',
@@ -377,6 +409,24 @@ const isItemVisible = (item: NavItem, profile: InfoUsuario | null): boolean => {
 export function Navigation() {
   const userInfo = useInfoUsuario();
   const { isMobile, setOpenMobile } = useSidebar(); 
+  const { theme, setTheme } = useTheme();
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      await fetch('/api/auth/logout', { method: 'GET' });
+      router.push('/');
+      router.refresh();
+    } catch (error) {
+      console.error('Error signing out: ', error);
+    }
+  };
 
   const navConfig = getNavConfig(userInfo);
   const feedbackLink = navConfig.find(item => item.isFeedbackLink);
@@ -514,11 +564,32 @@ export function Navigation() {
               {currentNavConfig.map(item => renderNavItem(item))}
             </Accordion>
           </SidebarMenu>
-          {currentFeedbackLink && (
-            <SidebarFooter className="p-4 border-t dark:border-gray-700">
-              {renderNavItem(currentFeedbackLink)}
-            </SidebarFooter>
-          )}
+          <SidebarFooter className="p-4 border-t dark:border-gray-700">
+            <div className="flex flex-col gap-2">
+              {currentFeedbackLink && renderNavItem(currentFeedbackLink)}
+              {isAuthenticated && (
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md text-sm w-full"
+                  title="Cerrar Sesión"
+                >
+                  <LogOut size={18} />
+                  <span>Cerrar sesión</span>
+                </button>
+              )}
+              {!mounted ? (
+                <div className="h-9 w-full rounded-md" />
+              ) : (
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md text-sm w-full"
+                >
+                  {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                  <span>{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>
+                </button>
+              )}
+            </div>
+          </SidebarFooter>
         </SidebarContent>
       )}
     </Sidebar>

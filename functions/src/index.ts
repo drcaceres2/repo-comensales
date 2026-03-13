@@ -10,6 +10,7 @@ import {
   asignarAsistenteProxy,
   revocarAsistenteProxy,
 } from "./asistentes";
+import { upsertSemanario } from "./semanarios";
 import { createHardcodedMasterUser, seedDatabase } from "./PRUEBAS";
 
 import { logActionCallable } from "./common/logging";
@@ -25,6 +26,7 @@ export {
   actualizarMatrizAccesos,
   asignarAsistenteProxy,
   revocarAsistenteProxy,
+  upsertSemanario,
   createHardcodedMasterUser,
   seedDatabase,
   logActionCallable,

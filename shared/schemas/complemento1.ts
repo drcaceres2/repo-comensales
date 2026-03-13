@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import {FirestoreIdSchema, CadenaOpcionalLimitada, OptionalSlugIdSchema, slugIdSchema, AuthIdSchema} from './common';
+import {FirestoreIdSchema, CadenaOpcionalLimitada, OptionalSlugIdSchema, SlugIdSchema, AuthIdSchema} from './common';
 import { HoraIsoSchema } from './fechas';
 
 // ============================================
@@ -22,7 +22,7 @@ export const ComedorDataSchema = z.object({
 export const comedorDataSelectorSchema = ComedorDataSchema.pick({
     nombre: true
 }).extend({
-    id: slugIdSchema
+    id: SlugIdSchema
 });
 
 // ============================================
@@ -37,7 +37,7 @@ const GestionComidaSchema = z.object({
     horarioConfirmacionDiaria: HoraIsoSchema.optional(),
     restriccionAlternativas: z.boolean(),
     alternativasRestringidas: z.record(
-        slugIdSchema,
+        SlugIdSchema,
         z.enum(['no_permitida', 'requiere_aprobacion'])
     ),
     localizacionObligatoria: z.boolean(),
@@ -52,7 +52,7 @@ export const GrupoUsuariosDataSchema = z.object({
     etiqueta: z.string().min(1).max(50),
     tipoGrupo: z.enum(['gestion-comidas', 'centro-de-costo', 'presentacion-reportes']),
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
-    centroCostoId: slugIdSchema.optional(),
+    centroCostoId: SlugIdSchema.optional(),
     gestionComida: GestionComidaSchema.optional(),
 }).strict();
 
@@ -99,7 +99,7 @@ export const DietaDataSchema = z.object({
         'comunicado', 
         'dieta_cancelada',
     ]),
-    creadoPor: FirestoreIdSchema,
+    creadoPor: AuthIdSchema,
     estaActiva: z.boolean(),
 }).strict();
 

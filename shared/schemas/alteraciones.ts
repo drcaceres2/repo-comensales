@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import {AuthIdSchema, slugIdSchema} from './common';
+import {AuthIdSchema, SlugIdSchema} from './common';
 import { FechaIsoSchema } from './fechas';
 import { ConfiguracionAlternativaSchema } from './horarios';
 
@@ -30,11 +30,11 @@ export const AfectacionTiempoComidaSchema = z.object({
     
     // Puntero de Contingencia: Este ID DEBE existir como llave en 'alternativasDisponibles'.
     // Resuelve el problema del "fallback" sin romper el diccionario O(1).
-    alternativaPorDefectoId: slugIdSchema, 
+    alternativaPorDefectoId: SlugIdSchema, 
     
     // Diccionario plano que reemplaza absolutamente las opciones del Singleton.
     // La llave es un ID único para esta configuración en esta alteración.
-    alternativasDisponibles: z.record(slugIdSchema, ConfigAlternativaAjustadaSchema),
+    alternativasDisponibles: z.record(SlugIdSchema, ConfigAlternativaAjustadaSchema),
     
     // Trazabilidad indispensable en modelos de comandos
     audit: z.object({
@@ -51,10 +51,10 @@ export type AfectacionTiempoComida = z.infer<typeof AfectacionTiempoComidaSchema
 // ------------------------------------------------------------------
 export const AlteracionDiariaSchema = z.object({
     fecha: FechaIsoSchema, 
-    residenciaId: slugIdSchema,
+    residenciaId: SlugIdSchema,
     
     // La llave DEBE existir en el 'esquemaSemanal' del Singleton (ej. "almuerzo-domingo")
-    tiemposComidaAfectados: z.record(slugIdSchema, AfectacionTiempoComidaSchema),
+    tiemposComidaAfectados: z.record(SlugIdSchema, AfectacionTiempoComidaSchema),
 });
 
 export type AlteracionDiaria = z.infer<typeof AlteracionDiariaSchema>;

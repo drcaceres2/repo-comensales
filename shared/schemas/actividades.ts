@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AuthIdSchema, FirestoreIdSchema, slugIdSchema, TimestampSchema } from './common';
+import { AuthIdSchema, OptionalAuthIdSchema, FirestoreIdSchema, SlugIdSchema, TimestampSchema } from './common';
 import { FechaIsoSchema, HoraIsoSchema} from './fechas';
 
 // ============================================
@@ -80,7 +80,7 @@ export const DetalleActividadSchema = z.object({
 const ActividadBaseSchema = z.object({
     // Campos generales
     id: FirestoreIdSchema,
-    residenciaId: slugIdSchema,
+    residenciaId: SlugIdSchema,
     organizadorId: AuthIdSchema,
     nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(25, 'El nombre no puede exceder los 25 caracteres'),
     descripcion: z.string().trim().max(255, 'La descripción no puede exceder los 255 caracteres').optional(),
@@ -91,10 +91,10 @@ const ActividadBaseSchema = z.object({
     // Campos de cálculo de comidas
     fechaInicio: FechaIsoSchema,
     fechaFin: FechaIsoSchema,
-    tiempoComidaInicial: slugIdSchema,
-    tiempoComidaFinal: slugIdSchema,
+    tiempoComidaInicial: SlugIdSchema,
+    tiempoComidaFinal: SlugIdSchema,
     planComidas: z.array(DetalleActividadSchema),
-    comedorActividad: slugIdSchema.nullable().optional(),
+    comedorActividad: SlugIdSchema.nullable().optional(),
     modoAtencionActividad: z.enum(['residencia', 'externa']),
     diasAntelacionSolicitudAdministracion: z.number().int().nonnegative(),
 
@@ -107,7 +107,7 @@ const ActividadBaseSchema = z.object({
     modoAccesoInvitados: ModoAccesoSchema.optional(),
 
     // Campos de costo
-    centroCostoId: slugIdSchema.nullable().optional(),
+    centroCostoId: SlugIdSchema.nullable().optional(),
 }).strict();
 
 // --- Create Schema ---
@@ -192,10 +192,10 @@ export const ActividadSchema = ActividadBaseSchema;
  */
 export const InscripcionActividadSchema = z.object({
     id: FirestoreIdSchema,
-    residenciaId: slugIdSchema,
+    residenciaId: SlugIdSchema,
     actividadId: FirestoreIdSchema,
     usuarioInscritoId: AuthIdSchema,
-    invitadoPorUsuarioId: AuthIdSchema.optional(),
+    invitadoPorUsuarioId: OptionalAuthIdSchema,
 
     fechaInvitacion: FechaIsoSchema.nullable(),
     estadoInscripcion: EstadoInscripcionActividadEnum,

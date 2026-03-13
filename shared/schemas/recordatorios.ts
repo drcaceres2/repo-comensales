@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import {AuthIdSchema, ColorHTMLSchema, FirestoreIdSchema, slugIdSchema, TimestampSchema} from "./common";
+import {AuthIdSchema, ColorHTMLSchema, FirestoreIdSchema, SlugIdSchema, TimestampSchema} from "./common";
 import {FechaIsoOpcionalSchema, FechaIsoSchema} from "./fechas";
 
 // Valida que empiece con FREQ y contenga solo los modificadores que permitimos en V1
@@ -38,7 +38,7 @@ export const RRULEString = z.string().superRefine((val, ctx) => {
 // 1. Esquema Base (Zod) - Capa 2 de Integridad
 export const RecordatorioSchema = z.object({
     id: FirestoreIdSchema,
-    residenciaId: slugIdSchema,
+    residenciaId: SlugIdSchema,
     usuarioIniciadorId: AuthIdSchema,
 
     // Clasificación para saber cómo renderizarlo o si se puede editar manualmente

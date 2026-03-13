@@ -9,7 +9,7 @@ import * as functions from "firebase-functions/v2";
 import {
   Usuario,
   createUsuarioSchema,
-  updateUsuarioSchema,
+  UpdateUsuarioSchema,
   CreateUsuario,
   UpdateUsuario,
 } from "../../../shared/schemas/usuarios";
@@ -209,7 +209,7 @@ export const updateUser = onCall(
     const targetUsuario = targetUserDoc.data() as Usuario;
     const targetUserAuth = await admin.auth().getUser(userIdToUpdate);
 
-    const validationResult = updateUsuarioSchema.safeParse(profileData);
+    const validationResult = UpdateUsuarioSchema.safeParse(profileData);
 
     if (!validationResult.success) {
       const zodErrors = validationResult.error.flatten();

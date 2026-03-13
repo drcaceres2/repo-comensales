@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import {
   AuthIdSchema,
+  OptionalAuthIdSchema,
   FirestoreIdSchema,
   OptionalSlugIdSchema,
   TimestampSchema,
-  slugIdSchema,
+  SlugIdSchema,
 } from './common';
 import { FechaHoraIsoSchema, FechaIsoSchema } from './fechas';
 
@@ -25,9 +26,9 @@ const NombreAtencionSchema = z.string().trim().min(1).max(120);
 export const AtencionSchema = z
   .object({
     id: FirestoreIdSchema,
-    residenciaId: slugIdSchema,
+    residenciaId: SlugIdSchema,
     autorId: AuthIdSchema,
-    aprobadorId: AuthIdSchema.optional(),
+    aprobadorId: OptionalAuthIdSchema,
 
     nombre: NombreAtencionSchema,
     comentarios: ComentariosAtencionSchema,

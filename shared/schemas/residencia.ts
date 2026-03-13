@@ -3,7 +3,7 @@ import {
     CadenaOpcionalLimitada,
     UbicacionSchema,
     UrlOpcionalSchema,
-    slugIdSchema,
+    SlugIdSchema,
     TimestampSchema
 } from './common';
 import { FechaHoraIsoSchema } from './fechas';
@@ -45,7 +45,7 @@ export const CampoPersonalizadoSchema = z.object({
  * Esquema base para Residencia (lectura)
  */
 export const ResidenciaSchema = z.object({
-    id: slugIdSchema,
+    id: SlugIdSchema,
     nombre: z.string().min(1).max(80),
     direccion: CadenaOpcionalLimitada(1, 255).optional(),
     logoUrl: UrlOpcionalSchema,
@@ -102,7 +102,7 @@ export const ResidenciaConVersion = ResidenciaSchema.extend(
  */
 export const ConfiguracionResidenciaSchema = z.object({
     // Metadata
-    residenciaId: slugIdSchema,
+    residenciaId: SlugIdSchema,
     nombreCompleto: z.string().min(1).max(80),
     version: z.number().int().nonnegative().default(1),
     //bloqueoIntencionResidentes: z.boolean().default(false),
@@ -112,15 +112,15 @@ export const ConfiguracionResidenciaSchema = z.object({
     timestampUltimaSolicitud: TimestampSchema,
 
     // Datos Embebidos (Embed Pattern)
-    horariosSolicitud: z.record(slugIdSchema, HorarioSolicitudDataSchema),
-    comedores: z.record(slugIdSchema, ComedorDataSchema),
-    gruposUsuarios: z.record(slugIdSchema, GrupoUsuarioSchema),
-    dietas: z.record(slugIdSchema, DietaDataSchema),
-    gruposComidas: z.record(slugIdSchema, GrupoComidaSchema),
-    esquemaSemanal: z.record(slugIdSchema, TiempoComidaSchema),
-    catalogoAlternativas: z.record(slugIdSchema, DefinicionAlternativaSchema),
-    configuracionesAlternativas: z.record(slugIdSchema, ConfiguracionAlternativaSchema),
-    restriccionesCatalogo: z.record(slugIdSchema, RestriccionCatalogoSchema),
+    horariosSolicitud: z.record(SlugIdSchema, HorarioSolicitudDataSchema),
+    comedores: z.record(SlugIdSchema, ComedorDataSchema),
+    gruposUsuarios: z.record(SlugIdSchema, GrupoUsuarioSchema),
+    dietas: z.record(SlugIdSchema, DietaDataSchema),
+    gruposComidas: z.record(SlugIdSchema, GrupoComidaSchema),
+    esquemaSemanal: z.record(SlugIdSchema, TiempoComidaSchema),
+    catalogoAlternativas: z.record(SlugIdSchema, DefinicionAlternativaSchema),
+    configuracionesAlternativas: z.record(SlugIdSchema, ConfiguracionAlternativaSchema),
+    restriccionesCatalogo: z.record(SlugIdSchema, RestriccionCatalogoSchema),
 }).strict();
 
 

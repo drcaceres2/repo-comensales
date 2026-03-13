@@ -6,6 +6,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { useTranslation } from 'react-i18next';
 import { Toaster } from '@/components/ui/toaster';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { ThemeProvider } from 'next-themes';
 import { InfoUsuario } from 'shared/models/types';
 import { ctxTraduccionSoportados } from 'shared/models/types';
 
@@ -54,11 +55,13 @@ export function AppProviders({ infoUsuario, children }: AppProvidersProps) {
   return (
     <InfoUsuarioContext.Provider value={infoUsuario}>
         <QueryClientProvider client={queryClient}>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <SidebarProvider>
             {children}
             <Toaster />
             <ReactQueryDevtools initialIsOpen={false} />
           </SidebarProvider>
+          </ThemeProvider>
         </QueryClientProvider>
     </InfoUsuarioContext.Provider>
   );

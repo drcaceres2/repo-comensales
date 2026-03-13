@@ -1,10 +1,10 @@
 import {z } from 'zod';
-import { slugIdSchema, CadenaOpcionalLimitada } from "./common";
+import { SlugIdSchema, CadenaOpcionalLimitada } from "./common";
 
 // Centro de Costo - Entidad principal de la contabilidad
 
 export const CentroDeCostoSchema = z.object({
-    id: slugIdSchema,
+    id: SlugIdSchema,
     codigoVisible: z.string().min(1).max(50),
     nombre: z.string().min(1).max(100),
     descripcion: CadenaOpcionalLimitada(1, 255).optional(),
@@ -16,7 +16,7 @@ export const CentroDeCostoSchema = z.object({
 // ============================================
 
 export const ConfigContabilidadSchema = z.object({
-    residenciaId: slugIdSchema,
+    residenciaId: SlugIdSchema,
     modeloClasificacion: z.enum(['por-usuario', 'por-grupo-usuario', 'por-comedor', 'detallada']).optional(),
     valorizacionComensales: z.boolean(),
     modoCosteo: z.enum(['general', 'por-grupo-tiempo-comida', 'por-tiempo-comida', 'detallado']).optional(),
