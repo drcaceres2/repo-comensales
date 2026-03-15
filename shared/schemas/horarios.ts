@@ -80,7 +80,7 @@ export const CrearVariosSchema = DefinicionAlternativaSchema.pick({
 export type CrearVariosValues = z.infer<typeof CrearVariosSchema>;
 
 
-const TipoVentanaConfigAlternativaSchema =
+export const TipoVentanaConfigAlternativaSchema =
     z.enum(['normal', 'inicia_dia_anterior', 'termina_dia_siguiente']).default('normal')
 
 const VentanaServicioComidaSchema = z.object({

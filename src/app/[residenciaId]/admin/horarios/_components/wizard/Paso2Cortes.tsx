@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Archive, ArchiveRestore, PlusCircle } from 'lucide-react';
 import { useHorariosAlmacen } from '../../_lib/useHorariosAlmacen';
 import { HorarioSolicitudDataSchema, type HorarioSolicitudData } from 'shared/schemas/horarios';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { slugify } from 'shared/utils/commonUtils';
+import { normalizarHoraParaInput, slugify } from 'shared/utils/commonUtils';
 import { type DiaDeLaSemana, DiaDeLaSemanaSchema } from 'shared/schemas/fechas';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -31,6 +31,7 @@ export function Paso2Cortes() {
     // null = not editing, 'new' = creating, or the slug for editing
     const [editingId, setEditingId] = useState<string | null>(null);
     const [horaDiaria, setHoraDiaria] = useState('10:00');
+    const formContainerRef = useRef<HTMLDivElement | null>(null);
     const { toast } = useToast();
 
     const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({
@@ -59,12 +60,23 @@ export function Paso2Cortes() {
     
     const hasActiveHorarios = Object.values(datosBorrador.horariosSolicitud || {}).some(h => h.estaActivo);
 
+    useEffect(() => {
+        if (!editingId) return;
+
+        requestAnimationFrame(() => {
+            formContainerRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        });
+    }, [editingId]);
+
     const handleEditClick = (id: string, horario: HorarioSolicitudData) => {
         setEditingId(id);
         reset({
             nombre: horario.nombre,
             dia: horario.dia,
-            horaSolicitud: horario.horaSolicitud.startsWith('T') ? horario.horaSolicitud.substring(1) : horario.horaSolicitud,
+            horaSolicitud: normalizarHoraParaInput(horario.horaSolicitud),
             esPrimario: horario.esPrimario
         });
     };
@@ -134,81 +146,83 @@ export function Paso2Cortes() {
     };
     
     const renderForm = () => (
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-slate-100 dark:bg-slate-800 p-4 rounded-lg my-4 border border-slate-200 dark:border-slate-700">
-            <h3 className="font-semibold text-lg mb-3 text-slate-800 dark:text-slate-200">
-                {editingId === 'new' ? 'Añadir Nuevo Corte' : 'Editar Corte'}
-            </h3>
-            <div className="space-y-4">
-                {/* Nombre */}
-                <div>
-                    <Label htmlFor="nombre">Nombre</Label>
-                    <input
-                        id="nombre"
-                        type="text"
-                        placeholder="Ej: Desayuno"
-                        title="Nombre del horario de corte"
-                        {...register('nombre')}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-                        readOnly={editingId !== 'new'}
-                        disabled={editingId !== 'new'}
-                    />
-                    {errors.nombre && <p className="text-red-500 text-xs mt-1">{errors.nombre.message}</p>}
-                </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Dia de la Semana */}
+        <div ref={formContainerRef}>
+            <form onSubmit={handleSubmit(onSubmit)} className="bg-slate-100 dark:bg-slate-800 p-4 rounded-lg my-4 border border-slate-200 dark:border-slate-700">
+                <h3 className="font-semibold text-lg mb-3 text-slate-800 dark:text-slate-200">
+                    {editingId === 'new' ? 'Añadir Nuevo Corte' : 'Editar Corte'}
+                </h3>
+                <div className="space-y-4">
+                    {/* Nombre */}
                     <div>
-                        <Label htmlFor="dia">Día</Label>
-                        <select
-                            id="dia"
-                            {...register('dia')}
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                            {DIAS_SEMANA.map(dia => (
-                                <option key={dia} value={dia} className="capitalize">{dia.charAt(0).toUpperCase() + dia.slice(1)}</option>
-                            ))}
-                        </select>
-                        {errors.dia && <p className="text-red-500 text-xs mt-1">{errors.dia.message}</p>}
-                    </div>
-
-                    {/* Hora de Solicitud */}
-                    <div>
-                        <Label htmlFor="horaSolicitud">Hora</Label>
+                        <Label htmlFor="nombre">Nombre</Label>
                         <input
-                            id="horaSolicitud"
-                            type="time"
-                            step="60"
-                            title="Hora de solicitud"
-                            {...register('horaSolicitud')}
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            id="nombre"
+                            type="text"
+                            placeholder="Ej: Desayuno"
+                            title="Nombre del horario de corte"
+                            {...register('nombre')}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                            readOnly={editingId !== 'new'}
+                            disabled={editingId !== 'new'}
                         />
-                        {errors.horaSolicitud && <p className="text-red-500 text-xs mt-1">{errors.horaSolicitud.message}</p>}
+                        {errors.nombre && <p className="text-red-500 text-xs mt-1">{errors.nombre.message}</p>}
                     </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Dia de la Semana */}
+                        <div>
+                            <Label htmlFor="dia">Día</Label>
+                            <select
+                                id="dia"
+                                {...register('dia')}
+                                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                {DIAS_SEMANA.map(dia => (
+                                    <option key={dia} value={dia} className="capitalize">{dia.charAt(0).toUpperCase() + dia.slice(1)}</option>
+                                ))}
+                            </select>
+                            {errors.dia && <p className="text-red-500 text-xs mt-1">{errors.dia.message}</p>}
+                        </div>
+
+                        {/* Hora de Solicitud */}
+                        <div>
+                            <Label htmlFor="horaSolicitud">Hora</Label>
+                            <input
+                                id="horaSolicitud"
+                                type="time"
+                                step="60"
+                                title="Hora de solicitud"
+                                {...register('horaSolicitud')}
+                                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            {errors.horaSolicitud && <p className="text-red-500 text-xs mt-1">{errors.horaSolicitud.message}</p>}
+                        </div>
+                    </div>
+
+                    {/* Es Primario */}
+                    <div className="flex items-center space-x-2 pt-2">
+                        <Switch
+                            id="esPrimario"
+                            checked={watch('esPrimario')}
+                            onCheckedChange={(checked) => reset({ ...watch(), esPrimario: checked })}
+                        />
+                        <Label htmlFor="esPrimario" className="cursor-pointer">
+                            ¿Es el horario principal para este día?
+                        </Label>
+                    </div>
+                     {errors.esPrimario && <p className="text-red-500 text-xs mt-1">{errors.esPrimario.message}</p>}
                 </div>
 
-                {/* Es Primario */}
-                <div className="flex items-center space-x-2 pt-2">
-                    <Switch
-                        id="esPrimario"
-                        checked={watch('esPrimario')}
-                        onCheckedChange={(checked) => reset({ ...watch(), esPrimario: checked })}
-                    />
-                    <Label htmlFor="esPrimario" className="cursor-pointer">
-                        ¿Es el horario principal para este día?
-                    </Label>
+                <div className="flex items-center justify-end gap-3 mt-4">
+                    <button type="button" onClick={handleCancel} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-transparent rounded-md hover:bg-slate-200 dark:hover:bg-slate-700">
+                        Cancelar
+                    </button>
+                    <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Guardar
+                    </button>
                 </div>
-                 {errors.esPrimario && <p className="text-red-500 text-xs mt-1">{errors.esPrimario.message}</p>}
-            </div>
-
-            <div className="flex items-center justify-end gap-3 mt-4">
-                <button type="button" onClick={handleCancel} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-transparent rounded-md hover:bg-slate-200 dark:hover:bg-slate-700">
-                    Cancelar
-                </button>
-                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    Guardar
-                </button>
-            </div>
-        </form>
+            </form>
+        </div>
     );
     
     const renderNavButtons = () => {
@@ -275,7 +289,7 @@ export function Paso2Cortes() {
                            <div className="font-semibold text-slate-800 dark:text-slate-200">{horario.nombre}</div>
                            <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
                                 <span className="capitalize">{horario.dia}</span>
-                                <span>{horario.horaSolicitud.replace('T', '')}</span>
+                                <span>{normalizarHoraParaInput(horario.horaSolicitud)}</span>
                                 {horario.esPrimario && (
                                     <span className="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full dark:bg-blue-900 dark:text-blue-300">
                                         Principal

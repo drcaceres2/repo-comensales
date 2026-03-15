@@ -1,0 +1,841 @@
+'use client';
+
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useToast } from '@/hooks/useToast';
+import { collection, db, doc, functions, getDoc, getDocs, httpsCallable, limit, onSnapshot, query, where } from '@/lib/firebase';
+import { useInfoUsuario } from '@/components/layout/AppProviders';
+import { createUsuarioSchema, type ResidenteData } from 'shared/schemas/usuarios';
+import type { RolUsuario } from 'shared/models/types';
+import type { Residencia, ConfiguracionResidencia, CampoPersonalizado } from 'shared/schemas/residencia';
+import type { CentroDeCosto } from 'shared/schemas/contabilidad';
+import type { DietaData } from 'shared/schemas/complemento1';
+
+interface CrearInvitacionResult {
+  success: boolean;
+  userId?: string;
+  invitationCreated?: boolean;
+  message?: string;
+}
+
+interface ReenviarResult {
+  success: boolean;
+  message?: string;
+}
+
+interface InvitacionListadoItem {
+  id: string;
+  email: string;
+  status: 'pendiente' | 'enviada' | 'error_envio';
+  tokenVersion: number;
+  expiresAt?: unknown;
+  lastSentAt?: unknown;
+  lastError?: string;
+}
+
+interface UsuarioListadoItem {
+  id: string;
+  nombre: string;
+  apellido: string;
+  email: string;
+  roles: string[];
+  tieneAutenticacion: boolean;
+  estaActivo: boolean;
+  timestampCreacion?: unknown;
+}
+
+type RolInvitable = Exclude<RolUsuario, 'master' | 'asistente'>;
+
+type InvitationFormState = {
+  nombre: string;
+  apellido: string;
+  nombreCorto: string;
+  email: string;
+  roles: RolInvitable[];
+  tieneAutenticacion: boolean;
+  fechaDeNacimiento: string;
+  centroCostoPorDefectoId: string;
+  puedeTraerInvitados: 'no' | 'si' | 'requiere_autorizacion';
+  camposPersonalizados: Record<string, string>;
+  residente?: ResidenteData;
+};
+
+const ROLES_DISPONIBLES: RolInvitable[] = ['residente', 'invitado', 'director', 'contador', 'admin'];
+
+const defaultResidenteData: ResidenteData = {
+  dietaId: '',
+  numeroDeRopa: '',
+  habitacion: '',
+  avisoAdministracion: 'no_comunicado',
+};
+
+const initialFormState: InvitationFormState = {
+  nombre: '',
+  apellido: '',
+  nombreCorto: '',
+  email: '',
+  roles: ['invitado'],
+  tieneAutenticacion: true,
+  fechaDeNacimiento: '',
+  centroCostoPorDefectoId: '',
+  puedeTraerInvitados: 'no',
+  camposPersonalizados: {},
+  residente: undefined,
+};
+
+function normalizeOptionalText(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function toEpochMs(value: unknown): number {
+  if (!value) {
+    return 0;
+  }
+
+  if (typeof value === 'object') {
+    const maybe = value as { toDate?: () => Date; seconds?: number };
+    if (typeof maybe.toDate === 'function') {
+      return maybe.toDate().getTime();
+    }
+    if (typeof maybe.seconds === 'number') {
+      return maybe.seconds * 1000;
+    }
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  return 0;
+}
+
+function formatDateTime(value: unknown): string {
+  const ms = toEpochMs(value);
+  if (!ms) {
+    return 'N/D';
+  }
+  return new Date(ms).toLocaleString('es-HN', { timeZone: 'UTC' }) + ' UTC';
+}
+
+export default function InvitacionesUsuariosPage() {
+  const router = useRouter();
+  const params = useParams<{ residenciaId: string }>();
+  const { toast } = useToast();
+  const { roles, residenciaId } = useInfoUsuario();
+
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [lastUserId, setLastUserId] = useState('');
+  const [formError, setFormError] = useState('');
+  const [residencia, setResidencia] = useState<Residencia | null>(null);
+  const [configuracionResidencia, setConfiguracionResidencia] = useState<ConfiguracionResidencia | null>(null);
+  const [centrosDeCosto, setCentrosDeCosto] = useState<CentroDeCosto[]>([]);
+  const [invitacionesRecientes, setInvitacionesRecientes] = useState<InvitacionListadoItem[]>([]);
+  const [usuariosRecientes, setUsuariosRecientes] = useState<UsuarioListadoItem[]>([]);
+
+  const [form, setForm] = useState<InvitationFormState>(initialFormState);
+
+  const crearUsuarioInvitacionCallable = useMemo(
+    () => httpsCallable(functions, 'crearUsuarioInvitacion'),
+    []
+  );
+  const reenviarInvitacionCallable = useMemo(
+    () => httpsCallable(functions, 'reenviarInvitacion'),
+    []
+  );
+
+  const autorizado = roles.includes('admin') && residenciaId && residenciaId === params.residenciaId;
+
+  useEffect(() => {
+    if (!autorizado) {
+      router.push('/acceso-no-autorizado');
+    }
+  }, [autorizado, router]);
+
+  useEffect(() => {
+    const cargarConfiguracion = async () => {
+      if (!autorizado || !residenciaId) {
+        return;
+      }
+
+      setIsLoadingConfig(true);
+      try {
+        const residenciaRef = doc(db, 'residencias', residenciaId);
+        const configRef = doc(db, `residencias/${residenciaId}/configuracion/general`);
+        const centrosQuery = query(
+          collection(db, 'residencias', residenciaId, 'centrosDeCosto'),
+          where('estaActivo', '==', true)
+        );
+
+        const [residenciaSnap, configSnap, centrosSnap] = await Promise.all([
+          getDoc(residenciaRef),
+          getDoc(configRef),
+          getDocs(centrosQuery),
+        ]);
+
+        if (!residenciaSnap.exists()) {
+          throw new Error('No se encontro la residencia del administrador.');
+        }
+
+        setResidencia({ id: residenciaSnap.id, ...residenciaSnap.data() } as Residencia);
+        setConfiguracionResidencia(configSnap.exists() ? (configSnap.data() as ConfiguracionResidencia) : null);
+        setCentrosDeCosto(
+          centrosSnap.docs.map((snapshot) => ({ id: snapshot.id, ...snapshot.data() } as CentroDeCosto))
+        );
+      } catch (error: any) {
+        toast({
+          title: 'Error al cargar configuracion',
+          description: error?.message || 'No se pudieron cargar los datos auxiliares del formulario.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoadingConfig(false);
+      }
+    };
+
+    cargarConfiguracion();
+  }, [autorizado, residenciaId, toast]);
+
+  useEffect(() => {
+    if (!autorizado || !residenciaId) {
+      return;
+    }
+
+    const invitacionesQuery = query(
+      collection(db, 'invitaciones'),
+      where('residenciaId', '==', residenciaId),
+      limit(25)
+    );
+    const usuariosQuery = query(
+      collection(db, 'usuarios'),
+      where('residenciaId', '==', residenciaId),
+      limit(25)
+    );
+
+    const unsubInvitaciones = onSnapshot(invitacionesQuery, (snapshot) => {
+      const rows = snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<InvitacionListadoItem, 'id'>) }))
+        .sort((a, b) => toEpochMs(b.lastSentAt || b.expiresAt) - toEpochMs(a.lastSentAt || a.expiresAt));
+      setInvitacionesRecientes(rows);
+    });
+
+    const unsubUsuarios = onSnapshot(usuariosQuery, (snapshot) => {
+      const rows = snapshot.docs
+        .map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<UsuarioListadoItem, 'id'>) }))
+        .sort((a, b) => toEpochMs(b.timestampCreacion) - toEpochMs(a.timestampCreacion));
+      setUsuariosRecientes(rows);
+    });
+
+    return () => {
+      unsubInvitaciones();
+      unsubUsuarios();
+    };
+  }, [autorizado, residenciaId]);
+
+  const dietas = useMemo(
+    (): Array<DietaData & { id: string }> =>
+      configuracionResidencia?.dietas
+        ? Object.entries(configuracionResidencia.dietas).map(([id, data]) => ({ id, ...data }))
+        : [],
+    [configuracionResidencia]
+  );
+
+  const camposPersonalizadosActivos = useMemo<CampoPersonalizado[]>(
+    () => (residencia?.camposPersonalizadosPorUsuario || []).filter((field) => field.activo),
+    [residencia]
+  );
+
+  useEffect(() => {
+    if (!form.roles.includes('residente')) {
+      if (form.residente) {
+        setForm((prev) => ({ ...prev, residente: undefined }));
+      }
+      return;
+    }
+
+    if (!form.residente) {
+      const dietaPredeterminada = dietas.find((dieta) => dieta.estaActiva && dieta.esPredeterminada)?.id || '';
+      setForm((prev) => ({
+        ...prev,
+        residente: {
+          ...defaultResidenteData,
+          dietaId: dietaPredeterminada,
+        },
+      }));
+      return;
+    }
+
+    if (!form.residente.dietaId) {
+      const dietaPredeterminada = dietas.find((dieta) => dieta.estaActiva && dieta.esPredeterminada)?.id;
+      if (dietaPredeterminada) {
+        setForm((prev) => ({
+          ...prev,
+          residente: prev.residente
+            ? {
+                ...prev.residente,
+                dietaId: dietaPredeterminada,
+              }
+            : prev.residente,
+        }));
+      }
+    }
+  }, [dietas, form.roles, form.residente]);
+
+  if (!autorizado) {
+    return null;
+  }
+
+  const handleRoleChange = (role: RolInvitable, checked: boolean) => {
+    setFormError('');
+    setForm((prev) => {
+      const nextRoles = checked
+        ? ([...new Set([...prev.roles, role])] as RolInvitable[])
+        : prev.roles.filter((currentRole) => currentRole !== role);
+
+      return {
+        ...prev,
+        roles: nextRoles.length > 0 ? nextRoles : ['invitado'],
+      };
+    });
+  };
+
+  const handleCustomFieldChange = (label: string, value: string) => {
+    setFormError('');
+    setForm((prev) => ({
+      ...prev,
+      camposPersonalizados: {
+        ...prev.camposPersonalizados,
+        [label]: value,
+      },
+    }));
+  };
+
+  const handleResidenteChange = <K extends keyof ResidenteData>(field: K, value: ResidenteData[K]) => {
+    setFormError('');
+    setForm((prev) => ({
+      ...prev,
+      residente: {
+        ...(prev.residente || defaultResidenteData),
+        [field]: value,
+      },
+    }));
+  };
+
+  const resetForm = () => {
+    setForm(initialFormState);
+    setFormError('');
+  };
+
+  const handleCrear = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSaving(true);
+    setFormError('');
+
+    try {
+      const payloadCandidate = {
+        nombre: form.nombre.trim(),
+        apellido: form.apellido.trim(),
+        nombreCorto: form.nombreCorto.trim(),
+        email: form.email.trim(),
+        roles: form.roles,
+        residenciaId,
+        tieneAutenticacion: form.tieneAutenticacion,
+        estaActivo: true,
+        fechaDeNacimiento: form.fechaDeNacimiento || undefined,
+        centroCostoPorDefectoId: form.centroCostoPorDefectoId || undefined,
+        puedeTraerInvitados: form.puedeTraerInvitados,
+        camposPersonalizados: Object.fromEntries(
+          Object.entries(form.camposPersonalizados)
+            .map(([key, value]) => [key, value.trim()])
+            .filter(([, value]) => value.length > 0)
+        ),
+        residente: form.roles.includes('residente')
+          ? {
+              dietaId: form.residente?.dietaId || '',
+              habitacion: form.residente?.habitacion || '',
+              numeroDeRopa: form.residente?.numeroDeRopa || '',
+              avisoAdministracion: form.residente?.avisoAdministracion || 'no_comunicado',
+            }
+          : undefined,
+        identificacion: undefined,
+        telefonoMovil: undefined,
+        universidad: undefined,
+        carrera: undefined,
+        semanarios: {},
+        grupoContableId: '',
+        grupoRestrictivoId: '',
+        gruposAnaliticosIds: [],
+      };
+
+      const validationResult = createUsuarioSchema.safeParse(payloadCandidate);
+      if (!validationResult.success) {
+        const flattened = validationResult.error.flatten();
+        const fieldErrors = Object.entries(flattened.fieldErrors)
+          .map(([field, messages]) => `${field}: ${(messages || []).join(', ')}`)
+          .join(' | ');
+        const message = fieldErrors || flattened.formErrors.join(' | ') || 'Revisa los campos del formulario.';
+        setFormError(message);
+        setIsSaving(false);
+        return;
+      }
+
+      const profileData = {
+        ...validationResult.data,
+        identificacion: normalizeOptionalText(''),
+        telefonoMovil: normalizeOptionalText(''),
+        universidad: normalizeOptionalText(''),
+        carrera: normalizeOptionalText(''),
+      };
+
+      const response = await crearUsuarioInvitacionCallable({
+        profileData,
+      });
+
+      const data = response.data as CrearInvitacionResult;
+      if (!data.success) {
+        throw new Error(data.message || 'No se pudo crear el usuario.');
+      }
+
+      setLastUserId(data.userId || '');
+      toast({
+        title: 'Usuario creado',
+        description: data.message || 'Proceso completado correctamente.',
+      });
+      resetForm();
+    } catch (error: any) {
+      toast({
+        title: 'Error al crear usuario',
+        description: error?.message || 'Ocurrio un error inesperado.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleReenviar = async () => {
+    if (!lastUserId) {
+      toast({
+        title: 'UID requerido',
+        description: 'Primero crea un usuario con autenticacion o ingresa un UID valido.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsResending(true);
+    try {
+      const response = await reenviarInvitacionCallable({ uid: lastUserId });
+      const data = response.data as ReenviarResult;
+      if (!data.success) {
+        throw new Error(data.message || 'No se pudo reenviar.');
+      }
+
+      toast({
+        title: 'Reenvio solicitado',
+        description: data.message || 'La invitacion se reenviara en segundo plano.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error al reenviar',
+        description: error?.message || 'Ocurrio un error inesperado.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  return (
+    <div className="container mx-auto max-w-3xl py-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Invitaciones de usuarios</CardTitle>
+          <CardDescription>
+            Crea usuarios de tu residencia con toda la informacion administrativa requerida. Si el usuario tiene autenticacion,
+            recibira un enlace para completar su clave.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingConfig ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Cargando configuracion de residencia...
+            </div>
+          ) : null}
+
+          {formError ? (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Error de validacion</AlertTitle>
+              <AlertDescription>{formError}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <form onSubmit={handleCrear} className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="nombre">Nombre</Label>
+                <Input
+                  id="nombre"
+                  value={form.nombre}
+                  onChange={(event) => setForm((prev) => ({ ...prev, nombre: event.target.value }))}
+                  required
+                  disabled={isSaving || isLoadingConfig}
+                />
+              </div>
+              <div>
+                <Label htmlFor="apellido">Apellido</Label>
+                <Input
+                  id="apellido"
+                  value={form.apellido}
+                  onChange={(event) => setForm((prev) => ({ ...prev, apellido: event.target.value }))}
+                  required
+                  disabled={isSaving || isLoadingConfig}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="nombreCorto">Nombre corto</Label>
+                <Input
+                  id="nombreCorto"
+                  value={form.nombreCorto}
+                  onChange={(event) => setForm((prev) => ({ ...prev, nombreCorto: event.target.value }))}
+                  required
+                  disabled={isSaving || isLoadingConfig}
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Correo</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                  required
+                  disabled={isSaving || isLoadingConfig}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Roles</Label>
+              <div className="grid grid-cols-2 gap-3 rounded-md border p-3 md:grid-cols-3">
+                {ROLES_DISPONIBLES.map((rol) => (
+                  <div key={rol} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`rol-${rol}`}
+                      checked={form.roles.includes(rol)}
+                      onCheckedChange={(checked) => handleRoleChange(rol, !!checked)}
+                      disabled={isSaving || isLoadingConfig}
+                    />
+                    <Label htmlFor={`rol-${rol}`} className="font-normal capitalize">
+                      {rol}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div>
+                <Label htmlFor="fechaDeNacimiento">Fecha de nacimiento</Label>
+                <Input
+                  id="fechaDeNacimiento"
+                  type="date"
+                  value={form.fechaDeNacimiento}
+                  onChange={(event) => setForm((prev) => ({ ...prev, fechaDeNacimiento: event.target.value }))}
+                  disabled={isSaving || isLoadingConfig}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="centroCostoPorDefectoId">Centro de costo por defecto</Label>
+                <Select
+                  value={form.centroCostoPorDefectoId}
+                  onValueChange={(value) => setForm((prev) => ({ ...prev, centroCostoPorDefectoId: value }))}
+                  disabled={isSaving || isLoadingConfig}
+                >
+                  <SelectTrigger id="centroCostoPorDefectoId">
+                    <SelectValue placeholder={centrosDeCosto.length > 0 ? 'Seleccione...' : 'Sin centros activos'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {centrosDeCosto.map((centro) => (
+                      <SelectItem key={centro.id} value={centro.id}>
+                        {centro.nombre} ({centro.codigoVisible})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="puedeTraerInvitados">Puede traer invitados</Label>
+                <Select
+                  value={form.puedeTraerInvitados}
+                  onValueChange={(value: 'no' | 'si' | 'requiere_autorizacion') =>
+                    setForm((prev) => ({ ...prev, puedeTraerInvitados: value }))
+                  }
+                  disabled={isSaving || isLoadingConfig}
+                >
+                  <SelectTrigger id="puedeTraerInvitados">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no">No</SelectItem>
+                    <SelectItem value="si">Si</SelectItem>
+                    <SelectItem value="requiere_autorizacion">Requiere autorizacion</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-md border p-3">
+              <Switch
+                id="tieneAutenticacion"
+                checked={form.tieneAutenticacion}
+                onCheckedChange={(value) => setForm((prev) => ({ ...prev, tieneAutenticacion: value }))}
+                disabled={isSaving || isLoadingConfig}
+              />
+              <Label htmlFor="tieneAutenticacion">
+                Usuario con autenticacion (enviar invitacion por correo)
+              </Label>
+            </div>
+
+            {camposPersonalizadosActivos.length > 0 ? (
+              <div className="space-y-4 rounded-md border p-4">
+                <div>
+                  <h3 className="font-medium">Campos personalizados</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Se guardaran en el perfil inicial del usuario segun la configuracion de la residencia.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {camposPersonalizadosActivos.map((field) => {
+                    const etiqueta = field.configuracionVisual.etiqueta;
+                    const value = form.camposPersonalizados[etiqueta] || '';
+                    return (
+                      <div key={etiqueta} className="space-y-1.5">
+                        <Label htmlFor={`campo-${etiqueta}`}>
+                          {etiqueta}
+                          {field.validacion.esObligatorio ? ' *' : ''}
+                        </Label>
+                        {field.configuracionVisual.tipoControl === 'textArea' ? (
+                          <Textarea
+                            id={`campo-${etiqueta}`}
+                            placeholder={field.configuracionVisual.placeholder}
+                            value={value}
+                            onChange={(event) => handleCustomFieldChange(etiqueta, event.target.value)}
+                            disabled={isSaving || isLoadingConfig}
+                          />
+                        ) : (
+                          <Input
+                            id={`campo-${etiqueta}`}
+                            placeholder={field.configuracionVisual.placeholder}
+                            value={value}
+                            onChange={(event) => handleCustomFieldChange(etiqueta, event.target.value)}
+                            disabled={isSaving || isLoadingConfig}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {form.roles.includes('residente') ? (
+              <div className="space-y-4 rounded-md border p-4">
+                <div>
+                  <h3 className="font-medium">Informacion de residente</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Estos datos son obligatorios cuando el usuario tiene rol residente.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="residente-dieta">Dieta</Label>
+                    <Select
+                      value={form.residente?.dietaId || ''}
+                      onValueChange={(value) => handleResidenteChange('dietaId', value)}
+                      disabled={isSaving || isLoadingConfig}
+                    >
+                      <SelectTrigger id="residente-dieta">
+                        <SelectValue placeholder={dietas.length > 0 ? 'Seleccione dieta...' : 'Sin dietas activas'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dietas
+                          .filter((dieta) => dieta.estaActiva)
+                          .map((dieta) => (
+                            <SelectItem key={dieta.id} value={dieta.id}>
+                              {dieta.nombre} {dieta.esPredeterminada ? '(Predeterminada)' : ''}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="residente-aviso">Aviso administracion</Label>
+                    <Select
+                      value={form.residente?.avisoAdministracion || 'no_comunicado'}
+                      onValueChange={(value: ResidenteData['avisoAdministracion']) =>
+                        handleResidenteChange('avisoAdministracion', value)
+                      }
+                      disabled={isSaving || isLoadingConfig}
+                    >
+                      <SelectTrigger id="residente-aviso">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="no_comunicado">No comunicado</SelectItem>
+                        <SelectItem value="comunicado">Comunicado</SelectItem>
+                        <SelectItem value="convivente">Convivente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="residente-habitacion">Habitacion</Label>
+                    <Input
+                      id="residente-habitacion"
+                      value={form.residente?.habitacion || ''}
+                      onChange={(event) => handleResidenteChange('habitacion', event.target.value)}
+                      disabled={isSaving || isLoadingConfig}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="residente-ropa">Numero de ropa</Label>
+                    <Input
+                      id="residente-ropa"
+                      value={form.residente?.numeroDeRopa || ''}
+                      onChange={(event) => handleResidenteChange('numeroDeRopa', event.target.value)}
+                      disabled={isSaving || isLoadingConfig}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <Button disabled={isSaving || isLoadingConfig} type="submit">
+              {isSaving ? 'Guardando...' : 'Crear usuario'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Reenviar invitacion</CardTitle>
+          <CardDescription>
+            Limite: un reenvio por minuto por usuario (UID).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label htmlFor="uidReenvio">UID del usuario</Label>
+            <Input
+              id="uidReenvio"
+              value={lastUserId}
+              onChange={(event) => setLastUserId(event.target.value)}
+              placeholder="UID de Firebase Auth"
+            />
+          </div>
+
+          <Button variant="secondary" disabled={isResending} onClick={handleReenviar}>
+            {isResending ? 'Solicitando...' : 'Reenviar invitacion'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Invitaciones recientes</CardTitle>
+          <CardDescription>
+            Muestra hasta 25 invitaciones de tu residencia para seguimiento operativo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {invitacionesRecientes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No hay invitaciones recientes.</p>
+          ) : (
+            <div className="space-y-2">
+              {invitacionesRecientes.map((invitacion) => (
+                <div key={invitacion.id} className="rounded-md border p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">{invitacion.email}</p>
+                    <Badge variant={invitacion.status === 'error_envio' ? 'destructive' : 'secondary'}>
+                      {invitacion.status}
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground">UID: {invitacion.id}</p>
+                  <p className="text-muted-foreground">Version token: {invitacion.tokenVersion}</p>
+                  <p className="text-muted-foreground">Ultimo envio: {formatDateTime(invitacion.lastSentAt)}</p>
+                  <p className="text-muted-foreground">Expira: {formatDateTime(invitacion.expiresAt)}</p>
+                  {invitacion.lastError ? (
+                    <p className="text-xs text-destructive">Error: {invitacion.lastError}</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Usuarios recien creados</CardTitle>
+          <CardDescription>
+            Muestra hasta 25 usuarios nuevos de tu residencia para verificacion posterior al alta.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {usuariosRecientes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No hay usuarios recientes.</p>
+          ) : (
+            <div className="space-y-2">
+              {usuariosRecientes.map((usuario) => (
+                <div key={usuario.id} className="rounded-md border p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">{usuario.nombre} {usuario.apellido}</p>
+                    <Badge variant={usuario.estaActivo ? 'secondary' : 'outline'}>
+                      {usuario.estaActivo ? 'activo' : 'inactivo'}
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground">{usuario.email}</p>
+                  <p className="text-muted-foreground">UID: {usuario.id}</p>
+                  <p className="text-muted-foreground">Roles: {(usuario.roles || []).join(', ') || 'N/D'}</p>
+                  <p className="text-muted-foreground">
+                    Autenticacion: {usuario.tieneAutenticacion ? 'si' : 'no'}
+                  </p>
+                  <p className="text-muted-foreground">Creado: {formatDateTime(usuario.timestampCreacion)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+

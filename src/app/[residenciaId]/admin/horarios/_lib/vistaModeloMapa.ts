@@ -8,25 +8,31 @@ import type {
 } from 'shared/schemas/horarios';
 import { type DiaDeLaSemana, ArregloDiaDeLaSemana, mapaDiasANumero } from 'shared/schemas/fechas';
 import type { ComedorDataSelector } from 'shared/schemas/complemento1';
+import { convertirHoraAMinutos, normalizarHoraParaInput } from 'shared/utils/commonUtils';
 
 const calcularAntelacion = (
   diaSolicitud: DiaDeLaSemana,
-  horaSolicitud: string, // "HH:mm"
+  horaSolicitud: string,
   diaComida: DiaDeLaSemana,
-  horaComida: string, // "HH:mm"
+  horaComida: string,
   comidaIniciaDiaAnterior: boolean
 ): number => {
   const diaSolicitudInt = mapaDiasANumero[diaSolicitud];
-  const [horaSol, minSol] = horaSolicitud.split(':').map(Number);
-  const horaSolicitudDecimal = horaSol + (minSol / 60);
+  const minutosSolicitud = convertirHoraAMinutos(horaSolicitud);
+  const minutosComida = convertirHoraAMinutos(horaComida);
+
+  if (minutosSolicitud === null || minutosComida === null) {
+    return -1;
+  }
+
+  const horaSolicitudDecimal = minutosSolicitud / 60;
 
   let diaComidaInt = mapaDiasANumero[diaComida];
   if (comidaIniciaDiaAnterior) {
     diaComidaInt = (diaComidaInt - 1 + 7) % 7;
   }
 
-  const [horaCom, minCom] = horaComida.split(':').map(Number);
-  const horaComidaDecimal = horaCom + (minCom / 60);
+  const horaComidaDecimal = minutosComida / 60;
 
   const horasAbsSolicitud = (diaSolicitudInt * 24) + horaSolicitudDecimal;
   let horasAbsComida = (diaComidaInt * 24) + horaComidaDecimal;
@@ -258,12 +264,12 @@ export const CatalogoErrores = {
   },
   CFALT_REP: { 
     codigo: "CFALT_REP",
-    severidad: "error",
+    severidad: "advertencia",
     descripcion: "Hay nombres repetidos en dos o más `ConfiguracionAlternativa` activas"
   },
   CFALT_CONC: {
     codigo: "CFALT_CONC",
-    severidad: "error",
+    severidad: "advertencia",
     descripcion: "Hay dos o más `ConfiguracionAlternativa` con la misma `ventanaServicio` para el mismo `DiaDeLaSemana`"
   },
   CFALT_CONC_COM: {
@@ -275,6 +281,16 @@ export const CatalogoErrores = {
     codigo: "CFALT_TIEM_NEG",
     severidad: "error",
     descripcion: "Hay una `ConfiguracionAlternativa` activa que tiene `VentanaServicioComidaSchema` de `tipo='normal'` con horaInicio > horaFin"
+  },
+  CFALT_TIEM_CORTO: {
+    codigo: "CFALT_TIEM_CORTO",
+    severidad: "error",
+    descripcion: "Hay una `ConfiguracionAlternativa` activa con una `ventanaServicio` inferior a 15 minutos"
+  },
+  CFALT_HORA_CERO: {
+    codigo: "CFALT_HORA_CERO",
+    severidad: "advertencia",
+    descripcion: "Hay una `ConfiguracionAlternativa` activa con horaInicio u horaFin en 00:00 (valor predeterminado del formulario)"
   },
   HSC_INACT_ASOC: {
     codigo: "HSC_INACT_ASOC",
@@ -520,7 +536,7 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Alerta[] {
                 tipo: 'CFALT_CONC',
                 entidad: 'ConfiguracionAlternativa',
                 id: `${existente.id}, ${id}`,
-                mensaje: `Conflicto de ventanas de servicio en ${tiempo.dia} para la ventana ${c.ventanaServicio.horaInicio}-${c.ventanaServicio.horaFin}.`
+                mensaje: `Conflicto de ventanas de servicio en ${tiempo.dia} para la ventana ${normalizarHoraParaInput(c.ventanaServicio.horaInicio)}-${normalizarHoraParaInput(c.ventanaServicio.horaFin)}.`
             });
         } else {
             bucket.push({ id, ventana: ventanaStr });
@@ -531,12 +547,70 @@ export function auditarIntegridadHorarios(raw: DatosHorariosEnBruto): Alerta[] {
 
   // Hay una `ConfiguracionAlternativa` activa que tiene `VentanaServicioComidaSchema` de `tipo='normal'` con horaInicio > horaFin
   configuracionesAlternativasActivas.forEach(([id, c]) => {
-    if (c.ventanaServicio && c.ventanaServicio.tipoVentana === 'normal' && c.ventanaServicio.horaInicio > c.ventanaServicio.horaFin) {
+    if (!c.ventanaServicio) {
+      return;
+    }
+
+    const inicioMinutos = convertirHoraAMinutos(c.ventanaServicio.horaInicio);
+    const finMinutos = convertirHoraAMinutos(c.ventanaServicio.horaFin);
+    if (inicioMinutos === null || finMinutos === null) {
+      return;
+    }
+
+    if (c.ventanaServicio.tipoVentana === 'normal' && inicioMinutos > finMinutos) {
       alertas.push({
         tipo: 'CFALT_TIEM_NEG',
         entidad: 'ConfiguracionAlternativa',
         id: id,
         mensaje: `La configuración alternativa '${c.nombre}' tiene una ventana de servicio con hora de inicio posterior a la hora de fin.`
+      });
+    }
+  });
+
+  // Hay una `ConfiguracionAlternativa` activa con ventana de servicio inferior a 15 minutos
+  configuracionesAlternativasActivas.forEach(([id, c]) => {
+    if (!c.ventanaServicio) {
+      return;
+    }
+
+    const inicioMinutos = convertirHoraAMinutos(c.ventanaServicio.horaInicio);
+    const finMinutos = convertirHoraAMinutos(c.ventanaServicio.horaFin);
+    if (inicioMinutos === null || finMinutos === null) {
+      return;
+    }
+
+    const duracionMinutos = c.ventanaServicio.tipoVentana === 'normal'
+      ? finMinutos - inicioMinutos
+      : (finMinutos + 1440) - inicioMinutos;
+
+    if (duracionMinutos > 0 && duracionMinutos < 15) {
+      alertas.push({
+        tipo: 'CFALT_TIEM_CORTO',
+        entidad: 'ConfiguracionAlternativa',
+        id,
+        mensaje: `La configuración alternativa '${c.nombre}' tiene una ventana de servicio de ${duracionMinutos} minutos (mínimo: 15).`
+      });
+    }
+  });
+
+  // Hay una `ConfiguracionAlternativa` activa con hora de inicio o fin en 00:00 (valor por defecto del formulario)
+  configuracionesAlternativasActivas.forEach(([id, c]) => {
+    if (!c.ventanaServicio) {
+      return;
+    }
+
+    const inicioMinutos = convertirHoraAMinutos(c.ventanaServicio.horaInicio);
+    const finMinutos = convertirHoraAMinutos(c.ventanaServicio.horaFin);
+    if (inicioMinutos === null || finMinutos === null) {
+      return;
+    }
+
+    if (inicioMinutos === 0 || finMinutos === 0) {
+      alertas.push({
+        tipo: 'CFALT_HORA_CERO',
+        entidad: 'ConfiguracionAlternativa',
+        id,
+        mensaje: `La configuración alternativa '${c.nombre}' tiene horaInicio u horaFin en 00:00. Revise si se dejó el valor predeterminado.`
       });
     }
   });

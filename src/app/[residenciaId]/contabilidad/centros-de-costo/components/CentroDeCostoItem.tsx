@@ -239,7 +239,7 @@ export default function CentroDeCostoItem({
                 {/* Estado Informativo (Sin Switch) */}
                 <div className="flex flex-row items-center justify-between rounded-lg border p-3 bg-muted/20">
                   <div className="space-y-0.5">
-                    <FormLabel className="text-sm font-medium">Estado del Centro</FormLabel>
+                    <FormLabel className="text-sm font-medium">Estado del Centro de Costo</FormLabel>
                     <p className="text-xs text-muted-foreground">
                       {isNew 
                         ? "Los nuevos centros se crean activos por defecto." 

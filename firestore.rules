@@ -68,8 +68,7 @@ service cloud.firestore {
       match /configuracion/{docId} {
         allow get:    if isMaster() || (isMember(residenciaId) && resource.data.residenciaId == residenciaId);
         allow list:   if isMaster() || isMember(residenciaId);
-        allow create, update: if isMaster() || (isMemberWithRole(residenciaId, ['admin']) && request.resource.data.residenciaId == residenciaId);
-        allow delete: if isMaster() || (isMemberWithRole(residenciaId, ['admin']) && resource.data.residenciaId == residenciaId);
+        allow create, update, delete: if false;
       }
       match /configContabilidad/{docId} {
         allow get:    if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'contador']) && resource.data.residenciaId == residenciaId);
@@ -79,10 +78,13 @@ service cloud.firestore {
       }
 
       // Colecciones operativas
+      match /dietas/{dietaId} {
+        allow read:   if isMaster() || isMember(residenciaId);
+        allow create, update, delete: if false;
+      }
       match /atenciones/{atencionId} {
         allow read:   if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
-        allow create, update: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
-        allow delete: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+        allow create, update, delete: if false;
       }
       match /alteracionesHorario/{alteracionId} {
         allow get:    if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
@@ -93,8 +95,7 @@ service cloud.firestore {
       match /recordatorios/{recordatorioId} {
         allow read:   if isMaster() || (isMember(residenciaId) && resource.data.residenciaId == residenciaId);
         allow list:   if isMaster() || isMember(residenciaId);
-        allow create, update:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
-        allow delete:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+        allow create, update, delete: if false;
       }
        match /novedadesOperativas/{novedadId} {
         allow read:   if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
@@ -107,14 +108,13 @@ service cloud.firestore {
       // Actividades y sus inscripciones
       match /actividades/{actividadId} {
         allow read:   if isMaster() || (isMember(residenciaId) && resource.data.residenciaId == residenciaId);
-        allow create, update:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
-        allow delete:  if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+        allow list:   if isMaster() || isMember(residenciaId);
+        allow create, update, delete: if false;
 
         match /inscripciones/{uid} {
            allow read:   if isMaster() || (isMember(residenciaId) && resource.data.residenciaId == residenciaId);
-           // El propio usuario o roles de gestión pueden inscribir/desinscribir
-           allow create, update:  if isMaster() || ((isOwner(uid) || isMemberWithRole(residenciaId, ['director', 'asistente'])) && request.resource.data.residenciaId == residenciaId);
-           allow delete:  if isMaster() || ((isOwner(uid) || isMemberWithRole(residenciaId, ['director', 'asistente'])) && resource.data.residenciaId == residenciaId);
+          allow list:   if isMaster() || isMember(residenciaId);
+          allow create, update, delete: if false;
         }
       }
 

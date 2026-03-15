@@ -4,6 +4,7 @@ import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { eachDayOfInterval, format, parseISO } from 'date-fns';
 import { FormAusenciaLote, FormAusenciaLoteSchema } from 'shared/schemas/elecciones/ui.schema';
 import { ActionResponse } from 'shared/models/types';
+import { convertirHoraAMinutos } from 'shared/utils/commonUtils';
 import { resolveTargetUsuarioContext } from './_targetUsuario';
 
 function errorResponse(
@@ -24,6 +25,20 @@ function buildExcepcionDocId(fecha: string, tiempoComidaId: string): string {
   return `${fecha}__${tiempoComidaId}`;
 }
 
+function compararHorasReferencia(horaA: string | null | undefined, horaB: string | null | undefined): number {
+  const minutosA = convertirHoraAMinutos(horaA);
+  const minutosB = convertirHoraAMinutos(horaB);
+
+  if (minutosA !== null && minutosB !== null) {
+    return minutosA - minutosB;
+  }
+
+  if (minutosA !== null) return -1;
+  if (minutosB !== null) return 1;
+
+  return String(horaA ?? '').localeCompare(String(horaB ?? ''));
+}
+
 function getTiemposDelDia(singleton: any, fechaIso: string): string[] {
   const dia = dayOfWeek(fechaIso);
   return Object.entries(singleton?.esquemaSemanal ?? {})
@@ -32,7 +47,7 @@ function getTiemposDelDia(singleton: any, fechaIso: string): string[] {
       const grupoA = singleton?.gruposComidas?.[a[1].grupoComida]?.orden ?? Number.MAX_SAFE_INTEGER;
       const grupoB = singleton?.gruposComidas?.[b[1].grupoComida]?.orden ?? Number.MAX_SAFE_INTEGER;
       if (grupoA !== grupoB) return grupoA - grupoB;
-      return String(a[1].horaReferencia ?? '').localeCompare(String(b[1].horaReferencia ?? ''));
+      return compararHorasReferencia(a[1].horaReferencia, b[1].horaReferencia);
     })
     .map(([id]) => id);
 }

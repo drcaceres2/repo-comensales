@@ -13,6 +13,7 @@ import { HorarioSolicitudDataSchema, TiempoComidaSchema,
     GrupoComidaSchema
 } from './horarios';
 import { GrupoUsuario, GrupoUsuarioSchema, RestriccionCatalogoSchema } from './usuariosGrupos';
+import { normalizarEtiquetaCampoPersonalizado } from '../utils/commonUtils';
 
 // ============================================
 // CampoPersonalizado (nueva estructura)
@@ -21,7 +22,15 @@ import { GrupoUsuario, GrupoUsuarioSchema, RestriccionCatalogoSchema } from './u
 export const CampoPersonalizadoSchema = z.object({
     activo: z.boolean(),
     configuracionVisual: z.object({
-        etiqueta: z.string().min(1, "La etiqueta es obligatoria").max(50),
+        etiqueta: z.string()
+            .max(120)
+            .transform(normalizarEtiquetaCampoPersonalizado)
+            .pipe(
+                z.string()
+                    .min(1, "La etiqueta es obligatoria")
+                    .max(50, "La etiqueta no puede superar 50 caracteres")
+                    .regex(/^[\p{L}\p{N}_ -]+$/u, "Solo se permiten letras, números, espacios, guiones y guiones bajos")
+            ),
         tipoControl: z.enum(['text', 'textArea']),
         placeholder: CadenaOpcionalLimitada(1, 100).optional(),
     }).strict(),

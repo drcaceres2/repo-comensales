@@ -25,6 +25,43 @@ export const slugify = (text: string, longitudMax?: number): string => {
         .substring(0, longitudMax);
 };
 
+export const normalizarEtiquetaCampoPersonalizado = (value: string): string => {
+    return value
+        .normalize('NFKC')
+        .replace(/[^\p{L}\p{N}\s_-]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+};
+
+export const normalizarHoraParaInput = (hora: string | null | undefined): string => {
+    if (!hora) return '';
+
+    const sinPrefijo = hora.startsWith('T') ? hora.substring(1) : hora;
+    const partes = sinPrefijo.split(':');
+    if (partes.length < 2) return '';
+
+    const [hh, mm] = partes;
+    if (!/^\d{2}$/.test(hh) || !/^\d{2}$/.test(mm)) return '';
+
+    return `${hh}:${mm}`;
+};
+
+export const normalizarHoraParaIso = (hora: string | null | undefined): string => {
+    const valorInput = normalizarHoraParaInput(hora);
+    return valorInput ? `T${valorInput}` : '';
+};
+
+export const convertirHoraAMinutos = (hora: string | null | undefined): number | null => {
+    const valorInput = normalizarHoraParaInput(hora);
+    if (!valorInput) return null;
+
+    const [hh, mm] = valorInput.split(':').map(Number);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
+
+    return (hh * 60) + mm;
+};
+
 // =======================================
 // Herramientas de fecha basadas en TZDate
 // =======================================

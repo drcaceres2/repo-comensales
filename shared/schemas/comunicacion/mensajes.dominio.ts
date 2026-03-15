@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { 
   OptionalFirestoreIdSchema, 
   AuthIdSchema, 
+  OptionalSlugIdSchema,
   SlugIdSchema, 
   TimestampSchema
 } from '../common';
@@ -11,12 +12,10 @@ import { FechaIsoSchema } from '../fechas';
 // 1. MÁQUINA DE ESTADOS Y TIPIFICACIÓN
 // ==========================================
 
-// Máquina de estados mínima. 
-// 'resuelto' indica que la acción requerida (ej. aprobar) ya se hizo.
+// Estados soportados por la bandeja de mensajes.
 export const EstadoMensajeSchema = z.enum([
-  'no_leido', 
+  'enviado',
   'leido', 
-  'resuelto', 
   'archivado'
 ]);
 
@@ -38,6 +37,8 @@ export const TipoEntidadReferenciaSchema = z.enum([
   'semanario'
 ]);
 
+export const DestinoMensajeTipoSchema = z.enum(['usuario', 'grupo']);
+
 // ==========================================
 // 2. ESQUEMA PRINCIPAL
 // ==========================================
@@ -48,14 +49,16 @@ export const MensajeSchema = z.object({
   // Actores
   remitenteId: AuthIdSchema,
   remitenteRol: z.enum(['residente', 'director', 'asistente', 'sistema']), 
-  destinatarioId: AuthIdSchema.nullable(), // Si es null, va a la "Bandeja General" de la administración
+  destinatarioId: AuthIdSchema,
+  destinoTipo: DestinoMensajeTipoSchema,
+  destinatarioGrupoAnaliticoId: OptionalSlugIdSchema,
   
   // Contenido
   asunto: AsuntoMensajeSchema,
   cuerpo: z.string().min(1).max(500, "El mensaje debe ser conciso (máx. 500 caracteres)"),
   
   // Estado
-  estado: EstadoMensajeSchema.default('no_leido'),
+  estado: EstadoMensajeSchema.default('enviado'),
   
   // Contexto Accionable (Deep Link)
   // Ej: Si el residente justifica una excepción, aquí va el ID y fecha de esa excepción.
@@ -68,7 +71,22 @@ export const MensajeSchema = z.object({
   // Auditoría
   timestampCreacion: TimestampSchema.optional(),
   timestampLectura: TimestampSchema.optional(),
-  timestampResolucion: TimestampSchema.optional(),
-}).strict();
+}).strict().superRefine((data, ctx) => {
+  if (data.destinoTipo === 'grupo' && !data.destinatarioGrupoAnaliticoId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Cuando el destino es grupo, se requiere destinatarioGrupoAnaliticoId.',
+      path: ['destinatarioGrupoAnaliticoId'],
+    });
+  }
+
+  if (data.destinoTipo === 'usuario' && data.destinatarioGrupoAnaliticoId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'No se debe enviar destinatarioGrupoAnaliticoId para destino de usuario.',
+      path: ['destinatarioGrupoAnaliticoId'],
+    });
+  }
+});
 
 export type Mensaje = z.infer<typeof MensajeSchema>;

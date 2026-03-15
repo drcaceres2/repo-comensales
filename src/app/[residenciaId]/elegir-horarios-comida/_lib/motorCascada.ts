@@ -1,6 +1,6 @@
 import { TarjetaComidaUI } from "shared/schemas/elecciones/ui.schema";
 import { Ausencia, Excepcion, EleccionSemanario,SlotEfectivo } from "shared/schemas/elecciones/domain.schema";
-import { GrupoComida } from "shared/schemas/horarios";
+import { GrupoComida, TipoVentanaConfigAlternativa } from "shared/schemas/horarios";
 import { estaMuroMovilCerrado } from "./muroMovil";
 
 type OpcionResuelta = {
@@ -13,7 +13,7 @@ type OpcionResuelta = {
   ventanaServicio?: {
     horaInicio: string;
     horaFin: string;
-    tipoVentana: string;
+    tipoVentana: TipoVentanaConfigAlternativa;
   };
   requiereAprobacion: boolean;
   disponibleParaElegir: boolean;

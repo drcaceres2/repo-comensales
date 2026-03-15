@@ -1,9 +1,43 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isAuthenticated() {
+      return request.auth != null && request.auth.token.isActive == true;
+    }
+
+    function isOwner(usuarioId) {
+      return isAuthenticated() && request.auth.uid == usuarioId;
+    }
+
+    function hasValidAvatarConstraints() {
+      return request.resource != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    function canOperateAsAssistant(residenciaId, usuarioId) {
+      let asistenteDoc = firestore.get(/databases/(default)/documents/usuarios/$(request.auth.uid));
+      return isAuthenticated()
+        && asistenteDoc.data != null
+        && asistenteDoc.data.estaActivo == true
+        && asistenteDoc.data.residenciaId == residenciaId
+        && ('asistente' in asistenteDoc.data)
+        && ('usuariosAsistidos' in asistenteDoc.data.asistente)
+        && usuarioId in asistenteDoc.data.asistente.usuariosAsistidos
+        && asistenteDoc.data.asistente.usuariosAsistidos[usuarioId].nivelAcceso != 'Ninguna';
+    }
+
+    function canReadAvatar(residenciaId, usuarioId) {
+      return isOwner(usuarioId) || canOperateAsAssistant(residenciaId, usuarioId);
+    }
+
+    match /tenants/{residenciaId}/usuarios/{usuarioId}/perfil/avatar_current.jpg {
+      allow read: if canReadAvatar(residenciaId, usuarioId);
+      allow write: if hasValidAvatarConstraints() && canReadAvatar(residenciaId, usuarioId);
+    }
+
     match /{allPaths=**} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if false;
     }
   }
 }

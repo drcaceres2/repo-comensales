@@ -12,6 +12,17 @@ import { ctxTraduccionSoportados } from 'shared/models/types';
 
 import '@/lib/i18nConfig';
 
+export const MENSAJES_QUERY_KEY = 'mensajes';
+export const MENSAJES_NO_LEIDOS_QUERY_KEY = 'mensajes-no-leidos';
+
+export function buildMensajesQueryKey(residenciaId: string, usuarioId: string) {
+  return [MENSAJES_QUERY_KEY, { residenciaId, usuarioId }] as const;
+}
+
+export function buildMensajesNoLeidosQueryKey(residenciaId: string, usuarioId: string) {
+  return [MENSAJES_NO_LEIDOS_QUERY_KEY, { residenciaId, usuarioId }] as const;
+}
+
 // 1. Creamos un contexto para la información del usuario
 const InfoUsuarioContext = createContext<InfoUsuario | null>(null);
 

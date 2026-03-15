@@ -5,8 +5,28 @@ import { densificarCapa0 } from "./densificadorCapa0";
 import { detectarInterseccionAusencia } from "./interseccionAusencias";
 import { resolverCascadaTiempoComida } from "./motorCascada";
 import { getISOWeek, getISOWeekYear, parseISO } from "date-fns";
+import { convertirHoraAMinutos } from "shared/utils/commonUtils";
 
 const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] as const;
+
+function compararHorasReferencia(horaA: string | null | undefined, horaB: string | null | undefined): number {
+  const minutosA = convertirHoraAMinutos(horaA);
+  const minutosB = convertirHoraAMinutos(horaB);
+
+  if (minutosA !== null && minutosB !== null) {
+    return minutosA - minutosB;
+  }
+
+  if (minutosA !== null) {
+    return -1;
+  }
+
+  if (minutosB !== null) {
+    return 1;
+  }
+
+  return String(horaA ?? '').localeCompare(String(horaB ?? ''));
+}
 
 type InscripcionActividadInput = {
   actividadId: string;
@@ -60,7 +80,7 @@ function ordenarTiemposDelDia(singleton: ConfiguracionResidencia, fecha: string)
         return ordenGrupoA - ordenGrupoB;
       }
 
-      return a[1].horaReferencia.localeCompare(b[1].horaReferencia);
+      return compararHorasReferencia(a[1].horaReferencia, b[1].horaReferencia);
     })
     .map(([tiempoComidaId]) => tiempoComidaId);
 }

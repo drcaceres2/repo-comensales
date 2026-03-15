@@ -26,37 +26,6 @@ export const comedorDataSelectorSchema = ComedorDataSchema.pick({
 });
 
 // ============================================
-// GrupoUsuariosData (Embebido en ConfiguracionResidencia)
-// ============================================
-
-const GestionComidaSchema = z.object({
-    usoSemanario: z.boolean(),
-    usoExcepciones: z.boolean(),
-    confirmacionAsistencia: z.boolean(),
-    confirmacionDiariaElecciones: z.boolean(),
-    horarioConfirmacionDiaria: HoraIsoSchema.optional(),
-    restriccionAlternativas: z.boolean(),
-    alternativasRestringidas: z.record(
-        SlugIdSchema,
-        z.enum(['no_permitida', 'requiere_aprobacion'])
-    ),
-    localizacionObligatoria: z.boolean(),
-}).strict();
-
-/**
- * GrupoUsuariosData: Configuración de un grupo de usuarios.
- * Embebido como Record<GrupoUsuariosId, GrupoUsuariosData>.
- */
-export const GrupoUsuariosDataSchema = z.object({
-    nombre: z.string().min(1).max(100),
-    etiqueta: z.string().min(1).max(50),
-    tipoGrupo: z.enum(['gestion-comidas', 'centro-de-costo', 'presentacion-reportes']),
-    descripcion: CadenaOpcionalLimitada(1, 255).optional(),
-    centroCostoId: SlugIdSchema.optional(),
-    gestionComida: GestionComidaSchema.optional(),
-}).strict();
-
-// ============================================
 // DietaData (Embebido en ConfiguracionResidencia)
 // ============================================
 
@@ -107,5 +76,4 @@ export const DietaDataSchema = z.object({
 export type ComedorData = z.infer<typeof ComedorDataSchema>;
 export type ComedorDataSelector = z.infer<typeof comedorDataSelectorSchema>;
 
-export type GrupoUsuariosData = z.infer<typeof GrupoUsuariosDataSchema>;
 export type DietaData = z.infer<typeof DietaDataSchema>;

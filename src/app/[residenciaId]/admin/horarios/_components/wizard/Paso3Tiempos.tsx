@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Archive, ArchiveRestore, PlusCircle, AlertTriangle, Sparkles } from 'lucide-react';
 import { useHorariosAlmacen } from '../../_lib/useHorariosAlmacen';
 import { TiempoComidaSchema, TiempoComidaFormSchema, type TiempoComida } from 'shared/schemas/horarios';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { slugify } from 'shared/utils/commonUtils';
+import { normalizarHoraParaInput, slugify } from 'shared/utils/commonUtils';
 import { DiaDeLaSemanaSchema } from 'shared/schemas/fechas';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -35,6 +35,7 @@ export function Paso3Tiempos() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [horasReferenciaGrupo, setHorasReferenciaGrupo] = useState<Record<string, string>>({});
+    const formContainerRef = useRef<HTMLDivElement | null>(null);
     const { toast } = useToast();
 
     const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
@@ -77,13 +78,24 @@ export function Paso3Tiempos() {
     const filteredTiempos = mostrarInactivos ? validatedTiemposComida : validatedTiemposComida.filter(({ datos }) => datos.estaActivo);
     const gruposComidaActivos = Object.entries(datosBorrador.gruposComidas).filter(([, grupo]) => grupo.estaActivo);
 
+    useEffect(() => {
+        if (!editingId) return;
+
+        requestAnimationFrame(() => {
+            formContainerRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        });
+    }, [editingId]);
+
     const handleEditClick = (id: string, tiempo: TiempoComida) => {
         setEditingId(id);
         reset({
             nombre: tiempo.nombre,
             dia: tiempo.dia,
             grupoComida: tiempo.grupoComida,
-            horaReferencia: tiempo.horaReferencia,
+            horaReferencia: normalizarHoraParaInput(tiempo.horaReferencia),
         });
     };
 
@@ -185,50 +197,52 @@ export function Paso3Tiempos() {
     };
 
     const renderForm = () => (
-        <Card className="bg-slate-50 dark:bg-slate-800/50 my-4 border-slate-200 dark:border-slate-700">
-            <form onSubmit={handleSubmit(onSubmit)}>
-                <CardHeader>
-                    <CardTitle>{editingId === 'new' ? 'Añadir Tiempo de Comida' : 'Editar Tiempo de Comida'}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div>
-                        <Label htmlFor="nombre">Nombre</Label>
-                        <input id="nombre" type="text" {...register('nombre')}
-                            className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
-                            readOnly={editingId !== 'new'} disabled={editingId !== 'new'}
-                        />
-                        {errors.nombre && <p className="text-red-500 text-xs mt-1">{errors.nombre.message}</p>}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div ref={formContainerRef}>
+            <Card className="bg-slate-50 dark:bg-slate-800/50 my-4 border-slate-200 dark:border-slate-700">
+                <form onSubmit={handleSubmit(onSubmit)}>
+                    <CardHeader>
+                        <CardTitle>{editingId === 'new' ? 'Añadir Tiempo de Comida' : 'Editar Tiempo de Comida'}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
                         <div>
-                            <Label htmlFor="dia">Día</Label>
-                            <select id="dia" {...register('dia')} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                {DIAS_SEMANA.map(dia => <option key={dia} value={dia}>{dia.charAt(0).toUpperCase() + dia.slice(1)}</option>)}
+                            <Label htmlFor="nombre">Nombre</Label>
+                            <input id="nombre" type="text" {...register('nombre')}
+                                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                                readOnly={editingId !== 'new'} disabled={editingId !== 'new'}
+                            />
+                            {errors.nombre && <p className="text-red-500 text-xs mt-1">{errors.nombre.message}</p>}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="dia">Día</Label>
+                                <select id="dia" {...register('dia')} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    {DIAS_SEMANA.map(dia => <option key={dia} value={dia}>{dia.charAt(0).toUpperCase() + dia.slice(1)}</option>)}
+                                </select>
+                                {errors.dia && <p className="text-red-500 text-xs mt-1">{errors.dia.message}</p>}
+                            </div>
+                            <div>
+                                <Label htmlFor="horaReferencia">Hora</Label>
+                                <input id="horaReferencia" type="time" {...register('horaReferencia')} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                                {errors.horaReferencia && <p className="text-red-500 text-xs mt-1">{errors.horaReferencia.message}</p>}
+                            </div>
+                        </div>
+                        <div>
+                            <Label htmlFor="grupoComida">Grupo de Comida</Label>
+                            <select id="grupoComida" {...register('grupoComida')} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="" disabled>Seleccione un grupo</option>
+                                {gruposComidaActivos.map(([slug, grupo]) => <option key={slug} value={slug}>{grupo.nombre}</option>)}
                             </select>
-                            {errors.dia && <p className="text-red-500 text-xs mt-1">{errors.dia.message}</p>}
+                            {errors.grupoComida && <p className="text-red-500 text-xs mt-1">{errors.grupoComida.message}</p>}
                         </div>
-                        <div>
-                            <Label htmlFor="horaReferencia">Hora</Label>
-                            <input id="horaReferencia" type="time" {...register('horaReferencia')} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                            {errors.horaReferencia && <p className="text-red-500 text-xs mt-1">{errors.horaReferencia.message}</p>}
-                        </div>
-                    </div>
-                    <div>
-                        <Label htmlFor="grupoComida">Grupo de Comida</Label>
-                        <select id="grupoComida" {...register('grupoComida')} className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm px-3 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                            <option value="" disabled>Seleccione un grupo</option>
-                            {gruposComidaActivos.map(([slug, grupo]) => <option key={slug} value={slug}>{grupo.nombre}</option>)}
-                        </select>
-                        {errors.grupoComida && <p className="text-red-500 text-xs mt-1">{errors.grupoComida.message}</p>}
-                    </div>
-                </CardContent>
-                <CardFooter className="flex justify-end gap-3">
-                    <Button type="button" variant="ghost" onClick={handleCancel}>Cancelar</Button>
-                    <Button type="submit">Guardar</Button>
-                </CardFooter>
-            </form>
-        </Card>
+                    </CardContent>
+                    <CardFooter className="flex justify-end gap-3">
+                        <Button type="button" variant="ghost" onClick={handleCancel}>Cancelar</Button>
+                        <Button type="submit">Guardar</Button>
+                    </CardFooter>
+                </form>
+            </Card>
+        </div>
     );
     
     return (
@@ -284,7 +298,7 @@ export function Paso3Tiempos() {
                                     <div className="font-semibold text-slate-800 dark:text-slate-200">{datos.nombre}</div>
                                     <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
                                         <span className="capitalize">{datos.dia}</span>
-                                        <span>{datos.horaReferencia}</span>
+                                        <span>{normalizarHoraParaInput(datos.horaReferencia)}</span>
                                         {grupo && <span className="inline-block bg-gray-200 text-gray-800 text-xs font-semibold px-2.5 py-0.5 rounded-full dark:bg-gray-700 dark:text-gray-300">{grupo.nombre}</span>}
                                     </div>
                                     {!isValid && (

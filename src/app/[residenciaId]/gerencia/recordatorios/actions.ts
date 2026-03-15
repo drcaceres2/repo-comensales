@@ -10,6 +10,7 @@ import {
 import { FirestoreIdSchema } from 'shared/schemas/common';
 import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
+import { verificarPermisoGestionWrapper } from '@/lib/acceso-privilegiado';
 
 // --- Tipos de Retorno de la Acción ---
 type ActionResponse<T> = {
@@ -21,9 +22,64 @@ type ActionResponse<T> = {
     message: string;
 };
 
+type ContextoPermisos = {
+    usuarioId: string;
+    nivelAcceso: 'Todas' | 'Propias';
+};
+
+type ResultadoContexto =
+    | { ok: true; contexto: ContextoPermisos }
+    | { ok: false; error: ActionResponse<never> };
+
 // ruta de la colección de recordatorios
 const recordatoriosCollection = (residenciaId: string) =>
     db.collection(`residencias/${residenciaId}/recordatorios`);
+
+function errorAcceso<T>(message: string): ActionResponse<T> {
+    return {
+        success: false,
+        errors: { formErrors: [message], fieldErrors: {} } as z.ZodError<T>['formErrors'],
+        message,
+    };
+}
+
+function errorInterno<T>(message: string): ActionResponse<T> {
+    return {
+        success: false,
+        errors: { formErrors: [message], fieldErrors: {} } as z.ZodError<T>['formErrors'],
+        message,
+    };
+}
+
+async function validarContextoRecordatorios(residenciaId: string): Promise<ResultadoContexto> {
+    const { usuarioId, residenciaId: residenciaSesion, roles } = await obtenerInfoUsuarioServer();
+
+    if (!usuarioId) {
+        return { ok: false, error: errorAcceso('Usuario no autenticado.') };
+    }
+
+    const esMaster = roles.includes('master');
+    if (!esMaster && residenciaSesion !== residenciaId) {
+        return { ok: false, error: errorAcceso('Acceso no autorizado para la residencia solicitada.') };
+    }
+
+    const acceso = await verificarPermisoGestionWrapper('gestionRecordatorios');
+    if (acceso.error) {
+        return { ok: false, error: errorInterno(acceso.error) };
+    }
+
+    if (!acceso.tieneAcceso || acceso.nivelAcceso === 'Ninguna') {
+        return { ok: false, error: errorAcceso('No autorizado para gestionar recordatorios.') };
+    }
+
+    return {
+        ok: true,
+        contexto: {
+            usuarioId,
+            nivelAcceso: acceso.nivelAcceso,
+        },
+    };
+}
 
 /**
  * Crea un nuevo recordatorio en la base de datos.
@@ -34,17 +90,12 @@ export async function crearRecordatorio(
     residenciaId: string,
     payload: CrearRecordatorioPayload,
 ): Promise<ActionResponse<Recordatorio>> {
-    // 1. verificación de usuario y residencia
-    const { usuarioId: usuarioIniciadorId, residenciaId: userResidenciaId } =
-        await obtenerInfoUsuarioServer();
-    if (userResidenciaId !== residenciaId) {
-        console.warn('crearRecordatorio: residenciaId no coincide con la sesión');
-        return {
-            success: false,
-            errors: { formErrors: ['Acceso no autorizado.'], fieldErrors: {} },
-            message: 'Acceso no autorizado.',
-        };
+    const resultadoContexto = await validarContextoRecordatorios(residenciaId);
+    if (!resultadoContexto.ok) {
+        return resultadoContexto.error as ActionResponse<Recordatorio>;
     }
+
+    const { usuarioId: usuarioIniciadorId } = resultadoContexto.contexto;
 
     // 2. generamos ID de documento antes de la validación
     const docRef = recordatoriosCollection(residenciaId).doc();
@@ -112,17 +163,19 @@ export async function crearRecordatorio(
 export async function obtenerRecordatorios(
     residenciaId: string,
 ): Promise<Recordatorio[]> {
-    const { residenciaId: userResidenciaId } = await obtenerInfoUsuarioServer();
-    if (!residenciaId || userResidenciaId !== residenciaId) {
+    const resultadoContexto = await validarContextoRecordatorios(residenciaId);
+    if (!resultadoContexto.ok) {
         console.warn('obtenerRecordatorios: acceso no autorizado o residencia inválida');
         return [];
     }
+
+    const { contexto } = resultadoContexto;
 
     const snap = await recordatoriosCollection(residenciaId)
         .where('estaActivo', '==', true)
         .get();
 
-    return snap.docs.map((doc) => {
+    const recordatorios = snap.docs.map((doc) => {
         const data = doc.data() as any;
         if (data?.timestampCreacion?.toDate) {
             data.timestampCreacion = data.timestampCreacion.toDate().toISOString();
@@ -132,6 +185,12 @@ export async function obtenerRecordatorios(
             ...data,
         } as Recordatorio;
     });
+
+    if (contexto.nivelAcceso === 'Propias') {
+        return recordatorios.filter((item) => item.usuarioIniciadorId === contexto.usuarioId);
+    }
+
+    return recordatorios;
 }
 
 /**
@@ -142,6 +201,13 @@ export async function actualizarRecordatorio(
     residenciaId: string,
     payload: Recordatorio,
 ): Promise<ActionResponse<Recordatorio>> {
+    const resultadoContexto = await validarContextoRecordatorios(residenciaId);
+    if (!resultadoContexto.ok) {
+        return resultadoContexto.error as ActionResponse<Recordatorio>;
+    }
+
+    const { contexto } = resultadoContexto;
+
     // validación del esquema
     const validation = RecordatorioSchema.safeParse(payload);
     if (!validation.success) {
@@ -157,8 +223,24 @@ export async function actualizarRecordatorio(
     const validatedData = validation.data;
     const docRef = recordatoriosCollection(residenciaId).doc(validatedData.id);
 
+    const existente = await docRef.get();
+    if (!existente.exists) {
+        return errorInterno('El recordatorio no existe.');
+    }
+
+    const recordatorioActual = existente.data() as Recordatorio;
+    if (contexto.nivelAcceso === 'Propias' && recordatorioActual.usuarioIniciadorId !== contexto.usuarioId) {
+        return errorAcceso('No puedes editar recordatorios de otros usuarios.');
+    }
+
+    const datosServidor: Recordatorio = {
+        ...validatedData,
+        residenciaId,
+        usuarioIniciadorId: recordatorioActual.usuarioIniciadorId,
+    };
+
     try {
-        await docRef.set(validatedData, { merge: true });
+        await docRef.set(datosServidor, { merge: true });
     } catch (error) {
         console.error('actualizarRecordatorio: error al escribir en Firestore', error);
         return {
@@ -184,7 +266,7 @@ export async function actualizarRecordatorio(
             validatedData.timestampCreacion = (validatedData.timestampCreacion as any).toDate().toISOString() as any;
         }
         revalidatePath(`/${residenciaId}/gerencia/recordatorios`);
-        return { success: true, data: validatedData };
+        return { success: true, data: datosServidor };
     }
 }
 
@@ -195,6 +277,13 @@ export async function desactivarRecordatorio(
     residenciaId: string,
     recordatorioId: string,
 ): Promise<ActionResponse<void>> {
+    const resultadoContexto = await validarContextoRecordatorios(residenciaId);
+    if (!resultadoContexto.ok) {
+        return resultadoContexto.error as ActionResponse<void>;
+    }
+
+    const { contexto } = resultadoContexto;
+
     try {
         FirestoreIdSchema.parse(recordatorioId);
     } catch (error) {
@@ -206,6 +295,25 @@ export async function desactivarRecordatorio(
     }
 
     const docRef = recordatoriosCollection(residenciaId).doc(recordatorioId);
+
+    const existente = await docRef.get();
+    if (!existente.exists) {
+        return {
+            success: false,
+            errors: { formErrors: ['No se encontró el recordatorio.'], fieldErrors: {} },
+            message: 'No se encontró el recordatorio.',
+        };
+    }
+
+    const recordatorioActual = existente.data() as Recordatorio;
+    if (contexto.nivelAcceso === 'Propias' && recordatorioActual.usuarioIniciadorId !== contexto.usuarioId) {
+        return {
+            success: false,
+            errors: { formErrors: ['No puedes desactivar recordatorios de otros usuarios.'], fieldErrors: {} },
+            message: 'No puedes desactivar recordatorios de otros usuarios.',
+        };
+    }
+
     try {
         await docRef.update({ estaActivo: false });
     } catch (error) {

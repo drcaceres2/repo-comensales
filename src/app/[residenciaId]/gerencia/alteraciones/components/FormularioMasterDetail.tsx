@@ -7,6 +7,7 @@ import { useUpdateAlteracion } from '../lib/consultas';
 import { extractDeltaPayload } from '../lib/mappers';
 import { ConfigAlternativaAjustada } from 'shared/schemas/alteraciones';
 import { TipoVentanaConfigAlternativa } from 'shared/schemas/horarios';
+import { normalizarHoraParaInput, normalizarHoraParaIso } from 'shared/utils/commonUtils';
 
 // UI Components (assuming shadcn/ui)
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,22 +31,94 @@ const OPCIONES_TIPO_VENTANA: Array<{ value: TipoVentanaConfigAlternativa; label:
   { value: 'termina_dia_siguiente', label: 'Termina al dia siguiente' },
 ];
 
+const normalizarAlternativaParaInput = (alternativa: ConfigAlternativaAjustada): ConfigAlternativaAjustada => ({
+  ...alternativa,
+  ventanaServicio: alternativa.ventanaServicio
+    ? {
+        ...alternativa.ventanaServicio,
+        horaInicio: normalizarHoraParaInput(alternativa.ventanaServicio.horaInicio),
+        horaFin: normalizarHoraParaInput(alternativa.ventanaServicio.horaFin),
+      }
+    : alternativa.ventanaServicio,
+});
+
+const normalizarAlternativaParaDominio = (alternativa: ConfigAlternativaAjustada): ConfigAlternativaAjustada => ({
+  ...alternativa,
+  ventanaServicio: alternativa.ventanaServicio
+    ? {
+        ...alternativa.ventanaServicio,
+        horaInicio: normalizarHoraParaIso(alternativa.ventanaServicio.horaInicio),
+        horaFin: normalizarHoraParaIso(alternativa.ventanaServicio.horaFin),
+      }
+    : alternativa.ventanaServicio,
+});
+
+const normalizarFormularioDiaParaInput = (data: DataFormularioDia): DataFormularioDia => ({
+  ...data,
+  tiemposComida: Object.fromEntries(
+    Object.entries(data.tiemposComida).map(([tiempoId, tiempo]) => [
+      tiempoId,
+      {
+        ...tiempo,
+        alternativasEditables: Object.fromEntries(
+          Object.entries(tiempo.alternativasEditables).map(([altId, alternativa]) => [
+            altId,
+            normalizarAlternativaParaInput(alternativa),
+          ])
+        ),
+        alternativasOriginales: Object.fromEntries(
+          Object.entries(tiempo.alternativasOriginales).map(([altId, alternativa]) => [
+            altId,
+            normalizarAlternativaParaInput(alternativa),
+          ])
+        ),
+      },
+    ])
+  ),
+});
+
+const normalizarFormularioDiaParaDominio = (data: DataFormularioDia): DataFormularioDia => ({
+  ...data,
+  tiemposComida: Object.fromEntries(
+    Object.entries(data.tiemposComida).map(([tiempoId, tiempo]) => [
+      tiempoId,
+      {
+        ...tiempo,
+        alternativasEditables: Object.fromEntries(
+          Object.entries(tiempo.alternativasEditables).map(([altId, alternativa]) => [
+            altId,
+            normalizarAlternativaParaDominio(alternativa),
+          ])
+        ),
+        alternativasOriginales: Object.fromEntries(
+          Object.entries(tiempo.alternativasOriginales).map(([altId, alternativa]) => [
+            altId,
+            normalizarAlternativaParaDominio(alternativa),
+          ])
+        ),
+      },
+    ])
+  ),
+});
+
 const FormularioMasterDetail: React.FC<FormularioMasterDetailProps> = ({ diaData, fecha, residenciaId }) => {
-  const form = useForm<DataFormularioDia>({ defaultValues: diaData });
+  const diaDataFormulario = React.useMemo(() => normalizarFormularioDiaParaInput(diaData), [diaData]);
+  const form = useForm<DataFormularioDia>({ defaultValues: diaDataFormulario });
   const { register, control, handleSubmit, watch, setValue, getValues, formState: { isDirty } } = form;
 
   React.useEffect(() => {
-    form.reset(diaData);
-  }, [diaData, form]);
+    form.reset(diaDataFormulario);
+  }, [diaDataFormulario, form]);
   
   const updateAlteracionMutation = useUpdateAlteracion(residenciaId);
 
   const onSubmit = (formData: DataFormularioDia) => {
-    const payload = extractDeltaPayload(residenciaId, fecha, diaData.tiemposComida, formData.tiemposComida);
+    const formDataDominio = normalizarFormularioDiaParaDominio(formData);
+    const payload = extractDeltaPayload(residenciaId, fecha, diaData.tiemposComida, formDataDominio.tiemposComida);
     if (payload) {
       updateAlteracionMutation.mutate(payload, {
         onSuccess: () => {
-          form.reset(formData); // Resets the dirty state with the new submitted values
+          form.reset(normalizarFormularioDiaParaInput(formDataDominio));
         }
       });
     }

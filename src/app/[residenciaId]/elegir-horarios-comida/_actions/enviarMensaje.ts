@@ -2,7 +2,10 @@
 
 import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
-import { FormNuevoMensajeSchema } from 'shared/schemas/comunicacion/mensajes.dto'; // o ui.schema
+import {
+  FormNuevoMensajeSchema,
+  GRUPO_TECNICO_DIRECCION_GENERAL,
+} from 'shared/schemas/comunicacion/mensajes.dto';
 import { MensajeSchema } from 'shared/schemas/comunicacion/mensajes.dominio';
 import { ActionResponse } from 'shared/models/types';
 import { z } from 'zod';
@@ -21,7 +24,11 @@ export async function enviarMensaje(
   payload: FormNuevoMensaje
 ): Promise<ActionResponse<void>> {
   try {
-    const parsed = FormNuevoMensajeSchema.safeParse(payload);
+    const parsed = FormNuevoMensajeSchema.safeParse({
+      ...payload,
+      destinoTipo: 'grupo',
+      destinatarioGrupoAnaliticoId: GRUPO_TECNICO_DIRECCION_GENERAL,
+    });
     if (!parsed.success) {
       return {
         success: false,
@@ -44,33 +51,58 @@ export async function enviarMensaje(
       };
     }
 
-    const mensaje = {
-      residenciaId,
-      remitenteId: sesion.usuarioId,
-      remitenteRol: inferirRolRemitente(sesion.roles ?? []),
-      destinatarioId: null,
-      asunto: parsed.data.asunto,
-      cuerpo: parsed.data.cuerpo,
-      estado: 'no_leido',
-      referenciaContexto: parsed.data.referenciaContexto,
-      timestampCreacion: FieldValue.serverTimestamp(),
-      timestampLectura: undefined,
-      timestampResolucion: undefined,
-    };
+    const directoresSnap = await db
+      .collection('usuarios')
+      .where('residenciaId', '==', residenciaId)
+      .where('estaActivo', '==', true)
+      .where('roles', 'array-contains', 'director')
+      .select('id')
+      .limit(250)
+      .get();
 
-    const valid = MensajeSchema.safeParse(mensaje);
-    if (!valid.success) {
+    if (directoresSnap.empty) {
       return {
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'No fue posible construir el mensaje.',
-          detalles: valid.error.issues,
+          message: 'No hay destinatarios en dirección general.',
         },
       };
     }
 
-    await db.collection(`usuarios/${sesion.usuarioId}/mensajes`).add(mensaje);
+    const batch = db.batch();
+    for (const directorDoc of directoresSnap.docs) {
+      const mensaje = {
+        residenciaId,
+        remitenteId: sesion.usuarioId,
+        remitenteRol: inferirRolRemitente(sesion.roles ?? []),
+        destinatarioId: directorDoc.id,
+        destinoTipo: 'grupo' as const,
+        destinatarioGrupoAnaliticoId: GRUPO_TECNICO_DIRECCION_GENERAL,
+        asunto: parsed.data.asunto,
+        cuerpo: parsed.data.cuerpo,
+        estado: 'enviado' as const,
+        referenciaContexto: parsed.data.referenciaContexto,
+        timestampCreacion: FieldValue.serverTimestamp(),
+      };
+
+      const valid = MensajeSchema.safeParse(mensaje);
+      if (!valid.success) {
+        return {
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'No fue posible construir el mensaje.',
+            detalles: valid.error.issues,
+          },
+        };
+      }
+
+      const ref = db.collection(`residencias/${residenciaId}/mensajes`).doc();
+      batch.set(ref, valid.data);
+    }
+
+    await batch.commit();
     return { success: true };
   } catch (error) {
     return {

@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 // Initialize Firebase Admin SDK only once
 if (!admin.apps.length) {
@@ -12,4 +12,4 @@ const auth = admin.auth();
 
 db.settings({ ignoreUndefinedProperties: true });
 
-export { admin, db, storage, auth, FieldValue };
+export { admin, db, storage, auth, FieldValue, Timestamp };

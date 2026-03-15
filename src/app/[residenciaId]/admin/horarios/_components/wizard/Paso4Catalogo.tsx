@@ -40,6 +40,24 @@ const MapaMensajeTipoAlternativa: Record<TipoAlternativaEnum, string> = {
     ayuno: 'Ayuno'
 }
 
+const construirNombreAusencia = (tipo: TipoAlternativaEnum, nombreGrupo: string) => {
+    const grupoNormalizado = nombreGrupo.trim().toLowerCase();
+
+    if (tipo === 'noComoEnCasa') {
+        if (grupoNormalizado === 'cena') {
+            return 'No ceno en casa';
+        }
+
+        return `No ${grupoNormalizado} en casa`;
+    }
+
+    if (tipo === 'ayuno') {
+        return `Ayuno ${grupoNormalizado}`;
+    }
+
+    return MapaMensajeTipoAlternativa[tipo];
+};
+
 const AlternativaForm = ({
   open,
   onOpenChange,
@@ -368,8 +386,8 @@ const CrearAusenciaForm = ({
         const gruposActivos = Object.entries(gruposComida).filter(([, g]) => g.estaActivo);
 
         tiposACrear.forEach(tipo => {
-            const nombre = MapaMensajeTipoAlternativa[tipo];
             gruposActivos.forEach(([grupoSlug, grupo]) => {
+                const nombre = construirNombreAusencia(tipo, grupo.nombre);
                 const id = slugify(`${nombre}-${grupo.nombre}`);
 
                 if (catalogoAlternativas[id]) {
@@ -526,7 +544,7 @@ export function Paso4Catalogo() {
                         <TooltipTrigger asChild>
                             <button onClick={() => setIsCrearAusenciaOpen(true)} disabled={!gruposComidaActivos.length} className="w-full h-full min-h-[120px] flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-orange-400 dark:border-orange-600 rounded-lg text-orange-500 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 hover:border-orange-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                                 <UserX className="h-5 w-5" />
-                                Crear Ausencia
+                                Crear Alternativas de Ausencia
                             </button>
                         </TooltipTrigger>
                         <TooltipContent><p>Crea alternativas de ausencia como "Ayuno" o "No como en casa".</p></TooltipContent>

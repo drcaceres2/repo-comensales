@@ -12,6 +12,7 @@ import { DiaDeLaSemana, FechaIso, FechaIsoSchema, HoraIso, HoraIsoSchema } from 
 import { ConfiguracionResidencia } from "shared/schemas/residencia";
 import { HorarioSolicitudComidaId, ResidenciaId } from 'shared/models/types'
 import { isDeepStrictEqual } from 'node:util';
+import { convertirHoraAMinutos } from 'shared/utils/commonUtils';
 
 // ------------------------------------------------------------------
 // Type Definitions
@@ -322,7 +323,13 @@ function getTimestampCierreAbsoluto(fechaRequerida: FechaIso, diaCierre: DiaDeLa
     const fechaCierre = new Date(fechaRequeridaDate);
     fechaCierre.setUTCDate(fechaCierre.getUTCDate() - diasARestar);
 
-    const [horas, minutos] = horaCierre.split(':').map(Number);
+    const minutosDelDia = convertirHoraAMinutos(horaCierre);
+    if (minutosDelDia === null) {
+        return Number.NaN;
+    }
+
+    const horas = Math.floor(minutosDelDia / 60);
+    const minutos = minutosDelDia % 60;
     fechaCierre.setUTCHours(horas, minutos, 0, 0);
 
     return fechaCierre.getTime();

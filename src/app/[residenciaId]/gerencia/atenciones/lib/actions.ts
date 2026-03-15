@@ -15,6 +15,7 @@ import {
 import { FirestoreIdSchema } from 'shared/schemas/common';
 import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
+import { verificarPermisoGestionWrapper } from '@/lib/acceso-privilegiado';
 
 type ActionResponse<T> =
   | {
@@ -29,6 +30,15 @@ type ActionResponse<T> =
 
 const atencionesColeccion = (residenciaId: string) =>
   db.collection(`residencias/${residenciaId}/atenciones`);
+
+type ContextoPermisos = {
+  usuarioId: string;
+  nivelAcceso: 'Todas' | 'Propias';
+};
+
+type ResultadoContexto =
+  | { ok: true; contexto: ContextoPermisos }
+  | { ok: false; error: ActionResponse<never> };
 
 function normalizarAtencion(docId: string, raw: any): Atencion {
   const data = { ...raw };
@@ -57,6 +67,62 @@ function validarSesionResidencia(
   return null;
 }
 
+async function validarContextoAtenciones(
+  residenciaId: string,
+): Promise<ResultadoContexto> {
+  const { usuarioId, residenciaId: residenciaSesion, roles } = await obtenerInfoUsuarioServer();
+  const esMaster = roles.includes('master');
+
+  if (!usuarioId) {
+    return {
+      ok: false,
+      error: {
+        success: false,
+        message: 'Usuario no autenticado.',
+      },
+    };
+  }
+
+  if (!esMaster) {
+    const validacion = validarSesionResidencia(residenciaId, residenciaSesion);
+    if (validacion) {
+      return {
+        ok: false,
+        error: validacion,
+      };
+    }
+  }
+
+  const acceso = await verificarPermisoGestionWrapper('gestionAtenciones');
+  if (acceso.error) {
+    return {
+      ok: false,
+      error: {
+        success: false,
+        message: acceso.error,
+      },
+    };
+  }
+
+  if (!acceso.tieneAcceso || acceso.nivelAcceso === 'Ninguna') {
+    return {
+      ok: false,
+      error: {
+        success: false,
+        message: 'No tienes permisos para gestionar atenciones.',
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    contexto: {
+      usuarioId,
+      nivelAcceso: acceso.nivelAcceso,
+    },
+  };
+}
+
 function limpiarUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(obj).filter(([, value]) => value !== undefined),
@@ -81,34 +147,40 @@ function aplicarReglasEstado(
 }
 
 export async function obtenerAtenciones(residenciaId: string): Promise<Atencion[]> {
-  const { residenciaId: residenciaSesion } = await obtenerInfoUsuarioServer();
-  const validacion = validarSesionResidencia(residenciaId, residenciaSesion);
-
-  if (validacion) {
+  const resultadoContexto = await validarContextoAtenciones(residenciaId);
+  if (!resultadoContexto.ok) {
     return [];
   }
 
+  const { contexto } = resultadoContexto;
+
   const snapshot = await atencionesColeccion(residenciaId).get();
 
-  return snapshot.docs
+  const atenciones = snapshot.docs
     .map((doc) => normalizarAtencion(doc.id, doc.data()))
     .sort((a, b) => {
       const fechaA = new Date(a.fechaHoraAtencion).getTime();
       const fechaB = new Date(b.fechaHoraAtencion).getTime();
       return fechaB - fechaA;
     });
+
+  if (contexto.nivelAcceso === 'Propias') {
+    return atenciones.filter((item) => item.autorId === contexto.usuarioId);
+  }
+
+  return atenciones;
 }
 
 export async function crearAtencion(
   residenciaId: string,
   payload: CrearAtencionPayload,
 ): Promise<ActionResponse<Atencion>> {
-  const { usuarioId, residenciaId: residenciaSesion } = await obtenerInfoUsuarioServer();
-  const validacionResidencia = validarSesionResidencia(residenciaId, residenciaSesion);
-
-  if (validacionResidencia) {
-    return validacionResidencia;
+  const resultadoContexto = await validarContextoAtenciones(residenciaId);
+  if (!resultadoContexto.ok) {
+    return resultadoContexto.error as ActionResponse<Atencion>;
   }
+
+  const { contexto } = resultadoContexto;
 
   const parsed = CrearAtencionPayloadSchema.safeParse(payload);
   if (!parsed.success) {
@@ -124,7 +196,7 @@ export async function crearAtencion(
   const nuevaAtencion: Atencion = {
     id: docRef.id,
     residenciaId,
-    autorId: usuarioId,
+    autorId: contexto.usuarioId,
     nombre: parsed.data.nombre,
     comentarios: parsed.data.comentarios,
     fechaSolicitudComida: parsed.data.fechaSolicitudComida,
@@ -163,12 +235,12 @@ export async function actualizarAtencion(
   residenciaId: string,
   payload: ActualizarAtencionPayload,
 ): Promise<ActionResponse<Atencion>> {
-  const { residenciaId: residenciaSesion, usuarioId } = await obtenerInfoUsuarioServer();
-  const validacionResidencia = validarSesionResidencia(residenciaId, residenciaSesion);
-
-  if (validacionResidencia) {
-    return validacionResidencia;
+  const resultadoContexto = await validarContextoAtenciones(residenciaId);
+  if (!resultadoContexto.ok) {
+    return resultadoContexto.error as ActionResponse<Atencion>;
   }
+
+  const { contexto } = resultadoContexto;
 
   const parsed = ActualizarAtencionPayloadSchema.safeParse(payload);
   if (!parsed.success) {
@@ -198,11 +270,24 @@ export async function actualizarAtencion(
     patch.centroCostoId = FieldValue.delete();
   }
 
-  if (parsed.data.estado === 'aprobada') {
-    patch.aprobadorId = usuarioId;
+  const docRef = atencionesColeccion(residenciaId).doc(parsed.data.id);
+
+  const existente = await docRef.get();
+  if (!existente.exists) {
+    return { success: false, message: 'La atencion ya no existe.' };
   }
 
-  const docRef = atencionesColeccion(residenciaId).doc(parsed.data.id);
+  const atencionActual = existente.data() as Atencion;
+  if (contexto.nivelAcceso === 'Propias' && atencionActual.autorId !== contexto.usuarioId) {
+    return {
+      success: false,
+      message: 'No puedes actualizar atenciones de otros usuarios.',
+    };
+  }
+
+  if (parsed.data.estado === 'aprobada') {
+    patch.aprobadorId = contexto.usuarioId;
+  }
 
   try {
     await docRef.set(patch, { merge: true });
@@ -227,12 +312,12 @@ export async function cambiarEstadoAtencion(
   residenciaId: string,
   payload: CambiarEstadoAtencionPayload,
 ): Promise<ActionResponse<Atencion>> {
-  const { residenciaId: residenciaSesion, usuarioId } = await obtenerInfoUsuarioServer();
-  const validacionResidencia = validarSesionResidencia(residenciaId, residenciaSesion);
-
-  if (validacionResidencia) {
-    return validacionResidencia;
+  const resultadoContexto = await validarContextoAtenciones(residenciaId);
+  if (!resultadoContexto.ok) {
+    return resultadoContexto.error as ActionResponse<Atencion>;
   }
+
+  const { contexto } = resultadoContexto;
 
   const parsed = CambiarEstadoAtencionPayloadSchema.safeParse(payload);
   if (!parsed.success) {
@@ -252,12 +337,17 @@ export async function cambiarEstadoAtencion(
         throw new Error('NOT_FOUND');
       }
 
+      const atencionActual = snap.data() as Atencion;
+      if (contexto.nivelAcceso === 'Propias' && atencionActual.autorId !== contexto.usuarioId) {
+        throw new Error('FORBIDDEN_PROPIAS');
+      }
+
       const patch: Record<string, any> = {
         ...aplicarReglasEstado(parsed.data.estado),
       };
 
       if (parsed.data.estado === 'aprobada') {
-        patch.aprobadorId = usuarioId;
+        patch.aprobadorId = contexto.usuarioId;
       }
 
       trx.update(docRef, patch);
@@ -279,6 +369,13 @@ export async function cambiarEstadoAtencion(
       };
     }
 
+    if (error?.message === 'FORBIDDEN_PROPIAS') {
+      return {
+        success: false,
+        message: 'No puedes modificar el estado de atenciones de otros usuarios.',
+      };
+    }
+
     console.error('cambiarEstadoAtencion: error en transaccion', error);
     return {
       success: false,
@@ -291,12 +388,12 @@ export async function eliminarAtencion(
   residenciaId: string,
   atencionId: string,
 ): Promise<ActionResponse<void>> {
-  const { residenciaId: residenciaSesion } = await obtenerInfoUsuarioServer();
-  const validacionResidencia = validarSesionResidencia(residenciaId, residenciaSesion);
-
-  if (validacionResidencia) {
-    return validacionResidencia;
+  const resultadoContexto = await validarContextoAtenciones(residenciaId);
+  if (!resultadoContexto.ok) {
+    return resultadoContexto.error as ActionResponse<void>;
   }
+
+  const { contexto } = resultadoContexto;
 
   const parsedId = FirestoreIdSchema.safeParse(atencionId);
   if (!parsedId.success) {
@@ -306,8 +403,26 @@ export async function eliminarAtencion(
     };
   }
 
+  const docRef = atencionesColeccion(residenciaId).doc(parsedId.data);
+
+  const existente = await docRef.get();
+  if (!existente.exists) {
+    return {
+      success: false,
+      message: 'La atencion no fue encontrada.',
+    };
+  }
+
+  const atencionActual = existente.data() as Atencion;
+  if (contexto.nivelAcceso === 'Propias' && atencionActual.autorId !== contexto.usuarioId) {
+    return {
+      success: false,
+      message: 'No puedes eliminar atenciones de otros usuarios.',
+    };
+  }
+
   try {
-    await atencionesColeccion(residenciaId).doc(parsedId.data).delete();
+    await docRef.delete();
     revalidatePath(`/${residenciaId}/gerencia/atenciones`);
     return { success: true, data: undefined };
   } catch (error) {

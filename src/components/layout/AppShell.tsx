@@ -6,6 +6,7 @@ import { useSidebar } from '@/components/ui/sidebar';
 import { MessageSquare } from 'lucide-react';
 import { Navigation } from '@/components/Navigation';
 import { IndicadorZonaHoraria } from './IndicadorZonaHoraria';
+import { NotificationBadge } from './NotificationBadge';
 import { useInfoUsuario } from "@/components/layout/AppProviders";
 
 function LayoutHeader() {
@@ -26,6 +27,9 @@ function LayoutHeader() {
         <>
           <div className="mr-4">
             <IndicadorZonaHoraria />
+          </div>
+          <div className="mr-4">
+            <NotificationBadge />
           </div>
           <span className="mr-4 text-sm truncate max-w-xs flex-shrink">
             {email}

@@ -104,7 +104,7 @@ export const createResidencia = onCall(
       const defaultConfigRef = db.collection("residencias").doc(data.residenciaId).collection("configuracion").doc("general");
       const defaultDieta: DietaData = {
         nombre: "Normal",
-        identificadorAdministracion: "NORMAL",
+        identificadorAdministracion: "N",
         descripcion: { tipo: "texto_corto", descripcion: "Ningún régimen especial." },
         esPredeterminada: true,
         estado: "aprobada_director",

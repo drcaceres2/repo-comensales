@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AuthIdSchema, SlugIdSchema, CadenaOpcionalLimitada, OptionalSlugIdSchema } from '../common';
-import { FechaIsoSchema } from '../fechas'
-import { TipoAlternativaEnumSchema } from '../horarios'; 
+import { FechaIsoSchema, HoraIsoSchema } from '../fechas'
+import { TipoAlternativaEnumSchema, TipoVentanaConfigAlternativaSchema } from '../horarios'; 
 import { OrigenAutoridadSchema, EstadoAprobacionSchema } from './domain.schema';
 import { UsuarioBaseObject, userRoleRefinement } from '../usuarios';
 
@@ -22,9 +22,9 @@ export const OrigenResolucionSchema = z.enum([
 ]);
 
 export const VentanaServicioUISchema = z.object({
-  horaInicio: z.string(),
-  horaFin: z.string(),
-  tipoVentana: z.string()
+  horaInicio: HoraIsoSchema,
+  horaFin: HoraIsoSchema,
+  tipoVentana: TipoVentanaConfigAlternativaSchema
 }).strict();
 
 

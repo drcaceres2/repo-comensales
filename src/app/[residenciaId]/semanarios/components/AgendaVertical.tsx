@@ -20,6 +20,7 @@ type DiaRender = {
 type Props = {
   dias: DiaRender[];
   readOnly: boolean;
+  // @ts-ignore
   onSeleccionarTiempo: (tiempoId: string) => void;
   onDiaActivo?: (diaKey: string) => void;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;

@@ -86,7 +86,7 @@ export default function CentrosDeCostoPage() {
         {/* Lista de Centros Existentes */}
         <section className="space-y-4">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground ml-1">
-            Centros Registrados
+            Centros de Costo Registrados
           </h2>
           
           <div className="grid gap-4">

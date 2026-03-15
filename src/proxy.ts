@@ -14,12 +14,13 @@ export const config = {
 };
 
 // Filtros de rutas
-const rutasPublicas = ['/about', '/privacidad', '/acceso-no-autorizado', '/licencia-vencida', '/crear-master'];
+const rutasPublicas = ['/about', '/privacidad', '/acceso-no-autorizado', '/licencia-vencida', '/crear-master', '/invitacion/finalizar'];
 const rutasHibridas = ['/', '/feedback'];
 const rutasAutenticadasNoResidencia = ['/mi-perfil'];
 const rutasMaster = ['/restringido-master'];
 const rutasAdminRaiz = ['/admin', '/admin/users'];
-const rutasAdminResidencia = ['/admin/comedores', '/admin/horarios', '/gerencia/recordatorios'];
+const rutasAdminResidencia = ['/admin/horarios', '/gerencia/recordatorios', '/admin/invitacionesUsuarios'];
+const rutasGestionConMatriz = ['/admin/comedores'];
 
 
 // Configuración de next-firebase-auth-edge
@@ -47,6 +48,14 @@ const authConfig = {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Evita header spoofing: solo `handleValidToken` puede inyectar estas cabeceras internas.
+  for (const headerName of Array.from(request.headers.keys())) {
+    const lowerHeaderName = headerName.toLowerCase();
+    if (lowerHeaderName.startsWith('x-usuario-') || lowerHeaderName.startsWith('x-residencia-')) {
+      request.headers.delete(headerName);
+    }
+  }
 
   const redirectTo = (path: string, clearCookie = false) => {
     const url = request.nextUrl.clone();
@@ -124,10 +133,19 @@ export async function proxy(request: NextRequest) {
       // If we are here, it's a residence route.
       // All remaining routes are considered residence routes.
 
-      // Admin residence routes: 'admin' role
+      // Admin residence routes: strict 'admin' role
       if (rutasAdminResidencia.some(r => pathname.endsWith(r))) {
         if (!userRoles.includes('admin')) {
           console.log("Middleware: Ruta restringida para 'admin' (residencia), redirigiendo a 'acceso-no-autorizado'")
+          return redirectTo('/acceso-no-autorizado');
+        }
+      }
+
+      // Matrix-managed routes: allow roles that are further filtered by server-side permission helpers.
+      if (rutasGestionConMatriz.some(r => pathname.endsWith(r))) {
+        const rolesPermitidos = userRoles.includes('admin') || userRoles.includes('director') || userRoles.includes('asistente');
+        if (!rolesPermitidos) {
+          console.log("Middleware: Ruta restringida para roles de gestion, redirigiendo a 'acceso-no-autorizado'")
           return redirectTo('/acceso-no-autorizado');
         }
       }

@@ -12,7 +12,7 @@ import {
   type ConfiguracionAlternativa,
   TipoVentanaConfigAlternativa
 } from 'shared/schemas/horarios';
-import { slugify } from 'shared/utils/commonUtils';
+import { normalizarHoraParaInput, slugify } from 'shared/utils/commonUtils';
 import { ComedorDataSelector } from 'shared/schemas/complemento1';
 
 interface DrawerConfigProps {
@@ -121,9 +121,25 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
     handleClose();
   };
 
-  const handleEdit = (id: string, config: ConfiguracionAlternativa) => {
+  const handleEdit = (id: string) => {
+    const config = datosBorrador.configuracionesAlternativas[id];
+    if (!config) return;
     setEditingId(id);
-    reset(config);
+    reset({
+      ...config,
+      tiempoComidaId: config.tiempoComidaId,
+      ventanaServicio: config.ventanaServicio
+        ? {
+            horaInicio: normalizarHoraParaInput(config.ventanaServicio.horaInicio),
+            horaFin: normalizarHoraParaInput(config.ventanaServicio.horaFin),
+            tipoVentana: config.ventanaServicio.tipoVentana,
+          }
+        : {
+            horaInicio: '00:00',
+            horaFin: '00:00',
+            tipoVentana: 'normal',
+          },
+    });
     setIsFormOpen(true);
   };
 
@@ -160,7 +176,7 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
                     </div>
                     {config.ventanaServicio && (
                       <p className="text-sm text-gray-600">
-                        Ventana: {config.ventanaServicio.horaInicio} - {config.ventanaServicio.horaFin}
+                        Ventana: {normalizarHoraParaInput(config.ventanaServicio.horaInicio)} - {normalizarHoraParaInput(config.ventanaServicio.horaFin)}
                       </p>
                     )}
                   </div>
@@ -168,7 +184,7 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
                     {config.estaActivo && tiempoComida.alternativas?.principal !== config.id && (
                       <button onClick={() => setAlternativaPrincipal(tiempoComidaId, config.id)} className="text-sm text-green-600 hover:underline">Hacer Principal</button>
                     )}
-                    <button onClick={() => handleEdit(config.id, config)} className="text-sm text-blue-600 hover:underline">Editar</button>
+                    <button onClick={() => handleEdit(config.id)} className="text-sm text-blue-600 hover:underline">Editar</button>
                     {config.estaActivo && <button onClick={() => archivarConfiguracionAlternativa(config.id)} className="text-sm text-red-600 hover:underline">Archivar</button>}
                   </div>
                 </div>
@@ -176,16 +192,22 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
             ))}
           </div>
 
-          {!isFormOpen && (
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-out ${isFormOpen ? 'max-h-[120px] opacity-0 -translate-y-1 pointer-events-none mb-0' : 'max-h-40 opacity-100 translate-y-0 mb-0'}`}
+            aria-hidden={isFormOpen}
+          >
             <div className="flex gap-2">
               <button type="button" onClick={() => { setIsFormOpen(true); setEditingId(null); reset({estaActivo: true, tiempoComidaId, ventanaServicio: { horaInicio: '00:00', horaFin: '00:00', tipoVentana: 'normal' }}); }} className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold">
                 + Añadir Alternativa
               </button>
             </div>
-          )}
+          </div>
 
-          {isFormOpen && (
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-4 bg-gray-50 rounded-lg">
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-out ${isFormOpen ? 'max-h-[1200px] opacity-100 translate-y-0 mt-3' : 'max-h-0 opacity-0 -translate-y-2 mt-0 pointer-events-none'}`}
+            aria-hidden={!isFormOpen}
+          >
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-sm">
               <h3 className="font-semibold text-md">{editingId ? 'Editar' : 'Nueva'} Alternativa</h3>
               <div>
                 <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Nombre</label>
@@ -272,7 +294,7 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
                 <button type="button" onClick={() => setIsFormOpen(false)} className="py-2 px-4 bg-gray-300 text-black rounded-lg">Cancelar</button>
               </div>
             </form>
-          )}
+          </div>
         </div>
       </div>
     </>

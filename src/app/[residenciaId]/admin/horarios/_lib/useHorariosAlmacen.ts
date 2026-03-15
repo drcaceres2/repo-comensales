@@ -44,7 +44,7 @@ export interface HorariosState {
     descartarCambios: () => void;
 
     // ACCIONES DE AUDITORÍA
-    ejecutarAuditoria: () => void;
+    ejecutarAuditoria: () => Alerta[];
     ignorarAlerta: (idAviso: string) => void;
 
     // ACCIONES CRUD
@@ -174,6 +174,7 @@ export const useHorariosAlmacen = create<HorariosState>((set, get) => ({
         const { datosBorrador } = get();
         const nuevasAlertas = auditarIntegridadHorarios(datosBorrador);
         set({ alertas: nuevasAlertas });
+        return nuevasAlertas;
     },
     ignorarAlerta: (idAviso) => set((state) => ({ alertasIgnoradas: [...state.alertasIgnoradas, idAviso] })),
 

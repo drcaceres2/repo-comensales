@@ -461,6 +461,16 @@ function UserManagementPage(): JSX.Element | null {
         });
     };
 
+    const handleCampoPersonalizadoChange = (etiqueta: string, value: string) => {
+        setFormData((prev: UserFormData) => ({
+            ...prev,
+            camposPersonalizados: {
+                ...(prev.camposPersonalizados || {}),
+                [etiqueta]: value,
+            },
+        }));
+    };
+
     const handleRoleChange = (role: RolUsuario, checked: boolean) => {
         setFormData((prev: UserFormData) => {
             const currentRoles = prev.roles || [];
@@ -490,7 +500,8 @@ function UserManagementPage(): JSX.Element | null {
                 }
             }
 
-            const residenciaRequired = updatedRoles.some((r: RolUsuario) => !['master', 'invitado'].includes(r));
+            // Invitado users should keep residencia. Only pure master users may have no residencia.
+            const residenciaRequired = updatedRoles.some((r: RolUsuario) => r !== 'master');
             if (!residenciaRequired) {
                 newFormData.residenciaId = '';
                 newFormData.grupoContableId = '';
@@ -553,6 +564,7 @@ function UserManagementPage(): JSX.Element | null {
             if (!dataForValidation.roles?.includes('residente')) delete dataForValidation.residente;
             if (!dataForValidation.roles?.includes('asistente')) delete dataForValidation.asistente;
             if (dataForValidation.residente?.dietaId === '') delete (dataForValidation.residente as any).dietaId;
+            if (!dataForValidation.semanarios) dataForValidation.semanarios = {};
 
             const validationResult = schema.safeParse(dataForValidation);
 
@@ -655,6 +667,7 @@ function UserManagementPage(): JSX.Element | null {
             gruposAnaliticosIds: (userToEdit.gruposAnaliticosIds || []).filter(
                 (groupId): groupId is string => typeof groupId === 'string' && groupId.length > 0
             ),
+            semanarios: userToEdit.semanarios || [],
             tieneAutenticacion: true,
             notificacionPreferencias: userToEdit.notificacionPreferencias,
         });
@@ -697,7 +710,7 @@ function UserManagementPage(): JSX.Element | null {
         if (!userToDeleteId) return;
         const userToDeleteInfo = users.find(u => u.id === userToDeleteId);
         try {
-            const result = await deleteUserCallable({ userId: userToDeleteId, performedByUid: adminUserProfile?.id });
+            const result = await deleteUserCallable({ userIdToDelete: userToDeleteId, performedByUid: adminUserProfile?.id });
             const resultData = result.data as { success: boolean; message?: string };
 
             if (resultData.success) {
@@ -738,7 +751,7 @@ function UserManagementPage(): JSX.Element | null {
         return roleMap[role] || role;
     };
 
-    const isResidenciaRequired = formData.roles?.some((r: RolUsuario) => !['master', 'invitado'].includes(r));
+    const isResidenciaRequired = formData.roles?.some((r: RolUsuario) => r !== 'master');
     const isResidente = formData.roles?.includes('residente');
 
     if (!usuarioId) {
@@ -1023,7 +1036,7 @@ function UserManagementPage(): JSX.Element | null {
                                                         id={`custom-${idx}`}
                                                         placeholder={field.configuracionVisual.placeholder}
                                                         value={formData.camposPersonalizados?.[field.configuracionVisual.etiqueta] || ''}
-                                                        onChange={(e) => handleFormChange(`camposPersonalizados.${field.configuracionVisual.etiqueta}`, e.target.value)}
+                                                        onChange={(e) => handleCampoPersonalizadoChange(field.configuracionVisual.etiqueta, e.target.value)}
                                                         disabled={isSaving}
                                                     />
                                                 ) : (
@@ -1031,7 +1044,7 @@ function UserManagementPage(): JSX.Element | null {
                                                         id={`custom-${idx}`}
                                                         placeholder={field.configuracionVisual.placeholder}
                                                         value={formData.camposPersonalizados?.[field.configuracionVisual.etiqueta] || ''}
-                                                        onChange={(e) => handleFormChange(`camposPersonalizados.${field.configuracionVisual.etiqueta}`, e.target.value)}
+                                                        onChange={(e) => handleCampoPersonalizadoChange(field.configuracionVisual.etiqueta, e.target.value)}
                                                         disabled={isSaving}
                                                     />
                                                 )}

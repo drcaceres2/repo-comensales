@@ -29,7 +29,7 @@ import {
   ConciergeBell, Briefcase, UserSquare, 
   Drama, Handshake, ClipboardEdit, 
   BookCopy, UserCircle2, UserPlus,
-  Utensils, LogOut
+  Utensils, LogOut, Mail
 } from 'lucide-react';
 import { Sun, Moon } from 'lucide-react';
 
@@ -76,6 +76,15 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
       icon: UserCircle2,
       href: '/mi-perfil',
       roles: ALL_AUTHENTICATED_ROLES,
+    },
+    {
+      id: 'mensajes',
+      label: 'Mensajes',
+      icon: Mail,
+      href: rLink,
+      pathTemplate: '/mensajes',
+      roles: ALL_AUTHENTICATED_ROLES,
+      requiresResidenciaIdForHref: true,
     },
     {
       id: 'privacidad',
@@ -129,14 +138,33 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           requiresResidenciaIdForHref: true,
         },
         {
-          id: 'configDelegacionAsistente',
-          label: 'Delegar',
-          icon: UserCog,
+          id: 'adminRecordatorios',
+          label: 'Recordatorios',
+          icon: Bell,
           href: rLink,
-          pathTemplate: '/gerencia/delegar',
-          roles: ['director', 'asistente'],
+          pathTemplate: '/gerencia/recordatorios',
+          roles: ['director', 'admin', 'asistente'],
           requiresResidenciaIdForHref: true,
         },
+        {
+          id: 'adminAtenciones',
+          label: 'Atenciones',
+          icon: ConciergeBell,
+          href: rLink,
+          pathTemplate: '/gerencia/atenciones',
+          roles: ['director', 'admin', 'asistente'],
+          requiresResidenciaIdForHref: true,
+        },
+        {
+          id: 'adminAlteracionesHorarios',
+          label: 'Alteraciones de Horarios',
+          icon: CalendarDays,
+          href: rLink,
+          pathTemplate: '/gerencia/alteraciones',
+          roles: ['director', 'admin', 'asistente'],
+          requiresResidenciaIdForHref: true,
+        },
+
       ],
     },
 
@@ -172,7 +200,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
       label: 'Actividades',
       icon: Drama,
       isAccordion: true,
-      roles: ['director', 'asistente', 'residente', 'invitado'],
+      roles: ['director', 'asistente', 'residente', 'invitado', 'admin'],
       requiresResidenciaIdForHref: true,
       children: [
         {
@@ -181,7 +209,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           icon: CalendarDays,
           href: rLink,
           pathTemplate: '/inscripcion-actividades',
-          roles: ['director', 'asistente', 'residente', 'invitado'],
+          roles: ['director', 'asistente', 'residente', 'invitado', 'admin'],
           requiresResidenciaIdForHref: true,
         },
         {
@@ -248,30 +276,12 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           requiresResidenciaIdForHref: true,
         },
         {
-          id: 'adminRecordatorios',
-          label: 'Recordatorios',
-          icon: Bell,
+          id: 'adminInvitacionesUsuarios',
+          label: 'Invitaciones de usuarios',
+          icon: UserPlus,
           href: rLink,
-          pathTemplate: '/gerencia/recordatorios',
-          roles: ['director', 'admin', 'asistente'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
-          id: 'adminAtenciones',
-          label: 'Atenciones',
-          icon: ConciergeBell,
-          href: rLink,
-          pathTemplate: '/gerencia/atenciones',
-          roles: ['director', 'admin', 'asistente'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
-          id: 'adminAlteracionesHorarios',
-          label: 'Alteraciones de Horarios',
-          icon: CalendarDays,
-          href: rLink,
-          pathTemplate: '/gerencia/alteraciones',
-          roles: ['director', 'admin', 'asistente'],
+          pathTemplate: '/admin/invitacionesUsuarios',
+          roles: ['admin'],
           requiresResidenciaIdForHref: true,
         },
       ],
@@ -567,16 +577,6 @@ export function Navigation() {
           <SidebarFooter className="p-4 border-t dark:border-gray-700">
             <div className="flex flex-col gap-2">
               {currentFeedbackLink && renderNavItem(currentFeedbackLink)}
-              {isAuthenticated && (
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md text-sm w-full"
-                  title="Cerrar Sesión"
-                >
-                  <LogOut size={18} />
-                  <span>Cerrar sesión</span>
-                </button>
-              )}
               {!mounted ? (
                 <div className="h-9 w-full rounded-md" />
               ) : (
@@ -586,6 +586,16 @@ export function Navigation() {
                 >
                   {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                   <span>{theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span>
+                </button>
+              )}
+              {isAuthenticated && (
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md text-sm w-full"
+                  title="Cerrar Sesión"
+                >
+                  <LogOut size={18} />
+                  <span>Cerrar sesión</span>
                 </button>
               )}
             </div>

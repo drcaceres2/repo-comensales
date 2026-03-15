@@ -6,6 +6,19 @@ import { AppShell } from '@/components/layout/AppShell';
 import { headers } from 'next/headers'
 import { InfoUsuario } from 'shared/models/types'
 
+function parseRolesHeader(value: string | null): InfoUsuario['roles'] {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
@@ -27,14 +40,14 @@ export default async function RootLayout({
   const infoUsuarioHeaders: InfoUsuario = {
     usuarioId: headersList.get('x-usuario-id') || '',
     email: headersList.get('x-usuario-email') || '',
-    roles: JSON.parse(headersList.get('x-usuario-roles') || '[]'),
+    roles: parseRolesHeader(headersList.get('x-usuario-roles')),
     residenciaId: headersList.get('x-residencia-id') || '',
     zonaHoraria: headersList.get('x-residencia-zh') || '',
     ctxTraduccion: headersList.get('x-residencia-ct') || '',
   };
 
   return (
-    <html lang="en" className="h-full" suppressHydrationWarning>
+    <html lang="es" className="h-full" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans flex flex-col min-h-full bg-background`}>
         <AppProviders infoUsuario={infoUsuarioHeaders}>
           <AppShell>{children}</AppShell>

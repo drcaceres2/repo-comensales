@@ -50,10 +50,9 @@ export function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: string }) 
 
   // Toast resumen tras auditoría
   const handleEjecutarAuditoria = () => {
-    ejecutarAuditoria();
-    // Calcula el resumen tras ejecutar
-    const totalErrores = alertas.filter((alerta) => CatalogoErrores[alerta.tipo].severidad === 'error').length;
-    const totalAdvertencias = alertas.filter((alerta) => CatalogoErrores[alerta.tipo].severidad === 'advertencia').length;
+    const auditoriaResultados = ejecutarAuditoria();
+    const totalErrores = auditoriaResultados.filter((alerta) => CatalogoErrores[alerta.tipo].severidad === 'error').length;
+    const totalAdvertencias = auditoriaResultados.filter((alerta) => CatalogoErrores[alerta.tipo].severidad === 'advertencia').length;
     if (totalErrores === 0 && totalAdvertencias === 0) {
       toast({
         title: 'Auditoría completada',

@@ -167,6 +167,7 @@ const CreateUsuarioObject = UsuarioBaseObject
         grupoRestrictivoId: z.string().default(''),
         gruposAnaliticosIds: z.array(z.string()).default([]),
         puedeTraerInvitados: z.enum(['no', 'requiere_autorizacion', 'si']).nullable().default('no'),
+        semanarios: z.record(SemanaIsoSchema, SemanarioUsuarioSchema).nullable().default({}),
     });
 export const createUsuarioSchema = CreateUsuarioObject
     .strict()
@@ -209,6 +210,46 @@ export const clientCreateUserFormSchema = CreateUsuarioObject
 export const clientUpdateUserFormSchema = UpdateUsuarioSchema;
 
 // ============================================
+// Esquemas compartidos para módulo Mi Perfil
+// ============================================
+
+export const MiPerfilReadDTOSchema = z.object({
+    nombre: z.string(),
+    apellido: z.string(),
+    nombreCorto: z.string().optional(),
+    identificacion: z.string().optional(),
+    telefonoMovil: z.string().optional(),
+    fechaDeNacimiento: z.string().optional(),
+    fotoPerfil: z.string().url().nullable().optional(),
+    universidad: z.string().optional(),
+    carrera: z.string().optional(),
+    logistica: z.object({
+        habitacion: z.string(),
+        numeroDeRopa: z.string(),
+        dieta: z.object({
+            nombre: z.string(),
+            descripcion: z.string().optional(),
+        }).strict(),
+    }).strict(),
+    camposPersonalizados: z.record(z.string()),
+    timestampActualizacion: z.string().datetime(),
+}).strict();
+
+export const UpdateMiPerfilPayloadSchema = z.object({
+    nombre: z.string().min(2).max(100).optional(),
+    apellido: z.string().min(2).max(255).optional(),
+    nombreCorto: z.string().min(2).max(15).optional(),
+    identificacion: z.string().optional(),
+    telefonoMovil: TelefonoOpcionalSchema.optional(),
+    fechaDeNacimiento: FechaIsoOpcionalSchema.nullable().optional(),
+    universidad: CadenaOpcionalLimitada(2, 150).optional(),
+    carrera: CadenaOpcionalLimitada(2, 50).optional(),
+    fotoPerfil: z.string().url().nullable().optional(),
+    camposPersonalizados: z.record(z.string()).optional(),
+    lastUpdatedAt: z.string().datetime(),
+}).strict();
+
+// ============================================
 // Type Exports
 // ============================================
 
@@ -223,3 +264,6 @@ export type NotificacionPreferencias = z.infer<typeof NotificacionPreferenciasSc
 
 export type ClientCreateUserForm = z.infer<typeof clientCreateUserFormSchema>;
 export type ClientUpdateUserForm = z.infer<typeof clientUpdateUserFormSchema>;
+
+export type MiPerfilReadDTO = z.infer<typeof MiPerfilReadDTOSchema>;
+export type UpdateMiPerfilPayload = z.infer<typeof UpdateMiPerfilPayloadSchema>;

@@ -17,6 +17,7 @@ import { type Ubicacion } from 'shared/schemas/common';
 import { Residencia, ResidenciaConVersion, CampoPersonalizado } from 'shared/schemas/residencia';
 import { Usuario } from 'shared/schemas/usuarios';
 import { RolUsuario, HORARIOS_QUERY_KEY } from 'shared/models/types';
+import { normalizarEtiquetaCampoPersonalizado } from 'shared/utils/commonUtils';
 import countriesData from 'shared/data/countries.json';
 
 
@@ -442,6 +443,10 @@ function CrearResidenciaAdminPage() {
   };
 
   const handleCampoPersonalizadoPorUsuarioChange = (index: number, path: string, value: any) => {
+    const nextValue = path === 'configuracionVisual.etiqueta'
+      ? normalizarEtiquetaCampoPersonalizado(String(value ?? ''))
+      : value;
+
     setCurrentResidencia(prev => {
         const updatedCampos = (prev.camposPersonalizadosPorUsuario || []).map((campo, i) => {
             if (i === index) {
@@ -452,7 +457,7 @@ function CrearResidenciaAdminPage() {
                 for (let j = 0; j < pathParts.length - 1; j++) {
                     current = current[pathParts[j]];
                 }
-                current[pathParts[pathParts.length - 1]] = value;
+                current[pathParts[pathParts.length - 1]] = nextValue;
                 return newCampo;
             }
             return campo;

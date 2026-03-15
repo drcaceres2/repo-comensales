@@ -1,4 +1,12 @@
-import { createUser, updateUser, deleteUser } from "./usuarios";
+import { createUser, updateUser, updateMiPerfil, deleteUser } from "./usuarios";
+import {
+  crearUsuarioInvitacion,
+  reenviarInvitacion,
+  onInvitacionCreada,
+  onInvitacionActualizada,
+  aceptarInvitacionHttp,
+  limpiarInvitacionesExpiradas,
+} from "./usuarios/invitaciones";
 import {
   createResidencia,
   updateResidencia,
@@ -18,7 +26,14 @@ import { logActionCallable } from "./common/logging";
 export {
   createUser,
   updateUser,
+  updateMiPerfil,
   deleteUser,
+  crearUsuarioInvitacion,
+  reenviarInvitacion,
+  onInvitacionCreada,
+  onInvitacionActualizada,
+  aceptarInvitacionHttp,
+  limpiarInvitacionesExpiradas,
   createResidencia,
   updateResidencia,
   deleteResidencia,

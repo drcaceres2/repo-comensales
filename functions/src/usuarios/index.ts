@@ -10,10 +10,12 @@ import {
   Usuario,
   createUsuarioSchema,
   UpdateUsuarioSchema,
+  UpdateMiPerfilPayloadSchema,
   CreateUsuario,
   UpdateUsuario,
+  UpdateMiPerfilPayload,
 } from "../../../shared/schemas/usuarios";
-import { Residencia } from "../../../shared/schemas/residencia";
+import { CampoPersonalizado, Residencia } from "../../../shared/schemas/residencia";
 import { getCallerSecurityInfo } from "../common/security";
 import { logAction } from "../common/logging";
 
@@ -33,6 +35,40 @@ interface UpdateUserDataPayload {
 interface DeleteUserDataPayload {
   userIdToDelete: string;
   performedByUid?: string;
+}
+
+interface UpdateMiPerfilDataPayload {
+  targetUserId: string;
+  profileData: UpdateMiPerfilPayload;
+}
+
+function parseTimestampToDate(value: unknown): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === "string") {
+    const ms = Date.parse(value);
+    return Number.isNaN(ms) ? null : new Date(ms);
+  }
+
+  if (typeof value === "object") {
+    const maybeTimestamp = value as { toDate?: () => Date; seconds?: number };
+    if (typeof maybeTimestamp.toDate === "function") {
+      const date = maybeTimestamp.toDate();
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof maybeTimestamp.seconds === "number") {
+      const date = new Date(maybeTimestamp.seconds * 1000);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+  }
+
+  return null;
 }
 
 export const createUser = onCall(
@@ -156,6 +192,7 @@ export const createUser = onCall(
       ...validatedData,
       roles: validatedData.roles || ["residente"],
       residenciaId: validatedData.residenciaId || null,
+      semanarios: validatedData.semanarios || {},
     };
 
     delete (usuarioDoc as any).password;
@@ -321,10 +358,18 @@ export const updateUser = onCall(
       }, {});
     };
 
+    const { camposPersonalizados, ...validatedDataWithoutCustomFields } = validatedData as any;
     const firestoreUpdateData = {
-      ...flattenObject(validatedData),
+      ...flattenObject(validatedDataWithoutCustomFields),
       timestampActualizacion: new Date().toISOString(),
-    };
+    } as Record<string, any>;
+
+    if (camposPersonalizados !== undefined) {
+      firestoreUpdateData.camposPersonalizados = {
+        ...(targetUsuario.camposPersonalizados || {}),
+        ...camposPersonalizados,
+      };
+    }
 
     try {
       await db.collection("usuarios").doc(userIdToUpdate).update(firestoreUpdateData);
@@ -344,6 +389,186 @@ export const updateUser = onCall(
       functions.logger.error("Error updating Usuario in Firestore:", userIdToUpdate, error);
       throw new HttpsError("internal", `Firestore update failed: ${error.message}`);
     }
+  }
+);
+
+export const updateMiPerfil = onCall(
+  {
+    region: "us-central1",
+    cors: ["http://localhost:3001", "http://127.0.0.1:3001"],
+  },
+  async (request: CallableRequest<UpdateMiPerfilDataPayload>) => {
+    const callerInfo = await getCallerSecurityInfo(request.auth);
+    const data = request.data;
+    const { targetUserId, profileData } = data;
+
+    functions.logger.info(`updateMiPerfil called by: ${callerInfo.uid} for user: ${targetUserId}`);
+
+    if (!targetUserId || !profileData) {
+      throw new HttpsError("invalid-argument", "targetUserId and profileData are required.");
+    }
+
+    const targetUserDoc = await db.collection("usuarios").doc(targetUserId).get();
+    if (!targetUserDoc.exists) {
+      throw new HttpsError("not-found", `User ${targetUserId} not found in Firestore.`);
+    }
+
+    const targetUsuario = targetUserDoc.data() as Usuario;
+    if (!targetUsuario.residenciaId) {
+      throw new HttpsError("failed-precondition", "Target user does not have an assigned Residencia.");
+    }
+
+    const delegacion = callerInfo.profile?.asistente?.usuariosAsistidos?.[targetUserId];
+    const canUpdateAsAssistant =
+      callerInfo.profile?.roles?.includes("asistente") &&
+      callerInfo.profile?.residenciaId === targetUsuario.residenciaId &&
+      delegacion?.nivelAcceso !== "Ninguna";
+    const canUpdate = callerInfo.uid === targetUserId || canUpdateAsAssistant;
+
+    if (!canUpdate) {
+      throw new HttpsError("permission-denied", "You do not have permission to update this profile.");
+    }
+
+    const validationResult = UpdateMiPerfilPayloadSchema.safeParse(profileData);
+    if (!validationResult.success) {
+      const zodErrors = validationResult.error.flatten();
+      let errorMessage = "Validation failed: ";
+      if (zodErrors.fieldErrors) {
+        const fieldErrors = Object.entries(zodErrors.fieldErrors)
+          .map(([field, messages]) => `${field}: ${messages?.[0] || "Invalid"}`)
+          .join("; ");
+        errorMessage += fieldErrors;
+      }
+      if (zodErrors.formErrors && zodErrors.formErrors.length > 0) {
+        errorMessage += (zodErrors.fieldErrors ? "; " : "") + zodErrors.formErrors.join("; ");
+      }
+      throw new HttpsError("invalid-argument", errorMessage);
+    }
+
+    const validatedData = validationResult.data;
+
+    const expectedUpdatedAt = parseTimestampToDate(validatedData.lastUpdatedAt);
+    const currentUpdatedAt = parseTimestampToDate(targetUsuario.timestampActualizacion);
+    if (expectedUpdatedAt && currentUpdatedAt && currentUpdatedAt.getTime() > expectedUpdatedAt.getTime()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "El perfil fue actualizado por otro usuario. Recarga antes de guardar nuevamente."
+      );
+    }
+
+    if (validatedData.camposPersonalizados) {
+      const residenciaDoc = await db.collection("residencias").doc(targetUsuario.residenciaId).get();
+      if (!residenciaDoc.exists) {
+        throw new HttpsError("failed-precondition", "No se pudo resolver la configuración de la residencia.");
+      }
+
+      const residenciaData = residenciaDoc.data() as Residencia;
+      const fields = (residenciaData.camposPersonalizadosPorUsuario || []) as CampoPersonalizado[];
+      const enabledByLabel = new Map(
+        fields
+          .filter((field) => field.activo)
+          .map((field) => [field.configuracionVisual.etiqueta, field])
+      );
+
+      for (const [label, value] of Object.entries(validatedData.camposPersonalizados)) {
+        const fieldConfig = enabledByLabel.get(label);
+        if (!fieldConfig) {
+          throw new HttpsError("invalid-argument", `El campo personalizado '${label}' no existe o está inactivo.`);
+        }
+        if (!fieldConfig.permisos.modificablePorInteresado) {
+          throw new HttpsError("permission-denied", `No tienes permiso para modificar el campo '${label}'.`);
+        }
+
+        const trimmedValue = value.trim();
+        if (fieldConfig.validacion.esObligatorio && !trimmedValue) {
+          throw new HttpsError("invalid-argument", `El campo '${label}' es obligatorio.`);
+        }
+
+        if (trimmedValue && fieldConfig.validacion.necesitaValidacion && fieldConfig.validacion.regex) {
+          let isValid = false;
+          try {
+            isValid = new RegExp(fieldConfig.validacion.regex).test(trimmedValue);
+          } catch {
+            throw new HttpsError("internal", `Regex inválido en configuración para el campo '${label}'.`);
+          }
+
+          if (!isValid) {
+            throw new HttpsError(
+              "invalid-argument",
+              fieldConfig.validacion.mensajeError || `El campo '${label}' no cumple el formato requerido.`
+            );
+          }
+        }
+      }
+    }
+
+    const firestoreUpdateData: Record<string, any> = {
+      timestampActualizacion: FieldValue.serverTimestamp(),
+    };
+
+    if (validatedData.nombre !== undefined) {
+      firestoreUpdateData.nombre = validatedData.nombre;
+    }
+    if (validatedData.apellido !== undefined) {
+      firestoreUpdateData.apellido = validatedData.apellido;
+    }
+    if (validatedData.nombreCorto !== undefined) {
+      firestoreUpdateData.nombreCorto = validatedData.nombreCorto;
+    }
+    if (validatedData.identificacion !== undefined) {
+      firestoreUpdateData.identificacion = validatedData.identificacion;
+    }
+    if (validatedData.telefonoMovil !== undefined) {
+      firestoreUpdateData.telefonoMovil = validatedData.telefonoMovil;
+    }
+    if (validatedData.fechaDeNacimiento !== undefined) {
+      firestoreUpdateData.fechaDeNacimiento = validatedData.fechaDeNacimiento;
+    }
+    if (validatedData.universidad !== undefined) {
+      firestoreUpdateData.universidad = validatedData.universidad;
+    }
+    if (validatedData.carrera !== undefined) {
+      firestoreUpdateData.carrera = validatedData.carrera;
+    }
+    if (validatedData.fotoPerfil !== undefined) {
+      firestoreUpdateData.fotoPerfil = validatedData.fotoPerfil;
+    }
+
+    if (validatedData.camposPersonalizados !== undefined) {
+      firestoreUpdateData.camposPersonalizados = {
+        ...(targetUsuario.camposPersonalizados || {}),
+        ...validatedData.camposPersonalizados,
+      };
+    }
+
+    if (Object.keys(firestoreUpdateData).length === 1) {
+      return { success: true, message: "No changes provided." };
+    }
+
+    if (validatedData.nombre !== undefined || validatedData.apellido !== undefined) {
+      await admin.auth().updateUser(targetUserId, {
+        displayName: `${validatedData.nombre || targetUsuario.nombre || ""} ${validatedData.apellido || targetUsuario.apellido || ""}`.trim(),
+      });
+    }
+
+    await db.collection("usuarios").doc(targetUserId).update(firestoreUpdateData);
+
+    await logAction(
+      { uid: callerInfo.uid, token: callerInfo.claims },
+      {
+        action: "USUARIO_ACTUALIZADO",
+        targetId: targetUserId,
+        targetCollection: "usuarios",
+        residenciaId: targetUsuario.residenciaId,
+        details: {
+          message: "Perfil actualizado desde módulo mi-perfil",
+          module: "mi-perfil",
+          actorUid: callerInfo.uid,
+        },
+      }
+    );
+
+    return { success: true, message: "Profile updated successfully." };
   }
 );
 

@@ -333,4 +333,51 @@ describe('generarPayloadHorariosUI', () => {
     const diaViernes = payload.dias.find((d) => d.fecha === '2026-03-13');
     expect(diaViernes?.tarjetas.some((t) => t.origenResolucion === 'CAPA1_ACTIVIDAD')).toBe(true);
   });
+
+  it('ordena cronológicamente tiempos con HoraIso mixto', () => {
+    const singleton = buildSingleton();
+    singleton.esquemaSemanal['almuerzo-tarde-viernes'] = {
+      nombre: 'Almuerzo Tarde Viernes',
+      grupoComida: 'almuerzo',
+      dia: 'viernes',
+      horaReferencia: '19:30',
+      alternativas: { principal: 'cfg-alm-tarde-vie-1' },
+      estaActivo: true,
+    };
+    singleton.configuracionesAlternativas['cfg-alm-tarde-vie-1'] = {
+      nombre: 'Alm Tarde Vie 1',
+      tiempoComidaId: 'almuerzo-tarde-viernes',
+      definicionAlternativaId: 'alt1',
+      horarioSolicitudComidaId: 'hs2',
+      comedorId: 'comedor1',
+      requiereAprobacion: false,
+      ventanaServicio: { horaInicio: '19:30', horaFin: '20:00', tipoVentana: 'normal' },
+      estaActivo: true,
+    };
+
+    const semana = getWeekKey('2026-03-13');
+    const payload = generarPayloadHorariosUI({
+      fechasRango: ['2026-03-13'],
+      fechaHoraReferenciaUltimaSolicitud: '2026-03-01T10:00:00',
+      singletonResidencia: singleton,
+      vistaMaterializadaDiaria: {},
+      diccionarioSemanarios: {
+        [semana]: {
+          'desayuno-viernes': { configuracionAlternativaId: 'cfg-des-vie-1' },
+          'almuerzo-viernes': { configuracionAlternativaId: 'cfg-alm-vie-1' },
+          'almuerzo-tarde-viernes': { configuracionAlternativaId: 'cfg-alm-tarde-vie-1' },
+        },
+      },
+      excepcionesUsuario: [],
+      ausenciasUsuario: [],
+      inscripcionesActividad: [],
+    } as any);
+
+    expect(payload.dias).toHaveLength(1);
+    expect(payload.dias[0].tarjetas.map((tarjeta) => tarjeta.tiempoComidaId)).toEqual([
+      'desayuno_viernes',
+      'almuerzo_viernes',
+      'almuerzo_tarde_viernes',
+    ]);
+  });
 });
