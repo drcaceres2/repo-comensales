@@ -3,7 +3,8 @@
 import React from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { DataFormularioDia } from '../lib/useFormularioDia';
-import { useUpdateAlteracion } from '../lib/consultas';
+import { useDeleteAlteracionDia, useUpdateAlteracion } from '../lib/consultas';
+import { useToast } from '@/hooks/useToast';
 import { extractDeltaPayload } from '../lib/mappers';
 import { ConfigAlternativaAjustada } from 'shared/schemas/alteraciones';
 import { TipoVentanaConfigAlternativa } from 'shared/schemas/horarios';
@@ -20,9 +21,9 @@ import { Lock } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 
 type FormularioMasterDetailProps = {
-  diaData: DataFormularioDia;
   fecha: string;
   residenciaId: string;
+  dataFormulario: DataFormularioDia;
 };
 
 const OPCIONES_TIPO_VENTANA: Array<{ value: TipoVentanaConfigAlternativa; label: string }> = [
@@ -101,7 +102,13 @@ const normalizarFormularioDiaParaDominio = (data: DataFormularioDia): DataFormul
   ),
 });
 
-const FormularioMasterDetail: React.FC<FormularioMasterDetailProps> = ({ diaData, fecha, residenciaId }) => {
+const FormularioMasterDetail: React.FC<FormularioMasterDetailProps> = ({ fecha, residenciaId, dataFormulario }) => {
+  const diaData = dataFormulario;
+  const existeAlteracionPersistida = React.useMemo(
+    () => Object.values(diaData.tiemposComida).some((tiempo) => tiempo.esAlterado),
+    [diaData.tiemposComida]
+  );
+
   const diaDataFormulario = React.useMemo(() => normalizarFormularioDiaParaInput(diaData), [diaData]);
   const form = useForm<DataFormularioDia>({ defaultValues: diaDataFormulario });
   const { register, control, handleSubmit, watch, setValue, getValues, formState: { isDirty } } = form;
@@ -111,16 +118,57 @@ const FormularioMasterDetail: React.FC<FormularioMasterDetailProps> = ({ diaData
   }, [diaDataFormulario, form]);
   
   const updateAlteracionMutation = useUpdateAlteracion(residenciaId);
+  const deleteAlteracionMutation = useDeleteAlteracionDia(residenciaId);
+  const { toast } = useToast();
 
-  const onSubmit = (formData: DataFormularioDia) => {
+  const handleDeleteAlteracionDia = async () => {
+    if (!existeAlteracionPersistida) {
+      return;
+    }
+
+    const confirmed = window.confirm('Esta accion eliminara la alteracion guardada para este dia. Desea continuar?');
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteAlteracionMutation.mutateAsync(fecha);
+      toast({ title: 'Alteracion eliminada', description: 'La alteracion del dia fue eliminada correctamente.' });
+    } catch (err: any) {
+      console.error('[handleDeleteAlteracionDia] delete failed', err);
+      toast({ title: 'Error eliminando alteracion', description: String(err?.message ?? err), variant: 'destructive' });
+    }
+  };
+
+  const onSubmit = async (formData: DataFormularioDia) => {
     const formDataDominio = normalizarFormularioDiaParaDominio(formData);
+    const hayAlteracionesActivas = Object.values(formDataDominio.tiemposComida).some((tiempo) => tiempo.esAlterado);
+
+    if (!hayAlteracionesActivas && existeAlteracionPersistida) {
+      try {
+        await deleteAlteracionMutation.mutateAsync(fecha);
+        toast({ title: 'Alteracion eliminada', description: 'Se eliminaron las alteraciones del dia.' });
+      } catch (err: any) {
+        console.error('[onSubmit] deleteAlteracion failed', err);
+        toast({ title: 'Error eliminando alteracion', description: String(err?.message ?? err), variant: 'destructive' });
+      }
+      return;
+    }
+
     const payload = extractDeltaPayload(residenciaId, fecha, diaData.tiemposComida, formDataDominio.tiemposComida);
-    if (payload) {
-      updateAlteracionMutation.mutate(payload, {
-        onSuccess: () => {
-          form.reset(normalizarFormularioDiaParaInput(formDataDominio));
-        }
-      });
+    if (!payload) {
+      toast({ title: 'Sin cambios', description: 'No hay cambios para guardar.' });
+      return;
+    }
+
+    try {
+      await updateAlteracionMutation.mutateAsync(payload);
+      // `useUpdateAlteracion` sincroniza la cache del día y el contenedor rehidrata la UI.
+      toast({ title: 'Alteración guardada', description: 'Los cambios fueron guardados correctamente.' });
+    } catch (err: any) {
+      console.error('[onSubmit] updateAlteracion failed', err);
+      // Surface a minimal user-visible error while debugging
+      toast({ title: 'Error guardando cambios', description: String(err?.message ?? err), variant: 'destructive' });
     }
   };
 
@@ -275,8 +323,9 @@ const FormularioMasterDetail: React.FC<FormularioMasterDetailProps> = ({ diaData
                       ) : (
                         <>
                           <RadioGroup onValueChange={field.onChange} value={field.value ?? ''} className="space-y-4 pt-2">
-                            {alternativasEntries.map(([altId, alternativa], index) => (
-                              <div key={altId} className="flex items-start space-x-4 rounded-md border p-4">
+                            {alternativasEntries.map(([altId, alternativa], index) => {
+                              return (
+                                <div key={altId} className="flex items-start space-x-4 rounded-md border p-4">
                                  <RadioGroupItem value={altId} id={`${tiempoComidaId}-${altId}`} className="mt-1" />
                                  <div className="flex-1 grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div className="space-y-2 md:col-span-2">
@@ -317,7 +366,7 @@ const FormularioMasterDetail: React.FC<FormularioMasterDetailProps> = ({ diaData
                                         {...register(`tiemposComida.${tiempoComidaId}.alternativasEditables.${altId}.comedorId`)}
                                       >
                                         <option value="">Sin comedor</option>
-                                        {Object.values(diaData.comedores).map((comedor) => (
+                                        {Object.values(diaData.comedores ?? {}).map((comedor) => (
                                           <option key={comedor.id} value={comedor.id}>{comedor.nombre}</option>
                                         ))}
                                       </select>
@@ -368,7 +417,7 @@ const FormularioMasterDetail: React.FC<FormularioMasterDetailProps> = ({ diaData
                                     />
                                  </div>
                               </div>
-                            ))}
+                            )})}
                           </RadioGroup>
                           <Button
                             type="button"
@@ -392,8 +441,18 @@ const FormularioMasterDetail: React.FC<FormularioMasterDetailProps> = ({ diaData
           </Card>
         );
       })}
-      <div className="flex justify-end">
-        <Button type="submit" disabled={!isDirty || updateAlteracionMutation.isPending}>
+      <div className="flex justify-end gap-2">
+        {existeAlteracionPersistida && (
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleDeleteAlteracionDia}
+            disabled={deleteAlteracionMutation.isPending || updateAlteracionMutation.isPending}
+          >
+            {deleteAlteracionMutation.isPending ? 'Eliminando...' : 'Eliminar alteracion del dia'}
+          </Button>
+        )}
+        <Button type="submit" disabled={!isDirty || updateAlteracionMutation.isPending || deleteAlteracionMutation.isPending}>
           {updateAlteracionMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
         </Button>
       </div>

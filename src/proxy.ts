@@ -23,8 +23,8 @@ const rutasHibridas = ['/', '/feedback'];
 const rutasAutenticadasNoResidencia = ['/mi-perfil'];
 const rutasMaster = ['/restringido-master'];
 const rutasAdminRaiz = ['/admin', '/admin/users'];
-const rutasAdminResidencia = ['/admin/horarios', '/admin/invitacionesUsuarios'];
-const rutasGestionConMatriz = ['/admin/comedores', '/gerencia/recordatorios'];
+const rutasAdminResidencia = ['/admin/invitacionesUsuarios'];
+const rutasGestionConMatriz = ['/admin/comedores', '/gerencia/recordatorios', '/admin/horarios'];
 
 
 // Configuración de next-firebase-auth-edge

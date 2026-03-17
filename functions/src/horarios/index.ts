@@ -32,11 +32,21 @@ export const guardarHorariosResidencia = onCall(
 
     functions.logger.info(`guardarHorariosResidencia called by: ${callerInfo.uid} for residencia: ${residenciaId}`);
 
-    if (!callerInfo.isMaster && !callerInfo.isAdmin) {
-      throw new HttpsError("permission-denied", "Only 'master' or 'admin' users can perform this action.");
+    if (!callerInfo.isMaster && !callerInfo.isAdmin && !callerInfo.isAsistente) {
+      throw new HttpsError("permission-denied", "Only 'master', 'admin' or authorized 'asistente' users can perform this action.");
     }
     if (callerInfo.isAdmin && callerInfo.profile?.residenciaId !== residenciaId) {
       throw new HttpsError("permission-denied", "Admin users can only modify their own Residencia.");
+    }
+
+    // If caller is an assistant, ensure they have explicit permiso to manage horarios
+    if (callerInfo.isAsistente) {
+      const permiso = callerInfo.profile?.asistente?.gestionHorariosYAlteraciones;
+      const residenciaMatch = callerInfo.profile?.residenciaId === residenciaId;
+      const permitido = permiso && permiso.nivelAcceso === 'Todas' && residenciaMatch;
+      if (!permitido) {
+        throw new HttpsError("permission-denied", "Asistente no autorizado para modificar horarios.");
+      }
     }
 
     if (!residenciaId || typeof expectedVersion !== "number" || !datos) {

@@ -11,9 +11,12 @@ import { ConfiguracionAlternativaSchema } from './horarios';
 export const ConfigAlternativaAjustadaSchema = ConfiguracionAlternativaSchema.pick({
     definicionAlternativaId: true,
     horarioSolicitudComidaId: true,
-    ventanaServicio: true,
     comedorId: true,
     requiereAprobacion: true,
+}).extend({
+    // Allow ventanaServicio to be optional in the adjusted configuration so absence-type
+    // alternatives (e.g., 'noComoEnCasa') can omit it. This keeps client and server in sync.
+    ventanaServicio: ConfiguracionAlternativaSchema.shape.ventanaServicio.optional(),
 });
 
 export type ConfigAlternativaAjustada = z.infer<typeof ConfigAlternativaAjustadaSchema>;

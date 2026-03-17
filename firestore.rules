@@ -87,7 +87,10 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
       match /alteracionesHorario/{alteracionId} {
-        allow get:    if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+        allow get:    if isMaster() || (
+          isMemberWithRole(residenciaId, ['admin', 'director', 'asistente'])
+          && (resource == null || resource.data.residenciaId == residenciaId)
+        );
         allow list:   if isMaster() || isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']);
         allow create, update: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && request.resource.data.residenciaId == residenciaId);
         allow delete: if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);

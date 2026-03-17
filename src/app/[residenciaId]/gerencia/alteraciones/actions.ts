@@ -1,8 +1,14 @@
-'use server';
+"use server";
 
-import { db, doc, setDoc } from '@/lib/firebase';
+// Use Admin SDK on the server to bypass security rules for server actions
+import { db as adminDb } from '@/lib/firebaseAdmin';
 import { CreateAlteracionDiaria, UpdateAlteracionDiaria, CreateAlteracionDiariaSchema, UpdateAlteracionDiariaSchema } from './lib/esquemas';
 import { AlteracionDiaria } from 'shared/schemas/alteraciones';
+
+const ALTERACIONES_HORARIO_COLLECTION = 'alteracionesHorario';
+
+const getAlteracionDiaDocPath = (residenciaId: string, fecha: string) =>
+  `residencias/${residenciaId}/${ALTERACIONES_HORARIO_COLLECTION}/${fecha}`;
 
 export async function createAlteracionCommand(
   residenciaId: string,
@@ -19,10 +25,29 @@ export async function createAlteracionCommand(
     residenciaId,
   };
 
-  const docRef = doc(db, `residencias/${residenciaId}/alteracionesHorario`, newAlteracionData.fecha);
-  await setDoc(docRef, newAlteracionData);
+  // Remove any undefined values recursively to satisfy Firestore constraints
+  function stripUndefined(obj: any): any {
+    if (obj === undefined) return undefined;
+    if (obj === null) return null;
+    if (Array.isArray(obj)) return obj.map(stripUndefined);
+    if (typeof obj === 'object') {
+      const out: any = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (v === undefined) continue;
+        const cleaned = stripUndefined(v);
+        if (cleaned !== undefined) out[k] = cleaned;
+      }
+      return out;
+    }
+    return obj;
+  }
 
-  return newAlteracionData;
+  const cleaned = stripUndefined(newAlteracionData);
+
+  const docRef = adminDb.doc(getAlteracionDiaDocPath(residenciaId, cleaned.fecha));
+  await docRef.set(cleaned);
+
+  return cleaned as AlteracionDiaria;
 }
 
 export async function updateAlteracion(
@@ -41,6 +66,41 @@ export async function updateAlteracion(
     throw new Error("Update operation requires a date.");
   }
 
-  const docRef = doc(db, `residencias/${residenciaId}/alteracionesHorario`, fecha);
-  await setDoc(docRef, updateData, { merge: true });
+  function stripUndefined(obj: any): any {
+    if (obj === undefined) return undefined;
+    if (obj === null) return null;
+    if (Array.isArray(obj)) return obj.map(stripUndefined);
+    if (typeof obj === 'object') {
+      const out: any = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (v === undefined) continue;
+        const cleaned = stripUndefined(v);
+        if (cleaned !== undefined) out[k] = cleaned;
+      }
+      return out;
+    }
+    return obj;
+  }
+
+  const cleanedUpdateData = stripUndefined({
+    ...updateData,
+    fecha,
+    residenciaId,
+  });
+
+  const docRef = adminDb.doc(getAlteracionDiaDocPath(residenciaId, fecha));
+  await docRef.set(cleanedUpdateData, { merge: true });
 }
+
+export async function deleteAlteracionDiaCommand(
+  residenciaId: string,
+  fecha: string
+): Promise<void> {
+  if (!fecha) {
+    throw new Error("Delete operation requires a date.");
+  }
+
+  const docRef = adminDb.doc(getAlteracionDiaDocPath(residenciaId, fecha));
+  await docRef.delete();
+}
+

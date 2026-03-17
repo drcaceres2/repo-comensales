@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { CadenaOpcionalLimitada, SlugIdSchema } from './common';
 import { HoraIsoSchema, DiaDeLaSemanaSchema } from './fechas';
 import {ComedorDataSchema, ComedorDataSelector} from "./complemento1";
+import { convertirHoraAMinutos } from 'shared/utils/commonUtils';
 
 /**
  * HorarioSolicitudData: Datos de un horario de solicitud de comida.
@@ -87,7 +88,26 @@ const VentanaServicioComidaSchema = z.object({
     horaInicio: HoraIsoSchema,
     horaFin: HoraIsoSchema,
     tipoVentana: TipoVentanaConfigAlternativaSchema
-}).strict();
+}).strict().superRefine((val, ctx) => {
+    // Validate that for 'normal' windows the end is not before start.
+    // convertirHoraAMinutos handles inputs like 'T12:00' or '12:00'.
+    try {
+        const inicioMin = convertirHoraAMinutos(val.horaInicio);
+        const finMin = convertirHoraAMinutos(val.horaFin);
+        if (inicioMin === null || finMin === null) {
+            return; // let HoraIsoSchema handle format errors
+        }
+        if ((val.tipoVentana ?? 'normal') === 'normal' && finMin < inicioMin) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['horaFin'],
+                message: 'La hora fin debe ser mayor o igual que la hora inicio para ventanas normales',
+            });
+        }
+    } catch (e) {
+        // ignore and let other validators report
+    }
+});
 
 /**
  * ConfiguracionAlternativa: Configuración específica de una alternativa para un día concreto.

@@ -3,16 +3,33 @@
 
 import { useMemo } from 'react';
 import { nanoid } from 'nanoid';
-import { useAlteracionesQuery, useConfiguracionResidenciaQuery } from './consultas';
+import { useAlteracionDiaQuery, useConfiguracionResidenciaQuery } from './consultas';
 import { AlteracionDiaria, AfectacionTiempoComida, 
     ConfigAlternativaAjustada, ConfigAlternativaAjustadaSchema 
 } from 'shared/schemas/alteraciones';
 import { ConfiguracionAlternativa } from 'shared/schemas/horarios';
-import { DiaDeLaSemana, FechaIso, FechaIsoSchema, HoraIso, HoraIsoSchema } from "shared/schemas/fechas";
+import { DiaDeLaSemana, FechaIso, FechaIsoSchema, HoraIso } from "shared/schemas/fechas";
 import { ConfiguracionResidencia } from "shared/schemas/residencia";
 import { HorarioSolicitudComidaId, ResidenciaId } from 'shared/models/types'
-import { isDeepStrictEqual } from 'node:util';
-import { convertirHoraAMinutos } from 'shared/utils/commonUtils';
+// Node's `isDeepStrictEqual` is not available in the browser bundle (client components).
+// Provide a small client-compatible deep equality helper instead.
+import { convertirHoraAMinutos, normalizarHoraParaIso } from 'shared/utils/commonUtils';
+
+function deepEqual(a: any, b: any): boolean {
+    if (a === b) return true;
+    if (a == null || b == null) return a === b;
+    if (typeof a !== 'object' || typeof b !== 'object') return a === b;
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) return false;
+    for (const key of keysA) {
+        if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+        if (!deepEqual(a[key], b[key])) return false;
+    }
+    return true;
+}
 
 // ------------------------------------------------------------------
 // Type Definitions
@@ -71,31 +88,30 @@ export function useHydratedDayFormState(
     residenciaId: string
 ) {
     const { data: config, isLoading: isLoadingConfig, error: errorConfig } = useConfiguracionResidenciaQuery(residenciaId);
-    const { data: alteraciones, isLoading: isLoadingAlteraciones, error: errorAlteraciones } = useAlteracionesQuery(residenciaId);
+    const { data: alteracionDia, isLoading: isLoadingAlteraciones, error: errorAlteraciones } = useAlteracionDiaQuery(residenciaId, fecha);
 
 
     const formState = useMemo((): FormularioDiaState | null => {
-        if (!config || !alteraciones) {
+        // `alteracionDia` puede ser null cuando no existe documento para ese día.
+        if (!config || typeof alteracionDia === 'undefined') {
             return null;
         }
 
-        const alteracion = alteraciones.find(a => a.fecha === fecha);
+        const alteracion = alteracionDia;
         const diaSemana = DIAS_SEMANA[new Date(fecha).getUTCDay()];
 
         const tiemposComidaDelDia = Object.entries(config.esquemaSemanal || {})
             .filter(([, tiempo]) => tiempo.dia === diaSemana && tiempo.estaActivo === true);
 
         // Diccionario de comedores aplanado
+        // ComedorData no define `estaActivo`; incluir todos los comedores definidos
         const comedores: FormularioDiaState['comedores'] = {};
         if (config.comedores) {
             for (const [id, comedor] of Object.entries(config.comedores)) {
-                // Solo incluir si tiene estaActivo === true
-                if ((comedor as any).estaActivo === true) {
-                    comedores[id] = {
-                        id,
-                        nombre: comedor.nombre,
-                    };
-                }
+                comedores[id] = {
+                    id,
+                    nombre: comedor.nombre,
+                };
             }
         }
 
@@ -206,7 +222,7 @@ export function useHydratedDayFormState(
 
         return state;
 
-    }, [config, alteraciones, fecha, residenciaId]);
+    }, [config, alteracionDia, fecha, residenciaId]);
 
     return {
         formState,
@@ -244,7 +260,7 @@ export function extractDeltaPayload(
 
         // 2. Caso: Es una alteración nueva o modificada
         if (sucio.esAlterado) {
-            const esMismaConfiguracion = isDeepStrictEqual(original.alternativasEditables, sucio.alternativasEditables) &&
+            const esMismaConfiguracion = deepEqual(original.alternativasEditables, sucio.alternativasEditables) &&
                 original.motivoActual === sucio.motivoActual &&
                 original.alternativaPorDefectoIdActual === sucio.alternativaPorDefectoIdActual;
 
@@ -260,12 +276,44 @@ export function extractDeltaPayload(
 
             // Generar IDs para nuevas alternativas (identificadas por un prefijo 'new-')
             for (const [altId, alternativa] of Object.entries(sucio.alternativasEditables)) {
+                const originalAlt = original.alternativasOriginales?.[altId];
+
+                // Decide whether to include ventanaServicio.
+                // Only include if we have both horaInicio and horaFin (from form or original).
+                let ventana: any | undefined = undefined;
+                const formHasVentana = alternativa.ventanaServicio && (String(alternativa.ventanaServicio.horaInicio || '').trim() !== '' || String(alternativa.ventanaServicio.horaFin || '').trim() !== '');
+                const originalHasVentana = originalAlt?.ventanaServicio && (String(originalAlt.ventanaServicio.horaInicio || '').trim() !== '' && String(originalAlt.ventanaServicio.horaFin || '').trim() !== '');
+
+                if (formHasVentana || originalHasVentana) {
+                    const rawHoraInicio = alternativa.ventanaServicio?.horaInicio ?? originalAlt?.ventanaServicio?.horaInicio ?? '';
+                    const rawHoraFin = alternativa.ventanaServicio?.horaFin ?? originalAlt?.ventanaServicio?.horaFin ?? '';
+                    const horaInicioIso = normalizarHoraParaIso(rawHoraInicio);
+                    const horaFinIso = normalizarHoraParaIso(rawHoraFin);
+
+                    // Only set ventana if both times are valid ISO strings
+                    if (horaInicioIso && horaFinIso) {
+                        ventana = {
+                            horaInicio: horaInicioIso,
+                            horaFin: horaFinIso,
+                            tipoVentana: alternativa.ventanaServicio?.tipoVentana ?? originalAlt?.ventanaServicio?.tipoVentana ?? 'normal',
+                        };
+                    }
+                }
+
+                const sanitized: ConfigAlternativaAjustada = {
+                    definicionAlternativaId: alternativa.definicionAlternativaId,
+                    horarioSolicitudComidaId: alternativa.horarioSolicitudComidaId,
+                    ...(ventana ? { ventanaServicio: ventana } : {}),
+                    comedorId: alternativa.comedorId ?? originalAlt?.comedorId ?? '',
+                    requiereAprobacion: alternativa.requiereAprobacion ?? false,
+                };
+
                 if (altId.startsWith('new-')) {
                     const newId = nanoid(10);
                     idMap[altId] = newId;
-                    alternativasDisponibles[newId] = alternativa;
+                    alternativasDisponibles[newId] = sanitized;
                 } else {
-                    alternativasDisponibles[altId] = alternativa;
+                    alternativasDisponibles[altId] = sanitized;
                 }
             }
 

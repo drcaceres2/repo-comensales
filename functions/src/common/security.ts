@@ -9,6 +9,7 @@ export interface CallerSecurityInfo {
   claims?: Record<string, any>;
   isMaster: boolean;
   isAdmin: boolean;
+  isAsistente: boolean;
 }
 
 export async function getCallerSecurityInfo(
@@ -61,6 +62,9 @@ export async function getCallerSecurityInfo(
     const isAdmin =
       claims.isAdmin === true ||
       effectiveRoles.includes("admin");
+    const isAsistente =
+      claims.isAsistente === true ||
+      effectiveRoles.includes("asistente");
 
     return {
       uid,
@@ -68,6 +72,7 @@ export async function getCallerSecurityInfo(
       claims,
       isMaster,
       isAdmin,
+      isAsistente,
     };
   } catch (error) {
     functions.logger.error("Error fetching caller security info for UID:", uid, error);

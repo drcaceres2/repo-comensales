@@ -47,9 +47,10 @@ const AlteracionDiaContenedor: React.FC<AlteracionDiaContenedorProps> = ({ fecha
   if (dataFormulario) {
     return (
       <FormularioMasterDetail
-        diaData={dataFormulario}
+        key={`${residenciaId}-${fecha}`}
         fecha={fecha}
         residenciaId={residenciaId}
+        dataFormulario={dataFormulario}
       />
     );
   }

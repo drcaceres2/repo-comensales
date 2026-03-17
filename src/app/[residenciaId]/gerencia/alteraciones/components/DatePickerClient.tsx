@@ -44,7 +44,8 @@ export default function DatePickerClient({ initialFecha }: DatePickerClientProps
         <Button
           variant={'outline'}
           className={cn(
-            'w-[280px] justify-start text-left font-normal',
+            // Full width on small screens for easier tapping, fixed width on larger
+            'w-full sm:w-[280px] justify-start text-left font-normal',
             !date && 'text-muted-foreground'
           )}
         >
@@ -52,8 +53,10 @@ export default function DatePickerClient({ initialFecha }: DatePickerClientProps
           {date ? format(date, 'PPP') : <span>Seleccione una fecha</span>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
+      <PopoverContent className="w-screen max-w-[420px] px-4 py-3 sm:px-0 sm:py-0">
         <Calendar
+          // Slightly reduce mobile touch target and add horizontal padding (mx-auto)
+          className="[--cell-size:2.2rem] sm:[--cell-size:1.75rem] w-full mx-auto"
           mode="single"
           selected={date}
           onSelect={handleDateSelect}
