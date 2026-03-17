@@ -54,6 +54,11 @@ export default function MensajesPageClient({
     return data.filter((m) => m.estado === filtroEstado);
   }, [mensajes, filtroEstado]);
 
+  // Filtra usuarios para que no se pueda seleccionar a sí mismo
+  const destinatariosUsuariosFiltrados = useMemo(() => {
+    return (destinatarios?.usuarios ?? []).filter((usuario) => usuario.id !== usuarioId);
+  }, [destinatarios?.usuarios, usuarioId]);
+
   const submit = () => {
     if (!cuerpo.trim()) {
       return;
@@ -97,6 +102,7 @@ export default function MensajesPageClient({
             <label className="text-sm font-medium">Tipo de destino</label>
             <select
               className="w-full rounded-md border px-3 py-2 text-sm"
+              title="Selecciona el tipo de destinatario: usuario individual o grupo"
               value={destinoTipo}
               onChange={(event) => setDestinoTipo(event.target.value as 'usuario' | 'grupo')}
             >
@@ -110,15 +116,16 @@ export default function MensajesPageClient({
               <label className="text-sm font-medium">Destinatario</label>
               <select
                 className="w-full rounded-md border px-3 py-2 text-sm"
+                title="Selecciona un usuario destinatario para el mensaje"
                 value={destinatarioUsuarioId}
                 onChange={(event) => setDestinatarioUsuarioId(event.target.value)}
               >
                 <option value="">Selecciona un usuario</option>
-                {(destinatarios?.usuarios ?? []).map((usuario) => (
-                  <option key={usuario.id} value={usuario.id}>
-                    {usuario.nombre}
-                  </option>
-                ))}
+                  {destinatariosUsuariosFiltrados.map((usuario) => (
+                    <option key={usuario.id} value={usuario.id}>
+                      {usuario.nombre}
+                    </option>
+                  ))}
               </select>
             </div>
           ) : (
@@ -126,6 +133,7 @@ export default function MensajesPageClient({
               <label className="text-sm font-medium">Grupo</label>
               <select
                 className="w-full rounded-md border px-3 py-2 text-sm"
+                title="Selecciona un grupo destinatario para el mensaje"
                 value={destinatarioGrupoAnaliticoId}
                 onChange={(event) => setDestinatarioGrupoAnaliticoId(event.target.value)}
               >
@@ -143,6 +151,7 @@ export default function MensajesPageClient({
             <label className="text-sm font-medium">Asunto</label>
             <select
               className="w-full rounded-md border px-3 py-2 text-sm"
+              title="Selecciona el asunto del mensaje"
               value={asunto}
               onChange={(event) => setAsunto(event.target.value as FormNuevoMensaje['asunto'])}
             >
@@ -182,6 +191,7 @@ export default function MensajesPageClient({
             />
             <select
               className="rounded-md border px-3 py-2 text-sm"
+              title="Filtra los mensajes por estado: todos, enviados, leídos o archivados"
               value={filtroEstado}
               onChange={(event) => setFiltroEstado(event.target.value as typeof filtroEstado)}
             >

@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/useToast';
 import { Loader2 } from 'lucide-react';
 import {
@@ -50,6 +51,9 @@ const ActivityFormSchema = z.object({
     titulo: z.string().min(3, 'El titulo debe tener al menos 3 caracteres.'),
     descripcion: z.string().optional(),
     lugar: z.string().optional(),
+    visibilidad: z.enum(['publica', 'oculta']),
+    tipoAcceso: z.enum(['abierta', 'solo_invitacion']),
+    permiteInvitadosExternos: z.boolean(),
     fechaInicio: z.string().min(1, 'La fecha de inicio es obligatoria.'),
     tiempoComidaInicioId: z.string().min(1, 'Selecciona un tiempo de inicio.'),
     fechaFin: z.string().min(1, 'La fecha de fin es obligatoria.'),
@@ -57,6 +61,7 @@ const ActivityFormSchema = z.object({
     centroCostoId: z.string().optional(),
     solicitudAdministracion: z.enum(['ninguna', 'solicitud_unica', 'diario']),
     maxParticipantes: z.number().int().positive('El maximo debe ser mayor que cero.'),
+    adicionalesNoNominales: z.number().int().nonnegative('Debe ser cero o mayor.'),
 });
 
 type ActivityFormData = z.infer<typeof ActivityFormSchema>;
@@ -82,6 +87,9 @@ export function ActivityForm({
                   titulo: actividad.titulo,
                   descripcion: actividad.descripcion || '',
                   lugar: actividad.lugar || '',
+                                    visibilidad: actividad.visibilidad,
+                                    tipoAcceso: actividad.tipoAcceso,
+                                    permiteInvitadosExternos: actividad.permiteInvitadosExternos,
                   fechaInicio: actividad.fechaInicio,
                   tiempoComidaInicioId: actividad.tiempoComidaInicioId,
                   fechaFin: actividad.fechaFin,
@@ -89,11 +97,15 @@ export function ActivityForm({
                   centroCostoId: actividad.centroCostoId || undefined,
                   solicitudAdministracion: actividad.solicitudAdministracion,
                   maxParticipantes: actividad.maxParticipantes,
+                                    adicionalesNoNominales: actividad.adicionalesNoNominales,
               }
             : {
                   titulo: '',
                   descripcion: '',
                   lugar: '',
+                                    visibilidad: 'publica',
+                                    tipoAcceso: 'abierta',
+                                    permiteInvitadosExternos: false,
                   fechaInicio: new Date().toISOString().slice(0, 10),
                   tiempoComidaInicioId: '',
                   fechaFin: new Date().toISOString().slice(0, 10),
@@ -101,6 +113,7 @@ export function ActivityForm({
                   centroCostoId: undefined,
                   solicitudAdministracion: 'solicitud_unica',
                   maxParticipantes: 10,
+                                    adicionalesNoNominales: 0,
               },
     });
 
@@ -181,6 +194,74 @@ export function ActivityForm({
                                                 <Input placeholder='Lugar de realizacion' {...field} />
                                             </FormControl>
                                             <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            <div className='space-y-4'>
+                                <h3 className='text-lg font-semibold border-b pb-2'>Taxonomia de acceso</h3>
+
+                                <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                                    <FormField
+                                        control={form.control}
+                                        name='visibilidad'
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Visibilidad</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder='Seleccionar...' />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent className='z-[250]'>
+                                                        <SelectItem value='publica'>Publica</SelectItem>
+                                                        <SelectItem value='oculta'>Oculta</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name='tipoAcceso'
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Tipo de acceso</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder='Seleccionar...' />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent className='z-[250]'>
+                                                        <SelectItem value='abierta'>Abierta</SelectItem>
+                                                        <SelectItem value='solo_invitacion'>Solo invitacion</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <FormField
+                                    control={form.control}
+                                    name='permiteInvitadosExternos'
+                                    render={({ field }) => (
+                                        <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                                            <div className='space-y-1'>
+                                                <FormLabel>Permite invitados externos</FormLabel>
+                                                <p className='text-xs text-muted-foreground'>
+                                                    Habilita inscripciones de terceros por invitacion del organizador.
+                                                </p>
+                                            </div>
+                                            <FormControl>
+                                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                            </FormControl>
                                         </FormItem>
                                     )}
                                 />
@@ -327,6 +408,29 @@ export function ActivityForm({
                                         )}
                                     />
                                 </div>
+
+                                <FormField
+                                    control={form.control}
+                                    name='adicionalesNoNominales'
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Adicionales no nominales</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type='number'
+                                                    min={0}
+                                                    value={field.value ?? 0}
+                                                    onChange={(event) => field.onChange(Number(event.target.value || 0))}
+                                                    disabled={
+                                                        isEditing &&
+                                                        ['finalizada', 'cancelada'].includes(actividad?.estado ?? '')
+                                                    }
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
 
                                 <FormField
                                     control={form.control}

@@ -8,6 +8,7 @@ import DatePickerClient from './components/DatePickerClient';
 // --- Auth Helpers (Assumed to exist based on prompt) ---
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import {verificarPermisoGestionWrapper} from "@/lib/acceso-privilegiado";
+import {urlAccesoNoAutorizado} from "@/lib/utils";
 
 type AlteracionesPageProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -40,7 +41,8 @@ const AlteracionesPage = async ({ searchParams }: AlteracionesPageProps) => {
     );
   }
   if (!validacionUsuario.tieneAcceso) {
-    return redirect(`/acceso-no-autorizado`);
+    const mensaje = validacionUsuario.mensaje ?? "Hubo un error en obtener el mensaje de error (alteraciones:VerificarPermisoGestionWrapper)."
+    redirect(urlAccesoNoAutorizado(mensaje));
   }
 
   // 2. URL State Management

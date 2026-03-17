@@ -6,6 +6,7 @@ import { chunkArray } from "@/lib/batchHelpers";
 import {
   AsignacionMasivaUsuariosPayload,
   AsignacionMasivaUsuariosPayloadSchema,
+  AsignacionUsuarioMutacionSchema,
   AsignacionUsuarioMutacion,
 } from "shared/schemas/asignacionMasivaUsuarios";
 
@@ -35,6 +36,8 @@ export async function guardarAsignacionesMasivas(
   payload: AsignacionMasivaUsuariosPayload
 ) {
   try {
+    // Log del payload recibido para diagnóstico en caso de validación fallida
+    console.debug('[guardarAsignacionesMasivas] payload recibido:', JSON.stringify(payload));
     const sesion = await obtenerInfoUsuarioServer();
     if (!sesion.usuarioId) {
       return { success: false, error: "Usuario no autenticado." };
@@ -46,7 +49,40 @@ export async function guardarAsignacionesMasivas(
 
     const parsed = AsignacionMasivaUsuariosPayloadSchema.safeParse(payload);
     if (!parsed.success) {
-      return { success: false, error: parsed.error.flatten() };
+      // Loguear el detalle de validación para poder identificar el problema en el servidor
+      try {
+        console.error('[guardarAsignacionesMasivas] Validación Zod fallida (format):', parsed.error.format());
+      } catch (e) {
+        console.error('[guardarAsignacionesMasivas] Validación Zod fallida (flatten):', parsed.error.flatten());
+      }
+
+      // Intentar validar item por item para obtener errores más específicos
+      try {
+        if (Array.isArray((payload as any).mutaciones)) {
+          console.error('[guardarAsignacionesMasivas] Detalle por mutación:');
+          (payload as any).mutaciones.forEach((m: any, idx: number) => {
+            const r = AsignacionUsuarioMutacionSchema.safeParse(m);
+            if (!r.success) {
+              console.error(`  Mutación[${idx}] inválida:`, JSON.stringify(m));
+              try {
+                console.error('    Errores:', r.error.format());
+              } catch (e) {
+                console.error('    Errores (flatten):', r.error.flatten());
+              }
+            }
+          });
+        }
+      } catch (e) {
+        console.error('[guardarAsignacionesMasivas] Error al desglosar mutaciones para diagnóstico', e);
+      }
+
+      // Devolver el error como string serializado para que el cliente pueda mostrarlo en el toast
+      try {
+        const serialized = JSON.stringify(parsed.error.flatten(), null, 2);
+        return { success: false, error: serialized };
+      } catch (e) {
+        return { success: false, error: String(parsed.error) };
+      }
     }
 
     const mutaciones = parsed.data.mutaciones;

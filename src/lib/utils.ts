@@ -208,3 +208,13 @@ export const getUtcOffsetFromIanaName = (ianaTimezoneName: string): string | nul
   console.warn(`getUtcOffsetFromIanaName: Timezone "${ianaTimezoneName}" not found in zonas_horarias_ejemplos.json`);
   return null; // Return null if the timezone name is not found
 };
+
+/**
+ * Devuelve la URL completa para la página de acceso no autorizado,
+ * incluyendo el mensaje codificado como parámetro.
+ * @param mensaje El mensaje a mostrar en la página de acceso no autorizado.
+ * @returns La URL lista para usar en router.push
+ */
+export function urlAccesoNoAutorizado(mensaje?: string): string {
+    return mensaje ? `/acceso-no-autorizado?mensaje=${encodeURIComponent(mensaje)}` : '/acceso-no-autorizado';
+}

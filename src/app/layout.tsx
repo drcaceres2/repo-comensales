@@ -48,7 +48,7 @@ export default async function RootLayout({
 
   return (
     <html lang="es" className="h-full" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans flex flex-col min-h-full bg-background`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans flex flex-col min-h-screen bg-background`}>
         <AppProviders infoUsuario={infoUsuarioHeaders}>
           <AppShell>{children}</AppShell>
         </AppProviders>

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { LockKeyhole, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
+import { useInfoUsuario } from "@/components/layout/AppProviders";
 
 interface AccesoNoAutorizadoClientProps {
   mensaje?: string;
@@ -11,9 +12,14 @@ interface AccesoNoAutorizadoClientProps {
 
 export default function AccesoNoAutorizadoClient({ mensaje }: AccesoNoAutorizadoClientProps) {
   const router = useRouter();
-  const [countdown, setCountdown] = useState(10);
+  const { usuarioId } = useInfoUsuario();
+  const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
+    if (usuarioId) {
+      return;
+    }
+
     const timer = setInterval(() => {
       setCountdown((prevCountdown) => prevCountdown - 1);
     }, 1000);
@@ -26,7 +32,7 @@ export default function AccesoNoAutorizadoClient({ mensaje }: AccesoNoAutorizado
       clearInterval(timer);
       clearTimeout(redirectTimeout);
     };
-  }, [router, countdown]);
+  }, [router, countdown, usuarioId]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white p-6">
@@ -63,9 +69,11 @@ export default function AccesoNoAutorizadoClient({ mensaje }: AccesoNoAutorizado
         </div>
 
         <p className="text-sm text-slate-400 mt-8">
-          {countdown > 0 
-            ? `Serás redirigido a la página de inicio en ${countdown} segundos...`
-            : "Redirigiendo..."}
+          {usuarioId
+            ? "Puedes volver al inicio cuando quieras desde el botón superior."
+            : countdown > 0 
+              ? `Serás redirigido a la página de inicio en ${countdown} segundos...`
+              : "Redirigiendo..."}
         </p>
       </div>
     </div>

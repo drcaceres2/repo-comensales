@@ -6,13 +6,14 @@ import {
   obtenerMensajesBandejaAction,
 } from './actions';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
+import { urlAccesoNoAutorizado } from "@/lib/utils";
 
 export default async function MensajesPage({ params }: { params: Promise<{ residenciaId: string }> }) {
   const { residenciaId } = await params;
   const sesion = await obtenerInfoUsuarioServer();
 
   if (!sesion.usuarioId || sesion.residenciaId !== residenciaId) {
-    redirect('/acceso-no-autorizado');
+    redirect(urlAccesoNoAutorizado("Problemas con la sesión del usuario."));
   }
 
   const [mensajesResult, destinatariosResult] = await Promise.all([

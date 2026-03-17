@@ -145,7 +145,7 @@ async function resolveTargetContext(
 
     return {
       success: false,
-      error: errorResponse('UNAUTHORIZED', 'Tu rol actual no permite editar tu propio semanario.').error,
+      error: errorResponse('UNAUTHORIZED', 'Tu perfil de usuario no permite editar tu propio semanario.').error,
     };
   }
 

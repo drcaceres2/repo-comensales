@@ -3,6 +3,7 @@ import { ResultadoAcceso, verificarPermisoGestionWrapper } from '@/lib/acceso-pr
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import { AtencionesMasterDetailLayout } from './components/AtencionesMasterDetailLayout';
 import { obtenerAtenciones } from './lib/actions';
+import {urlAccesoNoAutorizado} from "@/lib/utils";
 
 export default async function PaginaGestionAtenciones() {
   const resultado: ResultadoAcceso = await verificarPermisoGestionWrapper('gestionAtenciones');
@@ -22,7 +23,8 @@ export default async function PaginaGestionAtenciones() {
   }
 
   if (!resultado.tieneAcceso) {
-    redirect('/acceso-no-autorizado');
+    const mensaje = resultado.mensaje ?? "Hubo un error en obtener el mensaje de error (actividades:VerificarPermisoGestionWrapper).";
+    redirect(urlAccesoNoAutorizado(mensaje));
   }
 
   const usuarioSesion = await obtenerInfoUsuarioServer();

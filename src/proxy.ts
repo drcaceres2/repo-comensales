@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authMiddleware } from 'next-firebase-auth-edge';
 
+function urlAccesoNoAutorizado(mensaje?: string): string {
+  return mensaje ? `/acceso-no-autorizado?mensaje=${encodeURIComponent(mensaje)}` : '/acceso-no-autorizado';
+}
+
 // Matcher: Define las rutas donde se ejecutará el middleware.
 export const config = {
   matcher: [
@@ -19,8 +23,8 @@ const rutasHibridas = ['/', '/feedback'];
 const rutasAutenticadasNoResidencia = ['/mi-perfil'];
 const rutasMaster = ['/restringido-master'];
 const rutasAdminRaiz = ['/admin', '/admin/users'];
-const rutasAdminResidencia = ['/admin/horarios', '/gerencia/recordatorios', '/admin/invitacionesUsuarios'];
-const rutasGestionConMatriz = ['/admin/comedores'];
+const rutasAdminResidencia = ['/admin/horarios', '/admin/invitacionesUsuarios'];
+const rutasGestionConMatriz = ['/admin/comedores', '/gerencia/recordatorios'];
 
 
 // Configuración de next-firebase-auth-edge
@@ -58,13 +62,16 @@ export async function proxy(request: NextRequest) {
   }
 
   const redirectTo = (path: string, clearCookie = false) => {
-    const url = request.nextUrl.clone();
-    if (url.pathname === path) {
+    const targetUrl = new URL(path, request.url);
+    const currentPathWithSearch = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+    const targetPathWithSearch = `${targetUrl.pathname}${targetUrl.search}`;
+
+    if (currentPathWithSearch === targetPathWithSearch) {
       console.log("Middleware: Redirigiendo al mismo luga...");
       return NextResponse.next();
     }
-    url.pathname = path;
-    const response = NextResponse.redirect(url);
+
+    const response = NextResponse.redirect(targetUrl);
     if (clearCookie) {
       console.log("Middleware: Borrando cookie de autenticación...")
       response.cookies.delete(authConfig.cookieName);
@@ -103,7 +110,7 @@ export async function proxy(request: NextRequest) {
       if (rutasMaster.some(p => pathname.startsWith(p))) {
         if (!userRoles.includes('master')) {
           console.log("Middleware: Ruta restringida para 'master', redirigiendo a 'acceso-no-autorizado'")
-          return redirectTo('/acceso-no-autorizado');
+          return redirectTo(urlAccesoNoAutorizado("Tu perfil de usuario no tiene acceso a esta sección exclusiva para 'master'."));
         }
         console.log("Middleware: Ruta master permitida");
         return responseWithHeaders;
@@ -113,7 +120,8 @@ export async function proxy(request: NextRequest) {
       if (rutasAdminRaiz.includes(pathname)) {
         if (!userRoles.includes('master') && !userRoles.includes('admin')) {
           console.log("Middleware: Ruta restringida para 'admin' (raíz), redirigiendo a 'acceso-no-autorizado'")
-          return redirectTo('/acceso-no-autorizado');
+          return redirectTo(urlAccesoNoAutorizado(
+              "Tu perfil de usuario no tiene acceso a esta sección restringida para usuarios administradores."));
         }
         console.log("Middleware: Ruta admin permitida");
         return responseWithHeaders;
@@ -133,20 +141,21 @@ export async function proxy(request: NextRequest) {
       // If we are here, it's a residence route.
       // All remaining routes are considered residence routes.
 
-      // Admin residence routes: strict 'admin' role
-      if (rutasAdminResidencia.some(r => pathname.endsWith(r))) {
-        if (!userRoles.includes('admin')) {
-          console.log("Middleware: Ruta restringida para 'admin' (residencia), redirigiendo a 'acceso-no-autorizado'")
-          return redirectTo('/acceso-no-autorizado');
-        }
-      }
-
       // Matrix-managed routes: allow roles that are further filtered by server-side permission helpers.
       if (rutasGestionConMatriz.some(r => pathname.endsWith(r))) {
         const rolesPermitidos = userRoles.includes('admin') || userRoles.includes('director') || userRoles.includes('asistente');
         if (!rolesPermitidos) {
           console.log("Middleware: Ruta restringida para roles de gestion, redirigiendo a 'acceso-no-autorizado'")
-          return redirectTo('/acceso-no-autorizado');
+          return redirectTo(urlAccesoNoAutorizado("Ruta restringida a usuarios directores o asistentes."));
+        }
+      }
+
+      // Admin residence routes: strict 'admin' role
+      if (rutasAdminResidencia.some(r => pathname.endsWith(r))) {
+        if (!userRoles.includes('admin')) {
+          console.log("Middleware: Ruta restringida para 'admin' (residencia), redirigiendo a 'acceso-no-autorizado'")
+          return redirectTo(urlAccesoNoAutorizado(
+              "Tu perfil de usuario no tiene acceso a esta sección restringida para usuarios administradores."));
         }
       }
 

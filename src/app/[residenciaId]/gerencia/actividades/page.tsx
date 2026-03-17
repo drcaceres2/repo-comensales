@@ -3,6 +3,7 @@ import { ResultadoAcceso, verificarPermisoGestionWrapper } from '@/lib/acceso-pr
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import GestionActividadesClient from './GestionActividadesClient';
 import type { ResidenciaId } from 'shared/models/types';
+import {urlAccesoNoAutorizado} from "@/lib/utils";
 
 interface ActividadesPageProps {
     params: Promise<{ residenciaId: ResidenciaId }>;
@@ -27,14 +28,15 @@ export default async function ActividadesPage({ params }: ActividadesPageProps) 
     }
 
     if (!resultado.tieneAcceso) {
-        redirect('/acceso-no-autorizado');
+        const mensaje = resultado.mensaje ?? "Hubo un error en obtener el mensaje de error (actividades:VerificarPermisoGestionWrapper).";
+        redirect(urlAccesoNoAutorizado(mensaje));
     }
 
     const usuarioSesion = await obtenerInfoUsuarioServer();
     const esMaster = usuarioSesion.roles.includes('master');
 
     if (!usuarioSesion.residenciaId || (!esMaster && usuarioSesion.residenciaId !== residenciaId)) {
-        redirect('/acceso-no-autorizado');
+        redirect(urlAccesoNoAutorizado("Problemas con la sesión del usuario."));
     }
 
     return <GestionActividadesClient residenciaId={residenciaId} />;

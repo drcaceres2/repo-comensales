@@ -67,7 +67,7 @@ service cloud.firestore {
       // Configuraciones (Singletons)
       match /configuracion/{docId} {
         allow get:    if isMaster() || (isMember(residenciaId) && resource.data.residenciaId == residenciaId);
-        allow list:   if isMaster() || isMember(residenciaId);
+        allow list:   if isMaster();
         allow create, update, delete: if false;
       }
       match /configContabilidad/{docId} {
@@ -134,6 +134,13 @@ service cloud.firestore {
         allow read:   if isMaster() || isMemberWithRole(residenciaId, ['admin', 'director', 'contador', 'asistente']);
         allow write:  if isMaster() || isMemberWithRole(residenciaId, ['admin', 'contador']);
       }
+    }
+
+    // --- RAÍZ DE INVITACIONES ---
+    match /invitaciones/{invitacionId} {
+      // Permite leer si es master o miembro de la residencia indicada en el documento
+      allow read: if isMaster() || (isMember(resource.data.residenciaId) && resource.data.residenciaId == request.auth.token.residenciaId);
+      allow create, update, delete: if false;
     }
 
     // --- RAÍZ DE IDENTIDAD ---

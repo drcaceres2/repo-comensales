@@ -230,18 +230,27 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
       label: 'Administrar Residencia',
       icon: ClipboardEdit,
       isAccordion: true,
-      roles: ['director', 'admin', 'master'],
+      roles: ['director', 'admin', 'master', 'asistente'],
       children: [
         {
           id: 'adminGlobalUsers',
-          label: 'Crear usuarios (Global)',
+          label: 'Administrar Usuarios',
           icon: Users,
           href: '/admin/users',
-          roles: ['director', 'admin', 'master', 'asistente'],
+          roles: ['admin', 'master', 'asistente'],
+        },
+        {
+          id: 'adminInvitacionesUsuarios',
+          label: 'Agregar usuarios por correo',
+          icon: UserPlus,
+          href: rLink,
+          pathTemplate: '/admin/invitacionesUsuarios',
+          roles: ['admin', 'asistente'],
+          requiresResidenciaIdForHref: true,
         },
         {
           id: 'adminGruposUsuariosResidencia',
-          label: 'Crear Grupos de Usuarios',
+          label: 'Gestionar Grupos de Usuarios',
           icon: UsersRound,
           href: rLink,
           pathTemplate: '/gerencia/grupos-usuarios',
@@ -263,7 +272,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           icon: Clock,
           href: rLink,
           pathTemplate: '/admin/horarios',
-          roles: ['director', 'admin', 'asistente'],
+          roles: ['admin', 'asistente'],
           requiresResidenciaIdForHref: true,
         },
         {
@@ -273,15 +282,6 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           href: rLink,
           pathTemplate: '/admin/comedores',
           roles: ['director', 'admin', 'asistente'],
-          requiresResidenciaIdForHref: true,
-        },
-        {
-          id: 'adminInvitacionesUsuarios',
-          label: 'Invitaciones de usuarios',
-          icon: UserPlus,
-          href: rLink,
-          pathTemplate: '/admin/invitacionesUsuarios',
-          roles: ['admin'],
           requiresResidenciaIdForHref: true,
         },
       ],
@@ -509,12 +509,13 @@ export function Navigation() {
         triggerContent = (
 <SidebarTrigger asChild>
   <button 
-    className="fixed top-1 left-1 z-[45] !h-12 !w-12 p-2 bg-transparent text-gray-800 rounded-md hover:bg-gray-800 hover:text-white transition-all duration-300 flex items-center justify-center" 
+    className="fixed top-[1px] left-1 z-[45] !h-9 !w-9 p-2 bg-transparent text-gray-800 rounded-md hover:bg-gray-800 hover:text-white transition-all duration-300 flex items-center justify-center" 
     title="Abrir menú"
   >
     <Menu 
-      className="!w-9 !h-9" 
+      className="!w-7 !h-7" 
       strokeWidth={1.5} 
+      color="white"
     />
   </button>
 </SidebarTrigger>
@@ -545,7 +546,7 @@ export function Navigation() {
     <Sidebar>
       {triggerContent}
       {triggerContent && (isAuthenticated || currentNavConfig.some(item => !item.isAccordion && item.roles === 'unauthenticated') || currentNavConfig.some(item => item.isAccordion && item.children?.some(child => child.roles === 'unauthenticated'))) && (
-        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0">
+        <SidebarContent className="w-72 bg-white dark:bg-gray-900 shadow-lg text-gray-900 dark:text-gray-100 p-0 flex flex-col h-full">
           <SidebarHeader className="p-4 border-b dark:border-gray-700 text-left">
             {isMobile ? (
               <>
@@ -569,12 +570,12 @@ export function Navigation() {
                 </div>
             )}
           </SidebarHeader>
-          <SidebarMenu className="flex-grow p-4 space-y-2">
+          <SidebarMenu className="flex-grow p-4 space-y-2 overflow-auto">
             <Accordion type="multiple" className="w-full">
               {currentNavConfig.map(item => renderNavItem(item))}
             </Accordion>
           </SidebarMenu>
-          <SidebarFooter className="p-4 border-t dark:border-gray-700">
+          <SidebarFooter className="sticky bottom-0 z-10 p-4 border-t dark:border-gray-700 bg-white dark:bg-gray-900">
             <div className="flex flex-col gap-2">
               {currentFeedbackLink && renderNavItem(currentFeedbackLink)}
               {!mounted ? (

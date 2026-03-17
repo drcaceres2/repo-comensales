@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import {
   ActualizarAtencionPayload,
   ActualizarAtencionPayloadSchema,
   Atencion,
   CrearAtencionPayload,
+  AtencionEstadoSchema,
 } from 'shared/schemas/atenciones';
+import { FechaHoraIsoSchema, FechaIsoSchema } from 'shared/schemas/fechas';
 import {
   Form,
   FormControl,
@@ -40,6 +43,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
+import { useCentrosDeCosto } from '../../../contabilidad/centros-de-costo/hooks/useCentrosDeCosto';
+
 interface AtencionDetailFormProps {
   atencion: Atencion | null;
   onCreate: (payload: CrearAtencionPayload) => Promise<void>;
@@ -48,6 +53,7 @@ interface AtencionDetailFormProps {
   saving: boolean;
   deleting: boolean;
   onCancel?: () => void;
+  residenciaId: string;
 }
 
 type AtencionFormValues = {
@@ -96,6 +102,26 @@ function toDateTimeInput(value?: string): string {
   return value.replace(' ', 'T').slice(0, 16);
 }
 
+function roundDateTimeTo15(value?: string): string {
+  if (!value) return '';
+  // Accept either 'YYYY-MM-DDTHH:mm' or full ISO
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value.slice(0, 16).replace(' ', 'T');
+
+  // Round minutes to nearest 15
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+  let minutes = local.getMinutes();
+  const remainder = Math.round(minutes / 15);
+  minutes = remainder * 15;
+  if (minutes === 60) {
+    local.setHours(local.getHours() + 1);
+    minutes = 0;
+  }
+  local.setMinutes(minutes);
+  local.setSeconds(0);
+  return local.toISOString().slice(0, 16);
+}
+
 function defaultValues(atencion: Atencion | null): AtencionFormValues {
   const now = new Date();
   const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -123,6 +149,27 @@ function defaultValues(atencion: Atencion | null): AtencionFormValues {
   };
 }
 
+function CentrosSelect({ residenciaId, value, onChange }: { residenciaId: string; value?: string; onChange: (v: string) => void }) {
+  const { centrosDeCosto = [], isLoading } = useCentrosDeCosto(residenciaId);
+
+  return (
+    <Select value={value || ''} onValueChange={(v) => onChange(v)}>
+      <FormControl>
+        <SelectTrigger>
+          <SelectValue placeholder={isLoading ? 'Cargando centros...' : centrosDeCosto.length > 0 ? 'Seleccione...' : 'Sin centros activos'} />
+        </SelectTrigger>
+      </FormControl>
+      <SelectContent>
+        {centrosDeCosto.filter(cc => cc.estaActivo !== false).map((cc) => (
+          <SelectItem key={cc.id} value={cc.id}>
+            {cc.codigoVisible ? `${cc.codigoVisible} — ${cc.nombre}` : cc.nombre}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export function AtencionDetailForm({
   atencion,
   onCreate,
@@ -131,16 +178,64 @@ export function AtencionDetailForm({
   saving,
   deleting,
   onCancel,
+  residenciaId,
 }: AtencionDetailFormProps) {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const initialValues = useMemo(() => defaultValues(atencion), [atencion]);
 
+  const resolverSchema = z
+    .object({
+      nombre: z.string().trim().min(1).max(120),
+      comentarios: z
+        .preprocess((val) => (val === '' || val === null ? undefined : val), z.string().trim().min(1).max(500).optional()),
+      fechaSolicitudComida: FechaIsoSchema,
+      fechaHoraAtencion: FechaHoraIsoSchema,
+      centroCostoId: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(1).optional()),
+      estado: AtencionEstadoSchema.optional().default('pendiente'),
+    })
+    .strict()
+    .superRefine((data, ctx) => {
+      try {
+        const now = new Date();
+        const localToday = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+          .toISOString()
+          .slice(0, 10);
+
+        if (data.fechaSolicitudComida < localToday) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['fechaSolicitudComida'],
+            message: 'La fecha de solicitud debe ser hoy o una fecha futura.',
+          });
+        }
+
+        const fechaHoraDatePart = String(data.fechaHoraAtencion).slice(0, 10);
+        if (fechaHoraDatePart < data.fechaSolicitudComida) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['fechaHoraAtencion'],
+            message: 'La fecha/hora de la atención debe ser el mismo día o posterior a la fecha de solicitud.',
+          });
+        }
+        // Validar que la hora esté en incrementos de 15 minutos
+        const parsedDate = new Date(String(data.fechaHoraAtencion));
+        if (!Number.isNaN(parsedDate.getTime())) {
+          const minutes = parsedDate.getMinutes();
+          if (minutes % 15 !== 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['fechaHoraAtencion'],
+              message: 'La hora debe seleccionarse en intervalos de 15 minutos.',
+            });
+          }
+        }
+      } catch (err) {
+        // ignore
+      }
+    });
+
   const form = useForm<AtencionFormValues>({
-    resolver: zodResolver(
-      ActualizarAtencionPayloadSchema.omit({ id: true }).extend({
-        estado: ActualizarAtencionPayloadSchema.shape.estado.default('pendiente'),
-      }),
-    ),
+    resolver: zodResolver(resolverSchema),
     defaultValues: initialValues,
   });
 
@@ -231,7 +326,12 @@ export function AtencionDetailForm({
                 <FormItem>
                   <FormLabel>Fecha y hora atencion</FormLabel>
                   <FormControl>
-                    <Input type="datetime-local" {...field} />
+                    <Input
+                      type="datetime-local"
+                      step={900}
+                      value={field.value || ''}
+                      onChange={(e) => field.onChange(roundDateTimeTo15((e as any).target.value))}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -270,11 +370,7 @@ export function AtencionDetailForm({
                 <FormItem>
                   <FormLabel>Centro de costo</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="centro-costo"
-                      value={field.value || ''}
-                      onChange={field.onChange}
-                    />
+                    <CentrosSelect residenciaId={residenciaId} value={field.value} onChange={field.onChange} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -337,3 +433,6 @@ export function AtencionDetailForm({
       </Form>
     );
   }
+
+ 
+ 

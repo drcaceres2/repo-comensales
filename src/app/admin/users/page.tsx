@@ -36,6 +36,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, AlertCircle } from 'lucide-react';
+import { urlAccesoNoAutorizado } from '@/lib/utils';
 
 // --- Firebase & New Auth Hook Imports ---
 import { 
@@ -420,7 +421,7 @@ function UserManagementPage(): JSX.Element | null {
 
         } else {
             toast({ title: "Acceso Denegado", description: "No tienes los permisos (admin/master) para acceder a esta página.", variant: "destructive" });
-            router.replace('/');
+            router.replace(urlAccesoNoAutorizado("No tienes los permisos (admin/master) para acceder a esta página."));
         }
     }, [usuarioId, adminRoles, adminResidenciaId, fetchResidences, fetchUsersToManage, fetchResidenciaData, toast, router]);
 
@@ -773,7 +774,7 @@ function UserManagementPage(): JSX.Element | null {
                 <p className="mb-4 text-muted-foreground max-w-md">
                     No tienes los permisos necesarios (administrador o master) para acceder a esta página.
                 </p>
-                <Button onClick={() => router.replace('/')}>Volver al Inicio</Button>
+                <Button onClick={() => router.replace(urlAccesoNoAutorizado("No tienes los permisos (admin/master) para acceder a esta página."))}>Volver al Inicio</Button>
             </div>
         );
     }

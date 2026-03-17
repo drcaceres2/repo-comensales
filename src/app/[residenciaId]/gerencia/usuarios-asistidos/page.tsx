@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { ResultadoAcceso, verificarPermisoGestionWrapper } from '@/lib/acceso-privilegiado';
 import { GestionAsistidosClient } from './components/GestionAsistidosClient';
 import { obtenerInfoUsuarioServer } from "@/lib/obtenerInfoUsuarioServer";
+import {urlAccesoNoAutorizado} from "@/lib/utils";
 
 export default async function UsuariosAsistidosPage() {
   
@@ -24,7 +25,8 @@ export default async function UsuariosAsistidosPage() {
   }
 
   if (!resultado.tieneAcceso) {
-    redirect('/acceso-no-autorizado');
+    const mensaje = resultado.mensaje ?? "Hubo un error en obtener el mensaje de error (actividades:VerificarPermisoGestionWrapper).";
+    redirect(urlAccesoNoAutorizado(mensaje));
   }
 
   // Verificación de seguridad adicional: el usuario debe tener un residenciaId en su sesión.

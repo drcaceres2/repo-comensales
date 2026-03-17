@@ -33,6 +33,78 @@ interface InviteJwtPayload {
   v: number;
 }
 
+function resolveCallablePayload<T>(request: CallableRequest<unknown>): T | null {
+  const directData = request.data as T | null | undefined;
+  if (directData !== null && directData !== undefined) {
+    return directData;
+  }
+
+  const rawBody = (request as any)?.rawRequest?.body;
+  if (rawBody && typeof rawBody === 'object') {
+    const nestedData = (rawBody as any).data as T | null | undefined;
+    if (nestedData !== null && nestedData !== undefined) {
+      return nestedData;
+    }
+  }
+
+  return null;
+}
+
+function describeValueType(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return `array(${value.length})`;
+  return typeof value;
+}
+
+function summarizeCreateInvitePayload(payload: unknown): Record<string, unknown> {
+  const p = payload as Record<string, unknown> | null;
+  const profile = (p?.profileData ?? null) as Record<string, unknown> | null;
+
+  return {
+    payloadType: describeValueType(payload),
+    payloadKeys: p && typeof p === 'object' ? Object.keys(p) : [],
+    profileDataType: describeValueType(p?.profileData),
+    profileDataKeys: profile && typeof profile === 'object' ? Object.keys(profile) : [],
+    rolesType: describeValueType(profile?.roles),
+    rolesCount: Array.isArray(profile?.roles) ? profile.roles.length : null,
+    residenciaIdType: describeValueType(profile?.residenciaId),
+    emailType: describeValueType(profile?.email),
+    tieneAutenticacionType: describeValueType(profile?.tieneAutenticacion),
+    asistenteType: describeValueType(profile?.asistente),
+    residenteType: describeValueType(profile?.residente),
+  };
+}
+
+function normalizeCreateInvitePayload(payload: unknown): unknown {
+  if (!payload || typeof payload !== 'object') {
+    return payload;
+  }
+
+  const payloadObj = payload as Record<string, unknown>;
+  const profileDataRaw = payloadObj.profileData;
+  if (!profileDataRaw || typeof profileDataRaw !== 'object') {
+    return payload;
+  }
+
+  const profileData = { ...(profileDataRaw as Record<string, unknown>) };
+  const roles = Array.isArray(profileData.roles)
+    ? (profileData.roles.filter((role): role is string => typeof role === 'string'))
+    : [];
+
+  if (profileData.asistente === null && !roles.includes('asistente')) {
+    delete profileData.asistente;
+  }
+
+  if (profileData.residente === null && !roles.includes('residente')) {
+    delete profileData.residente;
+  }
+
+  return {
+    ...payloadObj,
+    profileData,
+  };
+}
+
 function getInviteJwtSecret(): string {
   const secret = process.env.INVITE_JWT_SECRET;
   if (secret) {
@@ -236,10 +308,49 @@ export const crearUsuarioInvitacion = onCall(
       throw new HttpsError('permission-denied', 'Solo usuarios admin pueden crear invitaciones.');
     }
 
-    const parsed = CrearUsuarioInvitacionPayloadSchema.safeParse(request.data);
+    const payload = resolveCallablePayload<CrearUsuarioInvitacionPayload>(request);
+    const rawBody = (request as any)?.rawRequest?.body;
+    functions.logger.debug('crearUsuarioInvitacion payload diagnostics', {
+      hasRequestData: request.data !== null && request.data !== undefined,
+      requestDataType: describeValueType(request.data),
+      hasRawBodyData: Boolean(rawBody?.data),
+      rawBodyType: describeValueType(rawBody),
+      rawBodyKeys: rawBody && typeof rawBody === 'object' ? Object.keys(rawBody) : [],
+      hasProfileData: Boolean((payload as any)?.profileData),
+      payloadSummary: summarizeCreateInvitePayload(payload),
+      authUid: callerInfo.uid,
+    });
+
+    const normalizedPayload = normalizeCreateInvitePayload(payload);
+    functions.logger.debug('crearUsuarioInvitacion payload normalized diagnostics', {
+      authUid: callerInfo.uid,
+      payloadSummaryBefore: summarizeCreateInvitePayload(payload),
+      payloadSummaryAfter: summarizeCreateInvitePayload(normalizedPayload),
+    });
+
+    const parsed = CrearUsuarioInvitacionPayloadSchema.safeParse(normalizedPayload);
     if (!parsed.success) {
-      throw new HttpsError('invalid-argument', parsed.error.flatten().formErrors.join('; ') || 'Payload invalido.');
+      const flattened = parsed.error.flatten();
+      const fieldErrors = Object.entries(flattened.fieldErrors)
+        .map(([field, messages]) => `${field}: ${(messages || []).join(', ')}`)
+        .join(' | ');
+      const message = fieldErrors || flattened.formErrors.join('; ') || 'Payload invalido.';
+      functions.logger.error('crearUsuarioInvitacion validation failed', {
+        authUid: callerInfo.uid,
+        message,
+        flattenFormErrors: flattened.formErrors,
+        flattenFieldErrors: flattened.fieldErrors,
+        payloadSummary: summarizeCreateInvitePayload(normalizedPayload),
+      });
+      throw new HttpsError('invalid-argument', message);
     }
+
+    functions.logger.info('crearUsuarioInvitacion validation passed', {
+      authUid: callerInfo.uid,
+      residenciaId: parsed.data.profileData.residenciaId,
+      rolesCount: parsed.data.profileData.roles.length,
+      tieneAutenticacion: parsed.data.profileData.tieneAutenticacion,
+    });
 
     const validatedProfile = parsed.data.profileData;
     const callerResidenciaId = callerInfo.profile?.residenciaId || null;
@@ -382,7 +493,8 @@ export const reenviarInvitacion = onCall(
       throw new HttpsError('permission-denied', 'No tienes permisos para reenviar invitaciones.');
     }
 
-    const parsed = ReenviarInvitacionPayloadSchema.safeParse(request.data);
+    const payload = resolveCallablePayload<ReenviarInvitacionPayload>(request);
+    const parsed = ReenviarInvitacionPayloadSchema.safeParse(payload);
     if (!parsed.success) {
       throw new HttpsError('invalid-argument', 'uid es obligatorio.');
     }

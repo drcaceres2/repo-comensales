@@ -13,6 +13,7 @@ import { obtenerInfoUsuarioServer } from "@/lib/obtenerInfoUsuarioServer";
 import { verificarPermisoGestionWrapper } from "@/lib/acceso-privilegiado";
 import { MatrizAsignacionClient } from "./components/MatrizAsignacionClient";
 import { UsuarioMatrizRow } from "./components/FilaUsuario";
+import {urlAccesoNoAutorizado} from "@/lib/utils";
 
 interface AsignarGruposUsuariosMatrizPageProps {
   params: Promise<{ residenciaId: string }>;
@@ -25,12 +26,13 @@ export default async function AsignarGruposUsuariosMatrizPage({
   const usuarioSesion = await obtenerInfoUsuarioServer();
 
   if (!usuarioSesion.usuarioId || !usuarioSesion.email) {
-    redirect("/acceso-no-autorizado");
+    redirect(urlAccesoNoAutorizado("Problemas con la sesión del usuario."));
   }
 
   const permiso = await verificarPermisoGestionWrapper("gestionGrupos");
   if (!permiso.tieneAcceso) {
-    redirect("/acceso-no-autorizado");
+    const mensaje = permiso.mensaje ?? "Hubo un error en obtener el mensaje de error (actividades:VerificarPermisoGestionWrapper).";
+    redirect(urlAccesoNoAutorizado(mensaje));
   }
 
   const [usuariosSnap, configSnap] = await Promise.all([

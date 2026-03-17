@@ -54,26 +54,27 @@ function LayoutFooter() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { state: sidebarState, isMobile } = useSidebar();
 
-  const mainContentMarginClass = !isMobile
-    ? sidebarState === 'expanded'
-      ? 'md:ml-64'
-      : 'md:ml-12'
-    : '';
+  // Determina el ancho de la barra lateral: w-full en móviles, ancho fijo en md
+  const sidebarWidthClass = isMobile
+    ? 'w-full'
+    : sidebarState === 'expanded'
+      ? 'md:w-64'
+      : 'md:w-12';
 
   return (
-    <>
-      <Navigation />
-      <div
-        className={`flex-1 flex flex-col min-h-0 min-w-0 ${mainContentMarginClass}`}
-      >
+    <div className="flex-1 flex flex-col md:flex-row min-h-0 w-full">
+      <div className={`${sidebarWidthClass}`}>
+        <Navigation />
+      </div>
+      <div className="flex-1 flex flex-col min-h-0 min-w-0">
         <LayoutHeader />
         <main className="flex-1 flex flex-col overflow-y-auto overflow-x-auto bg-background">
-          <div className="flex-grow p-2 md:p-6">
+          <div className="flex flex-1 p-2 md:p-6">
             {children}
           </div>
         </main>
         <LayoutFooter />
       </div>
-    </>
+    </div>
   );
 }

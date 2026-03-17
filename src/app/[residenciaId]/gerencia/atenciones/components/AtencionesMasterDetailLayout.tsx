@@ -217,6 +217,7 @@ export function AtencionesMasterDetailLayout({
                 saving={crearMutation.isPending || actualizarMutation.isPending}
                 deleting={eliminarMutation.isPending}
                 onCancel={() => setSheetOpen(false)}
+                residenciaId={residenciaId}
               />
             </div>
           </div>

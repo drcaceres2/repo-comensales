@@ -20,6 +20,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from '@/lib/firebase';
 import { useInfoUsuario } from '@/components/layout/AppProviders';
 import { ResidenciaId, RolUsuario } from 'shared/models/types';
+import {urlAccesoNoAutorizado} from "@/lib/utils";
 
 const LOGO_URL = "https://firebasestorage.googleapis.com/v0/b/comensales-residencia.firebasestorage.app/o/public%2Flogo_web_app_1024x1024.jpg?alt=media&token=3d7a3f7c-71a1-403a-b858-bd0ec567dd10";
 
@@ -32,12 +33,12 @@ const redirectToDashboard = (residenciaId: ResidenciaId, roles: RolUsuario[], ro
         else if (roles.includes('director' as RolUsuario)) router.push(`/${residenciaId}/solicitar-comensales`);
         else if (roles.includes('residente' as RolUsuario)) router.push(`/${residenciaId}/elegir-horarios-comida`);
         else if (roles.includes('invitado' as RolUsuario)) router.push(`/${residenciaId}/bienvenida-invitados`);
-        else if (roles.includes('asistente' as RolUsuario)) router.push(`/${residenciaId}/elecciones-invitados`);
+        else if (roles.includes('asistente' as RolUsuario)) router.push(`/${residenciaId}/elegir-horarios-comida`);
         else if (roles.includes('contador' as RolUsuario)) router.push(`/${residenciaId}/contabilidad/reporte-costos`);
         else router.push(`/`);
     } else {
       console.warn("LOGIN: User logged in but has undefined role/residenciaId or unknown role combination:", roles);
-      router.push('/acceso-no-autorizado?mensaje=Perfil%20incompleto%20o%20rol%20no%20reconocido.');
+      router.push(urlAccesoNoAutorizado("Perfil incompleto o rol no reconocido."));
     }
 };
 
@@ -118,7 +119,7 @@ export default function LoginPage() {
             errorMessage = "El formato del correo electrónico no es válido.";
             break;
           case 'auth/user-disabled':
-            errorMessage = "Esta cuenta ha sido deshabilitada.";
+            errorMessage = "Esta cuenta no ha sido activada todavía o ha sido deshabilitada.";
             break;
           case 'auth/too-many-requests':
               errorMessage = "Acceso bloqueado temporalmente debido a demasiados intentos fallidos. Intenta más tarde.";
@@ -149,8 +150,8 @@ export default function LoginPage() {
   if (!usuario) {
     console.log("LOGIN: User is not authenticated, rendering login form.");
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 px-4">
-        <Card className="w-full max-w-sm">
+      <div className="flex flex-1 items-center justify-center bg-gray-100 dark:bg-gray-900 px-4 py-4">
+        <Card className="w-full max-w-sm mx-auto">
           <CardHeader className="text-center">
             {LOGO_URL && (
               <Image

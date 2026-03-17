@@ -7,9 +7,9 @@ interface AccesoNoAutorizadoPageProps {
 }
 
 export default async function AccesoNoAutorizadoPage({ searchParams }: AccesoNoAutorizadoPageProps) {
-  // In a Server Component, searchParams can be accessed directly.
-  // The 'mensaje' will be passed to the Client Component.
-  const customMessage = await searchParams?.mensaje;
+  // `searchParams` can be a Promise in the current Next.js runtime.
+  const resolvedParams = await (searchParams as unknown as Promise<AccesoNoAutorizadoPageProps['searchParams']> | AccesoNoAutorizadoPageProps['searchParams']);
+  const customMessage = resolvedParams?.mensaje;
 
   return <AccesoNoAutorizadoClient mensaje={customMessage} />;
 }

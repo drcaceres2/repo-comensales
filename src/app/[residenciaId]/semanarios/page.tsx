@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import { SemanarioContainer } from './components/SemanarioContainer';
+import { urlAccesoNoAutorizado } from "@/lib/utils";
 
 export default async function SemanariosPage({
   params,
@@ -9,20 +10,15 @@ export default async function SemanariosPage({
 }) {
   const [{ residenciaId }, sesion] = await Promise.all([params, obtenerInfoUsuarioServer()]);
 
-  if (!sesion.usuarioId) {
-    redirect('/login');
-  }
-
-  if (sesion.residenciaId !== residenciaId) {
-    redirect('/acceso-no-autorizado');
-  }
-
   const rolesValidos = ['residente', 'invitado', 'asistente', 'director'];
   const tieneAcceso = sesion.roles.some((role) => rolesValidos.includes(role));
   const tieneRolRestringido = sesion.roles.includes('master') || sesion.roles.includes('admin');
 
+  if (!sesion.usuarioId || sesion.residenciaId !== residenciaId) {
+    redirect(urlAccesoNoAutorizado("Problemas con la sesión del usuario."));
+  }
   if (!tieneAcceso || tieneRolRestringido) {
-    redirect('/acceso-no-autorizado');
+    redirect(urlAccesoNoAutorizado("Tu perfil de usuario no tiene acceso a la página de semanarios."));
   }
 
   return (

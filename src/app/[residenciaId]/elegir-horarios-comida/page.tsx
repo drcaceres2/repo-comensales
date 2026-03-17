@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { format } from 'date-fns';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import { VistaHorariosCliente } from '@/app/[residenciaId]/elegir-horarios-comida/_components/VistaHorariosCliente';
+import {urlAccesoNoAutorizado} from "@/lib/utils";
 
 export default async function ElegirHorariosPage({
   params,
@@ -18,7 +19,7 @@ export default async function ElegirHorariosPage({
   }
 
   if (sesion.residenciaId !== residenciaRuta) {
-    redirect('/acceso-no-autorizado');
+    redirect(urlAccesoNoAutorizado("Parece que no hay sesión de usuario."));
   }
 
   const fechaInicial = format(new Date(), 'yyyy-MM-dd');

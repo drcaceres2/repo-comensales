@@ -2,6 +2,7 @@ import { type RolUsuario } from 'shared/models/types';
 import { type Usuario, type AsistentePermisos } from 'shared/schemas/usuarios';
 import { EntreFechasResidencia } from "shared/utils/commonUtils";
 import { type UsuarioId } from 'shared/models/types';
+import { type ZonaHorariaIana } from 'shared/schemas/fechas';
 import { obtenerInfoUsuarioServer } from "@/lib/obtenerInfoUsuarioServer";
 import { db, Timestamp } from '@/lib/firebaseAdmin';
 
@@ -11,6 +12,7 @@ export type LlavePermisoGestion = keyof Omit<AsistentePermisos, 'usuariosAsistid
 export interface ResultadoAcceso {
     tieneAcceso: boolean;
     nivelAcceso: 'Todas' | 'Propias' | 'Ninguna';
+    mensaje: string | null;
     error: string | null;
 }
 
@@ -27,6 +29,19 @@ export async function verificarPermisoGestionWrapper(llavePermiso: LlavePermisoG
         roles: roles,
         residenciaId: residenciaIdAuth,
     };
+    // Si no recibimos zona horaria desde los headers/token, intentamos obtenerla desde la residencia en la BD.
+    let zonaHorariaFinal: string | null | undefined = zonaHoraria;
+    if (!zonaHorariaFinal && residenciaIdAuth) {
+        try {
+            const residenciaDoc = await db.collection('residencias').doc(residenciaIdAuth).get();
+            if (residenciaDoc.exists) {
+                const residenciaData = residenciaDoc.data() as any;
+                zonaHorariaFinal = residenciaData?.ubicacion?.zonaHoraria || zonaHorariaFinal;
+            }
+        } catch (err) {
+            console.warn('acceso-privilegiado: no se pudo obtener zona horaria desde la residencia:', err);
+        }
+    }
 
     if (roles.includes('asistente')) {
         try {
@@ -37,7 +52,12 @@ export async function verificarPermisoGestionWrapper(llavePermiso: LlavePermisoG
             }
         } catch (error) {
             console.error("acceso-privilegiado.ts (verificarPermisoGestionWrapper): Error en la consulta de usuario asistente.", error);
-            return { tieneAcceso: false, nivelAcceso: 'Ninguna', error: 'Error en la consulta de datos del asistente.' };
+            return {
+                tieneAcceso: false,
+                mensaje: 'Error en la consulta de datos del asistente.',
+                nivelAcceso: 'Ninguna',
+                error: 'Error en la consulta de datos del asistente.'
+            };
         }
     }
 
@@ -47,7 +67,7 @@ export async function verificarPermisoGestionWrapper(llavePermiso: LlavePermisoG
         usuario,
         residenciaIdAuth,
         llavePermiso,
-        zonaHoraria,
+        zonaHorariaFinal,
         timestampServidor
     );
 }
@@ -67,7 +87,7 @@ export async function verificarPermisoGestion(
     usuario: Partial<Usuario>,
     residenciaIdAuth: string,
     llavePermiso: LlavePermisoGestion,
-    zonaHoraria: string,
+    zonaHoraria: ZonaHorariaIana | null | undefined,
     timestampServidor: any
 ): Promise<ResultadoAcceso> {
     const roles = usuario.roles || [];
@@ -77,40 +97,51 @@ export async function verificarPermisoGestion(
 
     // Rol 'master' tiene acceso universal.
     if (roles.includes('master')) {
-        return { tieneAcceso: true, nivelAcceso: 'Todas', error: null };
+        return {
+            tieneAcceso: true,
+            mensaje: null,
+            nivelAcceso: 'Todas',
+            error: null };
     }
 
     // Roles privilegiados ('admin', 'director') tienen acceso si pertenecen a la residencia.
     if (roles.some(r => rolesPrivilegiados.includes(r)) && usuario.residenciaId === residenciaIdAuth) {
-        return { tieneAcceso: true, nivelAcceso: 'Todas', error: null };
+        return { tieneAcceso: true, mensaje: null, nivelAcceso: 'Todas', error: null };
     }
 
     // Lógica para rol 'asistente'
     if (roles.includes('asistente') && usuario.asistente && usuario.residenciaId === residenciaIdAuth) {
         const permisoAsistente = usuario.asistente[llavePermiso];
 
-        if (permisoAsistente && permisoAsistente.nivelAcceso !== 'Ninguna') {
-            // Si no hay restricción de tiempo, el permiso es permanente.
-            if (!permisoAsistente.restriccionTiempo) {
-                return { tieneAcceso: true, nivelAcceso: permisoAsistente.nivelAcceso, error: null };
-            }
+        if (permisoAsistente){
+            if (permisoAsistente.nivelAcceso !== 'Ninguna') {
+                // Si no hay restricción de tiempo, el permiso es permanente.
+                if (!permisoAsistente.restriccionTiempo) {
+                    return {tieneAcceso: true, mensaje: null, nivelAcceso: permisoAsistente.nivelAcceso, error: null};
+                }
 
-            // Si hay restricción, se validan las fechas.
-            const estaEnPlazo = EntreFechasResidencia(
-                permisoAsistente.fechaInicio,
-                permisoAsistente.fechaFin,
-                zonaHoraria,
-                timestampServidor
-            ) === 'dentro';
+                // Si hay restricción, se validan las fechas.
+                const resultadoIntervalo = EntreFechasResidencia(
+                    permisoAsistente.fechaInicio,
+                    permisoAsistente.fechaFin,
+                    zonaHoraria,
+                    timestampServidor
+                );
 
-            if (estaEnPlazo) {
-                return { tieneAcceso: true, nivelAcceso: permisoAsistente.nivelAcceso, error: null };
+                const estaEnPlazo = resultadoIntervalo === 'dentro';
+
+                if (estaEnPlazo) {
+                    return {tieneAcceso: true, mensaje: null, nivelAcceso: permisoAsistente.nivelAcceso, error: null};
+                }
+            } else {
+                return {tieneAcceso: false, mensaje: 'Tu perfil de asistente no tiene este permiso.', nivelAcceso: permisoAsistente.nivelAcceso, error: null};
             }
         }
+
     }
 
     // Acceso denegado por defecto
-    return { tieneAcceso: false, nivelAcceso: 'Ninguna', error: "Acceso denegado por defecto." };
+    return { tieneAcceso: false, mensaje: "Acceso denegado por defecto.", nivelAcceso: 'Ninguna', error: "Acceso denegado por defecto." };
 }
 
 
@@ -127,24 +158,39 @@ export async function verificarPermisoGestion(
 export async function verificarPermisoUsuarioAsistido(
     usuarioAsistente: Usuario,
     idUsuarioAsistido: UsuarioId,
-    zonaHoraria: string,
+    zonaHoraria: ZonaHorariaIana | null | undefined,
     timestampServidor: any
 ): Promise<ResultadoAcceso> {
     // Solo aplica a asistentes con la configuración correcta
     if (!usuarioAsistente.roles.includes('asistente') || !usuarioAsistente.asistente?.usuariosAsistidos) {
-        return { tieneAcceso: false, nivelAcceso: 'Ninguna', error: null };
+        return {
+            tieneAcceso: false,
+            mensaje: 'Verificación Usuarios asistidos: No es un usuario con rol asistente.',
+            nivelAcceso: 'Ninguna',
+            error: null
+        };
     }
 
     const detallesPermiso = usuarioAsistente.asistente.usuariosAsistidos[idUsuarioAsistido];
 
     // Si no hay una entrada de permiso para ese usuario, no hay acceso.
     if (!detallesPermiso || detallesPermiso.nivelAcceso === 'Ninguna') {
-        return { tieneAcceso: false, nivelAcceso: 'Ninguna', error: null };
+        return {
+            tieneAcceso: false,
+            mensaje: 'Tu usuario con rol asistente no tiene permisos para este usuario.',
+            nivelAcceso: 'Ninguna',
+            error: null
+        };
     }
 
     // Si no hay restricción de tiempo, el permiso es permanente.
     if (!detallesPermiso.restriccionTiempo) {
-        return { tieneAcceso: true, nivelAcceso: detallesPermiso.nivelAcceso, error: null };
+        return {
+            tieneAcceso: true,
+            mensaje: null,
+            nivelAcceso: detallesPermiso.nivelAcceso,
+            error: null
+        };
     }
 
     // Si hay restricción, se validan las fechas.
@@ -156,8 +202,17 @@ export async function verificarPermisoUsuarioAsistido(
     ) === 'dentro';
 
     return estaEnPlazo 
-      ? { tieneAcceso: true, nivelAcceso: detallesPermiso.nivelAcceso, error: null }
-      : { tieneAcceso: false, nivelAcceso: 'Ninguna', error: null };
+      ? {
+        tieneAcceso: true,
+        mensaje: null,
+        nivelAcceso: detallesPermiso.nivelAcceso,
+        error: null
+      } : {
+        tieneAcceso: false,
+        mensaje: `Permisos de asistente fuera de las fechas (desde ${detallesPermiso.fechaInicio} hasta ${detallesPermiso.fechaFin})`,
+        nivelAcceso: 'Ninguna',
+        error: null
+      };
 }
 
 /**
@@ -173,7 +228,8 @@ export function verificarPermisoEleccionesOtros(
 ): ResultadoAcceso {
     if (!usuario || !usuario.id || !usuario.roles) {
         return { 
-            tieneAcceso: false, 
+            tieneAcceso: false,
+            mensaje: 'Usuario inválido',
             nivelAcceso: 'Ninguna', 
             error: "Usuario no válido" 
         };
@@ -181,7 +237,8 @@ export function verificarPermisoEleccionesOtros(
 
     if (usuario.roles.includes('director')) {
         return { 
-            tieneAcceso: true, 
+            tieneAcceso: true,
+            mensaje: null,
             nivelAcceso: 'Todas', 
             error: null 
         };
@@ -192,11 +249,25 @@ export function verificarPermisoEleccionesOtros(
 
         if (cantidadUsuariosAsistidos > 0) {
             return { 
-                tieneAcceso: true, 
+                tieneAcceso: true,
+                mensaje: null,
                 nivelAcceso: 'Propias', 
-                error: null };
+                error: null
+            };
+        } else {
+            return {
+                tieneAcceso: false,
+                mensaje: 'Tu perfil de asistente no tiene permisos de asistencia de usuarios.',
+                nivelAcceso: 'Propias',
+                error: null
+            };
         }
     }
 
-    return { tieneAcceso: false, nivelAcceso: 'Ninguna', error: null };
+    return {
+        tieneAcceso: false,
+        mensaje: '',
+        nivelAcceso: 'Ninguna',
+        error: null
+    };
 }

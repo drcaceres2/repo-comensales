@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { ResultadoAcceso, verificarPermisoGestionWrapper } from '@/lib/acceso-privilegiado';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import { GestionRecordatoriosClient } from './components/GestionRecordatoriosClient';
+import {urlAccesoNoAutorizado} from "@/lib/utils";
 
 export default async function PaginaGestionRecordatorios() {
     // validación de permisos en el servidor
@@ -24,7 +25,8 @@ export default async function PaginaGestionRecordatorios() {
     }
 
     if (!resultado.tieneAcceso) {
-        redirect('/acceso-no-autorizado');
+        const mensaje = resultado.mensaje ?? "Hubo un error en obtener el mensaje de error (actividades:VerificarPermisoGestionWrapper).";
+        redirect(urlAccesoNoAutorizado(mensaje));
     }
 
     const usuarioSesion = await obtenerInfoUsuarioServer();

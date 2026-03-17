@@ -51,6 +51,35 @@ export const CrearAtencionPayloadSchema = AtencionSchema.omit({
   timestampCreacion: true,
   estado: true,
   avisoAdministracion: true,
+}).superRefine((data, ctx) => {
+  // 1) fechaSolicitudComida debe ser hoy o futuro
+  try {
+    const now = new Date();
+    const localToday = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 10);
+
+    if (data.fechaSolicitudComida < localToday) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['fechaSolicitudComida'],
+        message: 'La fecha de solicitud debe ser hoy o una fecha futura.',
+      });
+    }
+
+    // 2) fechaHoraAtencion (solo fecha parte) >= fechaSolicitudComida
+    // FechaHoraIsoSchema normaliza fechas a formato 'YYYY-MM-DDTHH:mm:ss' cuando viene solo YYYY-MM-DD
+    const fechaHoraDatePart = String(data.fechaHoraAtencion).slice(0, 10);
+    if (fechaHoraDatePart < data.fechaSolicitudComida) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['fechaHoraAtencion'],
+        message: 'La fecha/hora de la atención debe ser el mismo día o posterior a la fecha de solicitud.',
+      });
+    }
+  } catch (err) {
+    // No detener el flujo de validación por errores inesperados en la comprobación
+  }
 });
 
 export const ActualizarAtencionPayloadSchema = z
@@ -63,7 +92,34 @@ export const ActualizarAtencionPayloadSchema = z
     centroCostoId: OptionalSlugIdSchema,
     estado: AtencionEstadoSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    try {
+      const now = new Date();
+      const localToday = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 10);
+
+      if (data.fechaSolicitudComida < localToday) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['fechaSolicitudComida'],
+          message: 'La fecha de solicitud debe ser hoy o una fecha futura.',
+        });
+      }
+
+      const fechaHoraDatePart = String(data.fechaHoraAtencion).slice(0, 10);
+      if (fechaHoraDatePart < data.fechaSolicitudComida) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['fechaHoraAtencion'],
+          message: 'La fecha/hora de la atención debe ser el mismo día o posterior a la fecha de solicitud.',
+        });
+      }
+    } catch (err) {
+      // ignore
+    }
+  });
 
 export const CambiarEstadoAtencionPayloadSchema = z
   .object({

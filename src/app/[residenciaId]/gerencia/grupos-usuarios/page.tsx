@@ -3,16 +3,13 @@ import { redirect } from "next/navigation";
 import { obtenerInfoUsuarioServer } from "@/lib/obtenerInfoUsuarioServer";
 import { GruposUsuariosManager } from "./components/GruposUsuariosManager";
 import { verificarPermisoGestionWrapper } from "@/lib/acceso-privilegiado";
+import { urlAccesoNoAutorizado } from "@/lib/utils";
 
-interface AdminGruposUsuariosPageProps {
-  params: Promise<{ residenciaId: string; email: string; }>;
-}
-
-export default async function AdminGruposUsuariosPage({ params }: AdminGruposUsuariosPageProps) {
+export default async function AdminGruposUsuariosPage() {
   const usuarioSesion = await obtenerInfoUsuarioServer();
 
   if (!usuarioSesion.usuarioId || !usuarioSesion.email) {
-    redirect("/acceso-no-autorizado");
+    redirect(urlAccesoNoAutorizado("Problemas con la sesión del usuario."));
   }
   if (!usuarioSesion.residenciaId) {
     return <div className="text-red-500">Sesión inválida: falta residenciaId.</div>;
@@ -20,11 +17,12 @@ export default async function AdminGruposUsuariosPage({ params }: AdminGruposUsu
 
   const permiso = await verificarPermisoGestionWrapper("gestionGrupos");
 
-  if(permiso.tieneAcceso === false){
-    redirect("/acceso-no-autorizado");
-  }
   if(permiso.error) {
     return <div className="text-red-500">Error al verificar permisos: {permiso.error}</div>;
+  }
+  if(!permiso.tieneAcceso){
+    const mensaje = permiso.mensaje ?? "Hubo un error en obtener el mensaje de error (actividades:VerificarPermisoGestionWrapper).";
+    redirect(urlAccesoNoAutorizado(mensaje));
   }
 
   return (

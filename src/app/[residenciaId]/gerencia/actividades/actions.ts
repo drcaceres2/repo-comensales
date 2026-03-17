@@ -27,7 +27,8 @@ export type EstadoInscripcionGestion =
     | 'invitacion_pendiente'
     | 'confirmada'
     | 'rechazada'
-    | 'cancelada';
+    | 'cancelada_por_usuario'
+    | 'cancelada_por_organizador';
 
 export type ActividadGestion = {
     id: string;
@@ -37,6 +38,9 @@ export type ActividadGestion = {
     descripcion?: string;
     lugar?: string;
     estado: EstadoActividadGestion;
+    visibilidad: 'publica' | 'oculta';
+    tipoAcceso: 'abierta' | 'solo_invitacion';
+    permiteInvitadosExternos: boolean;
     fechaInicio: string;
     tiempoComidaInicioId: string;
     fechaFin: string;
@@ -45,6 +49,7 @@ export type ActividadGestion = {
     solicitudAdministracion: 'ninguna' | 'solicitud_unica' | 'diario';
     maxParticipantes: number;
     conteoInscritos: number;
+    adicionalesNoNominales: number;
 };
 
 export type InscripcionGestion = {
@@ -79,6 +84,9 @@ const ActividadCrearSchema = z.object({
     titulo: z.string().min(3),
     descripcion: z.string().optional(),
     lugar: z.string().optional(),
+    visibilidad: z.enum(['publica', 'oculta']).default('publica'),
+    tipoAcceso: z.enum(['abierta', 'solo_invitacion']).default('abierta'),
+    permiteInvitadosExternos: z.boolean().default(false),
     fechaInicio: z.string(),
     tiempoComidaInicioId: z.string().min(1),
     fechaFin: z.string(),
@@ -86,6 +94,7 @@ const ActividadCrearSchema = z.object({
     centroCostoId: z.string().nullable().optional(),
     solicitudAdministracion: z.enum(['ninguna', 'solicitud_unica', 'diario']).default('solicitud_unica'),
     maxParticipantes: z.number().int().positive(),
+    adicionalesNoNominales: z.number().int().nonnegative().default(0),
 });
 
 const ActividadActualizarSchema = ActividadCrearSchema.partial();
@@ -129,8 +138,16 @@ function normalizarEstadoInscripcion(data: Record<string, unknown>): EstadoInscr
         case 'rechazada':
         case 'invitado_rechazado':
             return 'rechazada';
+        case 'cancelada_por_organizador':
+        case 'cancelado_admin':
+            return 'cancelada_por_organizador';
+        case 'cancelada_por_usuario':
+        case 'cancelado_usuario':
+            return 'cancelada_por_usuario';
+        case 'cancelada':
+            return 'cancelada_por_organizador';
         default:
-            return 'cancelada';
+            return 'cancelada_por_usuario';
     }
 }
 
@@ -153,7 +170,14 @@ function normalizarActividadDoc(docId: string, data: Record<string, unknown>, re
             ? data.tiempoComidaFinal
             : '';
 
-    const solicitud = typeof data.solicitudAdministracion === 'string' ? data.solicitudAdministracion : data.tipoSolicitudComidas;
+    const solicitud = typeof data.solicitudAdministracion === 'string' ? data.solicitudAdministracion : 'solicitud_unica';
+    const visibilidad = data.visibilidad === 'oculta' ? 'oculta' : 'publica';
+    const tipoAcceso = data.tipoAcceso === 'solo_invitacion' ? 'solo_invitacion' : 'abierta';
+    const permiteInvitadosExternos = data.permiteInvitadosExternos === true;
+    const adicionalesNoNominales =
+        typeof data.adicionalesNoNominales === 'number' && data.adicionalesNoNominales >= 0
+            ? data.adicionalesNoNominales
+            : 0;
 
     return {
         id: docId,
@@ -163,6 +187,9 @@ function normalizarActividadDoc(docId: string, data: Record<string, unknown>, re
         descripcion: typeof data.descripcion === 'string' ? data.descripcion : undefined,
         lugar: typeof data.lugar === 'string' ? data.lugar : undefined,
         estado: normalizarEstadoActividad(typeof data.estado === 'string' ? data.estado : undefined),
+        visibilidad,
+        tipoAcceso,
+        permiteInvitadosExternos,
         fechaInicio: typeof data.fechaInicio === 'string' ? data.fechaInicio : '',
         tiempoComidaInicioId: tiempoInicio,
         fechaFin: typeof data.fechaFin === 'string' ? data.fechaFin : '',
@@ -174,6 +201,7 @@ function normalizarActividadDoc(docId: string, data: Record<string, unknown>, re
                 : 'solicitud_unica',
         maxParticipantes: typeof data.maxParticipantes === 'number' ? data.maxParticipantes : 1,
         conteoInscritos: typeof data.conteoInscritos === 'number' ? data.conteoInscritos : 0,
+        adicionalesNoNominales,
     };
 }
 
@@ -348,13 +376,6 @@ async function purgarInscripcionesYAuditar(
     });
 }
 
-function mapSolicitudToLegacy(solicitud: 'ninguna' | 'solicitud_unica' | 'diario') {
-    if (solicitud === 'diario') {
-        return 'solicitud_diaria';
-    }
-    return solicitud;
-}
-
 export async function obtenerDatosInicialesGestionActividades(residenciaId: ResidenciaId) {
     try {
         const resultadoContexto = await validarContextoActividades(residenciaId);
@@ -430,6 +451,15 @@ export async function obtenerDatosInicialesGestionActividades(residenciaId: Resi
             conteoInscritos: conteosConfirmados.get(actividad.id) || 0,
         }));
 
+        const puedeVerOcultas = contexto.roles.includes('director') || contexto.roles.includes('master');
+        const actividadesVisibles = actividadesConConteo.filter(
+            (actividad) => actividad.visibilidad === 'publica' || puedeVerOcultas
+        );
+        const idsActividadesVisibles = new Set(actividadesVisibles.map((actividad) => actividad.id));
+        const inscripcionesVisibles = inscripciones.filter((inscripcion) =>
+            idsActividadesVisibles.has(inscripcion.actividadId)
+        );
+
         const centroCostos = centrosSnap.docs
             .map((snap) => snap.data() as CentroDeCosto)
             .filter((centroCosto) => centroCosto.estaActivo);
@@ -443,8 +473,8 @@ export async function obtenerDatosInicialesGestionActividades(residenciaId: Resi
         return {
             success: true,
             data: {
-                actividades: actividadesConConteo,
-                inscripciones,
+                actividades: actividadesVisibles,
+                inscripciones: inscripcionesVisibles,
                 centroCostos,
                 tiemposComida,
                 comedores,
@@ -481,28 +511,21 @@ export async function createActividad(residenciaId: ResidenciaId, data: unknown)
             residenciaId,
             organizadorId: resultadoContexto.contexto.usuarioId,
             titulo: parsed.data.titulo,
-            nombre: parsed.data.titulo,
             descripcion: parsed.data.descripcion || null,
             lugar: parsed.data.lugar || null,
             estado: 'pendiente',
+            visibilidad: parsed.data.visibilidad,
+            tipoAcceso: parsed.data.tipoAcceso,
+            permiteInvitadosExternos: parsed.data.permiteInvitadosExternos,
             fechaInicio: parsed.data.fechaInicio,
             fechaFin: parsed.data.fechaFin,
             tiempoComidaInicioId: parsed.data.tiempoComidaInicioId,
             tiempoComidaFinId: parsed.data.tiempoComidaFinId,
-            tiempoComidaInicial: parsed.data.tiempoComidaInicioId,
-            tiempoComidaFinal: parsed.data.tiempoComidaFinId,
             centroCostoId: parsed.data.centroCostoId || null,
             solicitudAdministracion: parsed.data.solicitudAdministracion,
-            tipoSolicitudComidas: mapSolicitudToLegacy(parsed.data.solicitudAdministracion),
             maxParticipantes: parsed.data.maxParticipantes,
             conteoInscritos: 0,
-            planComidas: [],
-            comensalesNoUsuarios: 0,
-            requiereInscripcion: true,
-            modoAtencionActividad: 'externa',
-            diasAntelacionSolicitudAdministracion: 0,
-            fechaHoraCreacion: FieldValue.serverTimestamp(),
-            fechaHoraModificacion: FieldValue.serverTimestamp(),
+            adicionalesNoNominales: parsed.data.adicionalesNoNominales,
             timestampCreacion: FieldValue.serverTimestamp(),
             timestampModificacion: FieldValue.serverTimestamp(),
         };
@@ -580,6 +603,13 @@ export async function updateActividad(actividadId: string, residenciaId: Residen
             (parsed.data.tiempoComidaFinId && parsed.data.tiempoComidaFinId !== actividadActual.tiempoComidaFinId) ||
             (parsed.data.centroCostoId !== undefined && parsed.data.centroCostoId !== actividadActual.centroCostoId);
 
+        if (parsed.data.adicionalesNoNominales !== undefined && estadosTerminales.has(actividadActual.estado)) {
+            return {
+                success: false,
+                error: 'No puedes modificar adicionales no nominales en actividades finalizadas o canceladas.',
+            };
+        }
+
         if (cambiosCriticos && estadosTerminales.has(actividadActual.estado)) {
             return {
                 success: false,
@@ -593,18 +623,25 @@ export async function updateActividad(actividadId: string, residenciaId: Residen
 
         const updatePayload: Record<string, unknown> = {
             timestampModificacion: FieldValue.serverTimestamp(),
-            fechaHoraModificacion: FieldValue.serverTimestamp(),
         };
 
         if (parsed.data.titulo !== undefined) {
             updatePayload.titulo = parsed.data.titulo;
-            updatePayload.nombre = parsed.data.titulo;
         }
         if (parsed.data.descripcion !== undefined) {
             updatePayload.descripcion = parsed.data.descripcion || null;
         }
         if (parsed.data.lugar !== undefined) {
             updatePayload.lugar = parsed.data.lugar || null;
+        }
+        if (parsed.data.visibilidad !== undefined) {
+            updatePayload.visibilidad = parsed.data.visibilidad;
+        }
+        if (parsed.data.tipoAcceso !== undefined) {
+            updatePayload.tipoAcceso = parsed.data.tipoAcceso;
+        }
+        if (parsed.data.permiteInvitadosExternos !== undefined) {
+            updatePayload.permiteInvitadosExternos = parsed.data.permiteInvitadosExternos;
         }
         if (parsed.data.fechaInicio !== undefined) {
             updatePayload.fechaInicio = parsed.data.fechaInicio;
@@ -614,11 +651,9 @@ export async function updateActividad(actividadId: string, residenciaId: Residen
         }
         if (parsed.data.tiempoComidaInicioId !== undefined) {
             updatePayload.tiempoComidaInicioId = parsed.data.tiempoComidaInicioId;
-            updatePayload.tiempoComidaInicial = parsed.data.tiempoComidaInicioId;
         }
         if (parsed.data.tiempoComidaFinId !== undefined) {
             updatePayload.tiempoComidaFinId = parsed.data.tiempoComidaFinId;
-            updatePayload.tiempoComidaFinal = parsed.data.tiempoComidaFinId;
         }
         if (parsed.data.centroCostoId !== undefined) {
             updatePayload.centroCostoId = parsed.data.centroCostoId || null;
@@ -626,9 +661,11 @@ export async function updateActividad(actividadId: string, residenciaId: Residen
         if (parsed.data.maxParticipantes !== undefined) {
             updatePayload.maxParticipantes = parsed.data.maxParticipantes;
         }
+        if (parsed.data.adicionalesNoNominales !== undefined) {
+            updatePayload.adicionalesNoNominales = parsed.data.adicionalesNoNominales;
+        }
         if (parsed.data.solicitudAdministracion !== undefined) {
             updatePayload.solicitudAdministracion = parsed.data.solicitudAdministracion;
-            updatePayload.tipoSolicitudComidas = mapSolicitudToLegacy(parsed.data.solicitudAdministracion);
         }
 
         await actividadRef.update(updatePayload);
@@ -723,7 +760,7 @@ export async function updateActividadEstado(
             const inscripcionesSnap = await actividadRef.collection('inscripciones').get();
             for (const ins of inscripcionesSnap.docs) {
                 batch.update(ins.ref, {
-                    estado: 'cancelada',
+                    estado: 'cancelada_por_organizador',
                     estadoInscripcion: 'cancelado_admin',
                     timestampModificacion: FieldValue.serverTimestamp(),
                     fechaHoraModificacion: FieldValue.serverTimestamp(),

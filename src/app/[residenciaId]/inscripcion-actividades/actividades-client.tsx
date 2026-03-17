@@ -1,219 +1,336 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
+import { useMemo, useState } from 'react';
+import type { ResidenciaId } from 'shared/models/types';
+import { useInfoUsuario } from '@/components/layout/AppProviders';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { Actividad, InscripcionActividad } from '@/../shared/schemas/actividades';
-import type { ResidenciaId, RolUsuario } from '@/../shared/models/types';
-import { Loader2, UserPlus, Info, Users, Soup, CheckCircle, XCircle } from 'lucide-react';
-import {
-  inscribirEnActividad,
-  responderInvitacion,
-  cancelarInscripcion,
-} from './actions';
-import { useToast } from '@/hooks/useToast';
 import { Badge } from '@/components/ui/badge';
-import {useInfoUsuario} from "@/components/layout/AppProviders";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, Calendar, Users, UserPlus, Ban } from 'lucide-react';
+import { useInscripcionActividadesQuery, useMutacionesInscripcionActividades } from './lib/consultas';
+import type { EstadoInscripcion, InscripcionActividad } from './actions';
 
-interface ActividadDisponible extends Actividad {
-  inscritos: number;
-  invitaciones: InscripcionActividad[];
+interface Props {
+    residenciaId: ResidenciaId;
 }
 
-interface ActividadesClientProps {
-  actividadesIniciales: ActividadDisponible[];
-  residenciaId: ResidenciaId;
-}
-
-export function ActividadesClient({
-  actividadesIniciales,
-  residenciaId,
-}: ActividadesClientProps) {
-  const { usuarioId: uid, zonaHoraria: tz, roles, ctxTraduccion: loc } = useInfoUsuario();
-  const { toast } = useToast();
-  const [actividades, setActividades] = useState(actividadesIniciales);
-  const [isPending, startTransition] = useTransition();
-
-  const userInscriptions = new Map<string, InscripcionActividad>();
-    actividades.forEach(act => {
-        act.invitaciones.forEach(inv => {
-            if (inv.usuarioInscritoId === uid) {
-                userInscriptions.set(act.id, inv);
-            }
-        })
-    });
-
-
-  const handleInscribirse = async (actividadId: string) => {
-    startTransition(async () => {
-      try {
-        await inscribirEnActividad(residenciaId, actividadId);
-        toast({ title: '¡Inscripción exitosa!', description: 'Te has apuntado a la actividad.' });
-      } catch (error) {
-        toast({
-          title: 'Error en la inscripción',
-          description: error instanceof Error ? error.message : 'Ocurrió un error desconocido.',
-          variant: 'destructive',
-        });
-      }
-    });
-  };
-
-  const handleResponderInvitacion = async (inscripcionId: string, aceptar: boolean) => {
-    startTransition(async () => {
-        try {
-            await responderInvitacion(residenciaId, inscripcionId, aceptar);
-            toast({ title: `Invitación ${aceptar ? 'aceptada' : 'rechazada'}` });
-        } catch (error) {
-            toast({
-              title: 'Error al responder',
-              description: error instanceof Error ? error.message : 'Ocurrió un error desconocido.',
-              variant: 'destructive',
-            });
-        }
-    });
-  }
-
-  const handleCancelarInscripcion = async (inscripcionId: string) => {
-    startTransition(async () => {
-        try {
-            await cancelarInscripcion(residenciaId, inscripcionId);
-            toast({ title: 'Inscripción cancelada' });
-        } catch (error) {
-            toast({
-              title: 'Error al cancelar',
-              description: error instanceof Error ? error.message : 'Ocurrió un error desconocido.',
-              variant: 'destructive',
-            });
-        }
-    });
-  }
-
-  const isInviteAccordionVisible = (actividad: ActividadDisponible): boolean => {
-    if (!uid || !roles) return false;
-    const userRoles = (roles || []) as RolUsuario[];
-    if (actividad.organizadorId === uid || userRoles.includes('director')) return true;
-    if ((userRoles.includes('residente') || userRoles.includes('invitado')) && actividad.modoAccesoResidentes?.accesoUsuario === 'abierto') {
-      return true;
+function estadoLabel(estado: EstadoInscripcion | null) {
+    switch (estado) {
+        case 'invitacion_pendiente':
+            return 'Invitacion pendiente';
+        case 'confirmada':
+            return 'Confirmada';
+        case 'rechazada':
+            return 'Rechazada';
+        case 'cancelada_por_usuario':
+            return 'Cancelada por usuario';
+        case 'cancelada_por_organizador':
+            return 'Cancelada por organizador';
+        default:
+            return 'Sin inscripcion';
     }
-    // TODO: Add logic for assistants with permissions
-    return false;
-  };
+}
 
-  if (!actividades || actividades.length === 0) {
+export default function InscripcionActividadesClient({ residenciaId }: Props) {
+    const { usuarioId } = useInfoUsuario();
+    const { data, isLoading, error } = useInscripcionActividadesQuery(residenciaId);
+    const mutaciones = useMutacionesInscripcionActividades(residenciaId, usuarioId);
+
+    const [usuarioObjetivoId, setUsuarioObjetivoId] = useState<string>(usuarioId);
+    const [invitadoManualPorActividad, setInvitadoManualPorActividad] = useState<Record<string, string>>({});
+    const [bulkPorActividad, setBulkPorActividad] = useState<Record<string, string>>({});
+
+    const rolesActor = data?.actor?.roles || [];
+    const actorEsPrivilegiado = rolesActor.some((rol) => ['master', 'admin', 'director'].includes(rol));
+
+    const inscripcionesPorActividad = useMemo(() => {
+        const mapa = new Map<string, InscripcionActividad[]>();
+        for (const item of data?.inscripciones || []) {
+            const list = mapa.get(item.actividadId) || [];
+            list.push(item);
+            mapa.set(item.actividadId, list);
+        }
+        return mapa;
+    }, [data?.inscripciones]);
+
+    if (isLoading) {
+        return (
+            <div className='flex h-[50vh] items-center justify-center'>
+                <Loader2 className='h-7 w-7 animate-spin' />
+            </div>
+        );
+    }
+
+    if (error || !data) {
+        return (
+            <div className='mx-auto max-w-3xl p-6 text-center text-destructive'>
+                {error instanceof Error ? error.message : 'No se pudo cargar el modulo de inscripciones.'}
+            </div>
+        );
+    }
+
     return (
-      <div className="container mx-auto mt-10 text-center">
-        <Card>
-          <CardHeader><CardTitle>No hay actividades disponibles</CardTitle></CardHeader>
-          <CardContent><p>Por el momento no hay actividades con inscripción abierta. ¡Vuelve a consultar más tarde!</p></CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div className="container mx-auto mt-10">
-      <h1 className="text-3xl font-bold mb-6">Inscripción a Actividades</h1>
-      <Accordion type="single" collapsible className="w-full space-y-4">
-        {actividades.map((actividad) => {
-          const inscripcion = userInscriptions.get(actividad.id);
-          const estaInscrito = inscripcion && (inscripcion.estadoInscripcion === 'inscrito_directo' || inscripcion.estadoInscripcion === 'invitado_aceptado');
-          const esInvitadoPendiente = inscripcion && inscripcion.estadoInscripcion === 'invitado_pendiente';
-
-          return (
-            <AccordionItem value={actividad.id} key={actividad.id} className="border rounded-lg bg-card">
-              <AccordionTrigger className="p-4 text-lg font-medium">
-                <div className="flex items-center justify-between w-full pr-4">
-                  <span>{actividad.nombre}</span>
-                  {estaInscrito && <Badge variant="default" className="bg-green-600">Inscrito</Badge>}
-                  {esInvitadoPendiente && <Badge variant="secondary">Invitación pendiente</Badge>}
+        <div className='container mx-auto space-y-6 p-4'>
+            <div className='flex flex-col gap-3 md:flex-row md:items-end md:justify-between'>
+                <div>
+                    <h1 className='text-2xl font-bold tracking-tight'>Inscripcion e Invitaciones</h1>
+                    <p className='text-sm text-muted-foreground'>
+                        Gestiona participacion por usuario, invitaciones y cupos con actualizacion optimista.
+                    </p>
                 </div>
-              </AccordionTrigger>
-              <AccordionContent className="p-4 pt-0">
-                <Accordion type="multiple" defaultValue={['info-general']}>
-                  <AccordionItem value="info-general">
-                    <AccordionTrigger><Info className="mr-2" /> Información General</AccordionTrigger>
-                    <AccordionContent className="p-4">
-                      <p>{actividad.descripcion}</p>
-                      <div className="mt-4 space-y-2 text-sm">
-                        <p><strong>Fecha de Inicio:</strong> {actividad.fechaInicio}</p>
-                        <p><strong>Fecha Final:</strong> {actividad.fechaFin}</p>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem value="inscribirse">
-                    <AccordionTrigger><UserPlus className="mr-2" /> Inscribirse</AccordionTrigger>
-                    <AccordionContent className="p-4 space-y-4">
-                      <div><strong>Cupos disponibles:</strong> {actividad.maxParticipantes ? actividad.maxParticipantes - actividad.inscritos : 'Ilimitados'}</div>
-                      <div><strong>Fecha límite de inscripción:</strong> {actividad.fechaLimiteInscripcion || actividad.fechaInicio}</div>
-                      
-                      {estaInscrito ? (
-                          <div className='flex items-center gap-4'>
-                            <p className="text-green-600 font-semibold flex items-center"><CheckCircle className="mr-2" /> Ya estás inscrito.</p>
-                            <Button variant="destructive" onClick={() => handleCancelarInscripcion(inscripcion.id)} disabled={isPending}>
-                                {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
-                                Cancelar Inscripción
-                            </Button>
-                          </div>
-                      ) : esInvitadoPendiente ? (
-                        <div className='mt-4'>
-                            <h4 className='font-semibold'>Invitación Recibida:</h4>
-                            <p className="mb-2">Has sido invitado a esta actividad.</p>
-                            <div className='flex gap-2'>
-                                <Button onClick={() => handleResponderInvitacion(inscripcion.id, true)} disabled={isPending} variant="default">
-                                    {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Aceptar
-                                </Button>
-                                <Button onClick={() => handleResponderInvitacion(inscripcion.id, false)} disabled={isPending} variant="outline">
-                                    {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Rechazar
-                                </Button>
-                            </div>
-                        </div>
-                      ) : (
-                        <Button onClick={() => handleInscribirse(actividad.id)} disabled={isPending}>
-                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Inscribirme
-                        </Button>
-                      )}
-                    </AccordionContent>
-                  </AccordionItem>
 
-                  {isInviteAccordionVisible(actividad) && (
-                    <AccordionItem value="invitar-gente">
-                      <AccordionTrigger><Users className="mr-2" /> Invitar gente</AccordionTrigger>
-                      <AccordionContent className="p-4"><p>Aquí irá la funcionalidad para invitar a otras personas.</p></AccordionContent>
-                    </AccordionItem>
-                  )}
-
-                  {actividad.planComidas && actividad.planComidas.length > 0 && (
-                    <AccordionItem value="plan-comidas">
-                      <AccordionTrigger><Soup className="mr-2" /> Plan de comidas</AccordionTrigger>
-                      <AccordionContent className="p-4">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-left"><th className="p-2">Fecha</th><th className="p-2">Hora</th><th className="p-2">Comida</th></tr>
-                          </thead>
-                          <tbody>
-                            {actividad.planComidas.sort((a, b) => (a.horaEstimada || '').localeCompare(b.horaEstimada || '')).map((comida, index) => (
-                              <tr key={index} className="border-t">
-                                <td className="p-2">{comida.fechaComida}</td><td className="p-2">{comida.horaEstimada || '-'}</td><td className="p-2">{comida.nombreTiempoComida}</td>
-                              </tr>
+                <div className='w-full md:w-80 space-y-1'>
+                    <Label>Usuario objetivo</Label>
+                    <Select value={usuarioObjetivoId} onValueChange={setUsuarioObjetivoId}>
+                        <SelectTrigger>
+                            <SelectValue placeholder='Selecciona usuario' />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {data.usuariosObjetivo.map((u) => (
+                                <SelectItem key={u.id} value={u.id}>
+                                    {u.nombre}
+                                </SelectItem>
                             ))}
-                          </tbody>
-                        </table>
-                      </AccordionContent>
-                    </AccordionItem>
-                  )}
-                </Accordion>
-              </AccordionContent>
-            </AccordionItem>
-          );
-        })}
-      </Accordion>
-    </div>
-  );
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            <div className='grid grid-cols-1 gap-5 lg:grid-cols-2'>
+                {data.actividades.map((actividad) => {
+                    const listaInscripciones = inscripcionesPorActividad.get(actividad.id) || [];
+                    const inscripcionObjetivo = listaInscripciones.find((ins) => ins.usuarioId === usuarioObjetivoId);
+                    const estadoActual = (inscripcionObjetivo?.estado || null) as EstadoInscripcion | null;
+                    const puedeAutoInscribir =
+                        actividad.estado === 'inscripcion_abierta' &&
+                        actividad.tipoAcceso === 'abierta' &&
+                        !['confirmada', 'invitacion_pendiente'].includes(estadoActual || '');
+                    const puedeInvitar =
+                        actividad.permiteInvitadosExternos ||
+                        actividad.organizadorId === usuarioId ||
+                        actorEsPrivilegiado;
+                    const esOrganizador = actividad.organizadorId === usuarioId || actorEsPrivilegiado;
+
+                    const demandaTotal = actividad.conteoInscritos + actividad.adicionalesNoNominales;
+
+                    return (
+                        <Card key={actividad.id}>
+                            <CardHeader className='space-y-3'>
+                                <div className='flex items-start justify-between gap-2'>
+                                    <CardTitle className='text-xl'>{actividad.titulo}</CardTitle>
+                                    <Badge variant={actividad.estado === 'inscripcion_abierta' ? 'default' : 'outline'}>
+                                        {actividad.estado.replace('_', ' ')}
+                                    </Badge>
+                                </div>
+
+                                <div className='flex flex-wrap gap-2'>
+                                    <Badge variant='outline'>{actividad.visibilidad}</Badge>
+                                    <Badge variant='outline'>{actividad.tipoAcceso}</Badge>
+                                    {actividad.permiteInvitadosExternos && <Badge variant='secondary'>Invitados externos</Badge>}
+                                </div>
+                            </CardHeader>
+
+                            <CardContent className='space-y-4'>
+                                <p className='text-sm text-muted-foreground'>
+                                    {actividad.descripcion || 'Sin descripcion'}
+                                </p>
+
+                                <div className='grid grid-cols-2 gap-2 text-xs'>
+                                    <div className='rounded border bg-muted/40 p-2'>
+                                        <div className='text-muted-foreground'>
+                                            <Calendar className='mr-1 inline h-3 w-3' /> Fechas
+                                        </div>
+                                        <div>
+                                            {actividad.fechaInicio}
+                                            {actividad.fechaInicio !== actividad.fechaFin && ` - ${actividad.fechaFin}`}
+                                        </div>
+                                    </div>
+                                    <div className='rounded border bg-muted/40 p-2'>
+                                        <div className='text-muted-foreground'>
+                                            <Users className='mr-1 inline h-3 w-3' /> Cupo
+                                        </div>
+                                        <div>
+                                            {demandaTotal} / {actividad.maxParticipantes || '-'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className='rounded border p-3'>
+                                    <div className='mb-2 text-xs font-medium uppercase text-muted-foreground'>
+                                        Estado para usuario objetivo
+                                    </div>
+                                    <div className='text-sm font-medium'>{estadoLabel(estadoActual)}</div>
+                                </div>
+
+                                <div className='flex flex-wrap gap-2'>
+                                    {puedeAutoInscribir && (
+                                        <Button
+                                            size='sm'
+                                            onClick={() =>
+                                                mutaciones.autoInscribirMutation.mutate({
+                                                    actividadId: actividad.id,
+                                                    usuarioObjetivoId,
+                                                })
+                                            }
+                                            disabled={mutaciones.autoInscribirMutation.isPending}
+                                        >
+                                            <UserPlus className='mr-2 h-4 w-4' /> Inscribir
+                                        </Button>
+                                    )}
+
+                                    {estadoActual === 'invitacion_pendiente' && (
+                                        <>
+                                            <Button
+                                                size='sm'
+                                                onClick={() =>
+                                                    mutaciones.responderMutation.mutate({
+                                                        actividadId: actividad.id,
+                                                        decision: 'aceptar',
+                                                        usuarioObjetivoId,
+                                                    })
+                                                }
+                                                disabled={mutaciones.responderMutation.isPending}
+                                            >
+                                                Aceptar invitacion
+                                            </Button>
+                                            <Button
+                                                size='sm'
+                                                variant='outline'
+                                                onClick={() =>
+                                                    mutaciones.responderMutation.mutate({
+                                                        actividadId: actividad.id,
+                                                        decision: 'rechazar',
+                                                        usuarioObjetivoId,
+                                                    })
+                                                }
+                                                disabled={mutaciones.responderMutation.isPending}
+                                            >
+                                                Rechazar
+                                            </Button>
+                                        </>
+                                    )}
+
+                                    {estadoActual === 'confirmada' && (
+                                        <Button
+                                            size='sm'
+                                            variant='outline'
+                                            onClick={() =>
+                                                mutaciones.cancelarMutation.mutate({
+                                                    actividadId: actividad.id,
+                                                    usuarioObjetivoId,
+                                                })
+                                            }
+                                            disabled={mutaciones.cancelarMutation.isPending}
+                                        >
+                                            <Ban className='mr-2 h-4 w-4' /> Cancelar
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {puedeInvitar && (
+                                    <div className='space-y-2 rounded border p-3'>
+                                        <div className='text-xs font-medium uppercase text-muted-foreground'>
+                                            Invitar por ID de usuario
+                                        </div>
+                                        <div className='flex gap-2'>
+                                            <Input
+                                                placeholder='uid del invitado'
+                                                value={invitadoManualPorActividad[actividad.id] || ''}
+                                                onChange={(e) =>
+                                                    setInvitadoManualPorActividad((prev) => ({
+                                                        ...prev,
+                                                        [actividad.id]: e.target.value,
+                                                    }))
+                                                }
+                                            />
+                                            <Button
+                                                size='sm'
+                                                variant='secondary'
+                                                onClick={() =>
+                                                    mutaciones.invitarMutation.mutate({
+                                                        actividadId: actividad.id,
+                                                        usuarioObjetivoId: (invitadoManualPorActividad[actividad.id] || '').trim(),
+                                                    })
+                                                }
+                                                disabled={mutaciones.invitarMutation.isPending}
+                                            >
+                                                Invitar
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {esOrganizador && (
+                                    <div className='space-y-2 rounded border p-3'>
+                                        <div className='text-xs font-medium uppercase text-muted-foreground'>
+                                            Bulk add (uids separados por coma)
+                                        </div>
+                                        <div className='flex gap-2'>
+                                            <Input
+                                                placeholder='uid1,uid2,uid3'
+                                                value={bulkPorActividad[actividad.id] || ''}
+                                                onChange={(e) =>
+                                                    setBulkPorActividad((prev) => ({
+                                                        ...prev,
+                                                        [actividad.id]: e.target.value,
+                                                    }))
+                                                }
+                                            />
+                                            <Button
+                                                size='sm'
+                                                onClick={() => {
+                                                    const usuarioIds = (bulkPorActividad[actividad.id] || '')
+                                                        .split(',')
+                                                        .map((s) => s.trim())
+                                                        .filter(Boolean);
+                                                    mutaciones.forceAddMutation.mutate({ actividadId: actividad.id, usuarioIds });
+                                                }}
+                                                disabled={mutaciones.forceAddMutation.isPending}
+                                            >
+                                                Forzar alta
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+
+                            {esOrganizador && listaInscripciones.length > 0 && (
+                                <CardFooter className='flex-col items-stretch gap-2 border-t pt-4'>
+                                    <div className='text-xs font-medium uppercase text-muted-foreground'>
+                                        Inscripciones vinculadas
+                                    </div>
+                                    {listaInscripciones.map((ins) => (
+                                        <div key={`${ins.actividadId}-${ins.usuarioId}`} className='flex items-center justify-between rounded border p-2 text-sm'>
+                                            <div>
+                                                {ins.usuarioId}
+                                                <span className='ml-2 text-xs text-muted-foreground'>({ins.estado})</span>
+                                            </div>
+                                            {ins.estado === 'confirmada' && (
+                                                <Button
+                                                    size='sm'
+                                                    variant='outline'
+                                                    onClick={() =>
+                                                        mutaciones.kickMutation.mutate({
+                                                            actividadId: actividad.id,
+                                                            usuarioObjetivoId: ins.usuarioId,
+                                                        })
+                                                    }
+                                                    disabled={mutaciones.kickMutation.isPending}
+                                                >
+                                                    Expulsar
+                                                </Button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </CardFooter>
+                            )}
+                        </Card>
+                    );
+                })}
+            </div>
+        </div>
+    );
 }

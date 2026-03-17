@@ -192,6 +192,7 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
                     const stateButton = getStateButtonStyle(actividad);
                     const inscritos = getInscripcionesCount(inscripciones, actividad.id);
                     const invitados = getInvitacionesCount(inscripciones, actividad.id);
+                    const demandaTotal = inscritos + actividad.adicionalesNoNominales;
                     const dateRange = `${new Date(actividad.fechaInicio).toLocaleDateString()} ${
                         actividad.fechaInicio !== actividad.fechaFin
                             ? `- ${new Date(actividad.fechaFin).toLocaleDateString()}`
@@ -241,7 +242,7 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
                                             <div className='flex space-x-1'>
                                                 <Badge variant='outline' className='bg-blue-50 text-blue-700 border-blue-200'>
                                                     <Users className='mr-1 h-3 w-3' />
-                                                    {inscritos}
+                                                    {demandaTotal}
                                                 </Badge>
                                                 {actividad.maxParticipantes > 0 && (
                                                     <Badge
@@ -262,13 +263,31 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
                                 </p>
                                 <div className='mt-4 grid grid-cols-2 gap-2 text-xs'>
                                     <div className='flex flex-col p-2 bg-muted/40 rounded'>
+                                        <span className='text-muted-foreground uppercase font-semibold'>Visibilidad</span>
+                                        <span className='font-medium'>
+                                            {actividad.visibilidad === 'publica' ? 'Publica' : 'Oculta'}
+                                        </span>
+                                    </div>
+                                    <div className='flex flex-col p-2 bg-muted/40 rounded'>
                                         <span className='text-muted-foreground uppercase font-semibold'>Tipo Acceso</span>
-                                        <span className='font-medium'>Inscripcion</span>
+                                        <span className='font-medium'>
+                                            {actividad.tipoAcceso === 'abierta' ? 'Abierta' : 'Solo invitacion'}
+                                        </span>
+                                    </div>
+                                    <div className='flex flex-col p-2 bg-muted/40 rounded'>
+                                        <span className='text-muted-foreground uppercase font-semibold'>Invitados externos</span>
+                                        <span className='font-medium'>
+                                            {actividad.permiteInvitadosExternos ? 'Permitidos' : 'No permitidos'}
+                                        </span>
                                     </div>
                                     <div className='flex flex-col p-2 bg-muted/40 rounded'>
                                         <span className='text-muted-foreground uppercase font-semibold'>Lugar</span>
                                         <span className='font-medium truncate'>{actividad.lugar || 'No asignado'}</span>
                                     </div>
+                                </div>
+                                <div className='mt-3 text-xs text-muted-foreground'>
+                                    Demanda total: {demandaTotal} ({inscritos} confirmados +{' '}
+                                    {actividad.adicionalesNoNominales} adicionales no nominales)
                                 </div>
                             </CardContent>
                             <CardFooter className='pt-2 pb-4 border-t mt-auto flex flex-col gap-2'>

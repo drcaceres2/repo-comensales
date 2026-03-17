@@ -23,7 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/useToast';
 import { useInfoUsuario } from '@/components/layout/AppProviders';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DietaId, ResidenciaId, RolUsuario } from 'shared/models/types';
 import { DietaData } from 'shared/schemas/complemento1';
@@ -67,24 +67,15 @@ function DietasResidenciaPage(): React.ReactElement | null {
             return;
         }
 
+        // Allow privileged roles and let the server-side verify assistant permissions.
         let authorized = false;
         if (roles.includes('master' as RolUsuario) || roles.includes('admin' as RolUsuario)) {
             authorized = true;
         } else if (roles.includes('director' as RolUsuario) && residenciaIdUsuario === residenciaIdParams) {
             authorized = true;
-        }
-
-        if (!authorized) {
-            setIsAuthorized(false);
-            setErrorDietas(t('accesoDenegadoTitle'));
-            setIsLoadingResidencia(false);
-            setIsLoadingDietas(false);
-            toast({
-                title: t('toastAccessDeniedTitle'),
-                description: t('toastAccessDeniedDescription'),
-                variant: 'destructive',
-            });
-            return;
+        } else if (roles.includes('asistente' as RolUsuario)) {
+            // Don't block assistants on the client — the server will enforce time-bounded permissions.
+            authorized = true;
         }
 
         setIsAuthorized(true);
@@ -130,6 +121,13 @@ function DietasResidenciaPage(): React.ReactElement | null {
             setIsLoadingDietas(false);
         }
     }, [usuarioId, residenciaIdParams, fetchResidenciaAndDietas]);
+
+    useEffect(() => {
+        if (!usuarioId || isLoadingResidencia || isAuthorized) {
+            return;
+        }
+        router.replace('/acceso-no-autorizado');
+    }, [isAuthorized, isLoadingResidencia, router, usuarioId]);
 
     const handleOpenAddDietaForm = () => {
         setIsAdding(true);
@@ -482,19 +480,11 @@ function DietasResidenciaPage(): React.ReactElement | null {
         );
     }
 
-    if (!isAuthorized) {
+    if (usuarioId && !isLoadingResidencia && !isAuthorized) {
         return (
-            <div className="flex min-h-screen flex-col items-center justify-center p-4 text-center">
-                <AlertCircle className="mb-4 h-12 w-12 text-destructive" />
-                <h1 className="mb-2 text-2xl font-bold text-destructive">{t('accesoDenegadoTitle')}</h1>
-                <p className="mb-4 max-w-md text-muted-foreground">
-                    {errorDietas === t('accesoDenegadoTitle')
-                        ? t('accesoDenegadoDescriptionNoPermiso')
-                        : t('accesoDenegadoDescriptionNoVerificado')}
-                </p>
-                <Button onClick={() => router.replace('/admin/residencia')}>
-                    {t('accesoDenegadoButtonSeleccionarResidencia')}
-                </Button>
+            <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+                <Loader2 className="mb-4 h-10 w-10 animate-spin text-primary" />
+                <p className="text-lg font-medium text-muted-foreground">Redireccionando...</p>
             </div>
         );
     }

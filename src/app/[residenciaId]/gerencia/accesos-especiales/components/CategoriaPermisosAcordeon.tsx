@@ -17,13 +17,13 @@ export const CategoriaPermisosAcordeon = ({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="border rounded-lg">
+    <div className="border rounded-lg border-gray-200 dark:border-gray-700">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 focus:outline-none"
+        className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 focus:outline-none"
       >
-        <h2 className="text-lg font-semibold">{titulo}</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{titulo}</h2>
         <ChevronDown
           className={`transform transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
           size={20}

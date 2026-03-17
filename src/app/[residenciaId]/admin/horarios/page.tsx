@@ -14,6 +14,7 @@ import { Calendar } from 'lucide-react';
 import { useObtenerHorarios } from './_lib/useHorariosQuery';
 import type { RolUsuario } from 'shared/models/types';
 import {useInfoUsuario} from "@/components/layout/AppProviders";
+import {urlAccesoNoAutorizado} from "@/lib/utils";
 
 // --- Orquestador Principal ---
 export default function HorariosPage() {
@@ -27,8 +28,8 @@ export default function HorariosPage() {
     useEffect(() => {
         if (!roles || !(rolesPermitidos
                 .some((r) => roles.includes(r)))
-        ) { const mensaje = encodeURIComponent('No tienes permiso a esta página.');
-            router.push(`/acceso-no-autorizado?mensaje=${mensaje}.`);
+        ) {
+            router.push(urlAccesoNoAutorizado('No tienes permiso a esta página.'));
         }
     }, [roles, router]);
 

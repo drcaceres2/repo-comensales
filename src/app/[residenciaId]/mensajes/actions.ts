@@ -145,6 +145,11 @@ export async function enviarMensajeAction(
         return errorResponse('VALIDATION_ERROR', 'El destinatario no es válido para la residencia.');
       }
 
+      // Evita que el usuario se envíe mensajes a sí mismo
+      if (parsed.data.destinatarioUsuarioId === sesion.usuarioId) {
+        return errorResponse('VALIDATION_ERROR', 'No puedes enviarte mensajes a ti mismo.');
+      }
+
       destinatarios = [parsed.data.destinatarioUsuarioId];
     } else {
       destinatarios = await resolverDestinatariosGrupo(residenciaId, parsed.data.destinatarioGrupoAnaliticoId);

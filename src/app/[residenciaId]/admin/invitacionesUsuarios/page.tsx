@@ -16,11 +16,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/useToast';
 import { collection, db, doc, functions, getDoc, getDocs, httpsCallable, limit, onSnapshot, query, where } from '@/lib/firebase';
 import { useInfoUsuario } from '@/components/layout/AppProviders';
-import { createUsuarioSchema, type ResidenteData } from 'shared/schemas/usuarios';
+import { createUsuarioSchema, type ResidenteData, type AsistentePermisos } from 'shared/schemas/usuarios';
 import type { RolUsuario } from 'shared/models/types';
 import type { Residencia, ConfiguracionResidencia, CampoPersonalizado } from 'shared/schemas/residencia';
 import type { CentroDeCosto } from 'shared/schemas/contabilidad';
 import type { DietaData } from 'shared/schemas/complemento1';
+import {urlAccesoNoAutorizado} from "@/lib/utils";
 
 interface CrearInvitacionResult {
   success: boolean;
@@ -55,7 +56,7 @@ interface UsuarioListadoItem {
   timestampCreacion?: unknown;
 }
 
-type RolInvitable = Exclude<RolUsuario, 'master' | 'asistente'>;
+type RolInvitable = Exclude<RolUsuario, 'master'>;
 
 type InvitationFormState = {
   nombre: string;
@@ -69,9 +70,59 @@ type InvitationFormState = {
   puedeTraerInvitados: 'no' | 'si' | 'requiere_autorizacion';
   camposPersonalizados: Record<string, string>;
   residente?: ResidenteData;
+  asistente?: AsistentePermisos;
 };
 
-const ROLES_DISPONIBLES: RolInvitable[] = ['residente', 'invitado', 'director', 'contador', 'admin'];
+const ROLES_DISPONIBLES: RolInvitable[] = ['residente', 'invitado', 'director', 'contador', 'admin', 'asistente'];
+
+const defaultPermisoDetalle = {
+  nivelAcceso: 'Ninguna' as const,
+  restriccionTiempo: false,
+  fechaInicio: null,
+  fechaFin: null,
+};
+
+const defaultAsistentePermisos: AsistentePermisos = {
+  usuariosAsistidos: {},
+  gestionActividades: { ...defaultPermisoDetalle },
+  gestionInvitados: { ...defaultPermisoDetalle },
+  gestionRecordatorios: { ...defaultPermisoDetalle },
+  gestionDietas: { ...defaultPermisoDetalle },
+  gestionAtenciones: { ...defaultPermisoDetalle },
+  gestionAsistentes: { ...defaultPermisoDetalle },
+  gestionComedores: { ...defaultPermisoDetalle },
+  gestionHorariosYAlteraciones: { ...defaultPermisoDetalle },
+  gestionGrupos: { ...defaultPermisoDetalle },
+  solicitarComensales: { ...defaultPermisoDetalle },
+};
+
+type AsistentePermisoKey = keyof Omit<AsistentePermisos, 'usuariosAsistidos'>;
+
+const ASISTENTE_PERMISOS_KEYS: AsistentePermisoKey[] = [
+  'gestionActividades',
+  'gestionInvitados',
+  'gestionRecordatorios',
+  'gestionDietas',
+  'gestionAtenciones',
+  'gestionAsistentes',
+  'gestionComedores',
+  'gestionHorariosYAlteraciones',
+  'gestionGrupos',
+  'solicitarComensales',
+];
+
+const ASISTENTE_PERMISOS_LABELS: Record<keyof Omit<AsistentePermisos, 'usuariosAsistidos'>, string> = {
+  gestionActividades: 'Actividades',
+  gestionInvitados: 'Invitados',
+  gestionRecordatorios: 'Recordatorios',
+  gestionDietas: 'Dietas',
+  gestionAtenciones: 'Atenciones',
+  gestionAsistentes: 'Asistentes',
+  gestionComedores: 'Comedores',
+  gestionHorariosYAlteraciones: 'Horarios y Alteraciones',
+  gestionGrupos: 'Grupos',
+  solicitarComensales: 'Solicitar Comensales',
+};
 
 const defaultResidenteData: ResidenteData = {
   dietaId: '',
@@ -85,7 +136,7 @@ const initialFormState: InvitationFormState = {
   apellido: '',
   nombreCorto: '',
   email: '',
-  roles: ['invitado'],
+  roles: [],
   tieneAutenticacion: true,
   fechaDeNacimiento: '',
   centroCostoPorDefectoId: '',
@@ -97,6 +148,24 @@ const initialFormState: InvitationFormState = {
 function normalizeOptionalText(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefinedDeep(item)) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    const result: Record<string, unknown> = {};
+    Object.entries(value as Record<string, unknown>).forEach(([key, nestedValue]) => {
+      if (nestedValue !== undefined) {
+        result[key] = stripUndefinedDeep(nestedValue);
+      }
+    });
+    return result as T;
+  }
+
+  return value;
 }
 
 function toEpochMs(value: unknown): number {
@@ -162,7 +231,7 @@ export default function InvitacionesUsuariosPage() {
 
   useEffect(() => {
     if (!autorizado) {
-      router.push('/acceso-no-autorizado');
+      router.push(urlAccesoNoAutorizado("Solo Usuarios administradores tienen acceso a crear nuevos Usuarios"));
     }
   }, [autorizado, router]);
 
@@ -295,6 +364,41 @@ export default function InvitacionesUsuariosPage() {
     }
   }, [dietas, form.roles, form.residente]);
 
+  useEffect(() => {
+    if (!form.roles.includes('asistente')) {
+      if (form.asistente) {
+        setForm((prev) => ({ ...prev, asistente: undefined }));
+      }
+      return;
+    }
+
+    if (!form.asistente) {
+      setForm((prev) => ({
+        ...prev,
+        asistente: { ...defaultAsistentePermisos },
+      }));
+    }
+  }, [form.roles, form.asistente]);
+
+  const updateAsistentePermiso = (
+    key: AsistentePermisoKey,
+    changes: Partial<AsistentePermisos[AsistentePermisoKey]>
+  ) => {
+    setForm((prev) => {
+      if (!prev.asistente) return prev;
+      return {
+        ...prev,
+        asistente: {
+          ...prev.asistente,
+          [key]: {
+            ...prev.asistente[key],
+            ...changes,
+          },
+        },
+      };
+    });
+  };
+
   if (!autorizado) {
     return null;
   }
@@ -308,7 +412,7 @@ export default function InvitacionesUsuariosPage() {
 
       return {
         ...prev,
-        roles: nextRoles.length > 0 ? nextRoles : ['invitado'],
+        roles: nextRoles,
       };
     });
   };
@@ -371,6 +475,7 @@ export default function InvitacionesUsuariosPage() {
               avisoAdministracion: form.residente?.avisoAdministracion || 'no_comunicado',
             }
           : undefined,
+        asistente: form.roles.includes('asistente') ? form.asistente : undefined,
         identificacion: undefined,
         telefonoMovil: undefined,
         universidad: undefined,
@@ -390,6 +495,7 @@ export default function InvitacionesUsuariosPage() {
         const message = fieldErrors || flattened.formErrors.join(' | ') || 'Revisa los campos del formulario.';
         setFormError(message);
         setIsSaving(false);
+        document.getElementById('crearUsuarioSubmit')?.focus();
         return;
       }
 
@@ -401,9 +507,22 @@ export default function InvitacionesUsuariosPage() {
         carrera: normalizeOptionalText(''),
       };
 
-      const response = await crearUsuarioInvitacionCallable({
-        profileData,
-      });
+      const callablePayload = stripUndefinedDeep({ profileData });
+      console.groupCollapsed('[crearUsuarioInvitacion][UI] payload diagnostics');
+      console.log('payload type:', typeof callablePayload);
+      console.log('payload keys:', Object.keys(callablePayload));
+      console.log('profileData type:', typeof callablePayload.profileData);
+      console.log('profileData keys:', Object.keys(callablePayload.profileData || {}));
+      console.log('profileData.asistente type:', typeof (callablePayload.profileData as any)?.asistente);
+      console.log('profileData.residente type:', typeof (callablePayload.profileData as any)?.residente);
+      console.log('roles:', callablePayload.profileData?.roles);
+      console.log('residenciaId:', callablePayload.profileData?.residenciaId);
+      console.log('email:', callablePayload.profileData?.email);
+      console.log('tieneAutenticacion:', callablePayload.profileData?.tieneAutenticacion);
+      console.groupEnd();
+
+      const response = await crearUsuarioInvitacionCallable(callablePayload);
+      console.log('[crearUsuarioInvitacion][UI] callable response raw:', response);
 
       const data = response.data as CrearInvitacionResult;
       if (!data.success) {
@@ -417,11 +536,20 @@ export default function InvitacionesUsuariosPage() {
       });
       resetForm();
     } catch (error: any) {
+      console.error('[crearUsuarioInvitacion][UI] callable error full:', error);
+      console.error('[crearUsuarioInvitacion][UI] callable error details:', {
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+        name: error?.name,
+        stack: error?.stack,
+      });
       toast({
         title: 'Error al crear usuario',
         description: error?.message || 'Ocurrio un error inesperado.',
         variant: 'destructive',
       });
+      document.getElementById('crearUsuarioSubmit')?.focus();
     } finally {
       setIsSaving(false);
     }
@@ -736,9 +864,111 @@ export default function InvitacionesUsuariosPage() {
               </div>
             ) : null}
 
-            <Button disabled={isSaving || isLoadingConfig} type="submit">
+            {form.roles.includes('asistente') ? (
+              <div className="space-y-4 rounded-md border p-4">
+                <div>
+                  <h3 className="font-medium">Permisos de asistente</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Complete los permisos de asistente para controlar acciones que podrá realizar.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {ASISTENTE_PERMISOS_KEYS.map((key) => {
+                    const permiso = form.asistente?.[key];
+
+                    return (
+                      <div key={key} className="grid grid-cols-1 gap-3 md:grid-cols-3 items-end">
+                        <div className="md:col-span-1">
+                          <Label>{ASISTENTE_PERMISOS_LABELS[key]}</Label>
+                        </div>
+                        <div className="md:col-span-1">
+                          <Select
+                            value={permiso?.nivelAcceso || 'Ninguna'}
+                            onValueChange={(value) =>
+                              updateAsistentePermiso(key, { nivelAcceso: value as any })
+                            }
+                            disabled={isSaving || isLoadingConfig}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Ninguna">Ninguna</SelectItem>
+                              <SelectItem value="Propias">Propias</SelectItem>
+                              <SelectItem value="Todas">Todas</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="md:col-span-1 flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              id={`asistente-${key}-restriccion`}
+                              checked={permiso?.restriccionTiempo ?? false}
+                              onCheckedChange={(checked) =>
+                                updateAsistentePermiso(key, {
+                                  restriccionTiempo: !!checked,
+                                  fechaInicio: checked ? permiso?.fechaInicio ?? null : null,
+                                  fechaFin: checked ? permiso?.fechaFin ?? null : null,
+                                })
+                              }
+                              disabled={isSaving || isLoadingConfig}
+                            />
+                            <Label htmlFor={`asistente-${key}-restriccion`} className="font-normal">
+                              Restringir tiempo
+                            </Label>
+                          </div>
+                          {permiso?.restriccionTiempo ? (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label htmlFor={`asistente-${key}-inicio`} className="text-xs">
+                                  Desde
+                                </Label>
+                                <Input
+                                  id={`asistente-${key}-inicio`}
+                                  type="date"
+                                  value={permiso?.fechaInicio || ''}
+                                  onChange={(e) =>
+                                    updateAsistentePermiso(key, {
+                                      fechaInicio: e.target.value || null,
+                                    })
+                                  }
+                                  disabled={isSaving || isLoadingConfig}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`asistente-${key}-fin`} className="text-xs">
+                                  Hasta
+                                </Label>
+                                <Input
+                                  id={`asistente-${key}-fin`}
+                                  type="date"
+                                  value={permiso?.fechaFin || ''}
+                                  onChange={(e) =>
+                                    updateAsistentePermiso(key, {
+                                      fechaFin: e.target.value || null,
+                                    })
+                                  }
+                                  disabled={isSaving || isLoadingConfig}
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            <Button id="crearUsuarioSubmit" disabled={isSaving || isLoadingConfig} type="submit">
               {isSaving ? 'Guardando...' : 'Crear usuario'}
             </Button>
+
+            {formError ? (
+              <p className="text-sm text-destructive">Corrige los errores y vuelve a intentarlo.</p>
+            ) : null}
           </form>
         </CardContent>
       </Card>

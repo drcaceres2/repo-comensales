@@ -5,7 +5,8 @@ import { slugify } from '../utils/commonUtils';
 export const AuthIdSchema = z.string()
     .min(1, "ID inválido")
     .max(29, "ID no puede tener más de 29 caracteres")
-    .regex(/^[A-Za-z0-9]+$/, "ID solo puede contener caracteres Base62 (A-Z, a-z, 0-9)");
+    // Permitir además '-' y '_' que son habituales en UIDs y IDs generados
+    .regex(/^[A-Za-z0-9_-]+$/, "ID solo puede contener caracteres alfanuméricos, guiones (-) o guiones bajos (_)");
 
 export const OptionalAuthIdSchema = z.preprocess(
     (val) => (val === "" || val === null) ? undefined : val,

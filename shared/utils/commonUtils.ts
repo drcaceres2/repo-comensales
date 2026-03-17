@@ -1,6 +1,5 @@
 import { parseISO, isValid, format, Duration, add, intervalToDuration, getTime } from 'date-fns'
-import { toDate, formatInTimeZone } from 'date-fns-tz'
-import { TZDate } from "@date-fns/tz";
+import { formatInTimeZone } from 'date-fns-tz'
 import { FechaIsoSchema } from "../schemas/fechas";
 import { esValidaZonaHoraria, FechaIso, ZonaHorariaIana } from "../schemas/fechas";
 import { RolUsuario } from '../models/types';
@@ -12,7 +11,7 @@ export const slugify = (text: string, longitudMax?: number): string => {
     const to   = 'aeiouuAEIOUUnN_';
     let slug = text.toString().toLowerCase().trim();
     // Reemplazar tildes y ñ
-    slug = slug.split('').map((char, i) => {
+    slug = slug.split('').map((char) => {
         const idx = from.indexOf(char);
         return idx > -1 ? to[idx] : char;
     }).join('');
@@ -68,6 +67,68 @@ export const convertirHoraAMinutos = (hora: string | null | undefined): number |
 
 export type resultadoFechaIntervalo = "dentro" | "fuera_antes" | "fuera_despues" | "error";
 
+type TimestampServidorLike =
+    | number
+    | string
+    | Date
+    | { toDate: () => Date }
+    | { seconds: number; nanoseconds?: number }
+    | null
+    | undefined;
+
+function convertirTimestampServidorADate(timestampServidor: TimestampServidorLike): Date | null {
+    if (!timestampServidor) return null;
+
+    if (timestampServidor instanceof Date) {
+        return Number.isNaN(timestampServidor.getTime()) ? null : timestampServidor;
+    }
+
+    if (typeof timestampServidor === 'number') {
+        const fecha = new Date(timestampServidor);
+        return Number.isNaN(fecha.getTime()) ? null : fecha;
+    }
+
+    if (typeof timestampServidor === 'string') {
+        const fecha = new Date(timestampServidor);
+        return Number.isNaN(fecha.getTime()) ? null : fecha;
+    }
+
+    if (typeof timestampServidor === 'object') {
+        if ('toDate' in timestampServidor && typeof timestampServidor.toDate === 'function') {
+            const fecha = timestampServidor.toDate();
+            return Number.isNaN(fecha.getTime()) ? null : fecha;
+        }
+
+        if ('seconds' in timestampServidor) {
+            const nanoseconds = 'nanoseconds' in timestampServidor && typeof timestampServidor.nanoseconds === 'number'
+                ? timestampServidor.nanoseconds
+                : 0;
+            const fecha = new Date((timestampServidor.seconds * 1000) + Math.floor(nanoseconds / 1_000_000));
+            return Number.isNaN(fecha.getTime()) ? null : fecha;
+        }
+    }
+
+    return null;
+}
+
+function obtenerFechaActualResidencia(
+    timestampServidor: TimestampServidorLike,
+    zonaHorariaResidencia: ZonaHorariaIana | null | undefined
+): FechaIso | null {
+    if (!zonaHorariaResidencia || !esValidaZonaHoraria(zonaHorariaResidencia)) {
+        return null;
+    }
+
+    const fechaServidor = convertirTimestampServidorADate(timestampServidor);
+    if (!fechaServidor) {
+        return null;
+    }
+
+    return FechaIsoSchema.parse(
+        formatInTimeZone(fechaServidor, zonaHorariaResidencia, 'yyyy-MM-dd')
+    );
+}
+
 export async function HoyEstamosEntreFechasResidencia(
     fechaInicio: FechaIso | null | undefined,
     fechaFin: FechaIso | null | undefined,
@@ -77,14 +138,17 @@ export async function HoyEstamosEntreFechasResidencia(
         return "error";
     }
     try {
-        const timestampInicio = new TZDate(FechaIsoSchema.parse(fechaInicio)).getTime();
-        const timestampFin = new TZDate(FechaIsoSchema.parse(fechaFin)).getTime();
+        const fechaInicioValidada = FechaIsoSchema.parse(fechaInicio);
+        const fechaFinValidada = FechaIsoSchema.parse(fechaFin);
         const respuestaFechaServidor = await fetch('/api/hora-servidor');
         const { timestampServidor } = await respuestaFechaServidor.json();
-        if (!timestampServidor || (timestampInicio > timestampFin)) return "error";
-        if (timestampServidor >= timestampInicio && timestampServidor <= timestampFin) {
+
+        const fechaActualResidencia = obtenerFechaActualResidencia(timestampServidor, zonaHorariaResidencia);
+        if (!fechaActualResidencia || fechaInicioValidada > fechaFinValidada) return "error";
+
+        if (fechaActualResidencia >= fechaInicioValidada && fechaActualResidencia <= fechaFinValidada) {
             return "dentro"
-        } else if (timestampServidor <= timestampInicio) {
+        } else if (fechaActualResidencia < fechaInicioValidada) {
             return "fuera_antes"
         }
         return "fuera_despues"
@@ -97,18 +161,21 @@ export function EntreFechasResidencia(
     fechaInicio: FechaIso | null | undefined,
     fechaFin: FechaIso | null | undefined,
     zonaHorariaResidencia: ZonaHorariaIana | null | undefined,
-    timestampServidor: any
+    timestampServidor: TimestampServidorLike
 ): resultadoFechaIntervalo {
     if (!fechaInicio || !fechaFin || !zonaHorariaResidencia) {
         return "error";
     }
     try {
-        const timestampInicio = new TZDate(FechaIsoSchema.parse(fechaInicio)).getTime();
-        const timestampFin = new TZDate(FechaIsoSchema.parse(fechaFin)).getTime();
-        if (!timestampServidor || (timestampInicio > timestampFin)) return "error";
-        if (timestampServidor >= timestampInicio && timestampServidor <= timestampFin) {
+        const fechaInicioValidada = FechaIsoSchema.parse(fechaInicio);
+        const fechaFinValidada = FechaIsoSchema.parse(fechaFin);
+        const fechaActualResidencia = obtenerFechaActualResidencia(timestampServidor, zonaHorariaResidencia);
+
+        if (!fechaActualResidencia || fechaInicioValidada > fechaFinValidada) return "error";
+
+        if (fechaActualResidencia >= fechaInicioValidada && fechaActualResidencia <= fechaFinValidada) {
             return "dentro"
-        } else if (timestampServidor <= timestampInicio) {
+        } else if (fechaActualResidencia < fechaInicioValidada) {
             return "fuera_antes"
         }
         return "fuera_despues"

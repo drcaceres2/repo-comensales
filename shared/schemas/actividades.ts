@@ -1,180 +1,107 @@
 import { z } from 'zod';
-import { AuthIdSchema, OptionalAuthIdSchema, FirestoreIdSchema, SlugIdSchema, TimestampSchema } from './common';
-import { FechaIsoSchema, HoraIsoSchema} from './fechas';
+import { AuthIdSchema, FirestoreIdSchema, TimestampSchema } from './common';
+import { FechaIsoSchema } from './fechas';
 
 // ============================================
-// Enums
+// Enums y Taxonomia
 // ============================================
 
-const EstadoActividadEnum = z.enum([
-    'borrador', 'inscripcion_abierta', 'inscripcion_cerrada',
-    'solicitada_administracion', 'cancelada',
+export const EstadoActividadEnum = z.enum([
+    'pendiente',
+    'aprobada',
+    'inscripcion_abierta',
+    'inscripcion_cerrada',
+    'finalizada',
+    'cancelada',
 ]);
 
-const EstadoAvisoAdministracionEnum = z.enum([
-    'no_comunicado', 'comunicacion_preliminar',
-    'comunicacion_final', 'evento_cancelado',
+export const VisibilidadActividadEnum = z.enum([
+    'publica',
+    'oculta',
 ]);
 
-/**
- * TipoSolicitudComidasActividad
- * Aquí se define el modo en como se debe solicitar la actividad 
- * a la administración.
- * 
- * 1. Ninguna: 
- *      No se solicita a la administración. Por ejemplo si la comida 
- *      no la prepara la administración. Igualmente sirve en la aplicación
- *      porque los inscritos dejarán de verse reflejados en los comensales
- *      normales.
- * 2. Solicitud unica: Es la forma ordinaria de solicitar una actividad.
- *      Se solicita a la administración con la antelación debida.
- * 3. Diario: Por la longitud de la actividad, se pide a la administración
- *      cada día en el horario normal. Por ejemplo una convivencia larga con gente
- *      de afuera, un retiro de gente externa que vienen y van, etc.
- * 4. Solicitud inicial mas confirmacion diaria: 
- *      Se solicita una vez con antelación y se confirma diariamente.
- */
-const TipoSolicitudComidasActividadEnum = z.enum([
-    'ninguna', 'solicitud_unica', 'solicitud_diaria',
-    'solicitud_inicial_mas_confirmacion_diaria',
+export const TipoAccesoActividadEnum = z.enum([
+    'abierta',
+    'solo_invitacion',
 ]);
 
-const EstadoInscripcionActividadEnum = z.enum([
-    'invitado_pendiente', 'invitado_rechazado', 'invitado_aceptado',
-    'inscrito_directo',
-    'cancelado_usuario', 'cancelado_admin',
+export const TipoSolicitudAdministracionEnum = z.enum([
+    'ninguna',
+    'solicitud_unica',
+    'diario',
 ]);
 
-// ============================================
-// Sub-schemas
-// ============================================
+export const EstadoInscripcionEnum = z.enum([
+    'invitacion_pendiente',
+    'confirmada',
+    'rechazada',
+    'cancelada_por_usuario',
+    'cancelada_por_organizador',
+]);
 
-/**
- * ModoAcceso: Define la política de acceso a una actividad.
- */
-export const ModoAccesoSchema = z.object({
-    accesoUsuario: z.enum(['abierto', 'por_invitacion']),
-    puedeInvitar: z.boolean(),
-}).strict();
-
-/**
- * DetalleActividad: Una comida planificada dentro de una actividad.
- */
-export const DetalleActividadSchema = z.object({
-    fechaComida: FechaIsoSchema,
-    grupoComida: z.number().int().nonnegative(),
-    nombreTiempoComida: z.string().min(1).max(100),
-    horaEstimada: HoraIsoSchema.optional(),
-}).strict();
+// Aliases de compatibilidad temporal para imports legacy.
+export const EstadoInscripcionActividadEnum = EstadoInscripcionEnum;
+export const TipoSolicitudComidasActividadEnum = TipoSolicitudAdministracionEnum;
 
 // ============================================
-// Actividad
+// Sub-Esquemas Core
 // ============================================
 
-/**
- * Actividad: Evento que sobrescribe la rutina de comida.
- * Nivel 1 (Máxima Prioridad) de la Cascada de la Verdad.
- * 
- * Ruta: residencias/{slug}/actividades/{auto-id}
- */
-const ActividadBaseSchema = z.object({
-    // Campos generales
-    id: FirestoreIdSchema,
-    residenciaId: SlugIdSchema,
-    organizadorId: AuthIdSchema,
-    nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(25, 'El nombre no puede exceder los 25 caracteres'),
-    descripcion: z.string().trim().max(255, 'La descripción no puede exceder los 255 caracteres').optional(),
-    estado: EstadoActividadEnum,
-    avisoAdministracion: EstadoAvisoAdministracionEnum.default('no_comunicado'),
-    tipoSolicitudComidas: TipoSolicitudComidasActividadEnum.default('solicitud_unica'),
-
-    // Campos de cálculo de comidas
+export const FronterasActividadSchema = z.object({
     fechaInicio: FechaIsoSchema,
+    tiempoComidaInicioId: z.string(),
     fechaFin: FechaIsoSchema,
-    tiempoComidaInicial: SlugIdSchema,
-    tiempoComidaFinal: SlugIdSchema,
-    planComidas: z.array(DetalleActividadSchema),
-    comedorActividad: SlugIdSchema.nullable().optional(),
-    modoAtencionActividad: z.enum(['residencia', 'externa']),
-    diasAntelacionSolicitudAdministracion: z.number().int().nonnegative(),
+    tiempoComidaFinId: z.string(),
+});
 
-    // Campos de lógica de inscripción
-    maxParticipantes: z.number().int().min(2, 'El máximo de participantes debe ser al menos 2').optional(),
-    comensalesNoUsuarios: z.number().int().nonnegative(),
-    requiereInscripcion: z.boolean().default(true),
-    fechaLimiteInscripcion: FechaIsoSchema.optional(),
-    modoAccesoResidentes: ModoAccesoSchema.optional(),
-    modoAccesoInvitados: ModoAccesoSchema.optional(),
+// ============================================
+// Esquemas Principales
+// ============================================
 
-    // Campos de costo
-    centroCostoId: SlugIdSchema.nullable().optional(),
-}).strict();
+export const ActividadBaseSchema = z.object({
+    id: FirestoreIdSchema,
+    residenciaId: FirestoreIdSchema,
 
-// --- Create Schema ---
+    // Metadatos y UI
+    titulo: z.string().min(3),
+    descripcion: z.string().optional(),
+    lugar: z.string().optional(),
+    organizadorId: AuthIdSchema,
+
+    // Taxonomia y estado
+    estado: EstadoActividadEnum,
+    visibilidad: VisibilidadActividadEnum,
+    tipoAcceso: TipoAccesoActividadEnum,
+    permiteInvitadosExternos: z.boolean(),
+
+    // Contable
+    centroCostoId: FirestoreIdSchema,
+    solicitudAdministracion: TipoSolicitudAdministracionEnum,
+
+    // Cupos y raciones
+    maxParticipantes: z.number().int().positive(),
+    conteoInscritos: z.number().int().nonnegative().default(0),
+    adicionalesNoNominales: z.number().int().nonnegative().default(0),
+
+    // Trazabilidad
+    timestampCreacion: TimestampSchema,
+    timestampModificacion: TimestampSchema,
+}).merge(FronterasActividadSchema);
 
 export const ActividadCreateSchema = ActividadBaseSchema.omit({
     id: true,
-    residenciaId: true,
-    organizadorId: true,
-    estado: true,
-    avisoAdministracion: true,
-    comensalesNoUsuarios: true,
+    conteoInscritos: true,
+    timestampCreacion: true,
+    timestampModificacion: true,
 }).extend({
-    estado: EstadoActividadEnum.default('borrador'),
-    avisoAdministracion: EstadoAvisoAdministracionEnum.default('no_comunicado'),
-    comensalesNoUsuarios: z.number().int().nonnegative().default(0),
-}).refine(data => data.fechaFin >= data.fechaInicio, {
-    message: "La fecha de finalización no puede ser anterior a la fecha de inicio",
-    path: ["fechaFin"],
-}).superRefine((data, ctx) => {
-    if (data.requiereInscripcion && !data.modoAccesoResidentes) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['modoAccesoResidentes'],
-            message: 'El modo de acceso para residentes es obligatorio si se requiere inscripción.',
-        });
-    }
-}).superRefine((data, ctx) => {
-    if (data.modoAtencionActividad === 'residencia' && !data.comedorActividad) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['comedorActividad'],
-            message: 'El comedor es obligatorio cuando el modo de atención es "residencia".',
-        });
-    }
+    timestampCreacion: TimestampSchema.optional(),
+    timestampModificacion: TimestampSchema.optional(),
 });
-
-// --- Update Schema ---
 
 export const ActividadUpdateSchema = ActividadBaseSchema.omit({
     id: true,
     residenciaId: true,
-    organizadorId: true,
-}).partial().refine(data => {
-    if (data.fechaInicio && data.fechaFin) {
-        return data.fechaFin >= data.fechaInicio;
-    }
-    return true;
-}, {
-    message: "La fecha de finalización no puede ser anterior a la fecha de inicio",
-    path: ["fechaFin"],
-}).superRefine((data, ctx) => {
-    if (data.requiereInscripcion === true && !data.modoAccesoResidentes) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['modoAccesoResidentes'],
-            message: 'El modo de acceso para residentes es obligatorio si se requiere inscripción.',
-        });
-    }
-}).superRefine((data, ctx) => {
-    if (data.modoAtencionActividad === 'residencia' && !data.comedorActividad) {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['comedorActividad'],
-            message: 'El comedor es obligatorio cuando el modo de atención es "residencia".',
-        });
-    }
-});
+}).partial();
 
 export const ActividadEstadoUpdateSchema = z.object({
     estado: EstadoActividadEnum,
@@ -183,26 +110,19 @@ export const ActividadEstadoUpdateSchema = z.object({
 export const ActividadSchema = ActividadBaseSchema;
 
 // ============================================
-// InscripcionActividad
+// Esquema de Inscripciones (Subcoleccion)
 // ============================================
 
-/**
- * InscripcionActividad: Registro de inscripción de un usuario a una actividad.
- * Ruta: residencias/{slug}/actividades/{auto-id}/inscripciones/{uid}
- */
 export const InscripcionActividadSchema = z.object({
-    id: FirestoreIdSchema,
-    residenciaId: SlugIdSchema,
+    id: z.string(),
     actividadId: FirestoreIdSchema,
-    usuarioInscritoId: AuthIdSchema,
-    invitadoPorUsuarioId: OptionalAuthIdSchema,
-
-    fechaInvitacion: FechaIsoSchema.nullable(),
-    estadoInscripcion: EstadoInscripcionActividadEnum,
+    usuarioId: z.string(),
+    invitadoPorId: z.string().optional(),
+    estado: EstadoInscripcionEnum,
 
     timestampCreacion: TimestampSchema,
     timestampModificacion: TimestampSchema,
-}).strict();
+});
 
 export const InscripcionActividadCreateSchema = InscripcionActividadSchema.omit({
     id: true,
@@ -216,28 +136,20 @@ export const InscripcionActividadCreateSchema = InscripcionActividadSchema.omit(
 export const InscripcionActividadUpdateSchema = InscripcionActividadSchema.omit({
     id: true,
     actividadId: true,
-    usuarioInscritoId: true,
-    residenciaId: true,
+    usuarioId: true,
 }).partial();
 
-// Type exports
+// ============================================
+// Types Exports
+// ============================================
 
-/**
- * Actividad: Evento que sobrescribe la rutina de comida.
- * Corresponde al Nivel 1 (Máxima Prioridad) de la Cascada de la Verdad.
- */
 export type Actividad = z.infer<typeof ActividadBaseSchema>;
 export type ActividadCreate = z.infer<typeof ActividadCreateSchema>;
 export type ActividadUpdate = z.infer<typeof ActividadUpdateSchema>;
-export type InscripcionActividad = z.infer<typeof InscripcionActividadSchema>;
 
-/** 
- * ModoAcceso
- * Abierta quiere decir que se inscribe voluntariamente quien lo desee. 
- * Por invitación, como lo dice el texto. 
- * Opción única quiere decir que no habrá otra opción para los residentes (los tiempos de comida omitidos no estarán disponibles en la residencia).
- */
-export type ModoAcceso = z.infer<typeof ModoAccesoSchema>;
-export type DetalleActividad = z.infer<typeof DetalleActividadSchema>;
+export type InscripcionActividad = z.infer<typeof InscripcionActividadSchema>;
+export type InscripcionActividadCreate = z.infer<typeof InscripcionActividadCreateSchema>;
+export type InscripcionActividadUpdate = z.infer<typeof InscripcionActividadUpdateSchema>;
 
 export type EstadoActividad = z.infer<typeof EstadoActividadEnum>;
+export type EstadoInscripcionActividad = z.infer<typeof EstadoInscripcionEnum>;

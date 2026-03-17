@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -37,6 +37,7 @@ function getAceptarInvitacionEndpoint(): string {
 }
 
 export default function FinalizarInvitacionPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') || '';
   const endpoint = useMemo(() => getAceptarInvitacionEndpoint(), []);
@@ -121,6 +122,18 @@ export default function FinalizarInvitacionPage() {
       setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (!success) return;
+
+    const timeout = window.setTimeout(() => {
+      router.push('/');
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [router, success]);
 
   return (
     <div className="container mx-auto max-w-lg py-10">
