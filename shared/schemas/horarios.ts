@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { CadenaOpcionalLimitada, SlugIdSchema } from './common';
 import { HoraIsoSchema, DiaDeLaSemanaSchema } from './fechas';
 import {ComedorDataSchema, ComedorDataSelector} from "./complemento1";
-import { convertirHoraAMinutos } from 'shared/utils/commonUtils';
+import { convertirHoraAMinutos } from '../utils/commonUtils';
 
 /**
  * HorarioSolicitudData: Datos de un horario de solicitud de comida.

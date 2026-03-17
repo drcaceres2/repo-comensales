@@ -311,7 +311,10 @@ export default function ComedorClient({ resultadoAcceso }: ComedorClientProps) {
 
             {/* Add/Edit Modal */}
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-                <DialogContent className="sm:max-w-[500px] backdrop-blur-sm bg-background/95">
+                <DialogContent 
+                    description="Agregar o editar comedor"
+                    className="sm:max-w-[500px] backdrop-blur-sm bg-background/95"
+                >
                     <DialogHeader>
                         <DialogTitle>
                             {editingId ? t('edit_comedor') : t('add_comedor')}

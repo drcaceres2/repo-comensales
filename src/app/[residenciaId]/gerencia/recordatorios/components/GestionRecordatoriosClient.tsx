@@ -96,7 +96,10 @@ export const GestionRecordatoriosClient = () => {
 
             {isModalOpen && (
                 <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                    <DialogContent className="sm:max-w-[600px]">
+                    <DialogContent 
+                        className="sm:max-w-[600px]"
+                        description="Formulario de creación o edición de recordatorio"
+                    >
                         <DialogHeader>
                             <DialogTitle>
                                 {recordatorioEnEdicion

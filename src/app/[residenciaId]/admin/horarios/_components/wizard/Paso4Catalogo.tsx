@@ -108,7 +108,10 @@ const AlternativaForm = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent 
+        className="sm:max-w-md"
+        description="Formulario de definición de alternativa"
+      >
         <DialogHeader>
           <DialogTitle>{alternativa ? 'Editar' : 'Crear'} Alternativa</DialogTitle>
           <DialogDescription>
@@ -276,7 +279,7 @@ const CrearVariosForm = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md" description="Formulario de creación de varias alternativas">
                 <DialogHeader>
                     <DialogTitle>Crear Varias Alternativas</DialogTitle>
                     <DialogDescription>
@@ -411,7 +414,7 @@ const CrearAusenciaForm = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md" description="Formulario de creación de varias alternativas">
                 <DialogHeader>
                     <DialogTitle>Crear Alternativas de Ausencia</DialogTitle>
                     <DialogDescription>

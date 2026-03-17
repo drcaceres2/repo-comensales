@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useTransition } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -30,18 +30,17 @@ import {
 
 import { type CentroDeCosto } from 'shared/schemas/contabilidad';
 import { type ComedorData } from 'shared/schemas/complemento1';
-import { type TiempoComida } from 'shared/schemas/horarios';
+import { type TiempoComida, type GrupoComida } from 'shared/schemas/horarios';
 import type { ActividadId, ResidenciaId, ComedorId, TiempoComidaId } from 'shared/models/types';
 
 import { ActivityForm } from './activity-form';
 import {
-    obtenerDatosInicialesGestionActividades,
-    updateActividadEstado,
     type ActividadGestion,
     type InscripcionGestion,
     type EstadoActividadGestion,
 } from './actions';
 import { useInfoUsuario } from '@/components/layout/AppProviders';
+import { useGestionActividadesQuery, useMutacionesGestionActividades } from './consultas';
 
 interface GestionActividadesClientProps {
     residenciaId: ResidenciaId;
@@ -58,55 +57,22 @@ const getInvitacionesCount = (inscripciones: InscripcionGestion[], actividadId: 
 export function GestionActividadesClient({ residenciaId }: GestionActividadesClientProps) {
     const { toast } = useToast();
     const { usuarioId: authUser } = useInfoUsuario();
-    const [isPending, startTransition] = useTransition();
-
-    const [actividades, setActividades] = useState<ActividadGestion[]>([]);
-    const [inscripciones, setInscripciones] = useState<InscripcionGestion[]>([]);
-    const [centroCostosList, setCentroCostosList] = useState<CentroDeCosto[]>([]);
-    const [tiemposComidaList, setTiemposComidaList] = useState<(TiempoComida & { id: TiempoComidaId })[]>([]);
-    const [comedoresList, setComedoresList] = useState<(ComedorData & { id: ComedorId })[]>([]);
-
-    const [isLoadingPageData, setIsLoadingPageData] = useState(true);
-    const [pageError, setPageError] = useState<string | null>(null);
     const [showActivityForm, setShowActivityForm] = useState(false);
     const [editingActividad, setEditingActividad] = useState<ActividadGestion | null>(null);
 
-    const fetchData = useCallback(async () => {
-        if (!residenciaId || !authUser) {
-            return;
-        }
+    const query = useGestionActividadesQuery(residenciaId);
+    const mutaciones = useMutacionesGestionActividades(residenciaId, authUser);
 
-        setIsLoadingPageData(true);
-        setPageError(null);
-
-        try {
-            const result = await obtenerDatosInicialesGestionActividades(residenciaId);
-            if (!result.success) {
-                throw new Error(typeof result.error === 'string' ? result.error : 'Error desconocido al cargar datos.');
-            }
-
-            if (!result.data) {
-                throw new Error('No se recibieron datos de actividades.');
-            }
-
-            setActividades(result.data.actividades);
-            setInscripciones(result.data.inscripciones);
-            setCentroCostosList(result.data.centroCostos as CentroDeCosto[]);
-            setTiemposComidaList(result.data.tiemposComida as (TiempoComida & { id: TiempoComidaId })[]);
-            setComedoresList(result.data.comedores as (ComedorData & { id: ComedorId })[]);
-        } catch (err) {
-            console.error('Error fetching admin activities data:', err);
-            setPageError(err instanceof Error ? err.message : 'Error desconocido al cargar datos.');
-        } finally {
-            setIsLoadingPageData(false);
-        }
-    }, [residenciaId, authUser]);
-
-    useEffect(() => {
-        if (authUser) {
-            fetchData();
-        }
-    }, [authUser, fetchData]);
+    const actividades = query.data?.actividades || [];
+    const inscripciones = query.data?.inscripciones || [];
+    const centroCostosList = (query.data?.centroCostos || []) as CentroDeCosto[];
+    const tiemposComidaList = (query.data?.tiemposComida || []) as (TiempoComida & { id: TiempoComidaId })[];
+    const comedoresList = (query.data?.comedores || []) as (ComedorData & { id: ComedorId })[];
+    const gruposComidas = (query.data?.gruposComidas || []) as (GrupoComida & { id: string })[];
+    const isMutating =
+        mutaciones.crearActividadMutation.isPending ||
+        mutaciones.actualizarActividadMutation.isPending ||
+        mutaciones.cambiarEstadoMutation.isPending;
 
     const handleOpenAddForm = () => {
         setEditingActividad(null);
@@ -121,20 +87,17 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
     const handleCloseForm = () => {
         setShowActivityForm(false);
         setEditingActividad(null);
-        fetchData();
     };
 
-    const handleStateChange = (actividadId: ActividadId, newState: EstadoActividadGestion) => {
-        startTransition(async () => {
-            const result = await updateActividadEstado(actividadId, residenciaId, newState);
-            if (result.success) {
-                toast({ title: 'Estado de la actividad actualizado' });
-                fetchData();
-            } else {
-                const errorMsg = typeof result.error === 'string' ? result.error : 'Error de validacion';
-                toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
-            }
-        });
+    const handleStateChange = async (actividadId: ActividadId, newState: EstadoActividadGestion) => {
+        const result = await mutaciones.cambiarEstadoMutation.mutateAsync({ actividadId, newState });
+        if (result.success) {
+            toast({ title: 'Estado de la actividad actualizado' });
+            return;
+        }
+
+        const errorMsg = typeof result.error === 'string' ? result.error : 'Error de validacion';
+        toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
     };
 
     const getStateButtonStyle = (actividad: ActividadGestion) => {
@@ -164,7 +127,7 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
         }
     };
 
-    if (isLoadingPageData) {
+    if (query.isLoading) {
         return (
             <div className='flex justify-center items-center h-screen'>
                 <Loader2 className='h-8 w-8 animate-spin' />
@@ -172,8 +135,12 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
         );
     }
 
-    if (pageError) {
-        return <div className='text-destructive text-center mt-8'>{pageError}</div>;
+    if (query.error) {
+        return (
+            <div className='text-destructive text-center mt-8'>
+                {query.error instanceof Error ? query.error.message : 'No se pudieron cargar las actividades.'}
+            </div>
+        );
     }
 
     return (
@@ -182,7 +149,7 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
                 <div>
                     <h1 className='text-2xl md:text-3xl font-bold tracking-tight'>Gestionar Actividades</h1>
                 </div>
-                <Button onClick={handleOpenAddForm} disabled={isPending} className='w-full md:w-auto'>
+                <Button onClick={handleOpenAddForm} disabled={isMutating} className='w-full md:w-auto'>
                     <PlusCircle className='mr-2 h-5 w-5' /> Anadir Actividad
                 </Button>
             </div>
@@ -298,7 +265,7 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
                                         className='flex-1'
                                         onClick={() => handleOpenEditForm(actividad)}
                                         disabled={
-                                            isPending ||
+                                            isMutating ||
                                             !['pendiente', 'aprobada', 'inscripcion_abierta'].includes(actividad.estado)
                                         }
                                     >
@@ -312,7 +279,7 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
                                                     variant='secondary'
                                                     size='sm'
                                                     className='flex-1 text-destructive hover:bg-destructive/10'
-                                                    disabled={isPending}
+                                                    disabled={isMutating}
                                                 >
                                                     <XCircle className='mr-2 h-4 w-4' /> Cancelar
                                                 </Button>
@@ -333,7 +300,7 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
                                                     <AlertDialogCancel>No, volver</AlertDialogCancel>
                                                     <AlertDialogAction
                                                         className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                                                        onClick={() => handleStateChange(actividad.id, 'cancelada')}
+                                                        onClick={() => void handleStateChange(actividad.id, 'cancelada')}
                                                     >
                                                         Si, Cancelar Actividad
                                                     </AlertDialogAction>
@@ -349,8 +316,8 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
                                             variant='default'
                                             size='sm'
                                             className='w-full bg-blue-600 hover:bg-blue-700 h-9'
-                                            onClick={() => handleStateChange(actividad.id, stateButton.nextState)}
-                                            disabled={isPending}
+                                            onClick={() => void handleStateChange(actividad.id, stateButton.nextState)}
+                                            disabled={isMutating}
                                         >
                                             <stateButton.icon className='mr-2 h-4 w-4' />
                                             {stateButton.label}
@@ -374,6 +341,11 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
                     tiemposComidaList={tiemposComidaList}
                     centroCostosList={centroCostosList}
                     comedoresList={comedoresList}
+                    gruposComidas={gruposComidas}
+                    onCreate={(payload) => mutaciones.crearActividadMutation.mutateAsync(payload)}
+                    onUpdate={(actividadId, payload) =>
+                        mutaciones.actualizarActividadMutation.mutateAsync({ actividadId, payload })
+                    }
                 />
             )}
         </div>

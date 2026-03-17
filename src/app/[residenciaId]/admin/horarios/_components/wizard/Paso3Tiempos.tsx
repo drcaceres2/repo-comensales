@@ -261,7 +261,7 @@ export function Paso3Tiempos() {
             {editingId && renderForm()}
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent>
+                <DialogContent description="Formulario de establecimiento de Tiempos de Comida" >
                     <DialogHeader>
                         <DialogTitle>Establecer Horas de Referencia</DialogTitle>
                     </DialogHeader>

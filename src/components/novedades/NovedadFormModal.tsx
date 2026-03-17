@@ -94,7 +94,7 @@ export default function NovedadFormModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px]" description="Formulario para crear o editar una novedad">
         <DialogHeader>
           <DialogTitle>{defaultValues?.texto ? 'Editar Novedad' : 'Crear Novedad'}</DialogTitle>
         </DialogHeader>

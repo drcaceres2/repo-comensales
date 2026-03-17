@@ -13,7 +13,7 @@ import type { Usuario } from 'shared/schemas/usuarios';
 import type { TiempoComida } from 'shared/schemas/horarios';
 import type { CentroDeCosto } from 'shared/schemas/contabilidad';
 import type { ComedorData } from 'shared/schemas/complemento1';
-import type { LogPayload, ResidenciaId } from '@/../shared/models/types';
+import type { LogPayload, ResidenciaId } from 'shared/models/types';
 
 export type EstadoActividadGestion =
     | 'pendiente'
@@ -278,11 +278,26 @@ async function obtenerEsquemaSemanal(residenciaId: ResidenciaId) {
     return {
         esquemaSemanal: (configData.esquemaSemanal || {}) as Record<string, TiempoComida>,
         comedores: (configData.comedores || {}) as Record<string, ComedorData>,
+        gruposComidas: (configData.gruposComidas || {}) as Record<string, { nombre?: string; orden?: number; estaActivo?: boolean }>,
     };
 }
 
-function extraerPesoTiempoComida(tiempo: TiempoComida): number {
-    const grupo = Number(tiempo.grupoComida || 0);
+function extraerPesoTiempoComida(tiempo: TiempoComida, gruposComidas?: Record<string, { orden?: number }>): number {
+    // Determine numeric group order. `tiempo.grupoComida` can be a slug string
+    // that should map to `gruposComidas[slug].orden`, or a numeric-like value.
+    let grupoNum = 0;
+    const rawGrupo = (tiempo as any).grupoComida;
+    if (typeof rawGrupo === 'number') {
+        grupoNum = Number(rawGrupo);
+    } else if (typeof rawGrupo === 'string') {
+        if (gruposComidas && gruposComidas[rawGrupo] && typeof gruposComidas[rawGrupo].orden === 'number') {
+            grupoNum = gruposComidas[rawGrupo].orden as number;
+        } else {
+            const maybe = Number(rawGrupo);
+            grupoNum = Number.isFinite(maybe) ? maybe : 0;
+        }
+    }
+
     const horaRef =
         typeof (tiempo as any).horaEstimada === 'string'
             ? (tiempo as any).horaEstimada
@@ -291,12 +306,13 @@ function extraerPesoTiempoComida(tiempo: TiempoComida): number {
             : '00:00';
 
     const [h, m] = horaRef.split(':').map((v: string) => Number(v || 0));
-    return grupo * 1000 + h * 60 + m;
+    return grupoNum * 100000 + h * 60 + m;
 }
 
 function validarFronteras(
     actividad: { fechaInicio: string; tiempoComidaInicioId: string; fechaFin: string; tiempoComidaFinId: string },
-    esquemaSemanal: Record<string, TiempoComida>
+    esquemaSemanal: Record<string, TiempoComida>,
+    gruposComidas?: Record<string, { orden?: number }>
 ) {
     const tiempoInicio = esquemaSemanal[actividad.tiempoComidaInicioId];
     if (!tiempoInicio) {
@@ -308,8 +324,8 @@ function validarFronteras(
         return { valid: false, field: 'tiempoComidaFinId', message: 'El tiempo de comida final no existe.' };
     }
 
-    const inicio = Date.parse(`${actividad.fechaInicio}T00:00:00Z`) + extraerPesoTiempoComida(tiempoInicio);
-    const fin = Date.parse(`${actividad.fechaFin}T00:00:00Z`) + extraerPesoTiempoComida(tiempoFin);
+    const inicio = Date.parse(`${actividad.fechaInicio}T00:00:00Z`) + extraerPesoTiempoComida(tiempoInicio, gruposComidas);
+    const fin = Date.parse(`${actividad.fechaFin}T00:00:00Z`) + extraerPesoTiempoComida(tiempoFin, gruposComidas);
 
     if (!Number.isFinite(inicio) || !Number.isFinite(fin) || inicio >= fin) {
         return {
@@ -465,10 +481,11 @@ export async function obtenerDatosInicialesGestionActividades(residenciaId: Resi
             .filter((centroCosto) => centroCosto.estaActivo);
 
         const tiemposComida = Object.entries(config.esquemaSemanal)
-            .map(([id, data]) => ({ id, ...data }))
-            .sort((a, b) => Number(a.grupoComida || 0) - Number(b.grupoComida || 0));
+            .map(([id, data]) => ({ id, ...data }));
 
         const comedores = Object.entries(config.comedores).map(([id, data]) => ({ id, ...data }));
+
+        const gruposComidas = Object.entries(config.gruposComidas || {}).map(([id, data]) => ({ id, ...data }));
 
         return {
             success: true,
@@ -478,6 +495,7 @@ export async function obtenerDatosInicialesGestionActividades(residenciaId: Resi
                 centroCostos,
                 tiemposComida,
                 comedores,
+                gruposComidas,
             },
         };
     } catch (error) {
@@ -498,7 +516,8 @@ export async function createActividad(residenciaId: ResidenciaId, data: unknown)
             return { success: false, error: parsed.error.flatten() };
         }
 
-        const validacion = validarFronteras(parsed.data, (await obtenerEsquemaSemanal(residenciaId)).esquemaSemanal);
+        const config = await obtenerEsquemaSemanal(residenciaId);
+        const validacion = validarFronteras(parsed.data, config.esquemaSemanal, config.gruposComidas);
         if (!validacion.valid) {
             const fieldKey = validacion.field || 'fechaFin';
             return {
@@ -541,8 +560,13 @@ export async function createActividad(residenciaId: ResidenciaId, data: unknown)
             details: { titulo: parsed.data.titulo, estado: 'pendiente' },
         }).catch((err) => console.error('Error logging ACTIVIDAD_CREADA:', err));
 
+        // Remove non-serializable sentinel values (FieldValue) before returning to client
+        const safePayload: Record<string, unknown> = { ...payload };
+        delete (safePayload as any).timestampCreacion;
+        delete (safePayload as any).timestampModificacion;
+
         revalidatePath(`/${residenciaId}/gerencia/actividades`);
-        return { success: true, data: { id: docRef.id, ...payload } };
+        return { success: true, data: { id: docRef.id, ...safePayload } };
     } catch (error) {
         console.error('Error creando actividad:', error);
         return { success: false, error: 'No se pudo crear la actividad.' };
@@ -587,7 +611,8 @@ export async function updateActividad(actividadId: string, residenciaId: Residen
             tiempoComidaFinId: parsed.data.tiempoComidaFinId ?? actividadActual.tiempoComidaFinId,
         };
 
-        const validacion = validarFronteras(mergeFronteras, (await obtenerEsquemaSemanal(residenciaId)).esquemaSemanal);
+        const config = await obtenerEsquemaSemanal(residenciaId);
+        const validacion = validarFronteras(mergeFronteras, config.esquemaSemanal, config.gruposComidas);
         if (!validacion.valid) {
             const fieldKey = validacion.field || 'fechaFin';
             return {

@@ -129,7 +129,7 @@ export function ModalExcepcionLibre({ open, onOpenChange, data, fechaPreferida, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent description="Formulario de creación de excepción libre">
         <DialogHeader>
           <DialogTitle>Nueva excepcion</DialogTitle>
           <DialogDescription>Selecciona fecha, tiempo de comida y alternativa.</DialogDescription>

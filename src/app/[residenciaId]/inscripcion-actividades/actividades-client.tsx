@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Calendar, Users, UserPlus, Ban } from 'lucide-react';
 import { useInscripcionActividadesQuery, useMutacionesInscripcionActividades } from './lib/consultas';
-import type { EstadoInscripcion, InscripcionActividad } from './actions';
+import type { EstadoInscripcion, InscripcionActividad } from './lib/actions';
 
 interface Props {
     residenciaId: ResidenciaId;

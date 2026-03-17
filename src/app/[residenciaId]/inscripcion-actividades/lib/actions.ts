@@ -6,8 +6,8 @@ import { db, FieldValue, Timestamp } from '@/lib/firebaseAdmin';
 import { httpsCallable, functions } from '@/lib/firebase';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import { verificarPermisoUsuarioAsistido } from '@/lib/acceso-privilegiado';
-import type { Usuario } from 'shared/schemas/usuarios';
-import type { LogPayload, ResidenciaId } from '@/../shared/models/types';
+import type { Usuario } from '../../../../../shared/schemas/usuarios';
+import type { LogPayload, ResidenciaId } from '../../../../../shared/models/types';
 
 export type EstadoActividadInscripcion =
     | 'pendiente'

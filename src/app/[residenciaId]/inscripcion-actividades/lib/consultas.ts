@@ -12,7 +12,7 @@ import {
     responderInvitacion,
     type DatosInscripcionActividades,
     type EstadoInscripcion,
-} from '../actions';
+} from './actions';
 
 export const inscripcionesQueryKey = (residenciaId: string) => ['inscripcion-actividades', residenciaId] as const;
 

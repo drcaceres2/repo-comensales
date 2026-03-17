@@ -118,7 +118,7 @@ export function ModalAusenciaLote({ open, onOpenChange, data, fechaPreferida, on
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent description="Formulario de registro de ausencia por rango de fechas">
         <DialogHeader>
           <DialogTitle>Nueva ausencia</DialogTitle>
           <DialogDescription>Registra una ausencia por rango de fechas.</DialogDescription>

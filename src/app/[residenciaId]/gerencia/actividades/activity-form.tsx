@@ -5,13 +5,14 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
-import type { ResidenciaId, ComedorId, TiempoComidaId } from 'shared/models/types';
+import type { ComedorId, TiempoComidaId } from 'shared/models/types';
 import { type ComedorData } from 'shared/schemas/complemento1';
 import { type CentroDeCosto } from 'shared/schemas/contabilidad';
-import { type TiempoComida } from 'shared/schemas/horarios';
+import { type TiempoComida, type GrupoComida } from 'shared/schemas/horarios';
 import { MapaDiaDeLaSemana } from 'shared/schemas/fechas';
 
-import { createActividad, updateActividad, type ActividadGestion } from './actions';
+import { type ActividadGestion } from './actions';
+import type { ActividadInput } from './consultas';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,14 +38,16 @@ import {
     DialogClose,
     DialogOverlay,
 } from '@/components/ui/dialog';
-import { useInfoUsuario } from '@/components/layout/AppProviders';
 
 interface ActivityFormProps {
     onClose: () => void;
     actividad?: ActividadGestion | null;
     tiemposComidaList: (TiempoComida & { id: TiempoComidaId })[];
+    gruposComidas?: (GrupoComida & { id: string })[];
     centroCostosList: CentroDeCosto[];
     comedoresList: (ComedorData & { id: ComedorId })[];
+    onCreate: (payload: ActividadInput) => Promise<{ success: boolean; error?: unknown }>;
+    onUpdate: (actividadId: string, payload: ActividadInput) => Promise<{ success: boolean; error?: unknown }>;
 }
 
 const ActivityFormSchema = z.object({
@@ -70,10 +73,12 @@ export function ActivityForm({
     onClose,
     actividad,
     tiemposComidaList,
+    gruposComidas,
     centroCostosList,
     comedoresList: _comedoresList,
+    onCreate,
+    onUpdate,
 }: ActivityFormProps) {
-    const { residenciaId } = useInfoUsuario();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
 
@@ -87,9 +92,9 @@ export function ActivityForm({
                   titulo: actividad.titulo,
                   descripcion: actividad.descripcion || '',
                   lugar: actividad.lugar || '',
-                                    visibilidad: actividad.visibilidad,
-                                    tipoAcceso: actividad.tipoAcceso,
-                                    permiteInvitadosExternos: actividad.permiteInvitadosExternos,
+                  visibilidad: actividad.visibilidad,
+                  tipoAcceso: actividad.tipoAcceso,
+                  permiteInvitadosExternos: actividad.permiteInvitadosExternos,
                   fechaInicio: actividad.fechaInicio,
                   tiempoComidaInicioId: actividad.tiempoComidaInicioId,
                   fechaFin: actividad.fechaFin,
@@ -97,15 +102,15 @@ export function ActivityForm({
                   centroCostoId: actividad.centroCostoId || undefined,
                   solicitudAdministracion: actividad.solicitudAdministracion,
                   maxParticipantes: actividad.maxParticipantes,
-                                    adicionalesNoNominales: actividad.adicionalesNoNominales,
+                  adicionalesNoNominales: actividad.adicionalesNoNominales,
               }
             : {
                   titulo: '',
                   descripcion: '',
                   lugar: '',
-                                    visibilidad: 'publica',
-                                    tipoAcceso: 'abierta',
-                                    permiteInvitadosExternos: false,
+                  visibilidad: 'publica',
+                  tipoAcceso: 'abierta',
+                  permiteInvitadosExternos: true,
                   fechaInicio: new Date().toISOString().slice(0, 10),
                   tiempoComidaInicioId: '',
                   fechaFin: new Date().toISOString().slice(0, 10),
@@ -113,13 +118,74 @@ export function ActivityForm({
                   centroCostoId: undefined,
                   solicitudAdministracion: 'solicitud_unica',
                   maxParticipantes: 10,
-                                    adicionalesNoNominales: 0,
+                  adicionalesNoNominales: 0,
               },
     });
 
+    const fillMissingTiempos = () => {
+        const values = form.getValues();
+
+        const computeDiaName = (fechaIso: string) => {
+            try {
+                const d = new Date(`${fechaIso}T00:00:00`);
+                const dias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+                return dias[d.getUTCDay()];
+            } catch (e) {
+                return undefined;
+            }
+        };
+
+        const groupOrder = new Map<string, number>();
+        (gruposComidas || []).forEach((g) => groupOrder.set(g.id, g.orden ?? 0));
+
+        const pickFirstOfDay = (fechaIso?: string) => {
+            if (!fechaIso) return undefined;
+            const diaName = computeDiaName(fechaIso);
+            const candidates = tiemposComidaList.filter((tc) => tc.dia === diaName || !tc.dia);
+            if (!candidates.length) return undefined;
+            let best = candidates[0];
+            let bestOrder = groupOrder.get(String((best as any).grupoComida)) ?? 0;
+            for (const c of candidates) {
+                const ord = groupOrder.get(String((c as any).grupoComida)) ?? 0;
+                if (ord < bestOrder) {
+                    bestOrder = ord;
+                    best = c;
+                }
+            }
+            return best.id;
+        };
+
+        const pickLastOfDay = (fechaIso?: string) => {
+            if (!fechaIso) return undefined;
+            const diaName = computeDiaName(fechaIso);
+            const candidates = tiemposComidaList.filter((tc) => tc.dia === diaName || !tc.dia);
+            if (!candidates.length) return undefined;
+            let best = candidates[0];
+            let bestOrder = groupOrder.get(String((best as any).grupoComida)) ?? 0;
+            for (const c of candidates) {
+                const ord = groupOrder.get(String((c as any).grupoComida)) ?? 0;
+                if (ord > bestOrder) {
+                    bestOrder = ord;
+                    best = c;
+                }
+            }
+            return best.id;
+        };
+
+        if (!values.tiempoComidaInicioId) {
+            const pick = pickFirstOfDay(values.fechaInicio);
+            if (pick) form.setValue('tiempoComidaInicioId', pick);
+        }
+
+        if (!values.tiempoComidaFinId) {
+            const pick = pickLastOfDay(values.fechaFin);
+            if (pick) form.setValue('tiempoComidaFinId', pick);
+        }
+    };
+
     const handleSubmit = (data: ActivityFormData) => {
         startTransition(async () => {
-            const payload = {
+            const payload: ActividadInput = {
                 ...data,
                 descripcion: data.descripcion || undefined,
                 lugar: data.lugar || undefined,
@@ -127,16 +193,38 @@ export function ActivityForm({
             };
 
             const result = isEditing
-                ? await updateActividad(actividad.id, residenciaId as ResidenciaId, payload)
-                : await createActividad(residenciaId as ResidenciaId, payload);
+                ? await onUpdate(actividad.id, payload)
+                : await onCreate(payload);
 
             if (result.success) {
                 toast({ title: `Actividad ${isEditing ? 'actualizada' : 'creada'} con exito` });
                 onClose();
                 return;
             }
+            console.error('Error creando/actualizando actividad:', result.error);
 
-            const errorMsg = typeof result.error === 'string' ? result.error : 'Error de validacion';
+            let errorMsg = 'Error de validacion';
+            if (typeof result.error === 'string') {
+                errorMsg = result.error;
+            } else if (result.error && typeof result.error === 'object') {
+                const errObj = result.error as any;
+                if (errObj.fieldErrors) {
+                    const firstField = Object.keys(errObj.fieldErrors)[0];
+                    const msgs = errObj.fieldErrors[firstField];
+                    if (Array.isArray(msgs) && msgs.length > 0) {
+                        errorMsg = msgs[0];
+                    }
+                } else if (errObj.message) {
+                    errorMsg = String(errObj.message);
+                } else {
+                    try {
+                        errorMsg = JSON.stringify(errObj);
+                    } catch (e) {
+                        errorMsg = 'Error de validacion';
+                    }
+                }
+            }
+
             toast({ title: 'Error', description: errorMsg, variant: 'destructive' });
         });
     };
@@ -144,7 +232,10 @@ export function ActivityForm({
     return (
         <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
             <DialogOverlay className='backdrop-blur-sm' style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }} />
-            <DialogContent className='w-full max-w-[95vw] sm:max-w-3xl max-h-[90vh] flex flex-col p-0'>
+                <DialogContent
+                    description={isEditing ? 'Formulario para editar una actividad existente' : 'Formulario para crear una nueva actividad'}
+                    className='w-full max-w-[95vw] sm:max-w-3xl max-h-[90vh] flex flex-col p-0'
+                >
                 <DialogHeader className='p-6 pb-4'>
                     <DialogClose onClick={onClose} />
                     <DialogTitle>{isEditing ? 'Editar Actividad' : 'Crear Nueva Actividad'}</DialogTitle>
@@ -152,7 +243,15 @@ export function ActivityForm({
 
                 <div className='flex-grow overflow-y-auto px-6'>
                     <Form {...form}>
-                        <form id='activity-form' onSubmit={form.handleSubmit(handleSubmit)} className='space-y-6'>
+                        <form
+                            id='activity-form'
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                fillMissingTiempos();
+                                void form.handleSubmit(handleSubmit)();
+                            }}
+                            className='space-y-6'
+                        >
                             <div className='space-y-4'>
                                 <h3 className='text-lg font-semibold border-b pb-2'>Campos descriptivos</h3>
 
