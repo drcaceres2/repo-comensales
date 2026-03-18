@@ -54,6 +54,13 @@ export type UsuarioObjetivo = {
     nombre: string;
 };
 
+export type UsuarioDirectorioActividad = {
+    id: string;
+    nombre: string;
+    email?: string;
+    tieneAutenticacion: boolean;
+};
+
 export type DatosInscripcionActividades = {
     actividades: ActividadInscripcion[];
     inscripciones: InscripcionActividad[];
@@ -236,6 +243,43 @@ async function listarUsuariosObjetivo(usuariosObjetivo: Set<string>): Promise<Us
     );
 
     return usuarios.sort((a, b) => a.nombre.localeCompare(b.nombre));
+}
+
+function normalizarUsuarioDirectorio(docId: string, data: Record<string, unknown>): UsuarioDirectorioActividad {
+    const nombre = [data.nombre, data.apellido].filter(Boolean).join(' ').trim();
+    return {
+        id: docId,
+        nombre: nombre || docId,
+        email: typeof data.email === 'string' ? data.email : undefined,
+        tieneAutenticacion: data.tieneAutenticacion === true,
+    };
+}
+
+export async function obtenerDirectorioUsuarios(
+    residenciaId: ResidenciaId
+): Promise<{ success: true; data: UsuarioDirectorioActividad[] } | { success: false; error: string }> {
+    try {
+        const resultado = await resolverContexto(residenciaId);
+        if (!resultado.ok) {
+            return { success: false, error: resultado.error };
+        }
+
+        const usuariosSnap = await db
+            .collection('usuarios')
+            .where('residenciaId', '==', residenciaId)
+            .where('estaActivo', '==', true)
+            .limit(800)
+            .get();
+
+        const usuarios = usuariosSnap.docs
+            .map((doc) => normalizarUsuarioDirectorio(doc.id, doc.data() as Record<string, unknown>))
+            .sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+        return { success: true, data: usuarios };
+    } catch (error) {
+        console.error('Error obteniendo directorio de usuarios:', error);
+        return { success: false, error: 'No se pudo cargar el directorio de usuarios.' };
+    }
 }
 
 async function mutarEstadoInscripcionTransaccional(input: {

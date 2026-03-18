@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { httpsCallable, functions } from '@/lib/firebase';
 import { useToast } from '@/hooks/useToast';
 import {
     autoInscribirse,
@@ -9,12 +10,32 @@ import {
     invitarParticipante,
     kickParticipant,
     obtenerDatosInscripcionActividades,
+    obtenerDirectorioUsuarios,
     responderInvitacion,
     type DatosInscripcionActividades,
     type EstadoInscripcion,
+    type UsuarioDirectorioActividad,
 } from './actions';
 
 export const inscripcionesQueryKey = (residenciaId: string) => ['inscripcion-actividades', residenciaId] as const;
+export const directorioUsuariosQueryKey = (residenciaId: string) => ['inscripcion-actividades-directorio', residenciaId] as const;
+
+type CrearShadowAccountPayload = {
+    modo: 'shadow_actividad';
+    actividadId: string;
+    profileData: {
+        residenciaId: string;
+        nombre: string;
+        email?: string;
+    };
+};
+
+interface CrearShadowAccountResult {
+    success: boolean;
+    userId?: string;
+    invitationCreated?: boolean;
+    message?: string;
+}
 
 function getEstadoActual(
     data: DatosInscripcionActividades,
@@ -82,6 +103,21 @@ export function useInscripcionActividadesQuery(residenciaId: string) {
             return result.data;
         },
         enabled: Boolean(residenciaId),
+    });
+}
+
+export function useDirectorioUsuariosQuery(residenciaId: string) {
+    return useQuery<UsuarioDirectorioActividad[]>({
+        queryKey: directorioUsuariosQueryKey(residenciaId),
+        queryFn: async () => {
+            const result = await obtenerDirectorioUsuarios(residenciaId);
+            if (!result.success) {
+                throw new Error(result.error);
+            }
+            return result.data;
+        },
+        enabled: Boolean(residenciaId),
+        staleTime: 1000 * 60 * 30,
     });
 }
 
@@ -153,6 +189,44 @@ export function useMutacionesInscripcionActividades(residenciaId: string, actorI
             }
         },
         onSettled: invalidate,
+    });
+
+    const crearShadowEInvitarMutation = useMutation({
+        mutationFn: async (input: { actividadId: string; nombre: string; email?: string }) => {
+            const callable = httpsCallable<CrearShadowAccountPayload, CrearShadowAccountResult>(
+                functions,
+                'crearUsuarioInvitacion'
+            );
+            const result = await callable({
+                modo: 'shadow_actividad',
+                actividadId: input.actividadId,
+                profileData: {
+                    residenciaId,
+                    nombre: input.nombre,
+                    email: input.email,
+                },
+            });
+            return result.data;
+        },
+        onSuccess: (result) => {
+            if (!result.success) {
+                toast({ title: 'Error', description: result.message || 'No se pudo crear el invitado.', variant: 'destructive' });
+                return;
+            }
+            toast({
+                title: 'Invitado agregado',
+                description: result.message || 'La cuenta externa fue creada e invitada automaticamente.',
+            });
+        },
+        onError: (error) => {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        },
+        onSettled: async () => {
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey }),
+                queryClient.invalidateQueries({ queryKey: directorioUsuariosQueryKey(residenciaId) }),
+            ]);
+        },
     });
 
     const responderMutation = useMutation({
@@ -241,6 +315,7 @@ export function useMutacionesInscripcionActividades(residenciaId: string, actorI
     return {
         autoInscribirMutation,
         invitarMutation,
+        crearShadowEInvitarMutation,
         responderMutation,
         cancelarMutation,
         forceAddMutation,

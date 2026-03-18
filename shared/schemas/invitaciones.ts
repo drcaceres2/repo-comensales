@@ -17,9 +17,25 @@ export const InvitacionUsuarioSchema = z.object({
   createdByUid: AuthIdSchema.optional(),
 });
 
-export const CrearUsuarioInvitacionPayloadSchema = z.object({
+const CrearUsuarioInvitacionRegularPayloadSchema = z.object({
   profileData: createUsuarioSchema,
+  modo: z.literal('invitacion').optional(),
 });
+
+const CrearShadowActividadPayloadSchema = z.object({
+  modo: z.literal('shadow_actividad'),
+  actividadId: z.string().min(1),
+  profileData: z.object({
+    residenciaId: z.string().min(1),
+    nombre: z.string().min(2).max(100),
+    email: z.string().email().optional(),
+  }),
+});
+
+export const CrearUsuarioInvitacionPayloadSchema = z.union([
+  CrearUsuarioInvitacionRegularPayloadSchema,
+  CrearShadowActividadPayloadSchema,
+]);
 
 export const ReenviarInvitacionPayloadSchema = z.object({
   uid: AuthIdSchema,

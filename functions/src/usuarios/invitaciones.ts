@@ -304,10 +304,6 @@ export const crearUsuarioInvitacion = onCall(
   async (request: CallableRequest<CrearUsuarioInvitacionPayload>) => {
     const callerInfo = await getCallerSecurityInfo(request.auth);
 
-    if (!callerInfo.isAdmin && !callerInfo.isMaster) {
-      throw new HttpsError('permission-denied', 'Solo usuarios admin pueden crear invitaciones.');
-    }
-
     const payload = resolveCallablePayload<CrearUsuarioInvitacionPayload>(request);
     const rawBody = (request as any)?.rawRequest?.body;
     functions.logger.debug('crearUsuarioInvitacion payload diagnostics', {
@@ -343,6 +339,112 @@ export const crearUsuarioInvitacion = onCall(
         payloadSummary: summarizeCreateInvitePayload(normalizedPayload),
       });
       throw new HttpsError('invalid-argument', message);
+    }
+
+    if (parsed.data.modo === 'shadow_actividad') {
+      const { actividadId, profileData } = parsed.data;
+      const targetResidenciaId = profileData.residenciaId;
+
+      const actividadRef = db
+        .collection('residencias')
+        .doc(targetResidenciaId)
+        .collection('actividades')
+        .doc(actividadId);
+
+      const nombreNormalizado = profileData.nombre.trim().replace(/\s+/g, ' ');
+      const baseNombreCorto = nombreNormalizado.slice(0, 15).trim();
+      const nombreCorto = baseNombreCorto.length >= 2 ? baseNombreCorto : 'Invitado';
+
+      const idBase = db.collection('usuarios').doc().id;
+      const shadowUid = `shd_${idBase}`;
+      const correoLimpio = (profileData.email || '').trim().toLowerCase();
+      const emailFinal = correoLimpio || `shadow+${shadowUid}@local.invalid`;
+
+      await db.runTransaction(async (transaction) => {
+        const actividadSnap = await transaction.get(actividadRef);
+        if (!actividadSnap.exists) {
+          throw new HttpsError('not-found', 'Actividad no encontrada.');
+        }
+
+        const actividad = actividadSnap.data() as Record<string, unknown>;
+        const organizadorId = typeof actividad.organizadorId === 'string' ? actividad.organizadorId : '';
+        if (organizadorId !== callerInfo.uid) {
+          throw new HttpsError('permission-denied', 'Solo el organizador puede crear shadow accounts para esta actividad.');
+        }
+
+        const usuarioRef = db.collection('usuarios').doc(shadowUid);
+        const inscripcionRef = actividadRef.collection('inscripciones').doc(shadowUid);
+
+        const usuarioDoc: Usuario = {
+          id: shadowUid,
+          nombre: nombreNormalizado,
+          apellido: 'Externo',
+          nombreCorto,
+          email: emailFinal,
+          roles: ['invitado'],
+          tieneAutenticacion: false,
+          estaActivo: true,
+          residenciaId: targetResidenciaId,
+          grupoContableId: '',
+          grupoRestrictivoId: '',
+          gruposAnaliticosIds: [],
+          puedeTraerInvitados: 'no',
+          semanarios: {},
+          timestampCreacion: FieldValue.serverTimestamp(),
+          timestampActualizacion: FieldValue.serverTimestamp(),
+        } as Usuario;
+
+        transaction.set(usuarioRef, usuarioDoc);
+        transaction.set(
+          inscripcionRef,
+          {
+            residenciaId: targetResidenciaId,
+            actividadId,
+            usuarioId: shadowUid,
+            estado: 'invitacion_pendiente',
+            invitadoPorId: callerInfo.uid,
+            timestampCreacion: FieldValue.serverTimestamp(),
+            timestampModificacion: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+        transaction.update(actividadRef, {
+          timestampModificacion: FieldValue.serverTimestamp(),
+        });
+      });
+
+      await logAction(
+        { uid: callerInfo.uid, token: callerInfo.claims },
+        {
+          action: 'USUARIO_CREADO',
+          targetId: shadowUid,
+          targetCollection: 'usuarios',
+          residenciaId: targetResidenciaId,
+          details: { flow: 'shadow-actividad', actividadId },
+        }
+      );
+
+      await logAction(
+        { uid: callerInfo.uid, token: callerInfo.claims },
+        {
+          action: 'ACTIVIDAD_ACTUALIZADA',
+          targetId: actividadId,
+          targetCollection: `residencias/${targetResidenciaId}/actividades/${actividadId}/inscripciones`,
+          residenciaId: targetResidenciaId,
+          details: { flow: 'shadow-actividad', usuarioId: shadowUid },
+        }
+      );
+
+      return {
+        success: true,
+        userId: shadowUid,
+        invitationCreated: false,
+        message: 'Shadow account creada e invitada automaticamente.',
+      };
+    }
+
+    if (!callerInfo.isAdmin && !callerInfo.isMaster) {
+      throw new HttpsError('permission-denied', 'Solo usuarios admin pueden crear invitaciones.');
     }
 
     functions.logger.info('crearUsuarioInvitacion validation passed', {
