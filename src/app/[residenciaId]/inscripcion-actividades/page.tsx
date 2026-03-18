@@ -4,23 +4,16 @@ import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import InscripcionActividadesClient from './actividades-client';
 import {urlAccesoNoAutorizado} from "@/lib/utils";
 
-interface PageProps {
-    params: Promise<{ residenciaId: ResidenciaId }>;
-}
-
 const rolesPermitidos = new Set(['master', 'admin', 'director', 'asistente', 'residente', 'invitado']);
 
-export default async function InscripcionActividadesPage({ params }: PageProps) {
-    const { residenciaId } = await params;
+export default async function InscripcionActividadesPage() {
     const session = await obtenerInfoUsuarioServer();
     
-    if (!session.usuarioId || (
-            session.roles.some((rol) => rolesPermitidos.has(rol))
-            && session.residenciaId !== residenciaId
-        )
+    if (!session.usuarioId || !session.residenciaId || (
+            session.roles.some((rol) => rolesPermitidos.has(rol)))
     ) {
         redirect(urlAccesoNoAutorizado("Problemas con la sesión del usuario."));
     }
 
-    return <InscripcionActividadesClient residenciaId={residenciaId} />;
+    return <InscripcionActividadesClient residenciaId={session.residenciaId} />;
 }

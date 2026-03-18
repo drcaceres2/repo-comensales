@@ -201,7 +201,6 @@ function formatDateTime(value: unknown): string {
 
 export default function InvitacionesUsuariosPage() {
   const router = useRouter();
-  const params = useParams<{ residenciaId: string }>();
   const { toast } = useToast();
   const { roles, residenciaId } = useInfoUsuario();
 
@@ -227,7 +226,7 @@ export default function InvitacionesUsuariosPage() {
     []
   );
 
-  const autorizado = roles.includes('admin') && residenciaId && residenciaId === params.residenciaId;
+  const autorizado = roles.includes('admin') && residenciaId;
 
   useEffect(() => {
     if (!autorizado) {

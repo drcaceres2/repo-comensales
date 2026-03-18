@@ -15,14 +15,7 @@ import { MatrizAsignacionClient } from "./components/MatrizAsignacionClient";
 import { UsuarioMatrizRow } from "./components/FilaUsuario";
 import {urlAccesoNoAutorizado} from "@/lib/utils";
 
-interface AsignarGruposUsuariosMatrizPageProps {
-  params: Promise<{ residenciaId: string }>;
-}
-
-export default async function AsignarGruposUsuariosMatrizPage({
-  params,
-}: AsignarGruposUsuariosMatrizPageProps) {
-  const { residenciaId } = await params;
+export default async function AsignarGruposUsuariosMatrizPage() {
   const usuarioSesion = await obtenerInfoUsuarioServer();
 
   if (!usuarioSesion.usuarioId || !usuarioSesion.email) {
@@ -38,12 +31,12 @@ export default async function AsignarGruposUsuariosMatrizPage({
   const [usuariosSnap, configSnap] = await Promise.all([
     db
       .collection("usuarios")
-      .where("residenciaId", "==", residenciaId)
+      .where("residenciaId", "==", usuarioSesion.residenciaId)
       .where("estaActivo", "==", true)
       .select("nombre", "apellido", "roles", "grupoContableId", "grupoRestrictivoId", "gruposAnaliticosIds")
       .limit(250)
       .get(),
-    db.doc(`residencias/${residenciaId}/configuracion/${CONFIG_RESIDENCIA_ID}`).get(),
+    db.doc(`residencias/${usuarioSesion.residenciaId}/configuracion/${CONFIG_RESIDENCIA_ID}`).get(),
   ]);
 
   const initialRows: UsuarioMatrizRow[] = usuariosSnap.docs
@@ -102,7 +95,7 @@ export default async function AsignarGruposUsuariosMatrizPage({
       </div>
 
       <MatrizAsignacionClient
-        residenciaId={residenciaId}
+        residenciaId={usuarioSesion.residenciaId}
         initialRows={initialRows}
         gruposContables={gruposContables}
         gruposRestrictivos={gruposRestrictivos}

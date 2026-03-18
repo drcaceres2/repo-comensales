@@ -33,34 +33,8 @@ function serializeNovedad(doc: DocumentSnapshot): NovedadOperativa {
     return serializedData as NovedadOperativa;
 }
 
-// The query function now gets its parameters from the queryKey, which is the most robust pattern.
-async function fetchNovedades({ queryKey }: { queryKey: readonly unknown[] }): Promise<NovedadOperativa[]> {
-    const [_key, { residenciaId, usuarioId }] = queryKey as [string, { residenciaId?: string; usuarioId?: string }];
-
-    if (!usuarioId || !residenciaId) {
-        // This case should ideally be prevented by the 'enabled' option in useQuery
-        // but it's a good safeguard for type safety and early exit.
-        return [];
-    }
-
-    const collectionPath = `residencias/${residenciaId}/novedadesOperativas`;
-
-    const novedadesQuery = query(
-        collection(db, collectionPath),
-        where('autorId', '==', usuarioId),
-        orderBy('timestampCreacion', 'desc'),
-        limit(50)
-    );
-
-    try {
-        const snapshot = await getDocs(novedadesQuery);
-        const data = snapshot.docs.map(serializeNovedad);
-        return data;
-    } catch (error) {
-        console.error("[fetchNovedades] Error fetching documents:", error);
-        return [];
-    }
-}
+// fetchNovedades is implemented inside the hook so it can read
+// `usuarioId` and `residenciaId` from the `useInfoUsuario` hook safely.
 
 
 export function useNovedades(initialData: NovedadOperativa[]) {
@@ -68,13 +42,35 @@ export function useNovedades(initialData: NovedadOperativa[]) {
     const { toast } = useToast();
     const { usuarioId, residenciaId } = useInfoUsuario();
 
+    // Local query function uses the hook-provided usuarioId/residenciaId
+    async function fetchNovedadesLocal(): Promise<NovedadOperativa[]> {
+        if (!usuarioId || !residenciaId) return [];
+
+        const collectionPath = `residencias/${residenciaId}/novedadesOperativas`;
+
+        const novedadesQuery = query(
+            collection(db, collectionPath),
+            where('autorId', '==', usuarioId),
+            orderBy('timestampCreacion', 'desc'),
+            limit(50)
+        );
+
+        try {
+            const snapshot = await getDocs(novedadesQuery);
+            return snapshot.docs.map(serializeNovedad);
+        } catch (error) {
+            console.error("[fetchNovedadesLocal] Error fetching documents:", error);
+            return [];
+        }
+    }
+
     // The queryKey is now the single source of truth for the query's parameters.
     // This helps prevent stale closures and race conditions.
     const queryKey = ["novedades", { residenciaId, usuarioId }];
 
     const { data: novedades } = useQuery({
         queryKey,
-        queryFn: fetchNovedades, // Pass the function reference
+        queryFn: fetchNovedadesLocal,
         initialData,
         // Only run query if user is available AND residenciaId is available from claims
         enabled: !!usuarioId && !!residenciaId,

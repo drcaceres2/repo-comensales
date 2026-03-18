@@ -40,9 +40,7 @@ import {
 type DietaConId = DietaData & { id: DietaId };
 
 function DietasResidenciaPage(): React.ReactElement | null {
-    const params = useParams();
     const router = useRouter();
-    const residenciaIdParams = params.residenciaId as ResidenciaId;
     const { toast } = useToast();
     const { usuarioId, roles, residenciaId: residenciaIdUsuario } = useInfoUsuario();
     const { t } = useTranslation('dietas');
@@ -60,22 +58,11 @@ function DietasResidenciaPage(): React.ReactElement | null {
     const [isSaving, setIsSaving] = useState(false);
 
     const fetchResidenciaAndDietas = useCallback(async () => {
-        if (!residenciaIdParams || !usuarioId) {
+        if (!residenciaIdUsuario || !usuarioId) {
             setIsAuthorized(false);
             setIsLoadingResidencia(false);
             setIsLoadingDietas(false);
             return;
-        }
-
-        // Allow privileged roles and let the server-side verify assistant permissions.
-        let authorized = false;
-        if (roles.includes('master' as RolUsuario) || roles.includes('admin' as RolUsuario)) {
-            authorized = true;
-        } else if (roles.includes('director' as RolUsuario) && residenciaIdUsuario === residenciaIdParams) {
-            authorized = true;
-        } else if (roles.includes('asistente' as RolUsuario)) {
-            // Don't block assistants on the client — the server will enforce time-bounded permissions.
-            authorized = true;
         }
 
         setIsAuthorized(true);
@@ -84,7 +71,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
         setErrorDietas(null);
 
         try {
-            const result = await getDietasResidenciaData(residenciaIdParams);
+            const result = await getDietasResidenciaData(residenciaIdUsuario);
 
             if (!result.success || !result.data) {
                 if (result.error?.code === 'UNAUTHORIZED') {
@@ -110,17 +97,17 @@ function DietasResidenciaPage(): React.ReactElement | null {
             setIsLoadingResidencia(false);
             setIsLoadingDietas(false);
         }
-    }, [residenciaIdParams, usuarioId, roles, residenciaIdUsuario, toast, t]);
+    }, [residenciaIdUsuario, usuarioId, roles, residenciaIdUsuario, toast, t]);
 
     useEffect(() => {
-        if (usuarioId && residenciaIdParams) {
+        if (usuarioId && residenciaIdUsuario) {
             fetchResidenciaAndDietas();
         } else {
             setIsAuthorized(false);
             setIsLoadingResidencia(false);
             setIsLoadingDietas(false);
         }
-    }, [usuarioId, residenciaIdParams, fetchResidenciaAndDietas]);
+    }, [usuarioId, residenciaIdUsuario, fetchResidenciaAndDietas]);
 
     useEffect(() => {
         if (!usuarioId || isLoadingResidencia || isAuthorized) {
@@ -185,7 +172,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
 
         setIsSaving(true);
         try {
-            const result = await createDietaAction(residenciaIdParams, {
+            const result = await createDietaAction(residenciaIdUsuario, {
                 nombre: formData.nombre,
                 identificadorAdministracion: formData.identificadorAdministracion,
                 descripcion: formData.descripcion,
@@ -268,7 +255,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
         }
 
         try {
-            const result = await updateDietaAction(residenciaIdParams, editingDietaId, {
+            const result = await updateDietaAction(residenciaIdUsuario, editingDietaId, {
                 nombre: formData.nombre,
                 identificadorAdministracion: formData.identificadorAdministracion,
                 descripcion: formData.descripcion,
@@ -318,7 +305,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
 
         setIsSaving(true);
         try {
-            const result = await toggleDietaActivaAction(residenciaIdParams, dietaToToggle.id);
+            const result = await toggleDietaActivaAction(residenciaIdUsuario, dietaToToggle.id);
 
             if (!result.success || !result.data) {
                 toast({
@@ -379,7 +366,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
 
         setIsSaving(true);
         try {
-            const result = await setDefaultDietaAction(residenciaIdParams, dietaToSetDefault.id);
+            const result = await setDefaultDietaAction(residenciaIdUsuario, dietaToSetDefault.id);
             if (!result.success || !result.data) {
                 toast({
                     title: t('dietasPage.toastErrorNombreRequeridoTitle'),
@@ -437,7 +424,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
 
         setIsSaving(true);
         try {
-            const result = await deleteDietaAction(residenciaIdParams, dietaToDelete.id);
+            const result = await deleteDietaAction(residenciaIdUsuario, dietaToDelete.id);
             if (!result.success || !result.data) {
                 toast({
                     title: t('dietasPage.toastErrorNombreRequeridoTitle'),
@@ -489,7 +476,7 @@ function DietasResidenciaPage(): React.ReactElement | null {
         );
     }
 
-    const currentResidenciaNombre = residenciaNombre || `${t('residenciaNameLoading')} (${residenciaIdParams})`;
+    const currentResidenciaNombre = residenciaNombre || `${t('residenciaNameLoading')} (${residenciaIdUsuario})`;
 
     if (errorDietas && errorDietas !== t('accesoDenegadoTitle')) {
         return (

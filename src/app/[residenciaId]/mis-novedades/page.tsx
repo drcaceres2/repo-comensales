@@ -28,10 +28,9 @@ function serializeNovedad(doc: FirebaseFirestore.QueryDocumentSnapshot): Novedad
     return serializedData as NovedadOperativa;
 }
 
-// The 'params' object in async Server Components is a Promise. We must await it.
-export default async function MisNovedadesPage({ params }: { params: Promise<{ residenciaId: string }> }) {
+export default async function MisNovedadesPage() {
     const { usuarioId: uid, residenciaId } = await obtenerInfoUsuarioServer();
-    if (!uid) {
+    if (!uid || !residenciaId) {
         redirect('/login');
     }
 

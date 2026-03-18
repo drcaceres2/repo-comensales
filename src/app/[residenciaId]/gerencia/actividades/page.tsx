@@ -2,15 +2,10 @@ import { redirect } from 'next/navigation';
 import { ResultadoAcceso, verificarPermisoGestionWrapper } from '@/lib/acceso-privilegiado';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import GestionActividadesClient from './GestionActividadesClient';
-import type { ResidenciaId } from 'shared/models/types';
 import {urlAccesoNoAutorizado} from "@/lib/utils";
 
-interface ActividadesPageProps {
-    params: Promise<{ residenciaId: ResidenciaId }>;
-}
-
-export default async function ActividadesPage({ params }: ActividadesPageProps) {
-    const { residenciaId } = await params;
+export default async function ActividadesPage() {
+    const { residenciaId } = await obtenerInfoUsuarioServer();
     const resultado: ResultadoAcceso = await verificarPermisoGestionWrapper('gestionActividades');
 
     if (resultado.error) {
