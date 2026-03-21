@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Calendar, Users, UserPlus, Ban, PlusCircle } from 'lucide-react';
+import { Loader2, Calendar, Users, UserPlus, Ban, PlusCircle, ClipboardPen } from 'lucide-react';
 import {
     useDirectorioUsuariosQuery,
     useInscripcionActividadesQuery,
@@ -117,11 +117,12 @@ export default function InscripcionActividadesClient({ residenciaId }: Props) {
     return (
         <div className='container mx-auto space-y-6 p-4'>
             <div className='flex flex-col gap-3 md:flex-row md:items-end md:justify-between'>
-                <div>
-                    <h1 className='text-2xl font-bold tracking-tight'>Inscripcion e Invitaciones</h1>
-                    <p className='text-sm text-muted-foreground'>
-                        Gestiona participacion por usuario, invitaciones y cupos con actualizacion optimista.
-                    </p>
+                <div className='flex items-center gap-3'>
+                    <ClipboardPen className='h-8 w-8 text-gray-700' />
+                    <div className='flex flex-col'>
+                        <h1 className='text-2xl font-bold tracking-tight'>Inscripciones Actividades</h1>
+                        <p className='text-sm text-gray-600 mt-1'>{`Residencia: ${residenciaId}`}</p>
+                    </div>
                 </div>
 
                 <div className='w-full md:w-80 space-y-1'>

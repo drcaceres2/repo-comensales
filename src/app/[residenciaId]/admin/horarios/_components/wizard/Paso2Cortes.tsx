@@ -109,6 +109,7 @@ export function Paso2Cortes() {
                 variant: 'destructive',
                 title: 'No se pudo crear el horario',
                 description: `El horario con el nombre "${data.nombre}" ya existe. El nombre debe ser único.`,
+                duration: 5000,
             });
             return;
         }
@@ -127,6 +128,7 @@ export function Paso2Cortes() {
                 variant: 'destructive',
                 title: 'Hora no valida',
                 description: 'La hora debe tener el formato HH:MM.',
+                duration: 5000,
             });
             return;
         }

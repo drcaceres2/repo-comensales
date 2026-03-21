@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { UserPen } from 'lucide-react';
 import { useAsistidosElegiblesQuery, useAsistentesActualesQuery, useRevocarAsistenteMutation, useUsuariosParaAsignarQuery } from "../consultas";
 import type { AsistenteActual } from "../consultas";
 
@@ -74,10 +75,13 @@ export const GestionAsistidosClient = ({ residenciaId }: GestionAsistidosClientP
   return (
     <div className="p-4 md:p-6 space-y-8">
       <div className="max-w-xl">
-        <h1 className="text-2xl font-bold text-gray-900">Gestión de Asistentes (Proxy)</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Seleccione un usuario para ver sus asistentes actuales o para asignarle uno nuevo.
-        </p>
+        <div className="flex items-center gap-3">
+          <UserPen className="h-8 w-8 text-gray-700" />
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-bold tracking-tight">Usuarios Asistidos</h1>
+            <p className="text-sm text-gray-600 mt-1">{`Residencia: ${residenciaId}`}</p>
+          </div>
+        </div>
       </div>
 
       <div className="max-w-md">

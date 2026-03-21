@@ -232,6 +232,27 @@ const FormularioMasterDetail: React.FC<FormularioMasterDetailProps> = ({ fecha, 
     }
   };
 
+  const removeAlternativa = (tiempoComidaId: string, altIdToRemove: string) => {
+    const alternativas = getValues(`tiemposComida.${tiempoComidaId}.alternativasEditables`) || {};
+    const { [altIdToRemove]: _removed, ...rest } = alternativas;
+    setValue(
+      `tiemposComida.${tiempoComidaId}.alternativasEditables`,
+      rest,
+      { shouldDirty: true, shouldTouch: true, shouldValidate: true }
+    );
+
+    const currentDefault = getValues(`tiemposComida.${tiempoComidaId}.alternativaPorDefectoIdActual`);
+    if (currentDefault === altIdToRemove) {
+      const remainingIds = Object.keys(rest);
+      setValue(
+        `tiemposComida.${tiempoComidaId}.alternativaPorDefectoIdActual`,
+        remainingIds[0] ?? '',
+        { shouldDirty: true, shouldTouch: true, shouldValidate: true }
+      );
+    }
+    toast({ title: 'Alternativa eliminada', description: 'La alternativa fue removida (se aplicará al guardar).', variant: 'destructive' });
+  };
+
   const tiemposComidaOrdenados = React.useMemo(
     () => Object.values(diaData.tiemposComida).sort((a, b) => a.orden - b.orden),
     [diaData.tiemposComida]
@@ -416,6 +437,16 @@ const FormularioMasterDetail: React.FC<FormularioMasterDetailProps> = ({ fecha, 
                                       )}
                                     />
                                  </div>
+                                   <div className="flex items-start">
+                                     <Button
+                                       type="button"
+                                       variant="destructive"
+                                       size="sm"
+                                       onClick={() => removeAlternativa(tiempoComidaId, altId)}
+                                     >
+                                       Eliminar
+                                     </Button>
+                                   </div>
                               </div>
                             )})}
                           </RadioGroup>

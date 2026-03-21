@@ -1,5 +1,6 @@
 import React from "react";
 import { redirect } from "next/navigation";
+import { Users } from 'lucide-react';
 import { obtenerInfoUsuarioServer } from "@/lib/obtenerInfoUsuarioServer";
 import { GruposUsuariosManager } from "./components/GruposUsuariosManager";
 import { verificarPermisoGestionWrapper } from "@/lib/acceso-privilegiado";
@@ -27,7 +28,14 @@ export default async function AdminGruposUsuariosPage() {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Gestión de Grupos de Usuarios</h1>
+      <div className="flex items-center gap-3 mb-4">
+        <Users className="h-8 w-8 text-gray-700" />
+        <div className="flex flex-col">
+          <h1 className="text-2xl font-bold tracking-tight">Grupos de Usuarios</h1>
+          <p className="text-sm text-gray-600 mt-1">{`Residencia: ${usuarioSesion.residenciaId}`}</p>
+        </div>
+      </div>
+
       <GruposUsuariosManager
         usuarioId={usuarioSesion.usuarioId}
         email={usuarioSesion.email}

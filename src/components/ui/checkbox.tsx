@@ -1,29 +1,46 @@
 "use client"
 
 import * as React from "react"
-import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
 import { Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const Checkbox = ({ 
-    className, 
-    ...props 
-}: React.ComponentProps<typeof CheckboxPrimitive.Root>) => (
-  <CheckboxPrimitive.Root
-    className={cn(
-      "peer h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
-      className
-    )}
-    {...props}
-  >
-    <CheckboxPrimitive.Indicator
-      className={cn("flex items-center justify-center text-current")}
-    >
-      <Check className="h-4 w-4" />
-    </CheckboxPrimitive.Indicator>
-  </CheckboxPrimitive.Root>
+type Props = React.InputHTMLAttributes<HTMLInputElement> & {
+  onCheckedChange?: (checked: boolean) => void
+}
+
+const Checkbox = React.forwardRef<HTMLInputElement, Props>(
+  ({ className, onCheckedChange, children, ...props }, ref) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      onCheckedChange?.(e.target.checked)
+      if (props.onChange) props.onChange(e as any)
+    }
+
+    const checked = props.checked as boolean | undefined
+
+    return (
+      <div className={cn("inline-flex items-center", className)}>
+        <input
+          ref={ref}
+          type="checkbox"
+          {...props}
+          onChange={handleChange}
+          className="sr-only peer"
+        />
+        <span
+          aria-hidden
+          className={cn(
+            "h-4 w-4 inline-flex items-center justify-center rounded-sm border border-primary ring-offset-background focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+            checked ? "bg-primary text-primary-foreground" : "bg-transparent",
+          )}
+        >
+          {checked && <Check className="h-4 w-4" />}
+        </span>
+      </div>
+    )
+  }
 )
-Checkbox.displayName = CheckboxPrimitive.Root.displayName
+
+Checkbox.displayName = "Checkbox"
 
 export { Checkbox }

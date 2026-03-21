@@ -40,20 +40,74 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
   const router = useRouter();
   const { usuarioId, roles } = useInfoUsuario();
 
-  const [targetUid, setTargetUid] = useState(usuarioId);
+  const [targetUid, setTargetUid] = useState<string | null>(null);
   const [tiempoActivoId, setTiempoActivoId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, EleccionSemanario>>({});
   const [diaActivo, setDiaActivo] = useState<string>('lunes');
+  const [scrollToDiaKey, setScrollToDiaKey] = useState<string | null>(null);
   const [titleScrollOffset, setTitleScrollOffset] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const usuariosTargetQuery = useUsuariosObjetivoSemanarios(residenciaId);
-  const dataQuery = useSemanarioQuery(residenciaId, targetUid);
-  const upsertMutation = useUpsertSemanarioMutation(residenciaId, targetUid);
+  const esDirector = roles.includes('director');
+  const esAsistente = roles.includes('asistente');
+  const rolesIncompatibles = esDirector && esAsistente;
+  const puedeSeleccionarTarget = esDirector || esAsistente;
+
+  const usuariosTargetQuery = useUsuariosObjetivoSemanarios(residenciaId, usuarioId);
+  const usuariosObjetivo = usuariosTargetQuery.data ?? [];
+
+  useEffect(() => {
+    if (!residenciaId || rolesIncompatibles) {
+      return;
+    }
+
+    if (!puedeSeleccionarTarget) {
+      if (targetUid !== usuarioId) {
+        setTargetUid(usuarioId);
+      }
+      return;
+    }
+
+    if (usuariosTargetQuery.isLoading) {
+      return;
+    }
+
+    if (usuariosObjetivo.length === 0) {
+      if (targetUid !== null) {
+        setTargetUid(null);
+      }
+      return;
+    }
+
+    const targetActualSigueDisponible = Boolean(
+      targetUid && usuariosObjetivo.some((user) => user.id === targetUid)
+    );
+    if (targetActualSigueDisponible) {
+      return;
+    }
+
+    const targetInicial = usuariosObjetivo.some((user) => user.id === usuarioId)
+      ? usuarioId
+      : usuariosObjetivo[0].id;
+
+    if (targetUid !== targetInicial) {
+      setTargetUid(targetInicial);
+    }
+  }, [
+    residenciaId,
+    rolesIncompatibles,
+    puedeSeleccionarTarget,
+    usuarioId,
+    usuariosTargetQuery.isLoading,
+    usuariosObjetivo,
+    targetUid,
+  ]);
+
+  const dataQuery = useSemanarioQuery(residenciaId, usuarioId, targetUid ?? undefined);
+  const upsertMutation = useUpsertSemanarioMutation(residenciaId, targetUid ?? undefined);
 
   const singleton = dataQuery.singleton;
   const read = dataQuery.read;
-  const semanaIsoActual = read?.semanaIsoActual ?? singleton?.fechaHoraReferenciaUltimaSolicitud ? semanaIsoNow() : semanaIsoNow();
   const modoEdicion = read?.modoEdicion ?? 'read-only';
   const readOnly = modoEdicion === 'read-only';
 
@@ -162,7 +216,8 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
     };
   }, [singleton, tiempoActivoId, draft]);
 
-  const puedeSeleccionarTarget = roles.includes('director') || roles.includes('asistente');
+  const sinUsuariosObjetivo = puedeSeleccionarTarget && !usuariosTargetQuery.isLoading && usuariosObjetivo.length === 0;
+  const viendoOtroUsuario = Boolean(targetUid && targetUid !== usuarioId);
   const errorPie = upsertMutation.isError ? upsertMutation.error.message : null;
   const mostrarTitulo = titleScrollOffset === 0 && diaActivo === 'lunes';
 
@@ -181,9 +236,19 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
     const result = await upsertMutation.mutateAsync(payload);
 
     if (result.success) {
-      router.push(`/${residenciaId}`);
+      // Evitar navegar a la raíz de la residencia que no existe; permanecer
+      // en la ruta de semanarios para prevenir 404 en server actions.
+      router.push(`/${residenciaId}/semanarios`);
     }
   };
+
+  if (rolesIncompatibles) {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+        Configuración inválida de roles: director y asistente no pueden coexistir.
+      </div>
+    );
+  }
 
   if (dataQuery.isLoading || usuariosTargetQuery.isLoading) {
     return (
@@ -195,7 +260,7 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
     );
   }
 
-  if (dataQuery.isError || usuariosTargetQuery.isError || !read || !singleton) {
+  if (dataQuery.isError || usuariosTargetQuery.isError || !singleton || (Boolean(targetUid) && !read)) {
     return (
       <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
         No se pudo cargar el módulo de semanarios. {(dataQuery.error ?? usuariosTargetQuery.error)?.message}
@@ -212,37 +277,49 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
           }`}
         >
           <div className="space-y-2 pb-4">
-            <h1 className="flex items-center gap-2 text-xl font-semibold">
-              <CalendarSync className="h-5 w-5 shrink-0" />
-              Mi horario base
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Configura tu semanario base. Los cambios se aplican en cascada desde el Home.
-            </p>
+            <div className="flex items-center gap-3">
+              <CalendarSync className="h-8 w-8 text-gray-700 shrink-0" />
+              <div className="flex flex-col">
+                <h1 className="text-xl font-semibold">Mi horario base</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Configura tu semanario base. Los cambios se aplican en cascada desde el Home.
+                </p>
+              </div>
+            </div>
           </div>
         </header>
 
         <div className="flex items-center justify-between gap-3 pb-3">
-          <Badge variant="outline">Semana activa: {read.semanaIsoActual}</Badge>
+          <Badge variant="outline">Semana activa: {read?.semanaIsoActual ?? semanaIsoNow()}</Badge>
           <Badge variant={readOnly ? 'secondary' : 'default'}>
             {readOnly ? 'Solo lectura' : 'Editable'}
           </Badge>
         </div>
 
-        <BandaDias diaActivo={diaActivo} />
+        <BandaDias
+          diaActivo={diaActivo}
+          onDiaClick={(dia) => {
+            setDiaActivo(dia);
+            setScrollToDiaKey(dia);
+          }}
+        />
       </div>
 
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto py-4">
-        <div className="space-y-4 pb-4">
+        <div className="space-y-4 pb-28">
           {puedeSeleccionarTarget ? (
             <section className="space-y-2 rounded-lg border bg-muted/30 p-3">
               <p className="text-sm font-medium">Usuario objetivo</p>
-              <Select value={targetUid} onValueChange={setTargetUid}>
-                <SelectTrigger>
+              <Select value={targetUid ?? undefined} onValueChange={setTargetUid}>
+                <SelectTrigger
+                  className={viendoOtroUsuario
+                    ? 'border-amber-300 bg-amber-50 text-amber-900 focus:ring-amber-500 dark:border-amber-500/70 dark:bg-amber-500/10 dark:text-amber-200'
+                    : undefined}
+                >
                   <SelectValue placeholder="Selecciona un usuario" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(usuariosTargetQuery.data ?? []).map((user) => (
+                  {usuariosObjetivo.map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.nombre} {user.apellido}
                     </SelectItem>
@@ -252,17 +329,26 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
             </section>
           ) : null}
 
-          <AgendaVertical
-            dias={diasRender}
-            readOnly={readOnly}
-            onSeleccionarTiempo={(tiempoId) => setTiempoActivoId(tiempoId)}
-            onDiaActivo={setDiaActivo}
-            scrollContainerRef={scrollContainerRef}
-          />
+          {sinUsuariosObjetivo ? (
+            <section className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/70 dark:bg-amber-500/10 dark:text-amber-200">
+              No hay usuarios disponibles para gestionar semanarios con tu perfil actual.
+            </section>
+          ) : null}
+
+          {!sinUsuariosObjetivo ? (
+            <AgendaVertical
+              dias={diasRender}
+              readOnly={readOnly}
+              onSeleccionarTiempo={(tiempoId) => setTiempoActivoId(tiempoId)}
+              onDiaActivo={setDiaActivo}
+              scrollContainerRef={scrollContainerRef}
+              scrollToDiaKey={scrollToDiaKey}
+            />
+          ) : null}
         </div>
       </div>
 
-      <footer className="sticky bottom-0 z-30 shrink-0 space-y-3 border-t bg-background/95 pt-3 backdrop-blur">
+      <footer className="fixed left-6 right-6 bottom-2 z-40 space-y-3 border-t bg-background/95 pt-3 backdrop-blur rounded-lg shadow-sm">
         {errorPie ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
             {errorPie}
@@ -271,7 +357,7 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
 
         <Button
           className="w-full"
-          disabled={readOnly || upsertMutation.isPending}
+          disabled={readOnly || upsertMutation.isPending || sinUsuariosObjetivo}
           onClick={guardarCambios}
         >
           {upsertMutation.isPending ? 'Guardando...' : 'Guardar semanario'}

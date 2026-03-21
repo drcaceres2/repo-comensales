@@ -26,6 +26,7 @@ import {
     ArrowRight,
     Play,
     Calendar,
+    CalendarPlus,
 } from 'lucide-react';
 
 import { type CentroDeCosto } from 'shared/schemas/contabilidad';
@@ -146,8 +147,12 @@ export function GestionActividadesClient({ residenciaId }: GestionActividadesCli
     return (
         <div className='container mx-auto p-4 space-y-6'>
             <div className='flex flex-col md:flex-row md:justify-between md:items-start space-y-4 md:space-y-0'>
-                <div>
-                    <h1 className='text-2xl md:text-3xl font-bold tracking-tight'>Gestionar Actividades</h1>
+                <div className='flex items-center gap-3'>
+                    <CalendarPlus className='h-8 w-8 text-gray-700' />
+                    <div className='flex flex-col'>
+                        <h1 className='text-2xl md:text-3xl font-bold tracking-tight'>Actividades</h1>
+                        <p className='text-sm text-gray-600 mt-1'>Residencia: {residenciaId}</p>
+                    </div>
                 </div>
                 <Button onClick={handleOpenAddForm} disabled={isMutating} className='w-full md:w-auto'>
                     <PlusCircle className='mr-2 h-5 w-5' /> Anadir Actividad

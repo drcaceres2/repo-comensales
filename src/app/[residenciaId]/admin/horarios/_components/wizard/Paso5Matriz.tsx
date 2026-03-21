@@ -58,18 +58,21 @@ export function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: string }) 
         title: 'Auditoría completada',
         description: '¡Sin errores ni advertencias! Todo está correcto.',
         className: 'bg-green-100 text-green-900 border border-green-300',
+        duration: 5000,
       });
     } else if (totalErrores === 0 && totalAdvertencias > 0) {
       toast({
         title: 'Auditoría: advertencias',
         description: `Se detectaron ${totalAdvertencias} advertencia(s).`,
         className: 'bg-yellow-100 text-yellow-900 border border-yellow-300',
+        duration: 5000,
       });
     } else if (totalErrores > 0) {
       toast({
         title: 'Auditoría: errores críticos',
         description: `Se detectaron ${totalErrores} error(es) y ${totalAdvertencias} advertencia(s). Corrija los errores antes de guardar.`,
         className: 'bg-red-100 text-red-900 border border-red-300',
+        duration: 5000,
       });
     }
   };
@@ -87,6 +90,7 @@ export function Paso5Matriz({ residenciaIdProp }: { residenciaIdProp: string }) 
         variant: 'destructive',
         title: 'No se puede guardar',
         description: 'Hay errores críticos en la configuración. Corríjalos antes de guardar.',
+        duration: 5000,
       });
       return;
     }

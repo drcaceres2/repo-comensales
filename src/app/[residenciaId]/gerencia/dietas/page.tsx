@@ -23,7 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/useToast';
 import { useInfoUsuario } from '@/components/layout/AppProviders';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Apple } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DietaId, ResidenciaId, RolUsuario } from 'shared/models/types';
 import { DietaData } from 'shared/schemas/complemento1';
@@ -505,9 +505,13 @@ function DietasResidenciaPage(): React.ReactElement | null {
 
     return (
         <div className="container mx-auto space-y-6 p-4">
-            <h1 className="text-3xl font-bold tracking-tight">
-                {t('title')} <span className="text-primary">{currentResidenciaNombre}</span>
-            </h1>
+            <div className="flex items-center gap-3">
+                <Apple className="h-8 w-8 text-gray-700" />
+                <div className="flex flex-col">
+                    <h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+                    <p className="text-sm text-gray-600 mt-1">Residencia: {currentResidenciaNombre}</p>
+                </div>
+            </div>
 
             <Card>
                 <CardHeader>

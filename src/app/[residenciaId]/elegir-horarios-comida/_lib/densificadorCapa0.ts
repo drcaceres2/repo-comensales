@@ -1,5 +1,6 @@
 import { ConfiguracionResidencia } from 'shared/schemas/residencia';
 import { HorarioEfectivoDiario, SlotEfectivo } from 'shared/schemas/elecciones/domain.schema';
+import { calcularHorarioReferenciaSolicitud } from './calcularHorarioReferenciaSolicitud';
 
 const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] as const;
 
@@ -13,7 +14,8 @@ function obtenerDiaSemana(fechaIso: string): string {
 
 function construirSlotBase(
   tiempoComidaId: string,
-  singleton: ConfiguracionResidencia
+  singleton: ConfiguracionResidencia,
+  fecha: string
 ): SlotEfectivo {
   const tiempo = singleton.esquemaSemanal[tiempoComidaId];
   if (!tiempo) {
@@ -27,7 +29,17 @@ function construirSlotBase(
 
   const opcionesActivas = alternativasIds.map((configuracionAlternativaId) => {
     const config = singleton.configuracionesAlternativas[configuracionAlternativaId];
-    const horaReferenciaSolicitud = singleton.fechaHoraReferenciaUltimaSolicitud;
+
+    // Calcular el instante exacto de cierre del muro móvil para esta alternativa y fecha:
+    // se navega desde `fecha` hacia atrás hasta el último día+hora en que debió pedirse.
+    const horarioReferenciaSolicitud = config?.horarioSolicitudComidaId
+      ? calcularHorarioReferenciaSolicitud(
+          fecha,
+          config.horarioSolicitudComidaId,
+          singleton.horariosSolicitud
+        )
+      : `${fecha}T00:00:00`; // Fallback: sin horario definido, usar medianoche del día.
+
     const ventanaServicio = config?.ventanaServicio ?? {
       horaInicio: 'T00:00',
       horaFin: 'T00:00',
@@ -39,7 +51,7 @@ function construirSlotBase(
       configuracionAlternativaId,
       ventanaServicio,
       comedorId: config?.comedorId ?? 'sin-comedor',
-      horarioReferenciaSolicitud: horaReferenciaSolicitud,
+      horarioReferenciaSolicitud,
     };
   });
 
@@ -80,7 +92,8 @@ export function densificarCapa0(
 
     for (const tiempoComidaId of tiemposDelDia) {
       const slotDisperso = diaDisperso?.tiemposComida?.[tiempoComidaId];
-      tiemposComidaDensos[tiempoComidaId] = slotDisperso ?? construirSlotBase(tiempoComidaId, singleton);
+      // Pasar `fecha` para que construirSlotBase calcule el corte correcto por alternativa.
+      tiemposComidaDensos[tiempoComidaId] = slotDisperso ?? construirSlotBase(tiempoComidaId, singleton, fecha);
     }
 
     resultado[fecha] = {

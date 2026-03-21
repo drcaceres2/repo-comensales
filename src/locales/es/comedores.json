@@ -1,5 +1,5 @@
 {
-    "title": "Gestión de $t(glosario:comedor.entidades)",
+    "title": "Comedores",
     "add_comedor": "Añadir $t(glosario:comedor.entidad)",
     "edit_comedor": "Modificar $t(glosario:comedor.entidad)",
     "delete_comedor": "Eliminar $t(glosario:comedor.entidad)",

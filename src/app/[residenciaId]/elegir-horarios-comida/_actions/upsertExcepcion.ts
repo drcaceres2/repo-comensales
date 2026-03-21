@@ -3,6 +3,7 @@
 import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import { estaMuroMovilCerrado } from '../_lib/muroMovil';
+import { calcularHorarioReferenciaSolicitud } from '../_lib/calcularHorarioReferenciaSolicitud';
 import { FormExcepcionLibre } from 'shared/schemas/elecciones/ui.schema';
 import { FormExcepcionLibreSchema } from 'shared/schemas/elecciones/ui.schema';
 import { ActionResponse } from 'shared/models/types';
@@ -122,7 +123,26 @@ export async function upsertExcepcion(
       (o: any) => o.configuracionAlternativaId === data.configuracionAlternativaId
     );
 
-    const horaCorte = opcion?.horarioReferenciaSolicitud ?? singleton?.fechaHoraReferenciaUltimaSolicitud;
+    // Determinar el instante de corte del muro móvil para esta alternativa y fecha:
+    // 1. Si el slot ya está materializado en horariosEfectivos, usar el valor persistido.
+    // 2. Si no (slot no alterado → no existe en Firestore), calcularlo desde el singleton
+    //    usando el horarioSolicitudComidaId de la configuracionAlternativa.
+    // 3. Último recurso: fechaHoraReferenciaUltimaSolicitud global (evitado siempre que sea posible).
+    let horaCorte: string | undefined = opcion?.horarioReferenciaSolicitud;
+    if (!horaCorte) {
+      const configAlt = singleton?.configuracionesAlternativas?.[data.configuracionAlternativaId];
+      const horarioSolicitudId = configAlt?.horarioSolicitudComidaId;
+      if (horarioSolicitudId && singleton?.horariosSolicitud) {
+        horaCorte = calcularHorarioReferenciaSolicitud(
+          data.fecha,
+          horarioSolicitudId,
+          singleton.horariosSolicitud
+        );
+      } else {
+        horaCorte = singleton?.fechaHoraReferenciaUltimaSolicitud;
+      }
+    }
+
     const referenciaProceso = singleton?.fechaHoraReferenciaUltimaSolicitud;
     if (horaCorte && referenciaProceso && estaMuroMovilCerrado(horaCorte, referenciaProceso)) {
       return errorResponse('MURO_MOVIL_CERRADO', 'El plazo para modificar este tiempo de comida ya cerró.');

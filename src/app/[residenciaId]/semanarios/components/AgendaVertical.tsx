@@ -24,6 +24,7 @@ type Props = {
   onSeleccionarTiempo: (tiempoId: string) => void;
   onDiaActivo?: (diaKey: string) => void;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
+  scrollToDiaKey?: string | null;
 };
 
 const SCROLL_OFFSET = 8;
@@ -34,6 +35,7 @@ export function AgendaVertical({
   onSeleccionarTiempo,
   onDiaActivo,
   scrollContainerRef,
+  scrollToDiaKey,
 }: Props) {
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -70,6 +72,18 @@ export function AgendaVertical({
     scrollContainer.addEventListener('scroll', updateActiveDia, { passive: true });
     return () => scrollContainer.removeEventListener('scroll', updateActiveDia);
   }, [dias, onDiaActivo, scrollContainerRef]);
+
+  useEffect(() => {
+    if (!scrollToDiaKey) return;
+    const scrollContainer = scrollContainerRef?.current;
+    const el = sectionRefs.current[scrollToDiaKey];
+    if (!scrollContainer || !el) return;
+
+    const containerTop = scrollContainer.getBoundingClientRect().top;
+    const elTop = el.getBoundingClientRect().top;
+    const target = elTop - containerTop + scrollContainer.scrollTop - SCROLL_OFFSET;
+    scrollContainer.scrollTo({ top: target, behavior: 'smooth' });
+  }, [scrollToDiaKey, scrollContainerRef]);
 
   return (
     <div className="space-y-4">

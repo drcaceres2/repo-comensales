@@ -78,6 +78,7 @@ export function Paso1Grupos() {
                 variant: 'destructive',
                 title: 'No se pudo crear el grupo',
                 description: `El grupo con el nombre "${data.nombre}" ya existe.`,
+                duration: 5000,
             });
             return;
         }

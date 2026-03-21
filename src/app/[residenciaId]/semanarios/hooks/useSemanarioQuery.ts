@@ -9,15 +9,20 @@ import {
 } from '../actions';
 
 export const semanariosQueryKeys = {
-  base: (residenciaId: string, targetUid?: string) =>
-    [SEMANARIOS_QUERY_KEY, residenciaId, targetUid ?? 'self'] as const,
-  singleton: (residenciaId: string) => [SEMANARIOS_QUERY_KEY, residenciaId, 'singleton'] as const,
-  usuariosObjetivo: (residenciaId: string) => [SEMANARIOS_QUERY_KEY, residenciaId, 'usuarios-objetivo'] as const,
+  base: (residenciaId: string, viewerUid?: string, targetUid?: string) =>
+    [SEMANARIOS_QUERY_KEY, residenciaId, viewerUid ?? 'anon', targetUid ?? 'self'] as const,
+  singleton: (residenciaId: string, viewerUid?: string) =>
+    [SEMANARIOS_QUERY_KEY, residenciaId, viewerUid ?? 'anon', 'singleton'] as const,
+  usuariosObjetivo: (residenciaId: string, viewerUid?: string) =>
+    [SEMANARIOS_QUERY_KEY, residenciaId, viewerUid ?? 'anon', 'usuarios-objetivo'] as const,
 };
 
-export function useSemanarioQuery(residenciaId: string, targetUid?: string) {
+export function useSemanarioQuery(residenciaId: string, viewerUid?: string, targetUid?: string) {
+  const viewerUidResolved = viewerUid?.trim();
+  const targetUidResolved = targetUid?.trim();
+
   const singletonQuery = useQuery({
-    queryKey: semanariosQueryKeys.singleton(residenciaId),
+    queryKey: semanariosQueryKeys.singleton(residenciaId, viewerUidResolved),
     queryFn: async () => {
       const result = await obtenerSemanarioSingleton(residenciaId);
       if (!result.success || !result.data) {
@@ -25,20 +30,20 @@ export function useSemanarioQuery(residenciaId: string, targetUid?: string) {
       }
       return result.data;
     },
-    enabled: Boolean(residenciaId),
+    enabled: Boolean(residenciaId && viewerUidResolved),
     staleTime: 1000 * 60 * 15,
   });
 
   const readQuery = useQuery({
-    queryKey: semanariosQueryKeys.base(residenciaId, targetUid),
+    queryKey: semanariosQueryKeys.base(residenciaId, viewerUidResolved, targetUidResolved),
     queryFn: async () => {
-      const result = await obtenerSemanarioReadDTO(residenciaId, targetUid);
+      const result = await obtenerSemanarioReadDTO(residenciaId, targetUidResolved);
       if (!result.success || !result.data) {
         throw new Error(result.error?.message ?? 'No se pudo cargar el semanario.');
       }
       return result.data;
     },
-    enabled: Boolean(residenciaId && targetUid),
+    enabled: Boolean(residenciaId && viewerUidResolved && targetUidResolved),
     staleTime: 1000 * 60 * 3,
   });
 
@@ -50,14 +55,20 @@ export function useSemanarioQuery(residenciaId: string, targetUid?: string) {
     isError: singletonQuery.isError || readQuery.isError,
     error: (singletonQuery.error ?? readQuery.error) as Error | null,
     refetch: async () => {
-      await Promise.all([singletonQuery.refetch(), readQuery.refetch()]);
+      if (readQuery.isEnabled) {
+        await Promise.all([singletonQuery.refetch(), readQuery.refetch()]);
+        return;
+      }
+      await singletonQuery.refetch();
     },
   };
 }
 
-export function useUsuariosObjetivoSemanarios(residenciaId: string) {
+export function useUsuariosObjetivoSemanarios(residenciaId: string, viewerUid?: string) {
+  const viewerUidResolved = viewerUid?.trim();
+
   return useQuery({
-    queryKey: semanariosQueryKeys.usuariosObjetivo(residenciaId),
+    queryKey: semanariosQueryKeys.usuariosObjetivo(residenciaId, viewerUidResolved),
     queryFn: async () => {
       const result = await obtenerUsuariosObjetivoSemanarios(residenciaId);
       if (!result.success || !result.data) {
@@ -65,7 +76,7 @@ export function useUsuariosObjetivoSemanarios(residenciaId: string) {
       }
       return result.data;
     },
-    enabled: Boolean(residenciaId),
+    enabled: Boolean(residenciaId && viewerUidResolved),
     staleTime: 1000 * 60 * 15,
   });
 }

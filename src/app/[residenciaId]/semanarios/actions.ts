@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from '@/lib/firebaseAdmin';
+import { FieldPath } from 'firebase-admin/firestore';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import { ActionResponse } from 'shared/models/types';
 import { ConfiguracionResidencia } from 'shared/schemas/residencia';
@@ -103,6 +104,14 @@ function isMasterOAdmin(roles: string[]): boolean {
   return roles.includes('master') || roles.includes('admin');
 }
 
+function hasAccessRole(roles: string[]): boolean {
+  return roles.includes('residente') || roles.includes('invitado') || roles.includes('asistente');
+}
+
+function hasInvalidRoleCombination(roles: string[]): boolean {
+  return roles.includes('director') && roles.includes('asistente');
+}
+
 async function resolveTargetContext(
   residenciaId: string,
   requestedTargetUid?: string
@@ -112,8 +121,17 @@ async function resolveTargetContext(
     return { success: false, error: errorResponse('UNAUTHORIZED', 'No autorizado para esta residencia.').error };
   }
 
-  if (isMasterOAdmin(sesion.roles)) {
+  // Allow admin/master users to access the module only if they also have an
+  // access role (residente/invitado/asistente). Otherwise deny.
+  if (isMasterOAdmin(sesion.roles) && !hasAccessRole(sesion.roles)) {
     return { success: false, error: errorResponse('UNAUTHORIZED', 'Los roles admin/master no acceden al módulo de semanarios.').error };
+  }
+
+  if (hasInvalidRoleCombination(sesion.roles)) {
+    return {
+      success: false,
+      error: errorResponse('UNAUTHORIZED', 'Configuración inválida de roles: director y asistente no pueden coexistir.').error,
+    };
   }
 
   const actorSnap = await db.doc(`usuarios/${sesion.usuarioId}`).get();
@@ -122,6 +140,7 @@ async function resolveTargetContext(
   }
 
   const actor = actorSnap.data() as Usuario;
+  const actorUid = actor.id || actorSnap.id;
   const targetUid = requestedTargetUid?.trim() || sesion.usuarioId;
 
   const targetSnap = await db.doc(`usuarios/${targetUid}`).get();
@@ -130,17 +149,18 @@ async function resolveTargetContext(
   }
 
   const target = targetSnap.data() as Usuario;
-  if (target.residenciaId !== residenciaId || !target.estaActivo) {
+  const targetConId = { ...target, id: target.id || targetSnap.id } as Usuario;
+  if (targetConId.residenciaId !== residenciaId || !targetConId.estaActivo) {
     return { success: false, error: errorResponse('UNAUTHORIZED', 'El usuario objetivo no pertenece a esta residencia.').error };
   }
 
-  if (!isResidenteOInvitado(target)) {
+  if (!isResidenteOInvitado(targetConId)) {
     return { success: false, error: errorResponse('UNAUTHORIZED', 'El usuario objetivo no es residente/invitado.').error };
   }
 
-  if (targetUid === actor.id) {
+  if (targetUid === actorUid) {
     if (isResidenteOInvitado(actor)) {
-      return { success: true, data: { actor, target, targetUid, modoEdicion: 'read-write' } };
+      return { success: true, data: { actor, target: targetConId, targetUid, modoEdicion: 'read-write' } };
     }
 
     return {
@@ -150,13 +170,13 @@ async function resolveTargetContext(
   }
 
   if (actor.roles.includes('director')) {
-    return { success: true, data: { actor, target, targetUid, modoEdicion: 'read-only' } };
+    return { success: true, data: { actor, target: targetConId, targetUid, modoEdicion: 'read-only' } };
   }
 
   if (actor.roles.includes('asistente')) {
     const delegacion = actor.asistente?.usuariosAsistidos?.[targetUid];
     if (delegacion && delegacion.nivelAcceso !== 'Ninguna') {
-      return { success: true, data: { actor, target, targetUid, modoEdicion: 'read-write' } };
+      return { success: true, data: { actor, target: targetConId, targetUid, modoEdicion: 'read-write' } };
     }
   }
 
@@ -214,8 +234,12 @@ export async function obtenerSemanarioSingleton(
 ): Promise<ActionResponse<SemanarioSingletonResponse>> {
   try {
     const sesion = await obtenerInfoUsuarioServer();
-    if (!sesion.usuarioId || sesion.residenciaId !== residenciaId || isMasterOAdmin(sesion.roles)) {
+    if (!sesion.usuarioId || sesion.residenciaId !== residenciaId || (isMasterOAdmin(sesion.roles) && !hasAccessRole(sesion.roles))) {
       return errorResponse('UNAUTHORIZED', 'No autorizado para consultar semanarios.');
+    }
+
+    if (hasInvalidRoleCombination(sesion.roles)) {
+      return errorResponse('UNAUTHORIZED', 'Configuración inválida de roles: director y asistente no pueden coexistir.');
     }
 
     const singletonSnap = await db.doc(`residencias/${residenciaId}/configuracion/general`).get();
@@ -245,8 +269,12 @@ export async function obtenerUsuariosObjetivoSemanarios(
 ): Promise<ActionResponse<UsuarioObjetivoSemanario[]>> {
   try {
     const sesion = await obtenerInfoUsuarioServer();
-    if (!sesion.usuarioId || sesion.residenciaId !== residenciaId || isMasterOAdmin(sesion.roles)) {
+    if (!sesion.usuarioId || sesion.residenciaId !== residenciaId || (isMasterOAdmin(sesion.roles) && !hasAccessRole(sesion.roles))) {
       return errorResponse('UNAUTHORIZED', 'No autorizado para consultar usuarios objetivo.');
+    }
+
+    if (hasInvalidRoleCombination(sesion.roles)) {
+      return errorResponse('UNAUTHORIZED', 'Configuración inválida de roles: director y asistente no pueden coexistir.');
     }
 
     const actorSnap = await db.doc(`usuarios/${sesion.usuarioId}`).get();
@@ -255,9 +283,10 @@ export async function obtenerUsuariosObjetivoSemanarios(
     }
 
     const actor = actorSnap.data() as Usuario;
+    const actorUid = actor.id || actorSnap.id;
 
-    const toOption = (user: Usuario): UsuarioObjetivoSemanario => ({
-      id: user.id,
+    const toOption = (user: Usuario, uid?: string): UsuarioObjetivoSemanario => ({
+      id: uid || user.id,
       nombre: user.nombre,
       apellido: user.apellido,
       nombreCorto: user.nombreCorto,
@@ -273,7 +302,9 @@ export async function obtenerUsuariosObjetivoSemanarios(
 
       return {
         success: true,
-        data: snap.docs.map((doc) => toOption(doc.data() as Usuario)).sort((a, b) => a.nombre.localeCompare(b.nombre)),
+        data: snap.docs
+          .map((doc) => toOption(doc.data() as Usuario, doc.id))
+          .sort((a, b) => a.nombre.localeCompare(b.nombre)),
       };
     }
 
@@ -283,7 +314,7 @@ export async function obtenerUsuariosObjetivoSemanarios(
         .map(([uid]) => uid);
 
       const shouldIncludeSelf = isResidenteOInvitado(actor);
-      const ids = [...new Set([...(shouldIncludeSelf ? [actor.id] : []), ...idsDelegados])];
+      const ids = [...new Set([...(shouldIncludeSelf ? [actorUid] : []), ...idsDelegados])];
 
       if (ids.length === 0) {
         return { success: true, data: [] };
@@ -295,19 +326,21 @@ export async function obtenerUsuariosObjetivoSemanarios(
       }
 
       const snaps = await Promise.all(
-        chunks.map((chunk) => db.collection('usuarios').where('id', 'in', chunk).where('residenciaId', '==', residenciaId).get())
+        chunks.map((chunk) => db.collection('usuarios').where(FieldPath.documentId(), 'in', chunk).get())
       );
 
-      const users = snaps.flatMap((snap) => snap.docs.map((doc) => doc.data() as Usuario));
-      const filtered = users.filter((user) => user.estaActivo && isResidenteOInvitado(user));
+      const users = snaps.flatMap((snap) => snap.docs.map((doc) => ({ ...(doc.data() as Usuario), id: doc.id } as Usuario)));
+      const filtered = users.filter(
+        (user) => user.residenciaId === residenciaId && user.estaActivo && isResidenteOInvitado(user)
+      );
       return {
         success: true,
-        data: filtered.map(toOption).sort((a, b) => a.nombre.localeCompare(b.nombre)),
+        data: filtered.map((user) => toOption(user)).sort((a, b) => a.nombre.localeCompare(b.nombre)),
       };
     }
 
     if (isResidenteOInvitado(actor)) {
-      return { success: true, data: [toOption(actor)] };
+      return { success: true, data: [toOption(actor, actorUid)] };
     }
 
     return { success: true, data: [] };

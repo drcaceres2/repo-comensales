@@ -78,7 +78,7 @@ export const useGuardarHorarios = () => {
             return await guardarHorariosFn(payload);
         },
         onSuccess: (result, variables) => {
-            toast({ title: "Transacción completada", description: "Horarios guardados con éxito.", variant: "default" });
+            toast({ title: "Transacción completada", description: "Horarios guardados con éxito.", variant: "default", duration: 5000 });
             queryClient.invalidateQueries({ queryKey: [HORARIOS_QUERY_KEY, variables.residenciaId] });
         },
         onError: (error: any) => {

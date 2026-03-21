@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getISOWeek, getISOWeekYear, parseISO } from 'date-fns';
 
 import { estaMuroMovilCerrado } from './muroMovil';
+import { calcularHorarioReferenciaSolicitud } from './calcularHorarioReferenciaSolicitud';
 import { detectarInterseccionAusencia } from './interseccionAusencias';
 import { densificarCapa0 } from './densificadorCapa0';
 import { resolverCascadaTiempoComida } from './motorCascada';
@@ -144,6 +145,60 @@ describe('estaMuroMovilCerrado', () => {
     // new Date().toISOString() produces "2026-03-13T11:40:56.165Z" — must not throw
     expect(estaMuroMovilCerrado('2026-03-10T10:00:00.000Z', '2026-03-10T10:30:00.123Z')).toBe(true);
     expect(estaMuroMovilCerrado('2026-03-10T10:00:00Z', '2026-03-09T23:59:59Z')).toBe(false);
+  });
+
+  it('acepta offset positivo y lo descarta tratando la parte local', () => {
+    // '2026-03-10T10:00:00+05:00' → local part '2026-03-10T10:00:00'
+    // referencia '2026-03-10T10:00:00+05:00' → misma parte local → referencia === corte → cerrado
+    expect(estaMuroMovilCerrado('2026-03-10T10:00:00+05:00', '2026-03-10T10:30:00+05:00')).toBe(true);
+    expect(estaMuroMovilCerrado('2026-03-10T10:00:00+05:00', '2026-03-10T09:59:59+05:00')).toBe(false);
+  });
+});
+
+describe('calcularHorarioReferenciaSolicitud', () => {
+  const horariosSolicitud = {
+    // Cierre el jueves a las 10:00
+    'hs-jueves': { nombre: 'Cierre Jueves', dia: 'jueves', horaSolicitud: 'T10:00', esPrimario: true, estaActivo: true },
+    // Cierre el viernes a las 12:00
+    'hs-viernes': { nombre: 'Cierre Viernes', dia: 'viernes', horaSolicitud: 'T12:00', esPrimario: true, estaActivo: true },
+    // Cierre el lunes a las 08:00
+    'hs-lunes': { nombre: 'Cierre Lunes', dia: 'lunes', horaSolicitud: 'T08:00', esPrimario: false, estaActivo: true },
+  };
+
+  it('retrocede 1 día cuando el cierre es el día anterior a la comida (viernes→jueves)', () => {
+    // 2026-03-20 es viernes (getUTCDay=5), cierre jueves (índice 4) → diasARestar=1 → 2026-03-19
+    expect(
+      calcularHorarioReferenciaSolicitud('2026-03-20', 'hs-jueves', horariosSolicitud)
+    ).toBe('2026-03-19T10:00:00');
+  });
+
+  it('usa el mismo día cuando el cierre coincide con el día de la comida (viernes→viernes)', () => {
+    // 2026-03-20 es viernes, cierre viernes → diasARestar=0 → 2026-03-20
+    expect(
+      calcularHorarioReferenciaSolicitud('2026-03-20', 'hs-viernes', horariosSolicitud)
+    ).toBe('2026-03-20T12:00:00');
+  });
+
+  it('cruza semana correctamente cuando el cierre es posterior en la semana (jueves→lunes anterior)', () => {
+    // 2026-03-19 es jueves (getUTCDay=4), cierre lunes (índice 1) → diasARestar=(4-1+7)%7=3 → 2026-03-16
+    expect(
+      calcularHorarioReferenciaSolicitud('2026-03-19', 'hs-lunes', horariosSolicitud)
+    ).toBe('2026-03-16T08:00:00');
+  });
+
+  it('retorna fallback de medianoche cuando el horarioSolicitudId no existe', () => {
+    expect(
+      calcularHorarioReferenciaSolicitud('2026-03-20', 'hs-inexistente', horariosSolicitud)
+    ).toBe('2026-03-20T00:00:00');
+  });
+
+  it('normaliza horaSolicitud sin prefijo T (formato HH:mm)', () => {
+    const horariosConHoraPlana = {
+      'hs-plano': { dia: 'jueves', horaSolicitud: '10:00' },
+    };
+    expect(
+      calcularHorarioReferenciaSolicitud('2026-03-20', 'hs-plano', horariosConHoraPlana)
+    ).toBe('2026-03-19T10:00:00');
   });
 });
 
@@ -379,5 +434,125 @@ describe('generarPayloadHorariosUI', () => {
       'almuerzo_viernes',
       'almuerzo_tarde_viernes',
     ]);
+  });
+
+  /**
+   * Tests de integración del muro móvil.
+   *
+   * Singleton del buildSingleton():
+   *   hs1: dia='jueves', horaSolicitud='T12:00'
+   *   hs2: dia='viernes', horaSolicitud='T12:00'
+   *
+   * Cálculos de corte para la fecha '2026-03-12' (jueves):
+   *   cfg-des-jue-1 / cfg-des-jue-2 / cfg-alm-jue-1 → hs1 → corte = '2026-03-12T12:00:00'
+   *
+   * Cálculos de corte para la fecha '2026-03-13' (viernes):
+   *   cfg-des-vie-1 / cfg-alm-vie-1 → hs2 → corte = '2026-03-13T12:00:00'
+   */
+  it('muro ABIERTO cuando la referencia es anterior al corte calculado por alternativa', () => {
+    const singleton = buildSingleton();
+    // Referencia anterior al corte del jueves (12:00) → muro abierto
+    singleton.fechaHoraReferenciaUltimaSolicitud = '2026-03-12T10:00:00';
+
+    const semana = getWeekKey('2026-03-12');
+    const payload = generarPayloadHorariosUI({
+      fechasRango: ['2026-03-12'],
+      fechaHoraReferenciaUltimaSolicitud: '2026-03-12T10:00:00',
+      singletonResidencia: singleton,
+      vistaMaterializadaDiaria: {},
+      diccionarioSemanarios: {
+        [semana]: {
+          'desayuno-jueves': { configuracionAlternativaId: 'cfg-des-jue-1' },
+          'almuerzo-jueves': { configuracionAlternativaId: 'cfg-alm-jue-1' },
+        },
+      },
+      excepcionesUsuario: [],
+      ausenciasUsuario: [],
+    } as any);
+
+    const diaJueves = payload.dias.find((d) => d.fecha === '2026-03-12');
+    expect(diaJueves?.tarjetas.length).toBeGreaterThan(0);
+    // Ninguna tarjeta debe estar bloqueada por el muro móvil
+    expect(diaJueves?.tarjetas.every((t) => t.estadoInteraccion === 'MUTABLE')).toBe(true);
+    // Todas las opciones del drawer deben estar disponibles para elegir
+    const todasLasOpciones = diaJueves?.tarjetas.flatMap((t) => t.detallesDrawer?.opciones ?? []) ?? [];
+    expect(todasLasOpciones.length).toBeGreaterThan(0);
+    expect(todasLasOpciones.every((op) => op.disponibleParaElegir)).toBe(true);
+  });
+
+  it('muro CERRADO cuando la referencia supera el corte calculado por alternativa', () => {
+    const singleton = buildSingleton();
+    // Referencia posterior al corte del jueves (12:00) → muro cerrado
+    singleton.fechaHoraReferenciaUltimaSolicitud = '2026-03-12T13:00:00';
+
+    const semana = getWeekKey('2026-03-12');
+    const payload = generarPayloadHorariosUI({
+      fechasRango: ['2026-03-12'],
+      fechaHoraReferenciaUltimaSolicitud: '2026-03-12T13:00:00',
+      singletonResidencia: singleton,
+      vistaMaterializadaDiaria: {},
+      diccionarioSemanarios: {
+        [semana]: {
+          'desayuno-jueves': { configuracionAlternativaId: 'cfg-des-jue-1' },
+          'almuerzo-jueves': { configuracionAlternativaId: 'cfg-alm-jue-1' },
+        },
+      },
+      excepcionesUsuario: [],
+      ausenciasUsuario: [],
+    } as any);
+
+    const diaJueves = payload.dias.find((d) => d.fecha === '2026-03-12');
+    expect(diaJueves?.tarjetas.length).toBeGreaterThan(0);
+    // Todas las tarjetas deben estar bloqueadas a nivel sistema por el muro móvil
+    expect(diaJueves?.tarjetas.every((t) => t.estadoInteraccion === 'BLOQUEADO_SISTEMA')).toBe(true);
+    // El mensaje formativo debe indicar el cierre del plazo
+    expect(diaJueves?.tarjetas.every((t) => Boolean(t.detallesDrawer.mensajeFormativo))).toBe(true);
+    // Cuando estadoInteraccion === 'BLOQUEADO_SISTEMA', el drawer no expone opciones
+    expect(diaJueves?.tarjetas.every((t) => t.detallesDrawer.opciones === undefined)).toBe(true);
+  });
+
+  it('muro DIFERENCIADO: jueves cerrado y viernes abierto en el mismo payload', () => {
+    const singleton = buildSingleton();
+    // corte jueves = '2026-03-12T12:00:00'  → referencia 13:00 lo supera → CERRADO
+    // corte viernes = '2026-03-13T12:00:00' → referencia 13:00 NO lo supera → ABIERTO
+    const referencia = '2026-03-12T13:00:00';
+    singleton.fechaHoraReferenciaUltimaSolicitud = referencia;
+
+    const semanaJueves = getWeekKey('2026-03-12');
+    const semanaViernes = getWeekKey('2026-03-13');
+    const payload = generarPayloadHorariosUI({
+      fechasRango: ['2026-03-12', '2026-03-13'],
+      fechaHoraReferenciaUltimaSolicitud: referencia,
+      singletonResidencia: singleton,
+      vistaMaterializadaDiaria: {},
+      diccionarioSemanarios: {
+        [semanaJueves]: {
+          'desayuno-jueves': { configuracionAlternativaId: 'cfg-des-jue-1' },
+          'almuerzo-jueves': { configuracionAlternativaId: 'cfg-alm-jue-1' },
+        },
+        [semanaViernes]: {
+          'desayuno-viernes': { configuracionAlternativaId: 'cfg-des-vie-1' },
+          'almuerzo-viernes': { configuracionAlternativaId: 'cfg-alm-vie-1' },
+        },
+      },
+      excepcionesUsuario: [],
+      ausenciasUsuario: [],
+    } as any);
+
+    const opcionesJueves = payload.dias
+      .find((d) => d.fecha === '2026-03-12')
+      ?.tarjetas ?? [];
+
+    const opcionesViernes = payload.dias
+      .find((d) => d.fecha === '2026-03-13')
+      ?.tarjetas ?? [];
+
+    // Jueves: muro cerrado → todas las tarjetas bloqueadas por sistema
+    expect(opcionesJueves.length).toBeGreaterThan(0);
+    expect(opcionesJueves.every((t) => t.estadoInteraccion === 'BLOQUEADO_SISTEMA')).toBe(true);
+
+    // Viernes: muro abierto → todas las tarjetas mutables
+    expect(opcionesViernes.length).toBeGreaterThan(0);
+    expect(opcionesViernes.every((t) => t.estadoInteraccion === 'MUTABLE')).toBe(true);
   });
 });

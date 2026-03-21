@@ -5,7 +5,6 @@ import GestionActividadesClient from './GestionActividadesClient';
 import {urlAccesoNoAutorizado} from "@/lib/utils";
 
 export default async function ActividadesPage() {
-    const { residenciaId } = await obtenerInfoUsuarioServer();
     const resultado: ResultadoAcceso = await verificarPermisoGestionWrapper('gestionActividades');
 
     if (resultado.error) {
@@ -28,11 +27,10 @@ export default async function ActividadesPage() {
     }
 
     const usuarioSesion = await obtenerInfoUsuarioServer();
-    const esMaster = usuarioSesion.roles.includes('master');
 
-    if (!usuarioSesion.residenciaId || (!esMaster && usuarioSesion.residenciaId !== residenciaId)) {
+    if ( !usuarioSesion.residenciaId ) {
         redirect(urlAccesoNoAutorizado("Problemas con la sesión del usuario."));
     }
 
-    return <GestionActividadesClient residenciaId={residenciaId} />;
+    return <GestionActividadesClient residenciaId={usuarioSesion.residenciaId} />;
 }

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useTransition } from 'react';
+import { useTransition, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -122,18 +122,49 @@ export function ActivityForm({
               },
     });
 
+    const computeDiaName = (fechaIso?: string) => {
+        if (!fechaIso) return undefined;
+        try {
+            const d = new Date(`${fechaIso}T00:00:00`);
+            const dias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+            return dias[d.getUTCDay()];
+        } catch (e) {
+            return undefined;
+        }
+    };
+
+    // Reset tiempoComidaInicioId when fechaInicio changes and the selected
+    // tiempo no matches the new date's available tiempos.
+    const fechaInicioValue = form.watch('fechaInicio');
+    useEffect(() => {
+        const selected = form.getValues().tiempoComidaInicioId;
+        if (!selected) return;
+        const dia = computeDiaName(fechaInicioValue);
+        const stillValid = tiemposComidaList.some((tc) => tc.id === selected && (tc.dia === dia || !tc.dia));
+        if (!stillValid) {
+            form.setValue('tiempoComidaInicioId', '');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fechaInicioValue, tiemposComidaList]);
+
+    // Reset tiempoComidaFinId when fechaFin changes and the selected
+    // tiempo no matches the new date's available tiempos.
+    const fechaFinValue = form.watch('fechaFin');
+    useEffect(() => {
+        const selected = form.getValues().tiempoComidaFinId;
+        if (!selected) return;
+        const dia = computeDiaName(fechaFinValue);
+        const stillValid = tiemposComidaList.some((tc) => tc.id === selected && (tc.dia === dia || !tc.dia));
+        if (!stillValid) {
+            form.setValue('tiempoComidaFinId', '');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fechaFinValue, tiemposComidaList]);
+
     const fillMissingTiempos = () => {
         const values = form.getValues();
-
-        const computeDiaName = (fechaIso: string) => {
-            try {
-                const d = new Date(`${fechaIso}T00:00:00`);
-                const dias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-                return dias[d.getUTCDay()];
-            } catch (e) {
-                return undefined;
-            }
-        };
+        // computeDiaName is defined at component scope so it can be reused
+        // by both this helper and the Select renderers below.
 
         const groupOrder = new Map<string, number>();
         (gruposComidas || []).forEach((g) => groupOrder.set(g.id, g.orden ?? 0));
@@ -417,11 +448,16 @@ export function ActivityForm({
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent className='z-[250]'>
-                                                        {tiemposComidaList.map((tc) => (
-                                                            <SelectItem key={tc.id} value={tc.id}>
-                                                                {tc.nombre} ({tc.dia ? MapaDiaDeLaSemana[tc.dia] : 'General'})
-                                                            </SelectItem>
-                                                        ))}
+                                                        {tiemposComidaList
+                                                            .filter((tc) => {
+                                                                const dia = computeDiaName(form.getValues().fechaInicio);
+                                                                return tc.dia === dia || !tc.dia;
+                                                            })
+                                                            .map((tc) => (
+                                                                <SelectItem key={tc.id} value={tc.id}>
+                                                                    {tc.nombre} ({tc.dia ? MapaDiaDeLaSemana[tc.dia] : 'General'})
+                                                                </SelectItem>
+                                                            ))}
                                                     </SelectContent>
                                                 </Select>
                                                 <FormMessage />
@@ -446,11 +482,16 @@ export function ActivityForm({
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent className='z-[250]'>
-                                                        {tiemposComidaList.map((tc) => (
-                                                            <SelectItem key={tc.id} value={tc.id}>
-                                                                {tc.nombre} ({tc.dia ? MapaDiaDeLaSemana[tc.dia] : 'General'})
-                                                            </SelectItem>
-                                                        ))}
+                                                        {tiemposComidaList
+                                                            .filter((tc) => {
+                                                                const dia = computeDiaName(form.getValues().fechaFin);
+                                                                return tc.dia === dia || !tc.dia;
+                                                            })
+                                                            .map((tc) => (
+                                                                <SelectItem key={tc.id} value={tc.id}>
+                                                                    {tc.nombre} ({tc.dia ? MapaDiaDeLaSemana[tc.dia] : 'General'})
+                                                                </SelectItem>
+                                                            ))}
                                                     </SelectContent>
                                                 </Select>
                                                 <FormMessage />

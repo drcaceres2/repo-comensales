@@ -129,6 +129,7 @@ export function Paso3Tiempos() {
                     variant: 'destructive',
                     title: 'No se pudo crear el tiempo de comida',
                     description: `Ya existe un tiempo de comida con el nombre "${data.nombre}". El nombre debe ser único.`,
+                    duration: 5000,
                 });
                 return;
             }
@@ -158,6 +159,7 @@ export function Paso3Tiempos() {
                 variant: 'destructive',
                 title: 'No se pudo generar la tabla',
                 description: 'No hay grupos de comida activos para generar los tiempos.',
+                duration: 5000,
             });
             return;
         }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Bell } from 'lucide-react';
 import { Recordatorio } from 'shared/schemas/recordatorios';
 import { useObtenerRecordatorios, useMutacionesRecordatorio } from '../consultas';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ import { FormularioRecordatorio } from './FormularioRecordatorio';
 import { TablaRecordatorios } from './TablaRecordatorios';
 import { useInfoUsuario } from '@/components/layout/AppProviders';
 
-export const GestionRecordatoriosClient = () => {
+export const GestionRecordatoriosClient = ({ residenciaSlug }: { residenciaSlug?: string }) => {
     const authSesion = useInfoUsuario();
 
     if (
@@ -36,6 +37,7 @@ export const GestionRecordatoriosClient = () => {
     }
 
     const residenciaId = authSesion.residenciaId;
+    const displayedResidencia = residenciaSlug ?? residenciaId;
     const usuarioIniciadorId = authSesion.usuarioId;
 
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -80,9 +82,17 @@ export const GestionRecordatoriosClient = () => {
 
     return (
         <div className="container mx-auto py-8 space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold">Gestión de Recordatorios</h1>
-                <Button onClick={handleAbrirParaCrear}>Nuevo Recordatorio</Button>
+            <div>
+                <div className="flex items-center gap-3">
+                    <Bell className="h-8 w-8 text-gray-700" />
+                    <div className="flex flex-col">
+                        <h1 className="text-3xl font-bold">Recordatorios</h1>
+                        <p className="text-sm text-gray-500 mt-1">Residencia: {displayedResidencia}</p>
+                    </div>
+                </div>
+                <div className="mt-4">
+                    <Button onClick={handleAbrirParaCrear}>Nuevo Recordatorio</Button>
+                </div>
             </div>
 
             <TablaRecordatorios

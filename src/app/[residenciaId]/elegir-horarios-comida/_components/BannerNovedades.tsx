@@ -2,12 +2,12 @@
 
 import { Bell } from 'lucide-react';
 
-type Props = {
+type BannerNovedadesProps = {
   hayPendientesSync: boolean;
   visible?: boolean;
 };
 
-export function BannerNovedades({ hayPendientesSync, visible = false }: Props) {
+export function BannerNovedades({ hayPendientesSync, visible = false }: BannerNovedadesProps) {
   if (!visible) {
     return null;
   }
@@ -19,7 +19,7 @@ export function BannerNovedades({ hayPendientesSync, visible = false }: Props) {
         <span className="font-medium">Novedades operativas</span>
       </div>
       {hayPendientesSync ? (
-        <p className="mt-1 text-xs text-amber-700">Tienes cambios pendientes por sincronizar cuando vuelva la conexion.</p>
+        <p className="mt-1 text-xs text-amber-700">Tienes cambios pendientes por sincronizar cuando vuelva la conexión.</p>
       ) : null}
     </section>
   );

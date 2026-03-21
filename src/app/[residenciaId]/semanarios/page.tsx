@@ -6,16 +6,20 @@ import { urlAccesoNoAutorizado } from "@/lib/utils";
 export default async function SemanariosPage() {
   const sesion = await obtenerInfoUsuarioServer();
   const residenciaId = sesion.residenciaId;
+  const esDirector = sesion.roles.includes('director');
+  const esAsistente = sesion.roles.includes('asistente');
 
-  const rolesValidos = ['residente', 'invitado', 'asistente', 'director'];
-  const tieneAcceso = sesion.roles.some((role) => rolesValidos.includes(role));
-  const tieneRolRestringido = sesion.roles.includes('master') || sesion.roles.includes('admin');
+  const rolesPermitidos = ['residente', 'invitado', 'director', 'asistente'];
+  const tieneAcceso = sesion.roles.some((role) => rolesPermitidos.includes(role));
 
   if (!sesion.usuarioId || !residenciaId) {
-    redirect(urlAccesoNoAutorizado("Problemas con la sesión del usuario."));
+    redirect(urlAccesoNoAutorizado('Problemas con la sesión del usuario.'));
   }
-  if (!tieneAcceso || tieneRolRestringido) {
-    redirect(urlAccesoNoAutorizado("Tu perfil de usuario no tiene acceso a la página de semanarios."));
+  if (esDirector && esAsistente) {
+    redirect(urlAccesoNoAutorizado('Configuración inválida de roles: director y asistente no pueden coexistir.'));
+  }
+  if (!tieneAcceso) {
+    redirect(urlAccesoNoAutorizado('Tu perfil de usuario no tiene acceso a la página de semanarios.'));
   }
 
   return (

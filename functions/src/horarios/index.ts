@@ -10,7 +10,10 @@ import {
   type DatosHorariosEnBruto,
   DatosHorariosEnBrutoSchema,
 } from "../../../shared/schemas/horarios";
-import { ConfiguracionResidencia } from "../../../shared/schemas/residencia";
+import {
+  ConfiguracionResidencia,
+  ConfiguracionResidenciaHorariosWriteSchema,
+} from "../../../shared/schemas/residencia";
 import { getCallerSecurityInfo } from "../common/security";
 import { logAction } from "../common/logging";
 
@@ -89,7 +92,20 @@ export const guardarHorariosResidencia = onCall(
           version: nextVersion,
         };
 
-        transaction.update(configRef, updateData);
+        const writeValidation = ConfiguracionResidenciaHorariosWriteSchema.safeParse(updateData);
+        if (!writeValidation.success) {
+          const zodErrors = writeValidation.error.flatten();
+          const errorMessages = Object.entries(zodErrors.fieldErrors)
+            .map(([field, messages]) => `${field}: ${messages.join(", ")}`);
+          const errorMessage = `Write payload validation failed: ${errorMessages.join("; ")}`;
+          functions.logger.warn("Validation failed for ConfiguracionResidenciaHorariosWriteSchema:", errorMessage);
+          throw new HttpsError("invalid-argument", "Error de validación de datos para escritura en configuración.", {
+            validationError: true,
+            message: errorMessage,
+          });
+        }
+
+        transaction.update(configRef, writeValidation.data);
         return nextVersion;
       });
 

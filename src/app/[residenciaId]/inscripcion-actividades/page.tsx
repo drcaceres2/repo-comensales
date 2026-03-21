@@ -9,9 +9,7 @@ const rolesPermitidos = new Set(['master', 'admin', 'director', 'asistente', 're
 export default async function InscripcionActividadesPage() {
     const session = await obtenerInfoUsuarioServer();
     
-    if (!session.usuarioId || !session.residenciaId || (
-            session.roles.some((rol) => rolesPermitidos.has(rol)))
-    ) {
+    if ( !session.usuarioId || !session.residenciaId ) {
         redirect(urlAccesoNoAutorizado("Problemas con la sesión del usuario."));
     }
 

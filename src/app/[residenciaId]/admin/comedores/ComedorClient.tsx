@@ -235,15 +235,13 @@ export default function ComedorClient({ resultadoAcceso }: ComedorClientProps) {
         <div className="container mx-auto p-6 space-y-8 animate-in fade-in duration-500">
             {/* Header */}
             <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-primary/10 rounded-full text-primary">
-                        <ConciergeBell size={32} />
+                    <div className="flex items-center gap-3">
+                        <Utensils className="h-8 w-8 text-gray-700" />
+                        <div className="flex flex-col">
+                            <h1 className="text-2xl font-bold tracking-tight">{t('title')}</h1>
+                            <p className="text-sm text-gray-600 mt-1">{t('glosario:residencia.entidad')}: {residenciaId}</p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-                        <p className="text-muted-foreground">{residenciaId}</p>
-                    </div>
-                </div>
                 <Button onClick={handleAdd} className="w-full md:w-auto shadow-sm">
                     <Plus className="mr-2 h-4 w-4" /> {t('add_comedor')}
                 </Button>

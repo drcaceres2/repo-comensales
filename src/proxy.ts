@@ -18,13 +18,23 @@ export const config = {
 };
 
 // Filtros de rutas
-const rutasPublicas = ['/about', '/privacidad', '/acceso-no-autorizado', '/licencia-vencida', '/crear-master', '/invitacion/finalizar'];
+const rutasPublicas = [
+  '/about', '/privacidad', 
+  '/acceso-no-autorizado', 
+  '/licencia-vencida', 
+  '/crear-master', 
+  '/invitacion/finalizar'
+];
 const rutasHibridas = ['/', '/feedback'];
 const rutasAutenticadasNoResidencia = ['/mi-perfil'];
 const rutasMaster = ['/restringido-master'];
 const rutasAdminRaiz = ['/admin', '/admin/users'];
 const rutasAdminResidencia = ['/admin/invitacionesUsuarios'];
-const rutasGestionConMatriz = ['/admin/comedores', '/gerencia/recordatorios', '/admin/horarios'];
+const rutasGestionConMatriz = [
+  '/admin/comedores', 
+  '/gerencia/recordatorios', 
+  '/admin/horarios'
+];
 
 
 // Configuración de next-firebase-auth-edge
@@ -46,8 +56,9 @@ const authConfig = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax' as const,
-    maxAge: 12 * 60 * 60 * 24, // 12 días
+    maxAge: 60 * 60, // 1 hora
   },
+  checkRevoked: true,
 };
 
 export async function proxy(request: NextRequest) {
@@ -56,7 +67,8 @@ export async function proxy(request: NextRequest) {
   // Evita header spoofing: solo `handleValidToken` puede inyectar estas cabeceras internas.
   for (const headerName of Array.from(request.headers.keys())) {
     const lowerHeaderName = headerName.toLowerCase();
-    if (lowerHeaderName.startsWith('x-usuario-') || lowerHeaderName.startsWith('x-residencia-')) {
+    if ( lowerHeaderName.startsWith('x-usuario-') 
+      || lowerHeaderName.startsWith('x-residencia-')) {
       request.headers.delete(headerName);
     }
   }
@@ -67,30 +79,22 @@ export async function proxy(request: NextRequest) {
     const targetPathWithSearch = `${targetUrl.pathname}${targetUrl.search}`;
 
     if (currentPathWithSearch === targetPathWithSearch) {
-      console.log("Middleware: Redirigiendo al mismo luga...");
       return NextResponse.next();
     }
 
     const response = NextResponse.redirect(targetUrl);
     if (clearCookie) {
-      console.log("Middleware: Borrando cookie de autenticación...")
       response.cookies.delete(authConfig.cookieName);
     }
-    console.log(`Middleware: redirigiendo a ${response.url}`);
     return response;
   };
-
-  console.log(`Middleware TEMPORAL.\nRuta: "${pathname}";\n URL: "${request.url}"`);
 
   return authMiddleware(request, {
     ...authConfig,
     handleValidToken: async ({ decodedToken }) => {
-      // This is called when the token is valid and not expired.
-      // We can still have custom logic to invalidate a session.
-      if (decodedToken.isActive === false) {
-        console.log(`Middleware: Inactive user (UID: ${decodedToken.uid}) tried to access.`);
-        return redirectTo('/', true);
-      }
+      // Called when the token is valid and not expired. Revocation/forced
+      // sign-out should be handled by Firebase via `checkRevoked: true`.
+      // If the token passes `checkRevoked`, the user is considered active.
 
       const requestHeaders = new Headers(request.headers);
       const userRoles = (decodedToken.roles as string[]) || [];
@@ -100,7 +104,7 @@ export async function proxy(request: NextRequest) {
       requestHeaders.set('x-usuario-roles', JSON.stringify(userRoles));
       requestHeaders.set('x-residencia-id', (decodedToken.residenciaId as string) || '');
       requestHeaders.set('x-residencia-zh', (decodedToken.zonaHoraria as string) || '');
-      requestHeaders.set('x-residencia-ct', (decodedToken.ctxTraduccion as string) || 'es');
+      requestHeaders.set('x-residencia-ct', (decodedToken.ctxTraduccion as string) || '');
 
       const responseWithHeaders = NextResponse.next({
         request: { headers: requestHeaders },
@@ -109,21 +113,17 @@ export async function proxy(request: NextRequest) {
       // Master routes: only 'master' role
       if (rutasMaster.some(p => pathname.startsWith(p))) {
         if (!userRoles.includes('master')) {
-          console.log("Middleware: Ruta restringida para 'master', redirigiendo a 'acceso-no-autorizado'")
           return redirectTo(urlAccesoNoAutorizado("Tu perfil de usuario no tiene acceso a esta sección exclusiva para 'master'."));
         }
-        console.log("Middleware: Ruta master permitida");
         return responseWithHeaders;
       }
 
       // Admin root routes: 'master' or 'admin' role
       if (rutasAdminRaiz.includes(pathname)) {
         if (!userRoles.includes('master') && !userRoles.includes('admin')) {
-          console.log("Middleware: Ruta restringida para 'admin' (raíz), redirigiendo a 'acceso-no-autorizado'")
           return redirectTo(urlAccesoNoAutorizado(
               "Tu perfil de usuario no tiene acceso a esta sección restringida para usuarios administradores."));
         }
-        console.log("Middleware: Ruta admin permitida");
         return responseWithHeaders;
       }
       
@@ -134,7 +134,6 @@ export async function proxy(request: NextRequest) {
         ...rutasAutenticadasNoResidencia,
       ];
       if (otherNonResidenciaRoutes.includes(pathname)) {
-        console.log(`Middleware: Ruta raíz permitida ${pathname}`);
         return responseWithHeaders;
       }
 
@@ -145,7 +144,6 @@ export async function proxy(request: NextRequest) {
       if (rutasGestionConMatriz.some(r => pathname.endsWith(r))) {
         const rolesPermitidos = userRoles.includes('admin') || userRoles.includes('director') || userRoles.includes('asistente');
         if (!rolesPermitidos) {
-          console.log("Middleware: Ruta restringida para roles de gestion, redirigiendo a 'acceso-no-autorizado'")
           return redirectTo(urlAccesoNoAutorizado("Ruta restringida a usuarios directores o asistentes."));
         }
       }
@@ -153,7 +151,6 @@ export async function proxy(request: NextRequest) {
       // Admin residence routes: strict 'admin' role
       if (rutasAdminResidencia.some(r => pathname.endsWith(r))) {
         if (!userRoles.includes('admin')) {
-          console.log("Middleware: Ruta restringida para 'admin' (residencia), redirigiendo a 'acceso-no-autorizado'")
           return redirectTo(urlAccesoNoAutorizado(
               "Tu perfil de usuario no tiene acceso a esta sección restringida para usuarios administradores."));
         }
@@ -162,7 +159,6 @@ export async function proxy(request: NextRequest) {
       // For all residence routes, check if the residenceId in the path matches the token
       const residenciaIdFromPath = pathname.split('/')[1];
       if (residenciaIdFromPath !== decodedToken.residenciaId) {
-        console.log("Middleware: prop no coincide con claim de token");
         return redirectTo('/', true);
       }
 
@@ -170,13 +166,15 @@ export async function proxy(request: NextRequest) {
     },
 
     handleInvalidToken: async () => {
-      // Token is invalid (expired, malformed, etc.)
-      // Allow access to public and hybrid routes
+      // Token is invalid (expired, malformed, revoked, etc.).
+      // Ensure the auth cookie is removed in all cases.
       if (rutasPublicas.includes(pathname) || rutasHibridas.includes(pathname)) {
-        return NextResponse.next();
+        const resp = NextResponse.next();
+        resp.cookies.delete(authConfig.cookieName);
+        return resp;
       }
-      // For all other routes, redirect to home. The cookie is already invalid.
-      return redirectTo('/');
+      // For protected routes, clear cookie and redirect to home.
+      return redirectTo('/', true);
     },
 
     handleError: async (error: any) => {

@@ -63,22 +63,24 @@ export function DrawerRestricciones({
   }, [query.data]);
 
   const gruposComidas = useMemo(() => {
-    if (!horariosQuery.data) return [];
-    return Object.entries(horariosQuery.data.datos.gruposComidas ?? {}).sort((a, b) => {
+    const datos = horariosQuery.data?.datos;
+    if (!datos) return [];
+    return Object.entries(datos.gruposComidas ?? {}).sort((a, b) => {
       return (a[1]?.orden ?? 0) - (b[1]?.orden ?? 0);
     });
   }, [horariosQuery.data]);
 
   const configuracionesFiltradas = useMemo(() => {
-    if (!horariosQuery.data) return [];
+    const datos = horariosQuery.data?.datos;
+    if (!datos) return [];
 
-    const { configuracionesAlternativas, esquemaSemanal, gruposComidas, catalogoAlternativas } = horariosQuery.data.datos;
+    const { configuracionesAlternativas, esquemaSemanal, gruposComidas: gruposComidasMap, catalogoAlternativas } = datos;
 
     const entries = Object.entries(configuracionesAlternativas ?? {});
     return entries
       .map(([id, config]) => {
         const tiempo = esquemaSemanal?.[config.tiempoComidaId];
-        const grupo = tiempo ? gruposComidas?.[tiempo.grupoComida] : undefined;
+        const grupo = tiempo ? gruposComidasMap?.[tiempo.grupoComida] : undefined;
         const definicion = catalogoAlternativas?.[config.definicionAlternativaId];
 
         return {

@@ -72,15 +72,12 @@ const resolveDefaultHost = (): string => {
 };
 
 if (useEmulators) {
-    console.log("Attempting to connect to Firebase Emulators...");
-
     // --- Auth Emulator ---
     // @ts-ignore Property '_emulatorConfig' is private but accessible for this check
     if (!auth.emulatorConfig) {
         try {
             let authUrl = `http://127.0.0.1:9099`; // Default
             if (authEmulatorHost) {
-                console.log(`Using Auth Emulator Host from env: ${authEmulatorHost}`);
                 // Ensure the URL starts with http:// or https:// for connectAuthEmulator
                  if (!authEmulatorHost.startsWith('http://') && !authEmulatorHost.startsWith('https://')) {
                      // Default to http if no protocol is specified
@@ -94,7 +91,6 @@ if (useEmulators) {
                  }
                  // The connectAuthEmulator function expects the full URL
             }
-            console.log(`Connecting Auth Emulator to ${authUrl}`);
             connectAuthEmulator(auth, authUrl, { disableWarnings: true });
         } catch (error) {
             console.error("Failed to connect Auth emulator:", error);
@@ -109,7 +105,6 @@ if (useEmulators) {
             let port = 8081;
 
             if (firestoreEmulatorHost) {
-                 console.log(`Using Firestore Emulator Host from env: ${firestoreEmulatorHost}`);
                  // Firestore emulator needs host and port separately
                  // Remove protocol if present
                  let hostAndPort = firestoreEmulatorHost.replace(/^https?:\/\//, '');
@@ -123,7 +118,6 @@ if (useEmulators) {
                  host = resolveDefaultHost();
             }
 
-            console.log(`Connecting Firestore Emulator to ${host}:${port}`);
             connectFirestoreEmulator(db, host, port);
         } catch (error) {
             console.error("Failed to connect Firestore emulator:", error);
@@ -137,7 +131,6 @@ if (useEmulators) {
             let host = "127.0.0.1";
             let port = 5001;
             if (functionsEmulatorHost) {
-                console.log(`Using Functions Emulator Host from env: ${functionsEmulatorHost}`);
                 // Functions emulator needs host and port separately
                 let hostAndPort = functionsEmulatorHost.replace(/^https?:\/\//, '');
                 const parts = hostAndPort.split(':');
@@ -146,7 +139,6 @@ if (useEmulators) {
                     port = parseInt(parts[1], 10);
                 }
             }
-            console.log(`Connecting Functions Emulator to ${host}:${port}`);
             connectFunctionsEmulator(functions, host, port);
         } catch (error) {
             console.error("Failed to connect Functions emulator:", error);
@@ -160,7 +152,6 @@ if (useEmulators) {
             let host = "127.0.0.1";
             let port = 9199;
             if (storageEmulatorHost) {
-                console.log(`Using Storage Emulator Host from env: ${storageEmulatorHost}`);
                 // Storage emulator needs host and port separately
                 let hostAndPort = storageEmulatorHost.replace(/^https?:\/\//, '');
                 const parts = hostAndPort.split(':');
@@ -169,7 +160,6 @@ if (useEmulators) {
                     port = parseInt(parts[1], 10);
                 }
             }
-            console.log(`Connecting Storage Emulator to ${host}:${port}`);
             connectStorageEmulator(storage, host, port);
         } catch (error) {
             console.error("Failed to connect Storage emulator:", error);

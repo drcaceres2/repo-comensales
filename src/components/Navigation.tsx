@@ -21,13 +21,13 @@ import {
 import {
   Menu, Users,
   Building, CalendarSync,
-  ListChecks, CalendarDays,
-  UsersRound, Bell, FileText,
-  Home, PlusCircle, MessageSquare,
-  ShieldCheck, UserCog,
+  Bell, FileText, MessageSquare,
+  ShieldCheck, Apple, CalendarCog, GraduationCap,
+  Pizza, Bike, CalendarPlus, Settings, Table2,
+  LifeBuoy, KeyRound, UserPen, MessageCircle, 
+  MessageCirclePlus, MessageCircleReply,
   LucideIcon, Info, Clock,
-  ConciergeBell, Briefcase, UserSquare, 
-  Drama, Handshake, ClipboardEdit, 
+  ConciergeBell, Briefcase, ClipboardEdit, 
   BookCopy, UserCircle2, UserPlus,
   Utensils, LogOut, Mail
 } from 'lucide-react';
@@ -123,7 +123,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
     {
       id: 'directoresGroup',
       label: 'Directores',
-      icon: UserSquare,
+      icon: Briefcase,
       isAccordion: true,
       roles: ['director', 'asistente'],
       requiresResidenciaIdForHref: true,
@@ -131,7 +131,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
         {
           id: 'adminDietas',
           label: 'Dietas',
-          icon: ListChecks,
+          icon: Apple,
           href: rLink,
           pathTemplate: '/gerencia/dietas',
           roles: ['director', 'asistente'],
@@ -158,13 +158,12 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
         {
           id: 'adminAlteracionesHorarios',
           label: 'Alteraciones de Horarios',
-          icon: CalendarDays,
+          icon: CalendarCog,
           href: rLink,
           pathTemplate: '/gerencia/alteraciones',
           roles: ['director', 'admin', 'asistente'],
           requiresResidenciaIdForHref: true,
         },
-
       ],
     },
 
@@ -172,14 +171,14 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
     {
       id: 'residentesGroup',
       label: 'Residentes',
-      icon: UserSquare,
+      icon: GraduationCap,
       isAccordion: true,
       roles: ['director', 'residente', 'invitado', 'asistente'],
       children: [
         {
           id: 'elegirHorariosComidas',
           label: 'Elegir Horarios de Comidas',
-          icon: Utensils,
+          icon: Pizza,
           href: rLink,
           pathTemplate: '/elegir-horarios-comida',
           roles: ['director', 'residente', 'invitado', 'asistente'],
@@ -198,7 +197,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
     {
       id: 'actividadesGroup',
       label: 'Actividades',
-      icon: Drama,
+      icon: Bike,
       isAccordion: true,
       roles: ['director', 'asistente', 'residente', 'invitado', 'admin'],
       requiresResidenciaIdForHref: true,
@@ -206,7 +205,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
         {
           id: 'inscripcionActividades',
           label: 'Inscripción Actividades',
-          icon: CalendarDays,
+          icon: ClipboardEdit,
           href: rLink,
           pathTemplate: '/inscripcion-actividades',
           roles: ['director', 'asistente', 'residente', 'invitado', 'admin'],
@@ -215,7 +214,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
         {
           id: 'adminCrearActividades',
           label: 'Crear Actividades',
-          icon: PlusCircle,
+          icon: CalendarPlus,
           href: rLink,
           pathTemplate: '/gerencia/actividades',
           roles: ['director', 'asistente'],
@@ -228,7 +227,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
     {
       id: 'adminResidenciaGroup',
       label: 'Administrar Residencia',
-      icon: ClipboardEdit,
+      icon: Settings,
       isAccordion: true,
       roles: ['director', 'admin', 'master', 'asistente'],
       children: [
@@ -251,7 +250,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
         {
           id: 'adminGruposUsuariosResidencia',
           label: 'Gestionar Grupos de Usuarios',
-          icon: UsersRound,
+          icon: Users,
           href: rLink,
           pathTemplate: '/gerencia/grupos-usuarios',
           roles: ['admin', 'director', 'asistente'],
@@ -260,7 +259,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
         {
           id: 'adminAsignarGruposUsuariosMatriz',
           label: 'Asignar Grupos (Matriz)',
-          icon: ListChecks,
+          icon: Table2,
           href: rLink,
           pathTemplate: '/gerencia/asignar-grupos-usuarios-matriz',
           roles: ['admin', 'director', 'asistente'],
@@ -278,7 +277,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
         {
           id: 'adminComedores',
           label: 'Comedores',
-          icon: Home,
+          icon: Utensils,
           href: rLink,
           pathTemplate: '/admin/comedores',
           roles: ['director', 'admin', 'asistente'],
@@ -291,7 +290,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
     {
       id: 'asistentesGroup',
       label: 'Asistentes',
-      icon: Handshake,
+      icon: LifeBuoy,
       isAccordion: true,
       roles: ['admin', 'director', 'asistente'],
       requiresResidenciaIdForHref: true,
@@ -299,7 +298,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
         {
           id: 'permisosEspeciales',
           label: 'Permisos Especiales',
-          icon: UserCog,
+          icon: KeyRound,
           href: rLink,
           pathTemplate: '/gerencia/accesos-especiales',
           roles: ['admin', 'director', 'asistente'],
@@ -308,7 +307,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
         {
           id: 'usuariosAsistidos',
           label: 'Usuarios Asistidos',
-          icon: UsersRound,
+          icon: UserPen,
           href: rLink,
           pathTemplate: '/gerencia/usuarios-asistidos',
           roles: ['admin', 'director', 'asistente'],
@@ -321,27 +320,18 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
     {
       id: 'novedadesGroup',
       label: 'Novedades Operativas',
-      icon: BookCopy,
+      icon: MessageCircle,
       isAccordion: true,
       roles: ALL_AUTHENTICATED_ROLES,
       requiresResidenciaIdForHref: true,
       children: [
         {
           id: 'Mis Novedades',
-          label: 'novedades',
-          icon: Building,
+          label: 'Agregar novedades',
+          icon: MessageCirclePlus,
           href: rLink,
           pathTemplate: '/mis-novedades',
           roles: ALL_AUTHENTICATED_ROLES,
-          requiresResidenciaIdForHref: true,
-        },
-        {
-          id: 'Aprobar novedades',
-          label: 'Aprobar novedades',
-          icon: FileText,
-          href: rLink,
-          pathTemplate: '/gerencia/novedades',
-          roles: ['director', "asistente"],
           requiresResidenciaIdForHref: true,
         },
       ],

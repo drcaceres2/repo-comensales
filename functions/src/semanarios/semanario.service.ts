@@ -145,24 +145,29 @@ function validateWritePermission(caller: Usuario, target: Usuario, payloadUsuari
   const callerRoles = caller.roles ?? [];
   const targetRoles = target.roles ?? [];
 
+  // `master` and `admin` have full access to edit semanarios.
   if (callerRoles.includes('master') || callerRoles.includes('admin')) {
-    throw new HttpsError('permission-denied', 'El rol actual no tiene acceso al modulo de semanarios.');
+    return;
   }
 
   if (!targetRoles.some((role) => role === 'residente' || role === 'invitado')) {
     throw new HttpsError('failed-precondition', 'El usuario objetivo no pertenece al universo de semanarios.');
   }
 
-  if (callerRoles.includes('director')) {
-    throw new HttpsError('permission-denied', 'Los directores tienen acceso de solo lectura en semanarios.');
-  }
-
+  // Allow users to edit their own semanario when they are residentes/invitados
+  // even if they also hold another role (e.g. `director` + `residente`).
   if (caller.id === payloadUsuarioId) {
     if (callerRoles.includes('residente') || callerRoles.includes('invitado')) {
       return;
     }
 
     throw new HttpsError('permission-denied', 'No tienes permiso para editar tu semanario con este rol.');
+  }
+
+  // Directors have read-only access unless they are editing their own semanario
+  // (the owner check above already permits resident/invitado owners).
+  if (callerRoles.includes('director')) {
+    throw new HttpsError('permission-denied', 'Los directores tienen acceso de solo lectura en semanarios.');
   }
 
   if (callerRoles.includes('asistente')) {

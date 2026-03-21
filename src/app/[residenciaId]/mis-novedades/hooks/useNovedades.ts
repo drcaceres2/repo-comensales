@@ -44,9 +44,13 @@ export function useNovedades(initialData: NovedadOperativa[]) {
 
     // Local query function uses the hook-provided usuarioId/residenciaId
     async function fetchNovedadesLocal(): Promise<NovedadOperativa[]> {
-        if (!usuarioId || !residenciaId) return [];
+        if (!usuarioId || !residenciaId) {
+            console.warn('[fetchNovedadesLocal] usuarioId or residenciaId missing', { usuarioId, residenciaId });
+            return [];
+        }
 
         const collectionPath = `residencias/${residenciaId}/novedadesOperativas`;
+        console.debug('[fetchNovedadesLocal] fetching', { usuarioId, residenciaId, collectionPath });
 
         const novedadesQuery = query(
             collection(db, collectionPath),
@@ -55,11 +59,29 @@ export function useNovedades(initialData: NovedadOperativa[]) {
             limit(50)
         );
 
+        // Small helper to wait before a retry
+        const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
         try {
             const snapshot = await getDocs(novedadesQuery);
             return snapshot.docs.map(serializeNovedad);
-        } catch (error) {
-            console.error("[fetchNovedadesLocal] Error fetching documents:", error);
+        } catch (error: any) {
+            console.error("[fetchNovedadesLocal] Error fetching documents:", error, { usuarioId, residenciaId });
+
+            // Mitigate transient emulator/auth timing issues: retry once if rules returned 'false for '\'list\''
+            const msg = (error && error.message) ? error.message : String(error);
+            if (msg.includes("false for 'list'") || msg.includes("false for \"list\"")) {
+                console.warn('[fetchNovedadesLocal] detected transient "false for list" error, retrying shortly');
+                await sleep(250);
+                try {
+                    const snapshot2 = await getDocs(novedadesQuery);
+                    return snapshot2.docs.map(serializeNovedad);
+                } catch (err2) {
+                    console.error("[fetchNovedadesLocal] Retry failed:", err2, { usuarioId, residenciaId });
+                    return [];
+                }
+            }
+
             return [];
         }
     }
@@ -74,11 +96,14 @@ export function useNovedades(initialData: NovedadOperativa[]) {
         initialData,
         // Only run query if user is available AND residenciaId is available from claims
         enabled: !!usuarioId && !!residenciaId,
+        // If the client fetch fails (e.g. transient auth/claims issue), don't retry aggressively
+        retry: false,
     });
 
     const createMutation = useMutation({
         mutationFn: (payload: NovedadCreatePayload) => crearNovedadAction(residenciaId!, payload), // Assert residenciaId is present
         onMutate: async (newNovedadPayload) => {
+            console.log('[createMutation] onMutate start', { newNovedadPayload, usuarioId, residenciaId, queryKey });
             await queryClient.cancelQueries({ queryKey });
             const previousNovedades = queryClient.getQueryData<NovedadOperativa[]>(queryKey);
 
@@ -94,6 +119,7 @@ export function useNovedades(initialData: NovedadOperativa[]) {
             };
 
             queryClient.setQueryData(queryKey, (old: NovedadOperativa[] = []) => [optimisticNovedad, ...old]);
+            console.log('[createMutation] onMutate optimistic update applied', { optimisticNovedad });
             return { previousNovedades };
         },
         onError: (err: any, variables, context) => {
@@ -103,7 +129,8 @@ export function useNovedades(initialData: NovedadOperativa[]) {
             }
         },
         onSettled: () => {
-            queryClient.invalidateQueries({ queryKey });
+            console.log('[createMutation] onSettled', { residenciaId, queryKey });
+            if (residenciaId) queryClient.invalidateQueries({ queryKey });
         },
     });
 
@@ -111,6 +138,7 @@ export function useNovedades(initialData: NovedadOperativa[]) {
         mutationFn: ({ id, payload }: { id: string; payload: Partial<NovedadOperativa> }) =>
             actualizarNovedadAction(residenciaId!, id, payload), // Assert residenciaId is present
         onMutate: async ({ id, payload }) => {
+            console.log('[updateMutation] onMutate', { id, payload, usuarioId, residenciaId, queryKey });
             await queryClient.cancelQueries({ queryKey });
             const previousNovedades = queryClient.getQueryData<NovedadOperativa[]>(queryKey);
 
@@ -120,6 +148,7 @@ export function useNovedades(initialData: NovedadOperativa[]) {
                     queryKey,
                     previousNovedades.map(n => n.id === id ? { ...n, ...payload, timestampActualizacion: new Date().toISOString() } : n)
                 );
+                console.log('[updateMutation] optimistic update applied', { id, payload });
             }
             return { previousNovedades };
         },
@@ -131,16 +160,19 @@ export function useNovedades(initialData: NovedadOperativa[]) {
             toast({ title: "Error al actualizar", description: err.message, variant: "destructive" }); // Add toast for error
         },
         onSettled: () => {
-            queryClient.invalidateQueries({ queryKey }); // Invalidate to refetch fresh data after mutation
+            console.log('[updateMutation] onSettled', { residenciaId, queryKey });
+            if (residenciaId) queryClient.invalidateQueries({ queryKey }); // Invalidate to refetch fresh data after mutation
         },
     });
 
     const deleteMutation = useMutation({
         mutationFn: (novedadId: string) => eliminarNovedadAction(novedadId, residenciaId!), // Assert residenciaId is present
         onMutate: async (novedadId) => {
+            console.log('[deleteMutation] onMutate', { novedadId, usuarioId, residenciaId, queryKey });
             await queryClient.cancelQueries({ queryKey });
             const previousNovedades = queryClient.getQueryData<NovedadOperativa[]>(queryKey);
             queryClient.setQueryData(queryKey, (old: NovedadOperativa[] = []) => old.filter((n) => n.id !== novedadId));
+            console.log('[deleteMutation] optimistic delete applied', { novedadId });
             return { previousNovedades };
         },
         onError: (err: Error, novedadId, context) => {
@@ -150,14 +182,21 @@ export function useNovedades(initialData: NovedadOperativa[]) {
             }
         },
         onSettled: () => {
-            queryClient.invalidateQueries({ queryKey });
+            console.log('[deleteMutation] onSettled', { residenciaId, queryKey });
+            if (residenciaId) queryClient.invalidateQueries({ queryKey });
         },
     });
 
-    const handleCreate = (payload: NovedadCreatePayload) => createMutation.mutate(payload);
+    const handleCreate = (payload: NovedadCreatePayload) => {
+        console.log('[handleCreate] called', { payload, usuarioId, residenciaId });
+        return createMutation.mutate(payload);
+    };
     const handleEdit = (id: string, payload: Partial<NovedadOperativa>) => updateMutation.mutateAsync({ id, payload });
     const handleArchive = (id: string) => updateMutation.mutate({ id, payload: { estado: 'archivado' } });
-    const handleDelete = (novedadId: string) => deleteMutation.mutate(novedadId);
+    const handleDelete = (novedadId: string) => {
+        console.log('[handleDelete] called', { novedadId, usuarioId, residenciaId });
+        return deleteMutation.mutate(novedadId);
+    };
 
     return {
         novedades,

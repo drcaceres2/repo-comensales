@@ -80,6 +80,14 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
     }
   }, [definicionIdSeleccionada, editingId, tiempoComida, datosBorrador.catalogoAlternativas, setValue]);
 
+  // If this is an absence-type alternative, ensure requiereAprobacion is false
+  // and hide the control in the UI.
+  useEffect(() => {
+    if (esTipoAusencia) {
+      setValue('requiereAprobacion', false);
+    }
+  }, [esTipoAusencia, setValue]);
+
   useEffect(() => {
     if (tiempoComidaId) {
       reset({
@@ -102,7 +110,7 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
   const onSubmit = (data: FormData) => {
     if (!tiempoComidaId) return;
 
-    const newId = editingId || slugify(`${data.nombre}-${Date.now()}`);
+    const newId = editingId || data.nombre;
     
     let newConfig: ConfiguracionAlternativa = {
       ...data,
@@ -117,6 +125,7 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
     toast({
       title: 'Configuracion guardada',
       description: 'La alternativa se guardo correctamente.',
+      duration: 5000,
     });
     handleClose();
   };
@@ -279,10 +288,12 @@ export function DrawerConfig({ tiempoComidaId, onClose, comedores }: DrawerConfi
                 </>
               )}
               
-              <div className="flex items-center">
-                <input type="checkbox" {...register('requiereAprobacion')} id="requiereAprobacion" className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                <label htmlFor="requiereAprobacion" className="ml-2 block text-sm text-gray-900">Requiere Aprobación</label>
-              </div>
+              {!esTipoAusencia && (
+                <div className="flex items-center">
+                  <input type="checkbox" {...register('requiereAprobacion')} id="requiereAprobacion" className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                  <label htmlFor="requiereAprobacion" className="ml-2 block text-sm text-gray-900">Requiere Aprobación</label>
+                </div>
+              )}
 
               <div className="flex items-center">
                 <input type="checkbox" {...register('estaActivo')} id="estaActivo" className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />

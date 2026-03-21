@@ -101,7 +101,8 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
        match /novedadesOperativas/{novedadId} {
-        allow read:   if isMaster() || (isMemberWithRole(residenciaId, ['admin', 'director', 'asistente']) && resource.data.residenciaId == residenciaId);
+        allow read:   if isMaster() || isMember(residenciaId);
+        allow list:   if isMaster() || isMember(residenciaId);
         // Usuarios pueden crear/leer sus propias novedades operativas, director/asistente gestiona todos.
         allow create: if isMaster() || isMember(residenciaId) && request.resource.data.uid == request.auth.uid && request.resource.data.residenciaId == residenciaId;
         allow update: if isMaster() || isMember(residenciaId) && request.resource.data.uid == request.auth.uid && request.resource.data.residenciaId == residenciaId;

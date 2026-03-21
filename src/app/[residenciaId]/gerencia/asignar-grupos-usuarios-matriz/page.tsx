@@ -1,5 +1,6 @@
 import React from "react";
 import { redirect } from "next/navigation";
+import { Table2 } from 'lucide-react';
 import { CONFIG_RESIDENCIA_ID } from "shared/models/types";
 import { ConfiguracionResidencia } from "shared/schemas/residencia";
 import {
@@ -87,11 +88,12 @@ export default async function AsignarGruposUsuariosMatrizPage() {
 
   return (
     <div className="container mx-auto space-y-4 p-4">
-      <div>
-        <h1 className="text-2xl font-bold">Matriz de Asignación de Grupos</h1>
-        <p className="text-sm text-muted-foreground">
-          Edición masiva de grupos por usuario. Solo se enviarán las mutaciones sucias al guardar.
-        </p>
+      <div className="flex items-center gap-3 mb-4">
+        <Table2 className="h-8 w-8 text-gray-700" />
+        <div className="flex flex-col">
+          <h1 className="text-2xl font-bold tracking-tight">Asignar Grupos</h1>
+          <p className="text-sm text-gray-600 mt-1">{`Residencia: ${usuarioSesion.residenciaId}`}</p>
+        </div>
       </div>
 
       <MatrizAsignacionClient

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, ConciergeBell } from 'lucide-react';
 import { Atencion } from 'shared/schemas/atenciones';
 import { Button } from '@/components/ui/button';
 import {
@@ -161,10 +161,13 @@ export function AtencionesMasterDetailLayout({
   return (
     <div className="container mx-auto space-y-6 px-4 py-6 sm:px-6">
       <header className="space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight">Gestion de Atenciones</h1>
-        <p className="text-sm text-muted-foreground">
-          Residencia: {residenciaId} | Usuario: {usuarioId} ({email})
-        </p>
+        <div className="flex items-center gap-3">
+          <ConciergeBell className="h-8 w-8 text-gray-700" />
+          <div className="flex flex-col">
+            <h1 className="text-3xl font-bold tracking-tight">Atenciones</h1>
+            <p className="text-sm text-muted-foreground mt-1">Residencia: {residenciaId}</p>
+          </div>
+        </div>
       </header>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

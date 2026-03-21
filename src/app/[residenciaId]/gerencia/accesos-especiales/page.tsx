@@ -4,6 +4,7 @@ import {ResultadoAcceso, verificarPermisoGestionWrapper} from '@/lib/acceso-priv
 import { MatrizAccesosClient } from './components/MatrizAccesosClient';
 import {obtenerInfoUsuarioServer} from "@/lib/obtenerInfoUsuarioServer";
 import {urlAccesoNoAutorizado} from "@/lib/utils";
+import { KeyRound } from 'lucide-react';
 
 export default async function AccesoEspecialesPage() {
 
@@ -43,5 +44,19 @@ export default async function AccesoEspecialesPage() {
     );
   }
 
-  return <MatrizAccesosClient residenciaId={usuarioSesion.residenciaId}/>;
+  return (
+    <div className="p-4">
+      <div className="flex items-center gap-3">
+        <KeyRound className="h-8 w-8 text-gray-700" />
+        <div className="flex flex-col">
+          <h1 className="text-2xl font-bold">Permisos Especiales</h1>
+          <p className="text-sm text-gray-600 mt-1">Residencia: {usuarioSesion.residenciaId}</p>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <MatrizAccesosClient residenciaId={usuarioSesion.residenciaId} />
+      </div>
+    </div>
+  );
 }

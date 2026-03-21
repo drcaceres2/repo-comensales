@@ -45,5 +45,5 @@ export default async function PaginaGestionRecordatorios() {
     }
 
     // el cliente se encargará de la interactividad; la comprobación ya está hecha
-    return <GestionRecordatoriosClient />;
+    return <GestionRecordatoriosClient residenciaSlug={usuarioSesion.residenciaId} />;
 }

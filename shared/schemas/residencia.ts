@@ -132,6 +132,20 @@ export const ConfiguracionResidenciaSchema = z.object({
     restriccionesCatalogo: z.record(SlugIdSchema, RestriccionCatalogoSchema),
 }).strict();
 
+/**
+ * Subconjunto exacto de campos que escribe el guardado masivo de horarios.
+ * Se usa para validar únicamente el payload persistido por la callable.
+ */
+export const ConfiguracionResidenciaHorariosWriteSchema = ConfiguracionResidenciaSchema.pick({
+    version: true,
+    horariosSolicitud: true,
+    comedores: true,
+    gruposComidas: true,
+    esquemaSemanal: true,
+    catalogoAlternativas: true,
+    configuracionesAlternativas: true,
+}).strict();
+
 
 // ============================================
 // Type Exports
@@ -148,4 +162,5 @@ export type UpdateResidencia = z.infer<typeof UpdateResidenciaSchema>;
  * Controla el "Muro Móvil" y las "Islas de Bloqueo".
  */
 export type ConfiguracionResidencia = z.infer<typeof ConfiguracionResidenciaSchema>;
+export type ConfiguracionResidenciaHorariosWrite = z.infer<typeof ConfiguracionResidenciaHorariosWriteSchema>;
 export type CampoPersonalizado = z.infer<typeof CampoPersonalizadoSchema>;

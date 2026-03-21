@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns'
@@ -48,6 +49,7 @@ export function DrawerConfigMultiple({ isOpen, onClose, comedores }: DrawerConfi
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<MultipleConfigFormData>({
     resolver: zodResolver(MultipleConfigSchema),
@@ -62,6 +64,14 @@ export function DrawerConfigMultiple({ isOpen, onClose, comedores }: DrawerConfi
   const definicionIdSeleccionada = watch('definicionAlternativaId');
   const definicionSeleccionada = datosBorrador.catalogoAlternativas[definicionIdSeleccionada];
   const esTipoAusencia = definicionSeleccionada?.tipo === 'noComoEnCasa' || definicionSeleccionada?.tipo === 'ayuno';
+
+  // If this is an absence-type alternative, ensure requiereAprobacion is false
+  // and hide the control in the UI.
+  useEffect(() => {
+    if (esTipoAusencia) {
+      setValue('requiereAprobacion', false);
+    }
+  }, [esTipoAusencia, setValue]);
 
   const onSubmit = (data: MultipleConfigFormData) => {
     const { definicionAlternativaId, dias, antelacion, ...restOfData } = data;
@@ -97,12 +107,10 @@ export function DrawerConfigMultiple({ isOpen, onClose, comedores }: DrawerConfi
         return;
       }
 
-      const nombre = `${definicion.nombre} ${diaDeLaComida}`;
-      const fechaFormatoSlug = format(new Date(),"dd-mmm-yyyy/HH:mm:ss",{locale: es });
-      const newId = slugify(`${nombre.substring(0,50)}/${fechaFormatoSlug}`);
+      const newId = `${definicion.nombre} ${diaDeLaComida}`;
       
       const newConfig: ConfiguracionAlternativa = {
-        nombre,
+        nombre: newId,
         definicionAlternativaId,
         tiempoComidaId,
         horarioSolicitudComidaId: horarioPrincipalId,
@@ -130,6 +138,7 @@ export function DrawerConfigMultiple({ isOpen, onClose, comedores }: DrawerConfi
         title: "Operación completada",
         description: `Se crearon alternativas para: ${resultados.exitosos.join(', ')}.`,
         variant: "default",
+        duration: 5000,
       });
     }
 
@@ -199,6 +208,16 @@ export function DrawerConfigMultiple({ isOpen, onClose, comedores }: DrawerConfi
                 {errors.comedorId && <p className="text-red-500 text-xs mt-1">{errors.comedorId.message}</p>}
               </div>
 
+              <div>
+                <label htmlFor="ventanaServicio.tipoVentana" className="block text-sm font-medium text-gray-700">Tipo de Ventana</label>
+                <select {...register('ventanaServicio.tipoVentana')} id="ventanaServicio.tipoVentana" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                  {Object.entries(mapaMensajeTipoVentana).map(([value, label]) => 
+                    <option key={value} value={value}>{label}</option>
+                  )}
+                </select>
+                {errors.ventanaServicio?.tipoVentana && <p className="text-red-500 text-xs mt-1">{errors.ventanaServicio.tipoVentana.message}</p>}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="ventanaServicio.horaInicio" className="block text-sm font-medium text-gray-700">Inicio Servicio</label>
@@ -211,16 +230,6 @@ export function DrawerConfigMultiple({ isOpen, onClose, comedores }: DrawerConfi
                   {errors.ventanaServicio?.horaFin && <p className="text-red-500 text-xs mt-1">{errors.ventanaServicio.horaFin.message}</p>}
                 </div>
               </div>
-
-              <div>
-                <label htmlFor="ventanaServicio.tipoVentana" className="block text-sm font-medium text-gray-700">Tipo de Ventana</label>
-                <select {...register('ventanaServicio.tipoVentana')} id="ventanaServicio.tipoVentana" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                  {Object.entries(mapaMensajeTipoVentana).map(([value, label]) => 
-                    <option key={value} value={value}>{label}</option>
-                  )}
-                </select>
-                {errors.ventanaServicio?.tipoVentana && <p className="text-red-500 text-xs mt-1">{errors.ventanaServicio.tipoVentana.message}</p>}
-              </div>
             </>
           )}
 
@@ -232,10 +241,12 @@ export function DrawerConfigMultiple({ isOpen, onClose, comedores }: DrawerConfi
             {errors.antelacion && <p className="text-red-500 text-xs mt-1">{errors.antelacion.message}</p>}
           </div>
 
-          <div className="flex items-center">
-            <input type="checkbox" {...register('requiereAprobacion')} id="requiereAprobacion" className="h-4 w-4 rounded border-gray-300" />
-            <label htmlFor="requiereAprobacion" className="ml-2 block text-sm text-gray-900">Requiere Aprobación</label>
-          </div>
+          {!esTipoAusencia && (
+            <div className="flex items-center">
+              <input type="checkbox" {...register('requiereAprobacion')} id="requiereAprobacion" className="h-4 w-4 rounded border-gray-300" />
+              <label htmlFor="requiereAprobacion" className="ml-2 block text-sm text-gray-900">Requiere Aprobación</label>
+            </div>
+          )}
 
           <div className="flex items-center">
             <input type="checkbox" {...register('estaActivo')} id="estaActivo" className="h-4 w-4 rounded border-gray-300" />

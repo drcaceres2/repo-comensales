@@ -179,6 +179,16 @@ export function resolverCascadaTiempoComida(
     }
   }
 
+  // Muro móvil: si la tarjeta aún es MUTABLE pero el plazo de solicitud del resultado
+  // efectivo ya fue superado por la última consolidación, bloquearla a nivel sistema.
+  // Esto respeta la jerarquía de capas: solo actúa cuando ninguna capa superior ya bloqueó.
+  if (estadoInteraccion === 'MUTABLE' && !resultado.disponibleParaElegir) {
+    estadoInteraccion = 'BLOQUEADO_SISTEMA';
+    if (!mensajeFormativo) {
+      mensajeFormativo = resultado.motivoIndisponibilidad ?? 'Plazo de solicitud cerrado.';
+    }
+  }
+
   return {
     tiempoComidaId: contexto.tiempoComidaId,
     grupoComida: {

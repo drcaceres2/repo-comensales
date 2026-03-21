@@ -1,5 +1,6 @@
 "use server"
 import React, { Suspense } from 'react';
+import { CalendarCog } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { FechaIsoSchema } from 'shared/schemas/fechas';
 import AlteracionDiaContenedor from './components/AlteracionDiaContenedor';
@@ -53,11 +54,14 @@ const AlteracionesPage = async ({ searchParams }: AlteracionesPageProps) => {
   return (
     <div className="container mx-auto p-4 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Alteraciones de Horario</h1>
-          <p className="text-muted-foreground">
-            Modifique los horarios de un día específico. Los cambios aquí anulan la configuración general.
-          </p>
+        <div className="flex items-center gap-3">
+          <CalendarCog className="h-12 w-12 text-gray-700" />
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-bold">Alteraciones Horario</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Modifique los horarios de un día. Los cambios anulan la configuración general.
+            </p>
+          </div>
         </div>
         <DatePickerClient initialFecha={fecha} />
       </div>
