@@ -188,22 +188,26 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
     }
 
     const candidatos = [tiempo.alternativas.principal, ...(tiempo.alternativas.secundarias ?? [])];
+    const hiddenCount = candidatos.reduce((acc, configId) => {
+      const conf = singleton?.configuracionesAlternativas?.[configId];
+      return acc + (conf?.requiereAprobacion ? 1 : 0);
+    }, 0);
+
     const opciones = candidatos
       .map((configId) => {
         const config = singleton.configuracionesAlternativas[configId];
-        if (!config || !config.estaActivo) {
-          return null;
-        }
+        if (!config || !config.estaActivo) return null;
+        // Exclude alternatives that require approval
+        if (config.requiereAprobacion) return null;
 
         const definicion = singleton.catalogoAlternativas[config.definicionAlternativaId];
-        if (!definicion || !definicion.estaActiva) {
-          return null;
-        }
+        if (!definicion || !definicion.estaActiva) return null;
 
         return {
           configuracionAlternativaId: configId,
           nombre: config.nombre,
           tipo: definicion.tipo,
+          requiereAprobacion: !!config.requiereAprobacion,
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
@@ -212,6 +216,7 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
       tiempoId: tiempoActivoId,
       nombre: tiempo.nombre,
       opciones,
+      hiddenCount,
       seleccionActual: draft[tiempoActivoId]?.configuracionAlternativaId,
     };
   }, [singleton, tiempoActivoId, draft]);
@@ -233,7 +238,23 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
       lastUpdatedAt: read.dto.updatedAt,
     };
 
-    const result = await upsertMutation.mutateAsync(payload);
+    // Build a minimal, serializable configContext for server-side validation
+    const configContext: Record<string, { requiereAprobacion?: boolean }> = {};
+    try {
+      Object.values(payload.semanario || {}).forEach((s) => {
+        const configId = s.configuracionAlternativaId;
+        if (!configId) return;
+        const conf = singleton?.configuracionesAlternativas?.[configId];
+        configContext[configId] = { requiereAprobacion: !!conf?.requiereAprobacion };
+      });
+    } catch (e) {
+      // if anything unexpected occurs, fail early to avoid sending incomplete context
+      return;
+    }
+
+    const wrapper = { payload, configContext };
+
+    const result = await upsertMutation.mutateAsync(wrapper);
 
     if (result.success) {
       // Evitar navegar a la raíz de la residencia que no existe; permanecer
@@ -273,7 +294,9 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
       <div className="shrink-0 border-b bg-background/95 backdrop-blur">
         <header
           className={`overflow-hidden transition-all duration-200 ease-out ${
-            mostrarTitulo ? 'max-h-24 translate-y-0 opacity-100' : 'max-h-0 -translate-y-3 opacity-0'
+            mostrarTitulo
+              ? (puedeSeleccionarTarget ? 'max-h-72 translate-y-0 opacity-100' : 'max-h-48 translate-y-0 opacity-100')
+              : 'max-h-0 -translate-y-3 opacity-0'
           }`}
         >
           <div className="space-y-2 pb-4">
@@ -287,6 +310,28 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
               </div>
             </div>
           </div>
+          {puedeSeleccionarTarget ? (
+            <section className="mt-3 space-y-2 rounded-lg border bg-muted/30 p-3">
+              <p className="text-sm font-medium">Usuario objetivo</p>
+              <Select value={targetUid ?? undefined} onValueChange={setTargetUid}>
+                <SelectTrigger
+                  className={viendoOtroUsuario
+                    ? 'border-amber-300 bg-amber-50 text-amber-900 focus:ring-amber-500 dark:border-amber-500/70 dark:bg-amber-500/10 dark:text-amber-200'
+                    : undefined}
+                >
+                  <SelectValue placeholder="Selecciona un usuario" />
+                </SelectTrigger>
+                <SelectContent>
+                  {usuariosObjetivo.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.nombre} {user.apellido}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </section>
+          ) : null}
+
         </header>
 
         <div className="flex items-center justify-between gap-3 pb-3">
@@ -307,27 +352,7 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
 
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto py-4">
         <div className="space-y-4 pb-28">
-          {puedeSeleccionarTarget ? (
-            <section className="space-y-2 rounded-lg border bg-muted/30 p-3">
-              <p className="text-sm font-medium">Usuario objetivo</p>
-              <Select value={targetUid ?? undefined} onValueChange={setTargetUid}>
-                <SelectTrigger
-                  className={viendoOtroUsuario
-                    ? 'border-amber-300 bg-amber-50 text-amber-900 focus:ring-amber-500 dark:border-amber-500/70 dark:bg-amber-500/10 dark:text-amber-200'
-                    : undefined}
-                >
-                  <SelectValue placeholder="Selecciona un usuario" />
-                </SelectTrigger>
-                <SelectContent>
-                  {usuariosObjetivo.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.nombre} {user.apellido}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </section>
-          ) : null}
+          {/* selector moved into header to collapse with title */}
 
           {sinUsuariosObjetivo ? (
             <section className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/70 dark:bg-amber-500/10 dark:text-amber-200">
@@ -373,6 +398,7 @@ export function SemanarioContainer({ residenciaId }: { residenciaId: string }) {
         }}
         tiempoNombre={tiempoActivo?.nombre ?? ''}
         opciones={tiempoActivo?.opciones ?? []}
+        hiddenCount={tiempoActivo?.hiddenCount ?? 0}
         seleccionActual={tiempoActivo?.seleccionActual}
         readOnly={readOnly}
         onSeleccionar={(configuracionAlternativaId) => {

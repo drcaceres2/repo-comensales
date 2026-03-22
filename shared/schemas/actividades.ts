@@ -25,10 +25,12 @@ export const TipoAccesoActividadEnum = z.enum([
     'solo_invitacion',
 ]);
 
-export const TipoSolicitudAdministracionEnum = z.enum([
-    'ninguna',
-    'solicitud_unica',
-    'diario',
+export const AvisoAdministracionEnum = z.enum([
+    'no_comunicado',
+    'comunicacion_previa',
+    'comunicacion_definitiva',
+    'bloqueado',
+    'cancelado',
 ]);
 
 export const EstadoInscripcionEnum = z.enum([
@@ -41,7 +43,9 @@ export const EstadoInscripcionEnum = z.enum([
 
 // Aliases de compatibilidad temporal para imports legacy.
 export const EstadoInscripcionActividadEnum = EstadoInscripcionEnum;
-export const TipoSolicitudComidasActividadEnum = TipoSolicitudAdministracionEnum;
+// Nota: `TipoSolicitudAdministracionEnum` fue sustituido por `avisoAdministracion`.
+// Si se necesita compatibilidad con la antigua taxonomía de solicitudes de comidas,
+// definirla explícitamente en módulos que la consuman.
 
 // ============================================
 // Sub-Esquemas Core
@@ -76,7 +80,7 @@ export const ActividadBaseSchema = z.object({
 
     // Contable
     centroCostoId: FirestoreIdSchema,
-    solicitudAdministracion: TipoSolicitudAdministracionEnum,
+    avisoAdministracion: AvisoAdministracionEnum,
 
     // Cupos y raciones
     maxParticipantes: z.number().int().positive(),

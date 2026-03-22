@@ -1,15 +1,16 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FormExcepcionLibre, HorarioDiaUI } from 'shared/schemas/elecciones/ui.schema';
+import { FormExcepcionLibre, HorarioDiaUI, TarjetaComidaUI } from 'shared/schemas/elecciones/ui.schema';
 import { ContenedorTarjeta } from './TarjetaComida/ContenedorTarjeta';
 
 type Props = {
   dia: HorarioDiaUI;
   onGuardarExcepcion: (payload: FormExcepcionLibre) => Promise<unknown>;
+  onEditarAusencia: (fecha: string, tarjeta: TarjetaComidaUI) => void;
 };
 
-export function DiaHorario({ dia, onGuardarExcepcion }: Props) {
+export function DiaHorario({ dia, onGuardarExcepcion, onEditarAusencia }: Props) {
   if (dia.tarjetas.length === 0) {
     const placeholders = ['Desayuno', 'Almuerzo', 'Cena'];
 
@@ -37,6 +38,7 @@ export function DiaHorario({ dia, onGuardarExcepcion }: Props) {
           fecha={dia.fecha}
           tarjeta={tarjeta}
           onGuardarExcepcion={onGuardarExcepcion}
+          onEditarAusencia={onEditarAusencia}
         />
       ))}
     </div>

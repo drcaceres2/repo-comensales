@@ -19,6 +19,7 @@ import { db } from '@/lib/firebaseAdmin';
 import { CargaHorariosUISchema } from 'shared/schemas/elecciones/ui.schema';
 import { obtenerCargaHorarios } from './obtenerCargaHorarios';
 import { upsertExcepcion } from './upsertExcepcion';
+import { upsertAusenciaLote } from './upsertAusenciaLote';
 
 const RES_ID = 'res-test-1';
 const UID = 'user-test-1';
@@ -32,7 +33,6 @@ async function cleanTestData() {
   await deleteCollection(`usuarios/${UID}/excepciones`);
   await deleteCollection(`usuarios/${UID}/ausencias`);
   await deleteCollection(`usuarios/${UID}/mensajes`);
-  await deleteCollection(`residencias/${RES_ID}/horariosEfectivos`);
   await deleteCollection(`residencias/${RES_ID}/actividades`);
 
   await db.doc(`usuarios/${UID}`).delete().catch(() => undefined);
@@ -181,7 +181,7 @@ describe('elecciones server actions - integration (emulator)', () => {
     expect(result.error?.code).toBe('AUTORIDAD_RESTRINGIDA');
   });
 
-  it('Test Muro Móvil (Escritura): upsertExcepcion rebota si ya cerró', async () => {
+  it('Test Muro Móvil (Escritura): upsertExcepcion permite guardar si la referencia aún no cerró', async () => {
     await seedBaseSingleton('2000-01-01T00:00:00');
 
     const result = await upsertExcepcion(RES_ID, {
@@ -191,7 +191,24 @@ describe('elecciones server actions - integration (emulator)', () => {
       esAlternativaAlterada: false,
     });
 
-    expect(result.success).toBe(false);
-    expect(result.error?.code).toBe('MURO_MOVIL_CERRADO');
+    expect(result.success).toBe(true);
+  });
+
+  it('Test Ausencia (Escritura): upsertAusenciaLote no persiste undefined en Firestore', async () => {
+    await seedBaseSingleton('2000-01-01T00:00:00');
+
+    const result = await upsertAusenciaLote(RES_ID, {
+      fechaInicio: '2026-03-12',
+      fechaFin: '2026-03-12',
+      retornoPendienteConfirmacion: false,
+    });
+
+    expect(result.success).toBe(true);
+
+    const excepcionSnap = await db.doc(`usuarios/${UID}/excepciones/2026-03-12__desayuno_jueves`).get();
+    expect(excepcionSnap.exists).toBe(true);
+
+    const data = excepcionSnap.data() as Record<string, unknown>;
+    expect(Object.prototype.hasOwnProperty.call(data, 'contingenciaConfigAlternativaId')).toBe(false);
   });
 });

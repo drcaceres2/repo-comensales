@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { AuthIdSchema, SlugIdSchema, CadenaOpcionalLimitada, OptionalSlugIdSchema } from '../common';
+import { SlugIdSchema, CadenaOpcionalLimitada, OptionalSlugIdSchema } from '../common';
 import { FechaIsoSchema, HoraIsoSchema } from '../fechas'
-import { TipoAlternativaEnumSchema, TipoVentanaConfigAlternativaSchema } from '../horarios'; 
-import { OrigenAutoridadSchema, EstadoAprobacionSchema } from './domain.schema';
+import { TipoAlternativaEnumSchema, TipoVentanaConfigAlternativaSchema } from '../horarios';
+import { EstadoAprobacionSchema } from './domain.schema';
 import { UsuarioBaseObject, userRoleRefinement } from '../usuarios';
 
 export const EstadoInteraccionTarjetaSchema = z.enum([
@@ -19,6 +19,14 @@ export const OrigenResolucionSchema = z.enum([
   'CAPA3_EXCEPCION',
   'CAPA4_SEMANARIO',
   'FALLBACK_SISTEMA' 
+]);
+
+export const OrigenTarjetaSchema = z.enum([
+  'actividad',
+  'ausencia',
+  'excepcion',
+  'semanario',
+  'sistema',
 ]);
 
 export const VentanaServicioUISchema = z.object({
@@ -87,12 +95,21 @@ export const TarjetaComidaUISchema = z.object({
   
   estadoInteraccion: EstadoInteraccionTarjetaSchema,
   origenResolucion: OrigenResolucionSchema, 
+  origen: OrigenTarjetaSchema,
   
   estadoAprobacion: EstadoAprobacionSchema.optional(), 
   
   detallesDrawer: z.object({
     mensajeFormativo: z.string().optional(), 
     opciones: z.array(OpcionAlternativaUISchema).optional(),
+    // Metadata de CAPA2: permite renderizar detalle real de ausencia y abrir edición.
+    detalleAusencia: z.object({
+      fechaInicio: FechaIsoSchema,
+      fechaFin: FechaIsoSchema,
+      primerTiempoAusente: SlugIdSchema.nullable().optional(),
+      ultimoTiempoAusente: SlugIdSchema.nullable().optional(),
+      motivo: z.string().optional(),
+    }).optional(),
   }).strict()
 }).strict();
 
@@ -125,11 +142,18 @@ export type ActividadCalendarioUI = z.infer<typeof ActividadCalendarioUISchema>;
 // ----------------------------------------------------
 export const FormAusenciaLoteSchema = z.object({
   fechaInicio: FechaIsoSchema,
-  primerTiempoAusente: SlugIdSchema.nullable().optional(), 
+  primerTiempoAusente: SlugIdSchema.nullable().optional(),
   fechaFin: FechaIsoSchema,
-  ultimoTiempoAusente: SlugIdSchema.nullable().optional(), 
+  ultimoTiempoAusente: SlugIdSchema.nullable().optional(),
   retornoPendienteConfirmacion: z.boolean().optional(),
   motivo: CadenaOpcionalLimitada(3, 100).optional(),
+  // Contexto opcional para modo edición: define el rango original antes del cambio.
+  edicionOriginal: z.object({
+    fechaInicio: FechaIsoSchema,
+    primerTiempoAusente: SlugIdSchema.nullable().optional(),
+    fechaFin: FechaIsoSchema,
+    ultimoTiempoAusente: SlugIdSchema.nullable().optional(),
+  }).optional(),
 }).strict().superRefine((data, ctx) => {
   if (data.fechaInicio > data.fechaFin) {
     ctx.addIssue({

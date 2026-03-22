@@ -4,7 +4,9 @@ import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { eachDayOfInterval, format, parseISO } from 'date-fns';
 import { FormAusenciaLote, FormAusenciaLoteSchema } from 'shared/schemas/elecciones/ui.schema';
 import { ActionResponse } from 'shared/models/types';
-import { convertirHoraAMinutos } from 'shared/utils/commonUtils';
+import { compararHorasReferencia } from 'shared/utils/commonUtils';
+import { estaMuroMovilCerrado } from '../_lib/muroMovil';
+import { calcularHorarioReferenciaSolicitud } from '../_lib/calcularHorarioReferenciaSolicitud';
 import { resolveTargetUsuarioContext } from './_targetUsuario';
 
 function errorResponse(
@@ -23,20 +25,6 @@ function dayOfWeek(fechaIso: string): string {
 
 function buildExcepcionDocId(fecha: string, tiempoComidaId: string): string {
   return `${fecha}__${tiempoComidaId}`;
-}
-
-function compararHorasReferencia(horaA: string | null | undefined, horaB: string | null | undefined): number {
-  const minutosA = convertirHoraAMinutos(horaA);
-  const minutosB = convertirHoraAMinutos(horaB);
-
-  if (minutosA !== null && minutosB !== null) {
-    return minutosA - minutosB;
-  }
-
-  if (minutosA !== null) return -1;
-  if (minutosB !== null) return 1;
-
-  return String(horaA ?? '').localeCompare(String(horaB ?? ''));
 }
 
 function getTiemposDelDia(singleton: any, fechaIso: string): string[] {
@@ -101,6 +89,61 @@ function getAlternativaAusencia(singleton: any, tiempoComidaId: string): string 
   return tiempo.alternativas?.principal ?? null;
 }
 
+type SlotAfectado = { fecha: string; tiempoComidaId: string };
+
+function keySlot(slot: SlotAfectado): string {
+  return `${slot.fecha}__${slot.tiempoComidaId}`;
+}
+
+function mapSlots(slots: SlotAfectado[]): Map<string, SlotAfectado> {
+  return new Map(slots.map((slot) => [keySlot(slot), slot]));
+}
+
+function calcularDiferenciasSlots(nuevo: SlotAfectado[], original?: SlotAfectado[]) {
+  const nuevoMap = mapSlots(nuevo);
+  const originalMap = mapSlots(original ?? []);
+
+  const agregados: SlotAfectado[] = [];
+  const removidos: SlotAfectado[] = [];
+  const cambiadosParaValidacionMuro: SlotAfectado[] = [];
+
+  for (const [key, slot] of nuevoMap) {
+    if (!originalMap.has(key)) {
+      agregados.push(slot);
+      cambiadosParaValidacionMuro.push(slot);
+    }
+  }
+
+  for (const [key, slot] of originalMap) {
+    if (!nuevoMap.has(key)) {
+      removidos.push(slot);
+      cambiadosParaValidacionMuro.push(slot);
+    }
+  }
+
+  return { agregados, removidos, cambiadosParaValidacionMuro };
+}
+
+function getHoraCorteSlot(singleton: any, slot: SlotAfectado): string | null {
+  const alternativaAusencia = getAlternativaAusencia(singleton, slot.tiempoComidaId);
+  if (!alternativaAusencia) {
+    return null;
+  }
+
+  const configAlt = singleton?.configuracionesAlternativas?.[alternativaAusencia];
+  const horarioSolicitudId = configAlt?.horarioSolicitudComidaId;
+
+  if (!horarioSolicitudId || !singleton?.horariosSolicitud) {
+    return singleton?.fechaHoraReferenciaUltimaSolicitud ?? null;
+  }
+
+  return calcularHorarioReferenciaSolicitud(
+    slot.fecha,
+    horarioSolicitudId,
+    singleton.horariosSolicitud
+  );
+}
+
 export async function upsertAusenciaLote(
   residenciaId: string,
   payload: FormAusenciaLote,
@@ -150,6 +193,42 @@ export async function upsertAusenciaLote(
       }
     }
 
+    const slotsNuevos = expandirSlotsAfectados(singleton, data);
+
+    const originalPayload = data.edicionOriginal
+      ? {
+          fechaInicio: data.edicionOriginal.fechaInicio,
+          fechaFin: data.edicionOriginal.fechaFin,
+          primerTiempoAusente: data.edicionOriginal.primerTiempoAusente,
+          ultimoTiempoAusente: data.edicionOriginal.ultimoTiempoAusente,
+          retornoPendienteConfirmacion: false,
+          motivo: undefined,
+        }
+      : undefined;
+
+    const slotsOriginales = originalPayload
+      ? expandirSlotsAfectados(singleton, originalPayload)
+      : [];
+
+    const { removidos, cambiadosParaValidacionMuro } = calcularDiferenciasSlots(
+      slotsNuevos,
+      slotsOriginales
+    );
+
+    const slotsValidacion = originalPayload ? cambiadosParaValidacionMuro : slotsNuevos;
+    const referenciaProceso = singleton?.fechaHoraReferenciaUltimaSolicitud;
+
+    // En edición, permitir cambios siempre que no toquen slots detrás del muro móvil.
+    for (const slot of slotsValidacion) {
+      const horaCorte = getHoraCorteSlot(singleton, slot);
+      if (horaCorte && referenciaProceso && estaMuroMovilCerrado(horaCorte, referenciaProceso)) {
+        return errorResponse(
+          'MURO_MOVIL_CERRADO',
+          `No se puede modificar la ausencia porque afecta el tiempo '${slot.tiempoComidaId}' del ${slot.fecha}, ya cerrado por muro móvil.`
+        );
+      }
+    }
+
     const ausenciaRef = db.doc(`usuarios/${resolvedTargetUid}/ausencias/${data.fechaInicio}`);
     await ausenciaRef.set({
       usuarioId: resolvedTargetUid,
@@ -163,11 +242,40 @@ export async function upsertAusenciaLote(
       timestampCreacion: FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    const slots = expandirSlotsAfectados(singleton, data);
+    // Si cambió la fecha de inicio en modo edición, limpiar el doc anterior para evitar duplicados.
+    if (data.edicionOriginal?.fechaInicio && data.edicionOriginal.fechaInicio !== data.fechaInicio) {
+      await db.doc(`usuarios/${resolvedTargetUid}/ausencias/${data.edicionOriginal.fechaInicio}`).delete().catch(() => undefined);
+    }
 
     const CHUNK = 300;
-    for (let i = 0; i < slots.length; i += CHUNK) {
-      const lote = slots.slice(i, i + CHUNK);
+
+    // 1) Eliminar excepciones de slots que salen de la ausencia editada.
+    for (let i = 0; i < removidos.length; i += CHUNK) {
+      const lote = removidos.slice(i, i + CHUNK);
+      const batch = db.batch();
+
+      for (const slot of lote) {
+        const docId = buildExcepcionDocId(slot.fecha, slot.tiempoComidaId);
+        const excepcionRef = db.doc(`usuarios/${resolvedTargetUid}/excepciones/${docId}`);
+        const existente = await excepcionRef.get();
+        if (!existente.exists) {
+          continue;
+        }
+
+        const dataEx = existente.data() as any;
+        if (dataEx?.origenAutoridad === 'director-restringido') {
+          continue;
+        }
+
+        batch.delete(excepcionRef);
+      }
+
+      await batch.commit();
+    }
+
+    // 2) Upsert de excepciones para nuevos slots activos de la ausencia.
+    for (let i = 0; i < slotsNuevos.length; i += CHUNK) {
+      const lote = slotsNuevos.slice(i, i + CHUNK);
       const batch = db.batch();
 
       for (const slot of lote) {
@@ -193,7 +301,6 @@ export async function upsertAusenciaLote(
           esAlternativaAlterada: false,
           origenAutoridad,
           estadoAprobacion: 'no_requerida',
-          contingenciaConfigAlternativaId: undefined,
           timestampActualizacion: FieldValue.serverTimestamp(),
           timestampCreacion: existente.exists
             ? (existente.data() as any)?.timestampCreacion ?? FieldValue.serverTimestamp()

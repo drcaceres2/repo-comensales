@@ -19,7 +19,10 @@ export const upsertSemanario = onCall(
       throw new HttpsError('permission-denied', 'No se pudo resolver el perfil del usuario autenticado.');
     }
 
-    const parsed = UpsertSemanarioPayloadSchema.safeParse(request.data);
+    // Allow either the raw payload (backwards compatible) or a wrapper
+    // { payload: UpsertSemanarioPayload, configContext: Record<configId, { requiereAprobacion: boolean }> }
+    const incomingWrapper = (request.data && (request.data as any).payload) ? (request.data as any) : { payload: request.data };
+    const parsed = UpsertSemanarioPayloadSchema.safeParse(incomingWrapper.payload);
     if (!parsed.success) {
       const zodErrors = parsed.error.flatten();
       const errorMessages = Object.entries(zodErrors.fieldErrors)
@@ -34,6 +37,27 @@ export const upsertSemanario = onCall(
     }
 
     try {
+      // Validate that the client-provided configContext indicates none of the
+      // chosen configuracionesAlternativas require approval. This avoids an
+      // extra Admin SDK read at the cost of trusting the client-supplied
+      // minimal context.
+      const configContext = (incomingWrapper as any).configContext as Record<string, { requiereAprobacion?: boolean }> | undefined;
+      if (!configContext) {
+        // If no context is provided, fail fast — require the client to supply it.
+        throw new HttpsError('invalid-argument', 'Falta configContext en la petición.');
+      }
+
+      const chosenConfigIds = Object.values(parsed.data.semanario || {}).map((s: any) => s.configuracionAlternativaId).filter(Boolean);
+      for (const configId of chosenConfigIds) {
+        const ctx = configContext[configId];
+        if (!ctx) {
+          throw new HttpsError('invalid-argument', `Falta contexto para configuracion alternativa: ${configId}`);
+        }
+        if (ctx.requiereAprobacion === true) {
+          throw new HttpsError('permission-denied', `La configuracion alternativa ${configId} requiere aprobacion y no puede seleccionarse por este canal.`);
+        }
+      }
+
       const result = await upsertSemanarioService({
         callerUid: callerInfo.uid,
         callerProfile,

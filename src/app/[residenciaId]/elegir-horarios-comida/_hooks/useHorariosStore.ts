@@ -2,6 +2,7 @@
 
 import { format } from 'date-fns';
 import { create } from 'zustand';
+import { FormAusenciaLote } from 'shared/schemas/elecciones/ui.schema';
 
 type ModalActivo = 'ninguno' | 'excepcion' | 'ausencia' | 'mensaje';
 
@@ -21,6 +22,7 @@ type HorariosUiState = {
   drawerAbierto: boolean;
   modalActivo: ModalActivo;
   tarjetaActiva: TarjetaActiva;
+  ausenciaEnEdicion: FormAusenciaLote | null;
   saving: SavingState;
 
   syncUsuarioSesion: (usuarioId: string) => void;
@@ -30,6 +32,8 @@ type HorariosUiState = {
   cerrarDrawer: () => void;
   abrirModal: (modal: Exclude<ModalActivo, 'ninguno'>) => void;
   cerrarModal: () => void;
+  iniciarEdicionAusencia: (payload: FormAusenciaLote) => void;
+  limpiarEdicionAusencia: () => void;
   setSavingAccion: (accion: AccionGuardado, saving: boolean) => void;
   resetInteraccionDia: () => void;
 };
@@ -43,6 +47,7 @@ export const useHorariosStore = create<HorariosUiState>((set) => ({
   drawerAbierto: false,
   modalActivo: 'ninguno',
   tarjetaActiva: null,
+  ausenciaEnEdicion: null,
   saving: {
     excepcion: false,
     ausencia: false,
@@ -73,6 +78,8 @@ export const useHorariosStore = create<HorariosUiState>((set) => ({
   cerrarDrawer: () => set({ drawerAbierto: false, tarjetaActiva: null }),
   abrirModal: (modalActivo) => set({ modalActivo }),
   cerrarModal: () => set({ modalActivo: 'ninguno' }),
+  iniciarEdicionAusencia: (payload) => set({ ausenciaEnEdicion: payload }),
+  limpiarEdicionAusencia: () => set({ ausenciaEnEdicion: null }),
   setSavingAccion: (accion, estaGuardando) =>
     set((state) => ({
       saving: {
@@ -85,6 +92,7 @@ export const useHorariosStore = create<HorariosUiState>((set) => ({
       drawerAbierto: false,
       modalActivo: 'ninguno',
       tarjetaActiva: null,
+      ausenciaEnEdicion: null,
     }),
 }));
 

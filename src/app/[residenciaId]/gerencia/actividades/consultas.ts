@@ -28,7 +28,6 @@ export type ActividadInput = {
     fechaFin: string;
     tiempoComidaFinId: string;
     centroCostoId?: string;
-    solicitudAdministracion: 'ninguna' | 'solicitud_unica' | 'diario';
     maxParticipantes: number;
     adicionalesNoNominales: number;
 };
@@ -66,7 +65,7 @@ const normalizarActividad = (actividad: Partial<ActividadGestion> & { id: string
     fechaFin: actividad.fechaFin || '',
     tiempoComidaFinId: actividad.tiempoComidaFinId || '',
     centroCostoId: actividad.centroCostoId ?? null,
-    solicitudAdministracion: actividad.solicitudAdministracion || 'solicitud_unica',
+    avisoAdministracion: (actividad as any).avisoAdministracion || 'no_comunicado',
     maxParticipantes: actividad.maxParticipantes ?? 1,
     conteoInscritos: actividad.conteoInscritos ?? 0,
     adicionalesNoNominales: actividad.adicionalesNoNominales ?? 0,

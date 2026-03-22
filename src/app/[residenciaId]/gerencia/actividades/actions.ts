@@ -14,6 +14,7 @@ import type { TiempoComida } from 'shared/schemas/horarios';
 import type { CentroDeCosto } from 'shared/schemas/contabilidad';
 import type { ComedorData } from 'shared/schemas/complemento1';
 import type { LogPayload, ResidenciaId } from 'shared/models/types';
+import { ActividadCreateSchema, ActividadUpdateSchema } from 'shared/schemas/actividades';
 
 export type EstadoActividadGestion =
     | 'pendiente'
@@ -46,7 +47,7 @@ export type ActividadGestion = {
     fechaFin: string;
     tiempoComidaFinId: string;
     centroCostoId?: string | null;
-    solicitudAdministracion: 'ninguna' | 'solicitud_unica' | 'diario';
+    avisoAdministracion: 'no_comunicado' | 'comunicacion_previa' | 'comunicacion_definitiva' | 'cancelado';
     maxParticipantes: number;
     conteoInscritos: number;
     adicionalesNoNominales: number;
@@ -80,24 +81,8 @@ const EstadoActividadInputSchema = z.enum([
     'cancelada',
 ]);
 
-const ActividadCrearSchema = z.object({
-    titulo: z.string().min(3),
-    descripcion: z.string().optional(),
-    lugar: z.string().optional(),
-    visibilidad: z.enum(['publica', 'oculta']).default('publica'),
-    tipoAcceso: z.enum(['abierta', 'solo_invitacion']).default('abierta'),
-    permiteInvitadosExternos: z.boolean().default(false),
-    fechaInicio: z.string(),
-    tiempoComidaInicioId: z.string().min(1),
-    fechaFin: z.string(),
-    tiempoComidaFinId: z.string().min(1),
-    centroCostoId: z.string().nullable().optional(),
-    solicitudAdministracion: z.enum(['ninguna', 'solicitud_unica', 'diario']).default('solicitud_unica'),
-    maxParticipantes: z.number().int().positive(),
-    adicionalesNoNominales: z.number().int().nonnegative().default(0),
-});
-
-const ActividadActualizarSchema = ActividadCrearSchema.partial();
+// Using shared Zod schemas from `shared/schemas/actividades`:
+// `ActividadCreateSchema` and `ActividadUpdateSchema`
 
 const actividadesCollection = (residenciaId: ResidenciaId) =>
     db.collection('residencias').doc(residenciaId).collection('actividades');
@@ -170,7 +155,14 @@ function normalizarActividadDoc(docId: string, data: Record<string, unknown>, re
             ? data.tiempoComidaFinal
             : '';
 
-    const solicitud = typeof data.solicitudAdministracion === 'string' ? data.solicitudAdministracion : 'solicitud_unica';
+    const rawAviso = typeof data.avisoAdministracion === 'string' ? data.avisoAdministracion : undefined;
+    const allowedAvisos = new Set([
+        'no_comunicado',
+        'comunicacion_previa',
+        'comunicacion_definitiva',
+        'cancelado',
+    ] as const);
+    const aviso = rawAviso && allowedAvisos.has(rawAviso as any) ? (rawAviso as any) : 'no_comunicado';
     const visibilidad = data.visibilidad === 'oculta' ? 'oculta' : 'publica';
     const tipoAcceso = data.tipoAcceso === 'solo_invitacion' ? 'solo_invitacion' : 'abierta';
     const permiteInvitadosExternos = data.permiteInvitadosExternos === true;
@@ -195,10 +187,7 @@ function normalizarActividadDoc(docId: string, data: Record<string, unknown>, re
         fechaFin: typeof data.fechaFin === 'string' ? data.fechaFin : '',
         tiempoComidaFinId: tiempoFin,
         centroCostoId: typeof data.centroCostoId === 'string' ? data.centroCostoId : null,
-        solicitudAdministracion:
-            solicitud === 'diario' || solicitud === 'solicitud_unica' || solicitud === 'ninguna'
-                ? solicitud
-                : 'solicitud_unica',
+        avisoAdministracion: aviso,
         maxParticipantes: typeof data.maxParticipantes === 'number' ? data.maxParticipantes : 1,
         conteoInscritos: typeof data.conteoInscritos === 'number' ? data.conteoInscritos : 0,
         adicionalesNoNominales,
@@ -511,7 +500,7 @@ export async function createActividad(residenciaId: ResidenciaId, data: unknown)
             return { success: false, error: resultadoContexto.error };
         }
 
-        const parsed = ActividadCrearSchema.safeParse(data);
+        const parsed = ActividadCreateSchema.safeParse(data);
         if (!parsed.success) {
             return { success: false, error: parsed.error.flatten() };
         }
@@ -541,7 +530,7 @@ export async function createActividad(residenciaId: ResidenciaId, data: unknown)
             tiempoComidaInicioId: parsed.data.tiempoComidaInicioId,
             tiempoComidaFinId: parsed.data.tiempoComidaFinId,
             centroCostoId: parsed.data.centroCostoId || null,
-            solicitudAdministracion: parsed.data.solicitudAdministracion,
+            avisoAdministracion: 'no_comunicado',
             maxParticipantes: parsed.data.maxParticipantes,
             conteoInscritos: 0,
             adicionalesNoNominales: parsed.data.adicionalesNoNominales,
@@ -599,7 +588,7 @@ export async function updateActividad(actividadId: string, residenciaId: Residen
             return { success: false, error: 'No puedes editar actividades creadas por otros usuarios.' };
         }
 
-        const parsed = ActividadActualizarSchema.safeParse(data);
+        const parsed = ActividadUpdateSchema.safeParse(data);
         if (!parsed.success) {
             return { success: false, error: parsed.error.flatten() };
         }
@@ -689,9 +678,9 @@ export async function updateActividad(actividadId: string, residenciaId: Residen
         if (parsed.data.adicionalesNoNominales !== undefined) {
             updatePayload.adicionalesNoNominales = parsed.data.adicionalesNoNominales;
         }
-        if (parsed.data.solicitudAdministracion !== undefined) {
-            updatePayload.solicitudAdministracion = parsed.data.solicitudAdministracion;
-        }
+        // `avisoAdministracion` is managed by the "solicitud consolidada" module and
+        // must not be overwritten from this endpoint. Do not copy any client-provided
+        // `solicitudAdministracion`/`avisoAdministracion` values into the update payload.
 
         await actividadRef.update(updatePayload);
 

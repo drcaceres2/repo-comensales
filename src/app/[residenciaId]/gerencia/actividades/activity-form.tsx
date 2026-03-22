@@ -62,7 +62,6 @@ const ActivityFormSchema = z.object({
     fechaFin: z.string().min(1, 'La fecha de fin es obligatoria.'),
     tiempoComidaFinId: z.string().min(1, 'Selecciona un tiempo de fin.'),
     centroCostoId: z.string().optional(),
-    solicitudAdministracion: z.enum(['ninguna', 'solicitud_unica', 'diario']),
     maxParticipantes: z.number().int().positive('El maximo debe ser mayor que cero.'),
     adicionalesNoNominales: z.number().int().nonnegative('Debe ser cero o mayor.'),
 });
@@ -99,8 +98,7 @@ export function ActivityForm({
                   tiempoComidaInicioId: actividad.tiempoComidaInicioId,
                   fechaFin: actividad.fechaFin,
                   tiempoComidaFinId: actividad.tiempoComidaFinId,
-                  centroCostoId: actividad.centroCostoId || undefined,
-                  solicitudAdministracion: actividad.solicitudAdministracion,
+                                    centroCostoId: actividad.centroCostoId || undefined,
                   maxParticipantes: actividad.maxParticipantes,
                   adicionalesNoNominales: actividad.adicionalesNoNominales,
               }
@@ -116,7 +114,6 @@ export function ActivityForm({
                   fechaFin: new Date().toISOString().slice(0, 10),
                   tiempoComidaFinId: '',
                   centroCostoId: undefined,
-                  solicitudAdministracion: 'solicitud_unica',
                   maxParticipantes: 10,
                   adicionalesNoNominales: 0,
               },
@@ -525,28 +522,7 @@ export function ActivityForm({
                                         )}
                                     />
 
-                                    <FormField
-                                        control={form.control}
-                                        name='solicitudAdministracion'
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Solicitud a administracion</FormLabel>
-                                                <Select onValueChange={field.onChange} value={field.value}>
-                                                    <FormControl>
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder='Seleccionar...' />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent className='z-[250]'>
-                                                        <SelectItem value='ninguna'>Ninguna</SelectItem>
-                                                        <SelectItem value='solicitud_unica'>Solicitud unica</SelectItem>
-                                                        <SelectItem value='diario'>Diario</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                    {/* `avisoAdministracion` is managed elsewhere; this form does not expose it. */}
                                 </div>
 
                                 <FormField

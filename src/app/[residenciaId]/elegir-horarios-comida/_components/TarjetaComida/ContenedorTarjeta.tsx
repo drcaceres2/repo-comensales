@@ -10,9 +10,15 @@ type Props = {
   fecha: string;
   tarjeta: TarjetaComidaUI;
   onGuardarExcepcion: (payload: FormExcepcionLibre) => Promise<unknown>;
+  onEditarAusencia: (fecha: string, tarjeta: TarjetaComidaUI) => void;
 };
 
-export function ContenedorTarjeta({ fecha, tarjeta, onGuardarExcepcion }: Props) {
+export function ContenedorTarjeta({
+  fecha,
+  tarjeta,
+  onGuardarExcepcion,
+  onEditarAusencia,
+}: Props) {
   const drawerAbierto = useHorariosStore((state) => state.drawerAbierto);
   const tarjetaActiva = useHorariosStore((state) => state.tarjetaActiva);
   const abrirDrawerTarjeta = useHorariosStore((state) => state.abrirDrawerTarjeta);
@@ -45,6 +51,10 @@ export function ContenedorTarjeta({ fecha, tarjeta, onGuardarExcepcion }: Props)
           fecha={fecha}
           tarjeta={tarjeta}
           onGuardarExcepcion={onGuardarExcepcion}
+          onEditarAusencia={() => {
+            cerrarDrawer();
+            onEditarAusencia(fecha, tarjeta);
+          }}
         />
       ) : null}
     </>

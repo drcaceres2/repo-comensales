@@ -109,6 +109,7 @@ function applyExcepcionOptimista(data: CargaHorariosUI, payload: FormExcepcionLi
           return {
             ...tarjeta,
             origenResolucion: 'CAPA3_EXCEPCION',
+            origen: 'excepcion',
             estadoInteraccion: 'MUTABLE',
             estadoAprobacion: opcion?.requiereAprobacion ? 'pendiente' : 'no_requerida',
             resultadoEfectivo: {
@@ -187,17 +188,25 @@ function applyAusenciaOptimista(data: CargaHorariosUI, payload: FormAusenciaLote
           return {
             ...tarjeta,
             origenResolucion: 'CAPA2_AUSENCIA',
+            origen: 'ausencia',
             estadoInteraccion: 'BLOQUEADO_RESTRICCION',
             detallesDrawer: {
               ...tarjeta.detallesDrawer,
-              mensajeFormativo: 'Ausencia registrada. Este tiempo no admite cambios mientras la ausencia siga activa.',
+              mensajeFormativo: 'Ausencia activa para este tiempo de comida.',
+              detalleAusencia: {
+                fechaInicio: payload.fechaInicio,
+                fechaFin: payload.fechaFin,
+                primerTiempoAusente: payload.primerTiempoAusente ?? null,
+                ultimoTiempoAusente: payload.ultimoTiempoAusente ?? null,
+                motivo: payload.motivo,
+              },
             },
             resultadoEfectivo: {
               ...tarjeta.resultadoEfectivo,
               configuracionAlternativaId:
                 opcionAusencia?.configuracionAlternativaId ?? tarjeta.resultadoEfectivo.configuracionAlternativaId,
-              nombre: opcionAusencia?.nombre ?? tarjeta.resultadoEfectivo.nombre,
-              tipo: opcionAusencia?.tipo ?? tarjeta.resultadoEfectivo.tipo,
+              nombre: 'Ausente',
+              tipo: opcionAusencia?.tipo ?? 'noComoEnCasa',
             },
           };
         }),

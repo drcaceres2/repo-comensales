@@ -412,6 +412,9 @@ export default function InvitacionesUsuariosPage() {
       return {
         ...prev,
         roles: nextRoles,
+        // Ajustar el valor por defecto de `puedeTraerInvitados` cuando se modifica el rol.
+        // Si incluye `director` -> 'si', en caso contrario -> 'no'.
+        puedeTraerInvitados: nextRoles.includes('director') ? 'si' : 'no',
       };
     });
   };

@@ -18,13 +18,15 @@ import {
 } from '@/components/ui/select';
 import { TarjetaComidaUI } from 'shared/schemas/elecciones/ui.schema';
 import { FormExcepcionLibre } from 'shared/schemas/elecciones/ui.schema';
+import { TriangleAlert } from 'lucide-react';
 
-type Props = {
+type CajonDetalleProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   fecha: string;
   tarjeta: TarjetaComidaUI;
   onGuardarExcepcion: (payload: FormExcepcionLibre) => Promise<unknown>;
+  onEditarAusencia: () => void;
 };
 
 export function CajonDetalle({
@@ -33,7 +35,8 @@ export function CajonDetalle({
   fecha,
   tarjeta,
   onGuardarExcepcion,
-}: Props) {
+  onEditarAusencia,
+}: CajonDetalleProps) {
   const primeraOpcion = tarjeta.detallesDrawer.opciones?.[0]?.configuracionAlternativaId
     ?? tarjeta.resultadoEfectivo.configuracionAlternativaId;
 
@@ -45,6 +48,8 @@ export function CajonDetalle({
   );
 
   const esMutable = tarjeta.estadoInteraccion === 'MUTABLE';
+  const esAusencia = tarjeta.origenResolucion === 'CAPA2_AUSENCIA';
+  const detalleAusencia = tarjeta.detallesDrawer.detalleAusencia;
 
   const guardar = async () => {
     await onGuardarExcepcion({
@@ -63,8 +68,16 @@ export function CajonDetalle({
         <SheetHeader>
           <SheetTitle>{tarjeta.grupoComida.nombre}</SheetTitle>
           <SheetDescription>
-            {tarjeta.detallesDrawer.mensajeFormativo ?? 'Revisa y confirma la eleccion para este tiempo de comida.'}
+            {tarjeta.detallesDrawer.mensajeFormativo
+              ? 'Revisa la información importante de este tiempo de comida.'
+              : 'Revisa y confirma la eleccion para este tiempo de comida.'}
           </SheetDescription>
+          {tarjeta.detallesDrawer.mensajeFormativo ? (
+            <div className="flex items-start gap-2 rounded-md border border-amber-300/70 bg-amber-50 p-2 text-sm text-amber-800">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{tarjeta.detallesDrawer.mensajeFormativo}</span>
+            </div>
+          ) : null}
         </SheetHeader>
 
         <div className="mt-6 space-y-4">
@@ -73,7 +86,20 @@ export function CajonDetalle({
             <p className="mt-1 text-sm font-medium">{tarjeta.resultadoEfectivo.nombre}</p>
           </div>
 
-          {esMutable ? (
+          {esAusencia && detalleAusencia ? (
+            <>
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                <p><span className="font-medium">Inicio:</span> {detalleAusencia.fechaInicio}</p>
+                <p><span className="font-medium">Fin:</span> {detalleAusencia.fechaFin}</p>
+                {detalleAusencia.motivo ? (
+                  <p><span className="font-medium">Motivo:</span> {detalleAusencia.motivo}</p>
+                ) : null}
+              </div>
+              <Button className="w-full" variant="outline" onClick={onEditarAusencia}>
+                Modificar ausencia
+              </Button>
+            </>
+          ) : esMutable ? (
             <>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Alternativa</p>

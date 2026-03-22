@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useInfoUsuario } from '@/components/layout/AppProviders';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { Pizza } from 'lucide-react';
+import { FormAusenciaLote, TarjetaComidaUI } from 'shared/schemas/elecciones/ui.schema';
 import { useHorarioDia } from '../_hooks/useHorarioDia';
 import { useHorariosStore } from '../_hooks/useHorariosStore';
 import { useMutacionOptimista } from '../_hooks/useMutacionOptimista';
@@ -32,6 +34,9 @@ export function VistaHorariosCliente({ residenciaId, fechaInicial }: Props) {
   const modalActivo = useHorariosStore((state) => state.modalActivo);
   const abrirModal = useHorariosStore((state) => state.abrirModal);
   const cerrarModal = useHorariosStore((state) => state.cerrarModal);
+  const ausenciaEnEdicion = useHorariosStore((state) => state.ausenciaEnEdicion);
+  const iniciarEdicionAusencia = useHorariosStore((state) => state.iniciarEdicionAusencia);
+  const limpiarEdicionAusencia = useHorariosStore((state) => state.limpiarEdicionAusencia);
 
   useEffect(() => {
     if (usuarioId) {
@@ -42,6 +47,34 @@ export function VistaHorariosCliente({ residenciaId, fechaInicial }: Props) {
   useEffect(() => {
     setFechaEnFoco(fechaInicial);
   }, [fechaInicial, setFechaEnFoco]);
+
+  const [headerHidden, setHeaderHidden] = useState(false);
+  useEffect(() => {
+    let lastY = 0;
+    let ticking = false;
+
+    const main = document.querySelector('main');
+    if (!main) return;
+
+    const onScroll = () => {
+      const y = (main as HTMLElement).scrollTop;
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          if (y > lastY + 8 && y > 10) {
+            setHeaderHidden(true);
+          } else if (y < lastY - 5 || y <= 10) {
+            setHeaderHidden(false);
+          }
+          lastY = y;
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    main.addEventListener('scroll', onScroll, { passive: true });
+    return () => main.removeEventListener('scroll', onScroll);
+  }, []);
 
   const targetUidEfectivo = targetUid ?? usuarioId ?? '';
 
@@ -101,6 +134,31 @@ export function VistaHorariosCliente({ residenciaId, fechaInicial }: Props) {
   const dias = data?.dias ?? [];
   const actividades = data?.actividades ?? [];
 
+  const abrirEdicionAusenciaDesdeTarjeta = (fecha: string, tarjeta: TarjetaComidaUI) => {
+    const detalle = tarjeta.detallesDrawer.detalleAusencia;
+    if (!detalle) {
+      return;
+    }
+
+    const seed: FormAusenciaLote = {
+      fechaInicio: detalle.fechaInicio,
+      fechaFin: detalle.fechaFin,
+      primerTiempoAusente: detalle.primerTiempoAusente ?? undefined,
+      ultimoTiempoAusente: detalle.ultimoTiempoAusente ?? undefined,
+      motivo: detalle.motivo,
+      retornoPendienteConfirmacion: false,
+      edicionOriginal: {
+        fechaInicio: detalle.fechaInicio,
+        fechaFin: detalle.fechaFin,
+        primerTiempoAusente: detalle.primerTiempoAusente ?? undefined,
+        ultimoTiempoAusente: detalle.ultimoTiempoAusente ?? undefined,
+      },
+    };
+
+    iniciarEdicionAusencia(seed);
+    abrirModal('ausencia');
+  };
+
   return (
     <div className="space-y-4 pb-24">
       {(mostrarBadgeFetching || hayPendientes) ? (
@@ -110,27 +168,41 @@ export function VistaHorariosCliente({ residenciaId, fechaInicial }: Props) {
         </div>
       ) : null}
 
-      <BarraSuplantacion residenciaId={residenciaId} />
+      <div className={`transition-transform duration-200 ease-in-out ${headerHidden ? '-translate-y-12' : 'translate-y-0'}`}>
+        <div className="flex items-center gap-3 mb-2">
+          <Pizza className="h-6 w-6 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Elegir Horarios de Comida</h2>
+        </div>
 
-      <BannerNovedades hayPendientesSync={hayPendientes} visible={mostrarBannerNovedades} />
+        <div className="mb-2">
+          <BarraSuplantacion residenciaId={residenciaId} />
+        </div>
+      </div>
 
       <CarruselCalendario
         dias={dias}
         actividades={actividades}
         fechaEnFoco={fechaEnFoco}
         onSeleccionarFecha={setFechaEnFoco}
+        hideMonth={headerHidden}
       />
+
+      <BannerNovedades hayPendientesSync={hayPendientes} visible={mostrarBannerNovedades} />
 
       <CarruselDiario
         dias={dias}
         fechaEnFoco={fechaEnFoco}
         onCambiarFecha={setFechaEnFoco}
         onGuardarExcepcion={guardarExcepcion}
+        onEditarAusencia={abrirEdicionAusenciaDesdeTarjeta}
       />
 
       <BotonAccionRadial
         onNuevaExcepcion={() => abrirModal('excepcion')}
-        onNuevaAusencia={() => abrirModal('ausencia')}
+        onNuevaAusencia={() => {
+          limpiarEdicionAusencia();
+          abrirModal('ausencia');
+        }}
       />
 
       <ModalExcepcionLibre
@@ -146,11 +218,18 @@ export function VistaHorariosCliente({ residenciaId, fechaInicial }: Props) {
       <ModalAusenciaLote
         open={modalActivo === 'ausencia'}
         onOpenChange={(open) => {
-          if (!open) cerrarModal();
+          if (!open) {
+            limpiarEdicionAusencia();
+            cerrarModal();
+          }
         }}
         data={data}
         fechaPreferida={diaEnFoco?.fecha ?? fechaEnFoco}
-        onSubmit={guardarAusenciaLote}
+        edicion={ausenciaEnEdicion}
+        onSubmit={async (payload) => {
+          await guardarAusenciaLote(payload);
+          limpiarEdicionAusencia();
+        }}
       />
     </div>
   );

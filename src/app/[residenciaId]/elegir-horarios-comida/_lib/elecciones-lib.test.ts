@@ -265,6 +265,74 @@ describe('densificarCapa0', () => {
     expect(denso['2026-03-13'].tiemposComida['desayuno-viernes']).toBeDefined();
     expect(denso['2026-03-13'].tiemposComida['almuerzo-viernes']).toBeDefined();
   });
+
+  it('materializa alteraciones diarias antes de densificar', () => {
+    const singleton = buildSingleton();
+
+    const denso = densificarCapa0(['2026-03-12', '2026-03-13'], singleton, [
+      {
+        id: '2026-03-12',
+        fecha: '2026-03-12',
+        residenciaId: 'res-1',
+        tiemposComidaAfectados: {
+          'desayuno-jueves': {
+            estado: 'comunicado',
+            motivo: 'Cocina en mantenimiento',
+            alternativaPorDefectoId: 'cfg-des-jue-2',
+            alternativasDisponibles: {
+              'cfg-des-jue-2': {
+                definicionAlternativaId: 'alt2',
+                horarioSolicitudComidaId: 'hs1',
+                comedorId: 'comedor1',
+                requiereAprobacion: true,
+                ventanaServicio: { horaInicio: 'T07:00', horaFin: 'T08:00', tipoVentana: 'normal' },
+              },
+            },
+          },
+        },
+      },
+    ] as any);
+
+    expect(denso['2026-03-12'].tiemposComida['desayuno-jueves'].esAlterado).toBe(true);
+    expect(denso['2026-03-12'].tiemposComida['desayuno-jueves'].alteracionId).toBe('2026-03-12');
+    expect(denso['2026-03-12'].tiemposComida['desayuno-jueves'].motivo).toBe('Cocina en mantenimiento');
+    expect(
+      denso['2026-03-12'].tiemposComida['desayuno-jueves'].opcionesActivas[0].horarioReferenciaSolicitud
+    ).toBe('2026-03-12T12:00:00');
+    expect(denso['2026-03-13'].tiemposComida['desayuno-viernes'].esAlterado).toBe(false);
+  });
+
+  it('ignora alteraciones canceladas y vuelve al singleton', () => {
+    const singleton = buildSingleton();
+
+    const denso = densificarCapa0(['2026-03-12'], singleton, [
+      {
+        id: '2026-03-12',
+        fecha: '2026-03-12',
+        residenciaId: 'res-1',
+        tiemposComidaAfectados: {
+          'desayuno-jueves': {
+            estado: 'cancelado',
+            motivo: 'Se deshizo la alteración',
+            alternativaPorDefectoId: 'cfg-des-jue-2',
+            alternativasDisponibles: {
+              'cfg-des-jue-2': {
+                definicionAlternativaId: 'alt2',
+                horarioSolicitudComidaId: 'hs1',
+                comedorId: 'comedor1',
+                requiereAprobacion: true,
+                ventanaServicio: { horaInicio: 'T07:00', horaFin: 'T08:00', tipoVentana: 'normal' },
+              },
+            },
+          },
+        },
+      },
+    ] as any);
+
+    expect(denso['2026-03-12'].tiemposComida['desayuno-jueves'].esAlterado).toBe(false);
+    expect(denso['2026-03-12'].tiemposComida['desayuno-jueves'].alteracionId).toBeUndefined();
+    expect(denso['2026-03-12'].tiemposComida['desayuno-jueves'].contingenciaAlternativaId).toBe('cfg-des-jue-1');
+  });
 });
 
 describe('resolverCascadaTiempoComida', () => {
@@ -344,6 +412,161 @@ describe('resolverCascadaTiempoComida', () => {
     expect(tarjeta.origenResolucion).toBe('CAPA4_SEMANARIO');
     expect(tarjeta.resultadoEfectivo.configuracionAlternativaId).toBe('cfg-des-jue-2');
   });
+
+  it('en CAPA2_AUSENCIA muestra resultado "Ausente" y detalle completo de ausencia', () => {
+    const tarjeta = resolverCascadaTiempoComida(baseContext, slot, {
+      ausencia: {
+        usuarioId: 'U123456789',
+        residenciaId: 'res-1',
+        fechaInicio: '2026-03-11',
+        fechaFin: '2026-03-13',
+        primerTiempoAusente: 'desayuno-jueves',
+        ultimoTiempoAusente: 'desayuno-jueves',
+        motivo: 'Viaje familiar',
+      } as any,
+      eleccionSemanario: { configuracionAlternativaId: 'cfg-des-jue-2' },
+    });
+
+    expect(tarjeta.origenResolucion).toBe('CAPA2_AUSENCIA');
+    expect(tarjeta.estadoInteraccion).toBe('BLOQUEADO_RESTRICCION');
+    expect(tarjeta.resultadoEfectivo.nombre).toBe('Ausente');
+    expect(tarjeta.detallesDrawer.detalleAusencia?.fechaInicio).toBe('2026-03-11');
+    expect(tarjeta.detallesDrawer.detalleAusencia?.fechaFin).toBe('2026-03-13');
+    expect(tarjeta.detallesDrawer.detalleAusencia?.motivo).toBe('Viaje familiar');
+  });
+
+  it('en alteracion aplica contingencia cuando semanario apunta a opcion no disponible', () => {
+    const slotAlterado = {
+      ...slot,
+      esAlterado: true,
+      opcionesActivas: [
+        {
+          nombre: 'Des Jue 2',
+          configuracionAlternativaId: 'cfg-des-jue-2',
+          ventanaServicio: { horaInicio: 'T07:00', horaFin: 'T08:00', tipoVentana: 'normal' },
+          comedorId: 'comedor1',
+          horarioReferenciaSolicitud: '2026-03-10T10:00:00',
+        },
+      ],
+      contingenciaAlternativaId: 'cfg-des-jue-2',
+    } as any;
+
+    const tarjeta = resolverCascadaTiempoComida(baseContext, slotAlterado, {
+      eleccionSemanario: { configuracionAlternativaId: 'cfg-des-jue-1' },
+    });
+
+    expect(tarjeta.origenResolucion).toBe('CAPA4_SEMANARIO');
+    expect(tarjeta.resultadoEfectivo.configuracionAlternativaId).toBe('cfg-des-jue-2');
+  });
+
+  it('cubre las 32 combinaciones de concurrencia de capas y valida origen + resultado efectivo', () => {
+    const bool = [false, true] as const;
+
+    for (const tieneAlteracion of bool) {
+      for (const tieneActividad of bool) {
+        for (const tieneAusencia of bool) {
+          for (const tieneExcepcion of bool) {
+            for (const tieneSemanario of bool) {
+              const slotCaso = {
+                ...slot,
+                esAlterado: tieneAlteracion,
+                // Alteracion "dura": fuerza resolucion de sistema por capa 0.
+                opcionesActivas: tieneAlteracion ? [] : slot.opcionesActivas,
+                contingenciaAlternativaId: tieneAlteracion ? 'cfg-des-jue-2' : slot.contingenciaAlternativaId,
+              } as any;
+
+              const capasCaso = {
+                inscripcionActividad: tieneActividad
+                  ? {
+                      actividadId: 'act-1',
+                      nombreActividad: 'Asado',
+                      configuracionAlternativaId: 'cfg-des-jue-2',
+                    }
+                  : undefined,
+                ausencia: tieneAusencia
+                  ? ({
+                      usuarioId: 'U123456789',
+                      residenciaId: 'res-1',
+                      fechaInicio: '2026-03-12',
+                      fechaFin: '2026-03-12',
+                      primerTiempoAusente: 'desayuno-jueves',
+                      ultimoTiempoAusente: 'desayuno-jueves',
+                      motivo: 'Prueba matriz',
+                    } as any)
+                  : undefined,
+                excepcion: tieneExcepcion
+                  ? ({
+                      usuarioId: 'U123456789',
+                      residenciaId: 'res-1',
+                      fecha: '2026-03-12',
+                      tiempoComidaId: 'desayuno-jueves',
+                      configuracionAlternativaId: 'cfg-des-jue-2',
+                      esAlternativaAlterada: false,
+                      origenAutoridad: 'residente',
+                      estadoAprobacion: 'aprobada',
+                    } as any)
+                  : undefined,
+                eleccionSemanario: tieneSemanario
+                  ? { configuracionAlternativaId: 'cfg-des-jue-1' }
+                  : undefined,
+              };
+
+              const tarjeta = resolverCascadaTiempoComida(baseContext, slotCaso, capasCaso as any);
+
+              let origenEsperado: 'actividad' | 'ausencia' | 'excepcion' | 'semanario' | 'sistema';
+              let origenResolucionEsperado:
+                | 'CAPA1_ACTIVIDAD'
+                | 'CAPA2_AUSENCIA'
+                | 'CAPA3_EXCEPCION'
+                | 'CAPA4_SEMANARIO'
+                | 'CAPA0_ALTERACION'
+                | 'FALLBACK_SISTEMA';
+              let cfgEsperada: string;
+
+              if (tieneAlteracion) {
+                origenEsperado = 'sistema';
+                origenResolucionEsperado = 'CAPA0_ALTERACION';
+                cfgEsperada = 'cfg-des-jue-2';
+              } else if (tieneActividad) {
+                origenEsperado = 'actividad';
+                origenResolucionEsperado = 'CAPA1_ACTIVIDAD';
+                cfgEsperada = 'cfg-des-jue-2';
+              } else if (tieneAusencia) {
+                origenEsperado = 'ausencia';
+                origenResolucionEsperado = 'CAPA2_AUSENCIA';
+                cfgEsperada = 'cfg-des-jue-1';
+              } else if (tieneExcepcion) {
+                origenEsperado = 'excepcion';
+                origenResolucionEsperado = 'CAPA3_EXCEPCION';
+                cfgEsperada = 'cfg-des-jue-2';
+              } else if (tieneSemanario) {
+                origenEsperado = 'semanario';
+                origenResolucionEsperado = 'CAPA4_SEMANARIO';
+                cfgEsperada = 'cfg-des-jue-1';
+              } else {
+                origenEsperado = 'sistema';
+                origenResolucionEsperado = 'FALLBACK_SISTEMA';
+                cfgEsperada = 'cfg-des-jue-1';
+              }
+
+              const key = `A0=${tieneAlteracion}|A1=${tieneActividad}|A2=${tieneAusencia}|A3=${tieneExcepcion}|A4=${tieneSemanario}`;
+
+              expect(tarjeta.origen, key).toBe(origenEsperado);
+              expect(tarjeta.origenResolucion, key).toBe(origenResolucionEsperado);
+              expect(tarjeta.resultadoEfectivo.configuracionAlternativaId, key).toBe(cfgEsperada);
+
+              if (origenEsperado === 'ausencia') {
+                expect(tarjeta.resultadoEfectivo.nombre, key).toBe('Ausente');
+                expect(tarjeta.detallesDrawer.detalleAusencia, key).toBeDefined();
+              } else {
+                expect(tarjeta.detallesDrawer.detalleAusencia, key).toBeUndefined();
+              }
+            }
+          }
+        }
+      }
+    }
+  });
 });
 
 describe('generarPayloadHorariosUI', () => {
@@ -356,7 +579,7 @@ describe('generarPayloadHorariosUI', () => {
       fechasRango,
       fechaHoraReferenciaUltimaSolicitud: '2026-03-01T10:00:00',
       singletonResidencia: singleton,
-      vistaMaterializadaDiaria: {},
+      alteracionesCapa0: [],
       diccionarioSemanarios: {
         [semana]: {
           'desayuno-jueves': { configuracionAlternativaId: 'cfg-des-jue-2' },
@@ -415,7 +638,7 @@ describe('generarPayloadHorariosUI', () => {
       fechasRango: ['2026-03-13'],
       fechaHoraReferenciaUltimaSolicitud: '2026-03-01T10:00:00',
       singletonResidencia: singleton,
-      vistaMaterializadaDiaria: {},
+      alteracionesCapa0: [],
       diccionarioSemanarios: {
         [semana]: {
           'desayuno-viernes': { configuracionAlternativaId: 'cfg-des-vie-1' },
@@ -459,7 +682,7 @@ describe('generarPayloadHorariosUI', () => {
       fechasRango: ['2026-03-12'],
       fechaHoraReferenciaUltimaSolicitud: '2026-03-12T10:00:00',
       singletonResidencia: singleton,
-      vistaMaterializadaDiaria: {},
+      alteracionesCapa0: [],
       diccionarioSemanarios: {
         [semana]: {
           'desayuno-jueves': { configuracionAlternativaId: 'cfg-des-jue-1' },
@@ -490,7 +713,7 @@ describe('generarPayloadHorariosUI', () => {
       fechasRango: ['2026-03-12'],
       fechaHoraReferenciaUltimaSolicitud: '2026-03-12T13:00:00',
       singletonResidencia: singleton,
-      vistaMaterializadaDiaria: {},
+      alteracionesCapa0: [],
       diccionarioSemanarios: {
         [semana]: {
           'desayuno-jueves': { configuracionAlternativaId: 'cfg-des-jue-1' },
@@ -524,7 +747,7 @@ describe('generarPayloadHorariosUI', () => {
       fechasRango: ['2026-03-12', '2026-03-13'],
       fechaHoraReferenciaUltimaSolicitud: referencia,
       singletonResidencia: singleton,
-      vistaMaterializadaDiaria: {},
+      alteracionesCapa0: [],
       diccionarioSemanarios: {
         [semanaJueves]: {
           'desayuno-jueves': { configuracionAlternativaId: 'cfg-des-jue-1' },
@@ -554,5 +777,52 @@ describe('generarPayloadHorariosUI', () => {
     // Viernes: muro abierto → todas las tarjetas mutables
     expect(opcionesViernes.length).toBeGreaterThan(0);
     expect(opcionesViernes.every((t) => t.estadoInteraccion === 'MUTABLE')).toBe(true);
+  });
+
+  it('aplica alteraciones de capa 0 sin mover lógica a cliente', () => {
+    const singleton = buildSingleton();
+    const semana = getWeekKey('2026-03-12');
+
+    const payload = generarPayloadHorariosUI({
+      fechasRango: ['2026-03-12'],
+      fechaHoraReferenciaUltimaSolicitud: '2026-03-01T10:00:00',
+      singletonResidencia: singleton,
+      alteracionesCapa0: [
+        {
+          id: '2026-03-12',
+          fecha: '2026-03-12',
+          residenciaId: 'res-1',
+          tiemposComidaAfectados: {
+            'desayuno-jueves': {
+              estado: 'bloqueado',
+              motivo: 'Servicio suspendido por mantenimiento',
+              alternativaPorDefectoId: 'cfg-des-jue-2',
+              alternativasDisponibles: {
+                'cfg-des-jue-2': {
+                  definicionAlternativaId: 'alt2',
+                  horarioSolicitudComidaId: 'hs1',
+                  comedorId: 'comedor1',
+                  requiereAprobacion: true,
+                  ventanaServicio: { horaInicio: 'T07:00', horaFin: 'T08:00', tipoVentana: 'normal' },
+                },
+              },
+            },
+          },
+        },
+      ] as any,
+      diccionarioSemanarios: {
+        [semana]: {
+          'almuerzo-jueves': { configuracionAlternativaId: 'cfg-alm-jue-1' },
+        },
+      },
+      excepcionesUsuario: [],
+      ausenciasUsuario: [],
+      inscripcionesActividad: [],
+    } as any);
+
+    const tarjeta = payload.dias[0].tarjetas.find((item) => item.tiempoComidaId === 'desayuno_jueves');
+    expect(tarjeta?.origenResolucion).toBe('FALLBACK_SISTEMA');
+    expect(tarjeta?.resultadoEfectivo.configuracionAlternativaId).toBe('cfg_des_jue_2');
+    expect(tarjeta?.detallesDrawer.opciones?.some((op) => op.configuracionAlternativaId === 'cfg_des_jue_2')).toBe(true);
   });
 });

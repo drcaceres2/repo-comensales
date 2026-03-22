@@ -60,6 +60,20 @@ export const convertirHoraAMinutos = (hora: string | null | undefined): number |
     return (hh * 60) + mm;
 };
 
+export function compararHorasReferencia(horaA: string | null | undefined, horaB: string | null | undefined): number {
+    const minutosA = convertirHoraAMinutos(horaA);
+    const minutosB = convertirHoraAMinutos(horaB);
+
+    if (minutosA !== null && minutosB !== null) {
+        return minutosA - minutosB;
+    }
+
+    if (minutosA !== null) return -1;
+    if (minutosB !== null) return 1;
+
+    return String(horaA ?? '').localeCompare(String(horaB ?? ''));
+}
+
 // =======================================
 // Herramientas de fecha basadas en TZDate
 // =======================================

@@ -49,6 +49,8 @@ export default function FinalizarInvitacionPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const passwordsMatch = password.length > 0 || confirmPassword.length > 0 ? password === confirmPassword : false;
 
   useEffect(() => {
     let cancelled = false;
@@ -99,6 +101,13 @@ export default function FinalizarInvitacionPage() {
     setSubmitting(true);
     setError('');
     setSuccess('');
+
+    // Validar que las contraseñas coincidan antes de proceder
+    if (password !== confirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const response = await fetch(endpoint, {
@@ -166,10 +175,27 @@ export default function FinalizarInvitacionPage() {
                   type="password"
                   minLength={6}
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => { setPassword(event.target.value); if (error) setError(''); }}
                   required
                 />
               </div>
+
+              <div>
+                <Label htmlFor="confirmPassword">Confirmar contrasena</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  minLength={6}
+                  value={confirmPassword}
+                  onChange={(event) => { setConfirmPassword(event.target.value); if (error) setError(''); }}
+                  required
+                />
+              </div>
+              { (password.length > 0 || confirmPassword.length > 0) && (
+                <p className={`text-sm mt-1 ${passwordsMatch ? 'text-green-600' : 'text-red-600'}`}>
+                  {passwordsMatch ? 'Las contraseñas coinciden.' : 'Las contraseñas no coinciden.'}
+                </p>
+              )}
 
               <Button type="submit" disabled={submitting}>
                 {submitting ? 'Guardando...' : 'Completar registro'}

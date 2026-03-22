@@ -501,6 +501,14 @@ function UserManagementPage(): JSX.Element | null {
                 }
             }
 
+            // Ajustar el valor por defecto de `puedeTraerInvitados` según si el usuario tiene el rol `director`.
+            // Por defecto queremos 'si' cuando incluye 'director', y 'no' en caso contrario.
+            if (updatedRoles.includes('director')) {
+                newFormData.puedeTraerInvitados = 'si';
+            } else {
+                newFormData.puedeTraerInvitados = 'no';
+            }
+
             // Invitado users should keep residencia. Only pure master users may have no residencia.
             const residenciaRequired = updatedRoles.some((r: RolUsuario) => r !== 'master');
             if (!residenciaRequired) {
@@ -647,7 +655,12 @@ function UserManagementPage(): JSX.Element | null {
             return;
         }
         setEditingUserId(userId);
-    
+        // Si el valor no está definido en el perfil, aplicar el valor por defecto
+        // dependiendo de si el usuario tiene el rol 'director'.
+        const defaultPuede = typeof userToEdit.puedeTraerInvitados === 'undefined' || userToEdit.puedeTraerInvitados === null
+            ? (userToEdit.roles?.includes('director') ? 'si' : 'no')
+            : userToEdit.puedeTraerInvitados;
+
         setFormData({
             nombre: userToEdit.nombre || '',
             apellido: userToEdit.apellido || '',
@@ -659,7 +672,7 @@ function UserManagementPage(): JSX.Element | null {
             telefonoMovil: userToEdit.telefonoMovil || '',
             fechaDeNacimiento: userToEdit.fechaDeNacimiento ? format(userToEdit.fechaDeNacimiento, 'yyyy-MM-dd') : '',
             centroCostoPorDefectoId: userToEdit.centroCostoPorDefectoId || '',
-            puedeTraerInvitados: userToEdit.puedeTraerInvitados || 'no',
+            puedeTraerInvitados: defaultPuede,
             camposPersonalizados: userToEdit.camposPersonalizados || {},
             asistente: userToEdit.asistente,
             residente: userToEdit.residente,

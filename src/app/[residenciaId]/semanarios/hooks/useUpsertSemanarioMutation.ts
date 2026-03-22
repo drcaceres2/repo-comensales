@@ -13,10 +13,9 @@ type UpsertSemanarioResponse = {
   message: string;
 };
 
-const upsertSemanarioFn = httpsCallable<UpsertSemanarioPayload, UpsertSemanarioResponse>(
-  functions,
-  'upsertSemanario'
-);
+// Accept a wrapper from the client: { payload: UpsertSemanarioPayload, configContext?: Record<string, { requiereAprobacion?: boolean }> }
+// Use broad typing for the callable input to remain compatible with the new wrapper shape.
+const upsertSemanarioFn = httpsCallable<any, UpsertSemanarioResponse>(functions, 'upsertSemanario');
 
 function parseCallableError(error: any): Error {
   const code = error?.code ?? error?.details?.code;
@@ -32,9 +31,18 @@ export function useUpsertSemanarioMutation(residenciaId: string, targetUid?: str
 
   return useMutation({
     mutationKey: [SEMANARIOS_QUERY_KEY, residenciaId, targetUid ?? 'self', 'upsert'],
-    mutationFn: async (payload: UpsertSemanarioPayload) => {
+    // The mutation accepts either the raw UpsertSemanarioPayload (backwards compatible)
+    // or an object { payload, configContext } where configContext is serializable and
+    // maps configuracionAlternativaId -> { requiereAprobacion: boolean }.
+    mutationFn: async (input: UpsertSemanarioPayload | { payload: UpsertSemanarioPayload; configContext?: Record<string, { requiereAprobacion?: boolean }> }) => {
       try {
-        const result = await upsertSemanarioFn(payload);
+        // Normalize into wrapper shape
+        const wrapper = (('payload' in (input as any)) ? (input as any) : { payload: input });
+
+        // Ensure serializable: strip any non-serializable values
+        const safeWrapper = JSON.parse(JSON.stringify(wrapper));
+
+        const result = await upsertSemanarioFn(safeWrapper);
         return result.data;
       } catch (error: any) {
         throw parseCallableError(error);

@@ -25,14 +25,23 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   data: CargaHorariosUI | undefined;
   fechaPreferida: string;
+  edicion?: FormAusenciaLote | null;
   onSubmit: (payload: FormAusenciaLote) => Promise<unknown>;
 };
 
 const DIA_COMPLETO = '__dia_completo__';
 
-export function ModalAusenciaLote({ open, onOpenChange, data, fechaPreferida, onSubmit }: Props) {
+export function ModalAusenciaLote({
+  open,
+  onOpenChange,
+  data,
+  fechaPreferida,
+  edicion,
+  onSubmit,
+}: Props) {
   const hoy = new Date();
   const hoyIso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+  const modoEdicion = Boolean(edicion?.edicionOriginal);
 
   const [fechaInicio, setFechaInicio] = useState(fechaPreferida);
   const [fechaFin, setFechaFin] = useState(fechaPreferida);
@@ -77,6 +86,15 @@ export function ModalAusenciaLote({ open, onOpenChange, data, fechaPreferida, on
       return;
     }
 
+    if (edicion) {
+      setFechaInicio(edicion.fechaInicio);
+      setFechaFin(edicion.fechaFin);
+      setPrimerTiempoAusente(edicion.primerTiempoAusente ?? DIA_COMPLETO);
+      setUltimoTiempoAusente(edicion.ultimoTiempoAusente ?? DIA_COMPLETO);
+      setMotivo(edicion.motivo ?? '');
+      return;
+    }
+
     const fechaBase = fechaPreferida >= hoyIso
       ? fechaPreferida
       : (fechasValidas[0] ?? hoyIso);
@@ -86,7 +104,7 @@ export function ModalAusenciaLote({ open, onOpenChange, data, fechaPreferida, on
     setPrimerTiempoAusente(DIA_COMPLETO);
     setUltimoTiempoAusente(DIA_COMPLETO);
     setMotivo('');
-  }, [fechaPreferida, fechasValidas, hoyIso, open]);
+  }, [edicion, fechaPreferida, fechasValidas, hoyIso, open]);
 
   useEffect(() => {
     if (primerTiempoAusente !== DIA_COMPLETO && !tiemposInicio.some((item) => item.id === primerTiempoAusente)) {
@@ -112,6 +130,7 @@ export function ModalAusenciaLote({ open, onOpenChange, data, fechaPreferida, on
       ultimoTiempoAusente: ultimoTiempoAusente === DIA_COMPLETO ? undefined : ultimoTiempoAusente,
       motivo: motivo.trim() || undefined,
       retornoPendienteConfirmacion: false,
+      edicionOriginal: edicion?.edicionOriginal,
     });
     onOpenChange(false);
   };
@@ -120,8 +139,10 @@ export function ModalAusenciaLote({ open, onOpenChange, data, fechaPreferida, on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent description="Formulario de registro de ausencia por rango de fechas">
         <DialogHeader>
-          <DialogTitle>Nueva ausencia</DialogTitle>
-          <DialogDescription>Registra una ausencia por rango de fechas.</DialogDescription>
+          <DialogTitle>{modoEdicion ? 'Editar ausencia' : 'Nueva ausencia'}</DialogTitle>
+          <DialogDescription>
+            {modoEdicion ? 'Ajusta el rango o motivo de la ausencia activa.' : 'Registra una ausencia por rango de fechas.'}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -201,7 +222,9 @@ export function ModalAusenciaLote({ open, onOpenChange, data, fechaPreferida, on
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={enviar} disabled={!fechaInicio || !fechaFin || rangoInvalido || tiempoCruceInvalido}>Guardar</Button>
+          <Button onClick={enviar} disabled={!fechaInicio || !fechaFin || rangoInvalido || tiempoCruceInvalido}>
+            {modoEdicion ? 'Guardar cambios' : 'Guardar'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

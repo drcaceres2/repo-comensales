@@ -1,32 +1,15 @@
 import { ConfiguracionResidencia } from "shared/schemas/residencia";
 import { HorarioEfectivoDiario, Ausencia, Excepcion, DiccionarioSemanarios } from "shared/schemas/elecciones/domain.schema";
+import { AlteracionDiaria } from 'shared/schemas/alteraciones';
 import { CargaHorariosUI, CargaHorariosUISchema } from "shared/schemas/elecciones/ui.schema";
-import { densificarCapa0 } from "./densificadorCapa0";
+import { AlteracionDiariaInput, densificarCapa0 } from "./densificadorCapa0";
 import { detectarInterseccionAusencia } from "./interseccionAusencias";
 import { resolverCascadaTiempoComida } from "./motorCascada";
 import { getISOWeek, getISOWeekYear, parseISO } from "date-fns";
-import { convertirHoraAMinutos } from "shared/utils/commonUtils";
+import { compararHorasReferencia, slugify } from 'shared/utils/commonUtils';
 
 const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] as const;
-
-function compararHorasReferencia(horaA: string | null | undefined, horaB: string | null | undefined): number {
-  const minutosA = convertirHoraAMinutos(horaA);
-  const minutosB = convertirHoraAMinutos(horaB);
-
-  if (minutosA !== null && minutosB !== null) {
-    return minutosA - minutosB;
-  }
-
-  if (minutosA !== null) {
-    return -1;
-  }
-
-  if (minutosB !== null) {
-    return 1;
-  }
-
-  return String(horaA ?? '').localeCompare(String(horaB ?? ''));
-}
+const EHC_DEBUG = process.env.NODE_ENV !== 'production' || process.env.EHC_DEBUG === '1';
 
 type InscripcionActividadInput = {
   actividadId: string;
@@ -43,7 +26,7 @@ export type InputsOrquestador = {
   
   // Colecciones crudas obtenidas por la Server Action
   singletonResidencia: ConfiguracionResidencia; 
-  vistaMaterializadaDiaria: Record<string, HorarioEfectivoDiario>; // Key: Fecha
+  alteracionesCapa0?: AlteracionDiariaInput[];
   diccionarioSemanarios: DiccionarioSemanarios;
   excepcionesUsuario: Excepcion[];
   ausenciasUsuario: Ausencia[];
@@ -63,6 +46,79 @@ function obtenerSemanaIso(fechaIso: string): string {
   const week = getISOWeek(fecha).toString().padStart(2, '0');
   const year = getISOWeekYear(fecha).toString();
   return `${year}-W${week}`;
+}
+
+function parseSemanaIso(semanaIso: string): { year: number; week: number } | null {
+  const match = /^(\d{4})-W(\d{2})$/.exec(semanaIso);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    year: Number(match[1]),
+    week: Number(match[2]),
+  };
+}
+
+function compararSemanaIso(a: string, b: string): number {
+  const pa = parseSemanaIso(a);
+  const pb = parseSemanaIso(b);
+  if (!pa || !pb) {
+    return a.localeCompare(b);
+  }
+
+  if (pa.year !== pb.year) {
+    return pa.year - pb.year;
+  }
+
+  return pa.week - pb.week;
+}
+
+function obtenerSemanarioSemanaConFallback(
+  diccionarioSemanarios: DiccionarioSemanarios,
+  semanaIsoObjetivo: string
+): Record<string, any> {
+  const exacta = diccionarioSemanarios[semanaIsoObjetivo];
+  if (exacta && Object.keys(exacta).length > 0) {
+    return exacta;
+  }
+
+  const semanasDisponibles = Object.keys(diccionarioSemanarios)
+    .filter((key) => Object.keys(diccionarioSemanarios[key] ?? {}).length > 0)
+    .sort(compararSemanaIso);
+
+  if (semanasDisponibles.length === 0) {
+    return {};
+  }
+
+  const objetivo = parseSemanaIso(semanaIsoObjetivo);
+  if (!objetivo) {
+    return diccionarioSemanarios[semanasDisponibles[semanasDisponibles.length - 1]] ?? {};
+  }
+
+  let candidata = semanasDisponibles[semanasDisponibles.length - 1];
+  for (const semana of semanasDisponibles) {
+    const parsed = parseSemanaIso(semana);
+    if (!parsed) {
+      continue;
+    }
+
+    const esAnteriorOIgual = parsed.year < objetivo.year
+      || (parsed.year === objetivo.year && parsed.week <= objetivo.week);
+
+    if (esAnteriorOIgual) {
+      candidata = semana;
+    }
+  }
+
+  if (EHC_DEBUG && candidata !== semanaIsoObjetivo) {
+    console.log('[EHC][orquestadorUI] fallback semana semanario', {
+      semanaObjetivo: semanaIsoObjetivo,
+      semanaUsada: candidata,
+    });
+  }
+
+  return diccionarioSemanarios[candidata] ?? {};
 }
 
 function ordenarTiemposDelDia(singleton: ConfiguracionResidencia, fecha: string): string[] {
@@ -94,6 +150,8 @@ function buscarInscripcionActividad(
   tiempoComidaId: string,
   inscripciones: InscripcionActividadInput[]
 ): InscripcionActividadInput | undefined {
+  const tiempoComidaNormalizado = slugify(tiempoComidaId, 120);
+
   return inscripciones.find((ins) => {
     const cruzaFecha = fecha >= ins.fechaInicio && fecha <= ins.fechaFin;
     if (!cruzaFecha) {
@@ -104,8 +162,28 @@ function buscarInscripcionActividad(
       return true;
     }
 
-    return ins.tiemposComidaIds.includes(tiempoComidaId);
+    return ins.tiemposComidaIds.some((id) => slugify(id, 120) === tiempoComidaNormalizado);
   });
+}
+
+function obtenerEleccionSemanario(
+  semanarioSemana: Record<string, any>,
+  tiempoComidaId: string
+): any {
+  const candidatos = [
+    tiempoComidaId,
+    tiempoComidaId.replace(/-/g, '_'),
+    tiempoComidaId.replace(/_/g, '-'),
+    slugify(tiempoComidaId, 120),
+  ];
+
+  for (const candidato of candidatos) {
+    if (candidato in semanarioSemana) {
+      return semanarioSemana[candidato];
+    }
+  }
+
+  return undefined;
 }
 
 function resolverAlternativaDesdeSingleton(singleton: ConfiguracionResidencia, configuracionAlternativaId: string) {
@@ -146,7 +224,7 @@ export function generarPayloadHorariosUI(
   const diasDensos = densificarCapa0(
     inputs.fechasRango,
     inputs.singletonResidencia,
-    inputs.vistaMaterializadaDiaria
+    inputs.alteracionesCapa0 ?? []
   );
 
   const excepcionesIndex = indexarExcepciones(inputs.excepcionesUsuario);
@@ -154,68 +232,131 @@ export function generarPayloadHorariosUI(
 
   const dias = inputs.fechasRango.map((fecha) => {
     const semanaIso = obtenerSemanaIso(fecha);
-    const semanarioSemana = inputs.diccionarioSemanarios[semanaIso] ?? {};
+    const semanarioSemana = obtenerSemanarioSemanaConFallback(inputs.diccionarioSemanarios, semanaIso);
     const ordenTiemposComida = ordenarTiemposDelDia(inputs.singletonResidencia, fecha);
     const diaDenso = diasDensos[fecha];
 
+    if (EHC_DEBUG) {
+      console.log('[EHC][orquestadorUI] procesando dia', {
+        fecha,
+        semanaIso,
+        tiemposDia: ordenTiemposComida,
+        semanarioKeys: Object.keys(semanarioSemana),
+        inscripcionesDia: inscripciones
+          .filter((ins) => fecha >= ins.fechaInicio && fecha <= ins.fechaFin)
+          .map((ins) => ({
+            actividadId: ins.actividadId,
+            fechaInicio: ins.fechaInicio,
+            fechaFin: ins.fechaFin,
+            tiemposComidaIds: ins.tiemposComidaIds,
+          })),
+      });
+    }
+
     const tarjetas = ordenTiemposComida.map((tiempoComidaId) => {
       try {
-      const tiempo = inputs.singletonResidencia.esquemaSemanal[tiempoComidaId];
-      if (!tiempo) {
-        throw new Error(
-          `[generarPayloadHorariosUI] No existe tiempoComida '${tiempoComidaId}' en singleton.`
-        );
-      }
+        const tiempo = inputs.singletonResidencia.esquemaSemanal[tiempoComidaId];
+        if (!tiempo) {
+          throw new Error(
+            `[generarPayloadHorariosUI] No existe tiempoComida '${tiempoComidaId}' en singleton.`
+          );
+        }
 
-      const grupo = inputs.singletonResidencia.gruposComidas[tiempo.grupoComida];
-      if (!grupo) {
-        throw new Error(
-          `[generarPayloadHorariosUI] No existe grupoComida '${tiempo.grupoComida}' para tiempo '${tiempoComidaId}'.`
-        );
-      }
+        const grupo = inputs.singletonResidencia.gruposComidas[tiempo.grupoComida];
+        if (!grupo) {
+          throw new Error(
+            `[generarPayloadHorariosUI] No existe grupoComida '${tiempo.grupoComida}' para tiempo '${tiempoComidaId}'.`
+          );
+        }
 
-      const ausencia = detectarInterseccionAusencia(
-        fecha,
-        tiempoComidaId,
-        inputs.ausenciasUsuario,
-        ordenTiemposComida
-      );
-
-      const excepcion = excepcionesIndex.get(`${fecha}__${tiempoComidaId}`);
-      const eleccionSemanario = semanarioSemana[tiempoComidaId];
-      const actividad = buscarInscripcionActividad(fecha, tiempoComidaId, inscripciones);
-
-      const slot = diaDenso?.tiemposComida?.[tiempoComidaId];
-      if (!slot) {
-        throw new Error(
-          `[generarPayloadHorariosUI] Slot no encontrado para fecha '${fecha}' y tiempo '${tiempoComidaId}'.`
-        );
-      }
-
-      return resolverCascadaTiempoComida(
-        {
+        const ausencia = detectarInterseccionAusencia(
           fecha,
           tiempoComidaId,
-          grupoComida: grupo,
-          fechaHoraReferenciaUltimaSolicitud: inputs.fechaHoraReferenciaUltimaSolicitud,
-          resolverAlternativa: (configuracionAlternativaId) =>
-            resolverAlternativaDesdeSingleton(inputs.singletonResidencia, configuracionAlternativaId),
-        },
-        slot,
-        {
-          inscripcionActividad: actividad
-            ? {
-                actividadId: actividad.actividadId,
-                nombreActividad: actividad.nombreActividad,
-                configuracionAlternativaId: actividad.configuracionAlternativaId,
-              }
-            : undefined,
-          ausencia,
-          excepcion,
-          eleccionSemanario,
+          inputs.ausenciasUsuario,
+          ordenTiemposComida
+        );
+
+        const excepcion = excepcionesIndex.get(`${fecha}__${tiempoComidaId}`);
+        const eleccionSemanario = obtenerEleccionSemanario(semanarioSemana, tiempoComidaId);
+        const actividad = buscarInscripcionActividad(fecha, tiempoComidaId, inscripciones);
+
+        const slot = diaDenso?.tiemposComida?.[tiempoComidaId];
+        if (!slot) {
+          throw new Error(
+            `[generarPayloadHorariosUI] Slot no encontrado para fecha '${fecha}' y tiempo '${tiempoComidaId}'.`
+          );
         }
-      );
+
+        const tarjeta = resolverCascadaTiempoComida(
+          {
+            fecha,
+            tiempoComidaId,
+            grupoComida: grupo,
+            fechaHoraReferenciaUltimaSolicitud: inputs.fechaHoraReferenciaUltimaSolicitud,
+            resolverAlternativa: (configuracionAlternativaId) =>
+              resolverAlternativaDesdeSingleton(inputs.singletonResidencia, configuracionAlternativaId),
+          },
+          slot,
+          {
+            inscripcionActividad: actividad
+              ? {
+                  actividadId: actividad.actividadId,
+                  nombreActividad: actividad.nombreActividad,
+                  configuracionAlternativaId: actividad.configuracionAlternativaId,
+                }
+              : undefined,
+            ausencia,
+            excepcion,
+            eleccionSemanario,
+          }
+        );
+
+        if (EHC_DEBUG) {
+          console.log('[EHC][orquestadorUI] evaluacion tiempo', {
+            fecha,
+            tiempoComidaId,
+            capasEntrada: {
+              actividad: actividad
+                ? {
+                    actividadId: actividad.actividadId,
+                    nombreActividad: actividad.nombreActividad,
+                    configuracionAlternativaId: actividad.configuracionAlternativaId,
+                    tiemposComidaIds: actividad.tiemposComidaIds,
+                  }
+                : null,
+              ausencia: ausencia
+                ? {
+                    fechaInicio: ausencia.fechaInicio,
+                    fechaFin: ausencia.fechaFin,
+                  }
+                : null,
+              excepcion: excepcion
+                ? {
+                    fecha: excepcion.fecha,
+                    tiempoComidaId: excepcion.tiempoComidaId,
+                    estadoAprobacion: excepcion.estadoAprobacion,
+                    configuracionAlternativaId: excepcion.configuracionAlternativaId,
+                  }
+                : null,
+              semanario: eleccionSemanario ?? null,
+            },
+            salida: {
+              origen: tarjeta.origen,
+              origenResolucion: tarjeta.origenResolucion,
+              estadoInteraccion: tarjeta.estadoInteraccion,
+              configuracionAlternativaId: tarjeta.resultadoEfectivo.configuracionAlternativaId,
+            },
+          });
+        }
+
+        return tarjeta;
       } catch {
+        if (EHC_DEBUG) {
+          console.log('[EHC][orquestadorUI] tarjeta descartada por error', {
+            fecha,
+            tiempoComidaId,
+          });
+        }
         return null;
       }
     }).filter((tarjeta): tarjeta is NonNullable<typeof tarjeta> => tarjeta !== null);

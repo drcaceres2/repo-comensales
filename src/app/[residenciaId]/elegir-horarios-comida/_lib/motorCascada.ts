@@ -3,6 +3,8 @@ import { Ausencia, Excepcion, EleccionSemanario,SlotEfectivo } from "shared/sche
 import { GrupoComida, TipoVentanaConfigAlternativa } from "shared/schemas/horarios";
 import { estaMuroMovilCerrado } from "./muroMovil";
 
+const EHC_DEBUG = process.env.NODE_ENV !== 'production' || process.env.EHC_DEBUG === '1';
+
 type OpcionResuelta = {
   configuracionAlternativaId: string;
   esAlternativaAlterada: boolean;
@@ -118,20 +120,45 @@ function construirOpcionesDrawer(contexto: ContextoCascada, capa0Densa: SlotEfec
   return [...ids].map((id) => construirOpcionDesdeCapa0(contexto, capa0Densa, id));
 }
 
+function resolverAlternativaConFallback(
+  capa0Densa: SlotEfectivo,
+  configuracionAlternativaId?: string
+): string {
+  const fallbackId = capa0Densa.contingenciaAlternativaId;
+  if (!configuracionAlternativaId) {
+    return fallbackId;
+  }
+
+  if (configuracionAlternativaId === fallbackId) {
+    return fallbackId;
+  }
+
+  const existeEnCapa0 = capa0Densa.opcionesActivas.some(
+    (op) => op.configuracionAlternativaId === configuracionAlternativaId
+  );
+
+  return existeEnCapa0 ? configuracionAlternativaId : fallbackId;
+}
+
 export function resolverCascadaTiempoComida(
   contexto: ContextoCascada,
-  capa0Densa: SlotEfectivo, // Ya no le importa de dónde vino (Singleton o Alteración)
-  capasIntencion: CapasResolucionIntencion // Actividades, Ausencias, Excepciones, Semanario
+  capa0Densa: SlotEfectivo,
+  capasIntencion: CapasResolucionIntencion
 ): TarjetaComidaUI {
   const opcionesDrawer = construirOpcionesDrawer(contexto, capa0Densa);
-  const primeraOpcion = opcionesDrawer[0]
-    ?? construirOpcionDesdeCapa0(contexto, capa0Densa, capa0Densa.contingenciaAlternativaId);
+  const primeraOpcion = construirOpcionDesdeCapa0(
+    contexto,
+    capa0Densa,
+    resolverAlternativaConFallback(capa0Densa)
+  );
 
   let resultado = primeraOpcion;
   let origen: TarjetaComidaUI['origenResolucion'] = 'FALLBACK_SISTEMA';
+  let origenTarjeta: TarjetaComidaUI['origen'] = 'sistema';
   let estadoInteraccion: TarjetaComidaUI['estadoInteraccion'] = 'MUTABLE';
   let mensajeFormativo: string | undefined;
   let estadoAprobacion: TarjetaComidaUI['estadoAprobacion'] | undefined;
+  let detalleAusencia: TarjetaComidaUI['detallesDrawer']['detalleAusencia'] | undefined;
 
   if (capa0Densa.esAlterado && capa0Densa.opcionesActivas.length === 0) {
     resultado = construirOpcionDesdeCapa0(contexto, capa0Densa, capa0Densa.contingenciaAlternativaId);
@@ -139,22 +166,48 @@ export function resolverCascadaTiempoComida(
     estadoInteraccion = 'BLOQUEADO_SISTEMA';
     mensajeFormativo = capa0Densa.motivo ?? 'Horario alterado por dirección. Esta tarjeta no admite cambios.';
   } else if (capasIntencion.inscripcionActividad) {
-    resultado = construirOpcionDesdeCapa0(
-      contexto,
+    const alternativaActividad = resolverAlternativaConFallback(
       capa0Densa,
       capasIntencion.inscripcionActividad.configuracionAlternativaId
     );
+    resultado = construirOpcionDesdeCapa0(
+      contexto,
+      capa0Densa,
+      alternativaActividad
+    );
     origen = 'CAPA1_ACTIVIDAD';
+    origenTarjeta = 'actividad';
     estadoInteraccion = 'BLOQUEADO_AUTORIDAD';
     mensajeFormativo = `Estás inscrito en la actividad '${capasIntencion.inscripcionActividad.nombreActividad}'.`;
   } else if (capasIntencion.ausencia) {
     resultado = construirOpcionDesdeCapa0(contexto, capa0Densa, capa0Densa.contingenciaAlternativaId);
     origen = 'CAPA2_AUSENCIA';
+    origenTarjeta = 'ausencia';
     estadoInteraccion = 'BLOQUEADO_RESTRICCION';
-    mensajeFormativo = 'Este tiempo está cubierto por una ausencia registrada.';
+    mensajeFormativo = 'Ausencia activa para este tiempo de comida.';
+
+    // En superficie no debe verse la resolución de capas inferiores durante una ausencia.
+    resultado = {
+      ...resultado,
+      nombre: 'Ausente',
+      tipo: 'noComoEnCasa',
+    };
+
+    detalleAusencia = {
+      fechaInicio: capasIntencion.ausencia.fechaInicio,
+      fechaFin: capasIntencion.ausencia.fechaFin,
+      primerTiempoAusente: capasIntencion.ausencia.primerTiempoAusente ?? null,
+      ultimoTiempoAusente: capasIntencion.ausencia.ultimoTiempoAusente ?? null,
+      motivo: capasIntencion.ausencia.motivo ?? undefined,
+    };
   } else if (capasIntencion.excepcion?.estadoAprobacion === 'aprobada') {
-    resultado = construirOpcionDesdeCapa0(contexto, capa0Densa, capasIntencion.excepcion.configuracionAlternativaId);
+    const alternativaExcepcion = resolverAlternativaConFallback(
+      capa0Densa,
+      capasIntencion.excepcion.configuracionAlternativaId
+    );
+    resultado = construirOpcionDesdeCapa0(contexto, capa0Densa, alternativaExcepcion);
     origen = 'CAPA3_EXCEPCION';
+    origenTarjeta = 'excepcion';
     estadoInteraccion = capasIntencion.excepcion.origenAutoridad === 'director-restringido'
       ? 'BLOQUEADO_AUTORIDAD'
       : 'MUTABLE';
@@ -163,12 +216,17 @@ export function resolverCascadaTiempoComida(
       mensajeFormativo = 'Esta decisión fue fijada por dirección y no puede ser modificada por el residente.';
     }
   } else if (capasIntencion.eleccionSemanario) {
-    resultado = construirOpcionDesdeCapa0(
-      contexto,
+    const alternativaSemanario = resolverAlternativaConFallback(
       capa0Densa,
       capasIntencion.eleccionSemanario.configuracionAlternativaId
     );
+    resultado = construirOpcionDesdeCapa0(
+      contexto,
+      capa0Densa,
+      alternativaSemanario
+    );
     origen = 'CAPA4_SEMANARIO';
+    origenTarjeta = 'semanario';
     estadoInteraccion = 'MUTABLE';
   }
 
@@ -189,6 +247,27 @@ export function resolverCascadaTiempoComida(
     }
   }
 
+  if (EHC_DEBUG) {
+    console.log('[EHC][motorCascada] resultado', {
+      fecha: contexto.fecha,
+      tiempoComidaId: contexto.tiempoComidaId,
+      capas: {
+        alteracionDura: capa0Densa.esAlterado && capa0Densa.opcionesActivas.length === 0,
+        actividad: Boolean(capasIntencion.inscripcionActividad),
+        ausencia: Boolean(capasIntencion.ausencia),
+        excepcionAprobada: capasIntencion.excepcion?.estadoAprobacion === 'aprobada',
+        excepcionPendiente: capasIntencion.excepcion?.estadoAprobacion === 'pendiente',
+        semanario: Boolean(capasIntencion.eleccionSemanario),
+      },
+      salida: {
+        origen: origenTarjeta,
+        origenResolucion: origen,
+        estadoInteraccion,
+        configuracionAlternativaId: resultado.configuracionAlternativaId,
+      },
+    });
+  }
+
   return {
     tiempoComidaId: contexto.tiempoComidaId,
     grupoComida: {
@@ -204,9 +283,11 @@ export function resolverCascadaTiempoComida(
     },
     estadoInteraccion,
     origenResolucion: origen,
+    origen: origenTarjeta,
     estadoAprobacion,
     detallesDrawer: {
       mensajeFormativo,
+      detalleAusencia,
       opciones: estadoInteraccion === 'BLOQUEADO_SISTEMA' ? undefined : opcionesDrawer,
     },
   };

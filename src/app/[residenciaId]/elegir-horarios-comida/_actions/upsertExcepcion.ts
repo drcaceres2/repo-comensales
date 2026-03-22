@@ -1,7 +1,6 @@
 "use server";
 
 import { db, FieldValue } from '@/lib/firebaseAdmin';
-import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import { estaMuroMovilCerrado } from '../_lib/muroMovil';
 import { calcularHorarioReferenciaSolicitud } from '../_lib/calcularHorarioReferenciaSolicitud';
 import { FormExcepcionLibre } from 'shared/schemas/elecciones/ui.schema';
@@ -58,7 +57,6 @@ export async function upsertExcepcion(
     }
 
     const singletonRef = db.doc(`residencias/${residenciaId}/configuracion/general`);
-    const horarioEfectivoRef = db.doc(`residencias/${residenciaId}/horariosEfectivos/${data.fecha}`);
     const singletonSnap = await singletonRef.get();
 
     if (!singletonSnap.exists) {
@@ -114,33 +112,21 @@ export async function upsertExcepcion(
       );
     }
 
-    const horarioEfectivoSnap = await horarioEfectivoRef.get();
-    const slot = horarioEfectivoSnap.exists
-      ? (horarioEfectivoSnap.data() as any)?.tiemposComida?.[data.tiempoComidaId]
-      : undefined;
-
-    const opcion = slot?.opcionesActivas?.find(
-      (o: any) => o.configuracionAlternativaId === data.configuracionAlternativaId
-    );
-
-    // Determinar el instante de corte del muro móvil para esta alternativa y fecha:
-    // 1. Si el slot ya está materializado en horariosEfectivos, usar el valor persistido.
-    // 2. Si no (slot no alterado → no existe en Firestore), calcularlo desde el singleton
-    //    usando el horarioSolicitudComidaId de la configuracionAlternativa.
-    // 3. Último recurso: fechaHoraReferenciaUltimaSolicitud global (evitado siempre que sea posible).
-    let horaCorte: string | undefined = opcion?.horarioReferenciaSolicitud;
-    if (!horaCorte) {
-      const configAlt = singleton?.configuracionesAlternativas?.[data.configuracionAlternativaId];
-      const horarioSolicitudId = configAlt?.horarioSolicitudComidaId;
-      if (horarioSolicitudId && singleton?.horariosSolicitud) {
-        horaCorte = calcularHorarioReferenciaSolicitud(
-          data.fecha,
-          horarioSolicitudId,
-          singleton.horariosSolicitud
-        );
-      } else {
-        horaCorte = singleton?.fechaHoraReferenciaUltimaSolicitud;
-      }
+    // Determinar el instante de corte del muro móvil para esta alternativa y fecha.
+    // En esta ruta, la vista efectiva de Capa 0 se materializa en memoria al leer horarios.
+    // Para validar la mutación basta recalcular desde el singleton usando la configuración
+    // alternativa seleccionada, con fallback final a la referencia global del proceso.
+    let horaCorte: string | undefined;
+    const configAlt = singleton?.configuracionesAlternativas?.[data.configuracionAlternativaId];
+    const horarioSolicitudId = configAlt?.horarioSolicitudComidaId;
+    if (horarioSolicitudId && singleton?.horariosSolicitud) {
+      horaCorte = calcularHorarioReferenciaSolicitud(
+        data.fecha,
+        horarioSolicitudId,
+        singleton.horariosSolicitud
+      );
+    } else {
+      horaCorte = singleton?.fechaHoraReferenciaUltimaSolicitud;
     }
 
     const referenciaProceso = singleton?.fechaHoraReferenciaUltimaSolicitud;
@@ -172,7 +158,9 @@ export async function upsertExcepcion(
         esAlternativaAlterada: data.esAlternativaAlterada,
         origenAutoridad,
         estadoAprobacion: requiereAprobacion ? 'pendiente' : 'no_requerida',
-        contingenciaConfigAlternativaId: data.contingenciaConfigAlternativaId,
+        ...(data.contingenciaConfigAlternativaId
+          ? { contingenciaConfigAlternativaId: data.contingenciaConfigAlternativaId }
+          : {}),
         timestampActualizacion: FieldValue.serverTimestamp(),
         timestampCreacion: existenteSnap.exists
           ? (existenteSnap.data() as any)?.timestampCreacion ?? FieldValue.serverTimestamp()

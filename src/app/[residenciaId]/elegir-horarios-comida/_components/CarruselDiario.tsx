@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import type { TouchEvent as ReactTouchEvent } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { FormExcepcionLibre, HorarioDiaUI } from 'shared/schemas/elecciones/ui.schema';
+import { FormExcepcionLibre, HorarioDiaUI, TarjetaComidaUI } from 'shared/schemas/elecciones/ui.schema';
 import { DiaHorario } from './DiaHorario';
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
   fechaEnFoco: string;
   onCambiarFecha: (fecha: string) => void;
   onGuardarExcepcion: (payload: FormExcepcionLibre) => Promise<unknown>;
+  onEditarAusencia: (fecha: string, tarjeta: TarjetaComidaUI) => void;
 };
 
 const STICKY_CENTER_RATIO = 0.18;
@@ -72,7 +74,13 @@ function visualClasses(distance: number, isFocused: boolean) {
   return 'translate-y-4 scale-[0.9] opacity-60';
 }
 
-export function CarruselDiario({ dias, fechaEnFoco, onCambiarFecha, onGuardarExcepcion }: Props) {
+export function CarruselDiario({
+  dias,
+  fechaEnFoco,
+  onCambiarFecha,
+  onGuardarExcepcion,
+  onEditarAusencia,
+}: Props) {
   const diaActual = dias.find((dia) => dia.fecha === fechaEnFoco);
   const currentIndex = dias.findIndex((dia) => dia.fecha === fechaEnFoco);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -90,6 +98,34 @@ export function CarruselDiario({ dias, fechaEnFoco, onCambiarFecha, onGuardarExc
     const containerRect = container.getBoundingClientRect();
     const centerX = containerRect.left + containerRect.width / 2;
     setDistanceMap(buildDistanceMap(dias, itemRefs.current, centerX, containerRect.width));
+  };
+
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: ReactTouchEvent, fecha: string) => {
+    const t = e.touches[0];
+    touchStartXRef.current = t.clientX;
+    touchStartYRef.current = t.clientY;
+  };
+
+  const handleTouchEnd = (e: ReactTouchEvent, fecha: string) => {
+    const t = e.changedTouches[0];
+    const startX = touchStartXRef.current ?? 0;
+    const startY = touchStartYRef.current ?? 0;
+    const deltaX = t.clientX - startX;
+    const deltaY = t.clientY - startY;
+
+    // consider a right swipe: significant horizontal movement and more horizontal than vertical
+    if (deltaX > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      const element = itemRefs.current[fecha];
+      if (element) {
+        const rect = element.getBoundingClientRect();
+        const offset = Math.max(window.innerHeight * 0.12, 64);
+        const desiredTop = window.scrollY + rect.top - offset;
+        window.scrollTo({ top: Math.max(0, desiredTop), behavior: 'smooth' });
+      }
+    }
   };
 
   useEffect(() => {
@@ -192,6 +228,8 @@ export function CarruselDiario({ dias, fechaEnFoco, onCambiarFecha, onGuardarExc
               ref={(node) => {
                 itemRefs.current[dia.fecha] = node;
               }}
+              onTouchStart={(e) => handleTouchStart(e, dia.fecha)}
+              onTouchEnd={(e) => handleTouchEnd(e, dia.fecha)}
               className="basis-[84%] shrink-0 snap-center"
             >
               <Card
@@ -202,7 +240,11 @@ export function CarruselDiario({ dias, fechaEnFoco, onCambiarFecha, onGuardarExc
                 )}
               >
                 <CardContent className="p-3 md:p-4">
-                  <DiaHorario dia={dia} onGuardarExcepcion={onGuardarExcepcion} />
+                  <DiaHorario
+                    dia={dia}
+                    onGuardarExcepcion={onGuardarExcepcion}
+                    onEditarAusencia={onEditarAusencia}
+                  />
                 </CardContent>
               </Card>
             </div>

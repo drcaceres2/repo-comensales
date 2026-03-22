@@ -1,6 +1,11 @@
 import { ConfiguracionResidencia } from 'shared/schemas/residencia';
 import { HorarioEfectivoDiario, SlotEfectivo } from 'shared/schemas/elecciones/domain.schema';
+import { AlteracionDiaria } from 'shared/schemas/alteraciones';
 import { calcularHorarioReferenciaSolicitud } from './calcularHorarioReferenciaSolicitud';
+
+export type AlteracionDiariaInput = AlteracionDiaria & {
+  id?: string;
+};
 
 const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] as const;
 
@@ -64,22 +69,95 @@ function construirSlotBase(
   };
 }
 
+function construirSlotAlterado(
+  alteracion: AlteracionDiariaInput,
+  tiempoComidaId: string,
+  singleton: ConfiguracionResidencia
+): SlotEfectivo | undefined {
+  const afectacion = alteracion.tiemposComidaAfectados[tiempoComidaId];
+  if (!afectacion || afectacion.estado === 'revocado' || afectacion.estado === 'cancelado') {
+    return undefined;
+  }
+
+  const opcionesActivas = Object.entries(afectacion.alternativasDisponibles).map(
+    ([configuracionAlternativaId, configuracion]) => ({
+      nombre:
+        singleton.catalogoAlternativas[configuracion.definicionAlternativaId]?.nombre
+        ?? configuracionAlternativaId,
+      configuracionAlternativaId,
+      ventanaServicio: configuracion.ventanaServicio ?? {
+        horaInicio: 'T00:00',
+        horaFin: 'T00:00',
+        tipoVentana: 'normal' as const,
+      },
+      comedorId: configuracion.comedorId ?? 'sin-comedor',
+      horarioReferenciaSolicitud: calcularHorarioReferenciaSolicitud(
+        alteracion.fecha,
+        configuracion.horarioSolicitudComidaId,
+        singleton.horariosSolicitud
+      ),
+    })
+  );
+
+  return {
+    esAlterado: true,
+    alteracionId: alteracion.id ?? alteracion.fecha,
+    motivo: afectacion.motivo,
+    opcionesActivas,
+    contingenciaAlternativaId: afectacion.alternativaPorDefectoId,
+  };
+}
+
+function materializarVistaDispersaDesdeAlteraciones(
+  alteraciones: AlteracionDiariaInput[],
+  singleton: ConfiguracionResidencia
+): Record<string, HorarioEfectivoDiario> {
+  const vistaDispersa: Record<string, HorarioEfectivoDiario> = {};
+
+  for (const alteracion of alteraciones) {
+    const tiemposComida: HorarioEfectivoDiario['tiemposComida'] = {};
+
+    for (const tiempoComidaId of Object.keys(alteracion.tiemposComidaAfectados)) {
+      const slotAlterado = construirSlotAlterado(alteracion, tiempoComidaId, singleton);
+      if (slotAlterado) {
+        tiemposComida[tiempoComidaId] = slotAlterado;
+      }
+    }
+
+    if (Object.keys(tiemposComida).length === 0) {
+      continue;
+    }
+
+    vistaDispersa[alteracion.fecha] = {
+      id: alteracion.fecha,
+      residenciaId: alteracion.residenciaId,
+      tiemposComida,
+    };
+  }
+
+  return vistaDispersa;
+}
+
 /**
- * Convierte una vista materializada dispersa en una matriz densa y continua de N días.
- * Si un día o tiempo de comida no está alterado en la vista dispersa, 
+ * Convierte una vista sparse de Capa 0 en una matriz densa y continua de N días.
+ * También puede materializar directamente un arreglo de AlteracionDiaria antes de densificar.
+ * Si un día o tiempo de comida no está alterado en la vista sparse resultante,
  * lo hidrata construyendo el SlotEfectivo a partir de la configuración estática (Singleton).
  * @param fechasRango - Arreglo exacto de las fechas a renderizar (Ej. las 8 fechas: Ayer a +7).
  * @param singleton - La configuración estática de horarios y alternativas.
- * @param vistaDispersa - Diccionario de HorariosEfectivos recuperados de Firestore (solo existirán los días con alteraciones de Capa 0).
- * @returns Record<string, HorarioEfectivoDiario> - Un diccionario garantizado de tener TODAS las fechas del rango, 
+ * @param vistaDispersaOAlteraciones - Vista sparse ya materializada o comandos AlteracionDiaria crudos.
+ * @returns Record<string, HorarioEfectivoDiario> - Un diccionario garantizado de tener TODAS las fechas del rango,
  * con TODOS sus tiempos de comida estructurados bajo el mismo contrato de Capa 0.
  */
 export function densificarCapa0(
   fechasRango: string[],
   singleton: ConfiguracionResidencia,
-  vistaDispersa: Record<string, HorarioEfectivoDiario>
+  vistaDispersaOAlteraciones: Record<string, HorarioEfectivoDiario> | AlteracionDiariaInput[]
 ): Record<string, HorarioEfectivoDiario> {
   const resultado: Record<string, HorarioEfectivoDiario> = {};
+  const vistaDispersa = Array.isArray(vistaDispersaOAlteraciones)
+    ? materializarVistaDispersaDesdeAlteraciones(vistaDispersaOAlteraciones, singleton)
+    : vistaDispersaOAlteraciones;
 
   for (const fecha of fechasRango) {
     const diaSemana = obtenerDiaSemana(fecha);
@@ -92,7 +170,6 @@ export function densificarCapa0(
 
     for (const tiempoComidaId of tiemposDelDia) {
       const slotDisperso = diaDisperso?.tiemposComida?.[tiempoComidaId];
-      // Pasar `fecha` para que construirSlotBase calcule el corte correcto por alternativa.
       tiemposComidaDensos[tiempoComidaId] = slotDisperso ?? construirSlotBase(tiempoComidaId, singleton, fecha);
     }
 
