@@ -157,6 +157,21 @@ export const DatosHorariosEnBrutoSchema = z.object({
             }
         }
     }
+    // Ensure that any "principal" alternative referenced in esquemaSemanal
+    // does not require approval (requiereAprobacion must be false).
+    for (const tiempoId in data.esquemaSemanal) {
+        const tiempo = data.esquemaSemanal[tiempoId];
+        const principalId = tiempo.alternativas?.principal;
+        if (!principalId) continue;
+        const principalConfig = data.configuracionesAlternativas[principalId];
+        if (principalConfig && principalConfig.requiereAprobacion) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['esquemaSemanal', tiempoId, 'alternativas', 'principal'],
+                message: `La alternativa principal '${principalId}' en '${tiempoId}' no puede requerir aprobación.`,
+            });
+        }
+    }
 });
 
 export const MultipleConfigSchema = ConfiguracionAlternativaSchema.pick({
