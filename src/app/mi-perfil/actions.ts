@@ -245,6 +245,8 @@ export async function obtenerMiPerfilRead(targetUid?: string): Promise<ActionRes
       apellido: target.apellido,
       nombreCorto: target.nombreCorto,
       identificacion: target.identificacion,
+      referidoPorNombre: target.referidoPorNombre,
+      referidoFecha: target.referidoFecha,
       telefonoMovil: target.telefonoMovil,
       fechaDeNacimiento: target.fechaDeNacimiento || undefined,
       fotoPerfil: target.fotoPerfil,

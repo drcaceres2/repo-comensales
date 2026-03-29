@@ -8,7 +8,7 @@ import { ActionResponse } from 'shared/models/types';
 import { AlteracionDiaria } from 'shared/schemas/alteraciones';
 import { generarPayloadHorariosUI } from '../_lib/orquestadorUI';
 import { resolveTargetUsuarioContext } from './_targetUsuario';
-import { chunkArray } from '@/lib/batchHelpers';
+import { chunkArray } from 'shared/utils/serverUtils';
 import { compararHorasReferencia, slugify } from 'shared/utils/commonUtils';
 
 type AlteracionDiariaDoc = AlteracionDiaria & {

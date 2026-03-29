@@ -32,7 +32,7 @@ async function leerResidenciaPorId(residenciaId: string): Promise<Residencia | n
 /**
  * Nivel 1 (React.cache): deduplica lecturas repetidas dentro del mismo request/render.
  */
-export const obtenerPerfilUsuario = cache(async (): Promise<Usuario | null> => {
+export const obtenerDocUsuario = cache(async (): Promise<Usuario | null> => {
   const { usuarioId } = await obtenerInfoUsuarioServer();
 
   if (!usuarioId) {
@@ -46,7 +46,7 @@ export const obtenerPerfilUsuario = cache(async (): Promise<Usuario | null> => {
  * Nivel 1 (React.cache): deduplica en el request actual.
  * Nivel 2 (unstable_cache): persiste el resultado entre requests por 24h y habilita invalidación por tags.
  */
-export const obtenerDatosResidencia = cache(async (): Promise<Residencia | null> => {
+export const obtenerDocResidencia = cache(async (): Promise<Residencia | null> => {
   const { residenciaId } = await obtenerInfoUsuarioServer();
 
   if (!residenciaId) {

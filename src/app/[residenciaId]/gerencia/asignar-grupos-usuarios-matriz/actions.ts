@@ -2,7 +2,7 @@
 
 import { db, FieldValue } from "@/lib/firebaseAdmin";
 import { obtenerInfoUsuarioServer } from "@/lib/obtenerInfoUsuarioServer";
-import { chunkArray } from "@/lib/batchHelpers";
+import { chunkArray } from "shared/utils/serverUtils";
 import {
   AsignacionMasivaUsuariosPayload,
   AsignacionMasivaUsuariosPayloadSchema,
@@ -17,7 +17,7 @@ function buildUpdateData(mutacion: AsignacionUsuarioMutacion) {
     fechaHoraModificacion: FieldValue.serverTimestamp(),
     gruposAnaliticosIds: [...new Set(mutacion.otrosGruposIds)].sort(),
   };
-
+// TODO: Verificar fechaHoraModificacion, ha de pertenecer a esquema viejo
   updateData.grupoContableId =
     mutacion.grupoContableId === null
       ? FieldValue.delete()

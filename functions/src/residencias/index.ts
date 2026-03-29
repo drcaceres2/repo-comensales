@@ -259,6 +259,7 @@ export const updateResidencia = onCall(
           ...validatedData,
           ultimaActualizacion: FieldValue.serverTimestamp(),
         };
+        // TODO: Verificar campo "ultimaActualizacion" que parece pertenecer a un esquema viejo
 
         transaction.update(residenciaRef, firestoreUpdateData);
 

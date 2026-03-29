@@ -12,10 +12,17 @@ import {
   cambiarEstadoAtencion,
   crearAtencion,
   eliminarAtencion,
+  OpcionFechaHoraSolicitudComida,
   obtenerAtenciones,
+  obtenerOpcionesFechaHoraSolicitudComida,
 } from './actions';
 
 const atencionesQueryKey = (residenciaId: string) => ['atenciones', residenciaId];
+const opcionesFechaHoraSolicitudKey = (residenciaId: string, fechaHoraAtencion: string) => [
+  'atenciones-opciones-fecha-hora-solicitud',
+  residenciaId,
+  fechaHoraAtencion,
+];
 
 export function useObtenerAtenciones(
   residenciaId: string,
@@ -31,6 +38,33 @@ export function useObtenerAtenciones(
     },
     enabled: !!residenciaId,
     initialData,
+    staleTime: 0,
+  });
+}
+
+export function useOpcionesFechaHoraSolicitudComida(
+  residenciaId: string,
+  fechaHoraAtencion?: string,
+) {
+  return useQuery<OpcionFechaHoraSolicitudComida[]>({
+    queryKey: opcionesFechaHoraSolicitudKey(residenciaId, fechaHoraAtencion || ''),
+    queryFn: async () => {
+      if (!residenciaId || !fechaHoraAtencion) {
+        return [];
+      }
+
+      const result = await obtenerOpcionesFechaHoraSolicitudComida(
+        residenciaId,
+        fechaHoraAtencion,
+      );
+
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+
+      return result.data;
+    },
+    enabled: !!residenciaId && !!fechaHoraAtencion,
     staleTime: 0,
   });
 }

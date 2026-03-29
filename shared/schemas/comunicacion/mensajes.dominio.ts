@@ -37,7 +37,7 @@ export const TipoEntidadReferenciaSchema = z.enum([
   'semanario'
 ]);
 
-export const DestinoMensajeTipoSchema = z.enum(['usuario', 'grupo']);
+export const DestinoMensajeTipoSchema = z.enum(['usuario', 'grupo', 'directores']);
 
 // ==========================================
 // 2. ESQUEMA PRINCIPAL

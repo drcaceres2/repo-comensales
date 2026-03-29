@@ -8,6 +8,7 @@ import { Navigation } from '@/components/Navigation';
 import { IndicadorZonaHoraria } from './IndicadorZonaHoraria';
 import { NotificationBadge } from './NotificationBadge';
 import { useInfoUsuario } from "@/components/layout/AppProviders";
+import type { Usuario } from 'shared/schemas/usuarios';
 
 function LayoutHeader() {
   const { usuarioId: user, email } = useInfoUsuario();
@@ -51,7 +52,8 @@ function LayoutFooter() {
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, usuarioDocSesion }: { children: React.ReactNode; usuarioDocSesion: Usuario | null }) {
+
   const { state: sidebarState, isMobile } = useSidebar();
 
   // Determina el ancho de la barra lateral: w-full en móviles, ancho fijo en md
@@ -64,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex-1 flex flex-col md:flex-row min-h-0 w-full">
       <div className={`${sidebarWidthClass}`}>
-        <Navigation />
+        <Navigation usuarioDocSesion={usuarioDocSesion} />
       </div>
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         <LayoutHeader />

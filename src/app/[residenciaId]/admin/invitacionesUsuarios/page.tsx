@@ -62,6 +62,8 @@ type InvitationFormState = {
   nombre: string;
   apellido: string;
   nombreCorto: string;
+  referidoPorNombre: string;
+  referidoFecha: string;
   email: string;
   roles: RolInvitable[];
   tieneAutenticacion: boolean;
@@ -135,6 +137,8 @@ const initialFormState: InvitationFormState = {
   nombre: '',
   apellido: '',
   nombreCorto: '',
+  referidoPorNombre: '',
+  referidoFecha: '',
   email: '',
   roles: [],
   tieneAutenticacion: true,
@@ -456,6 +460,8 @@ export default function InvitacionesUsuariosPage() {
         nombre: form.nombre.trim(),
         apellido: form.apellido.trim(),
         nombreCorto: form.nombreCorto.trim(),
+        referidoPorNombre: normalizeOptionalText(form.referidoPorNombre),
+        referidoFecha: form.referidoFecha || undefined,
         email: form.email.trim(),
         roles: form.roles,
         residenciaId,
@@ -651,6 +657,15 @@ export default function InvitacionesUsuariosPage() {
                 />
               </div>
               <div>
+                <Label htmlFor="referidoPorNombre">Referido por</Label>
+                <Input
+                  id="referidoPorNombre"
+                  value={form.referidoPorNombre}
+                  onChange={(event) => setForm((prev) => ({ ...prev, referidoPorNombre: event.target.value }))}
+                  disabled={isSaving || isLoadingConfig}
+                />
+              </div>
+              <div>
                 <Label htmlFor="email">Correo</Label>
                 <Input
                   id="email"
@@ -658,6 +673,16 @@ export default function InvitacionesUsuariosPage() {
                   value={form.email}
                   onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
                   required
+                  disabled={isSaving || isLoadingConfig}
+                />
+              </div>
+              <div>
+                <Label htmlFor="referidoFecha">Fecha de referido</Label>
+                <Input
+                  id="referidoFecha"
+                  type="date"
+                  value={form.referidoFecha}
+                  onChange={(event) => setForm((prev) => ({ ...prev, referidoFecha: event.target.value }))}
                   disabled={isSaving || isLoadingConfig}
                 />
               </div>

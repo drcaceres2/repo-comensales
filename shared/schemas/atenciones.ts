@@ -7,7 +7,7 @@ import {
   TimestampSchema,
   SlugIdSchema,
 } from './common';
-import { FechaHoraIsoSchema, FechaIsoSchema } from './fechas';
+import { FechaHoraIsoSchema } from './fechas';
 
 export const AtencionEstadoSchema = z.enum(['pendiente', 'aprobada', 'rechazada']);
 export const AtencionAvisoAdministracionSchema = z.enum([
@@ -33,7 +33,7 @@ export const AtencionSchema = z
     nombre: NombreAtencionSchema,
     comentarios: ComentariosAtencionSchema,
     timestampCreacion: TimestampSchema,
-    fechaSolicitudComida: FechaIsoSchema,
+    fechaHoraSolicitudComida: FechaHoraIsoSchema,
     fechaHoraAtencion: FechaHoraIsoSchema,
 
     estado: AtencionEstadoSchema,
@@ -52,25 +52,25 @@ export const CrearAtencionPayloadSchema = AtencionSchema.omit({
   estado: true,
   avisoAdministracion: true,
 }).superRefine((data, ctx) => {
-  // 1) fechaSolicitudComida debe ser hoy o futuro
+  // 1) fechaHoraAtencion debe ser hoy o futuro (comparando solo fecha parte)
   try {
     const now = new Date();
     const localToday = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
       .toISOString()
       .slice(0, 10);
 
-    if (data.fechaSolicitudComida < localToday) {
+    const fechaAtencionDatePart = String(data.fechaHoraAtencion).slice(0, 10);
+    if (fechaAtencionDatePart < localToday) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['fechaSolicitudComida'],
-        message: 'La fecha de solicitud debe ser hoy o una fecha futura.',
+        path: ['fechaHoraAtencion'],
+        message: 'La fecha/hora de la atencion debe ser hoy o una fecha futura.',
       });
     }
 
-    // 2) fechaHoraAtencion (solo fecha parte) >= fechaSolicitudComida
-    // FechaHoraIsoSchema normaliza fechas a formato 'YYYY-MM-DDTHH:mm:ss' cuando viene solo YYYY-MM-DD
-    const fechaHoraDatePart = String(data.fechaHoraAtencion).slice(0, 10);
-    if (fechaHoraDatePart < data.fechaSolicitudComida) {
+    // 2) fechaHoraAtencion (solo fecha parte) >= fechaHoraSolicitudComida (solo fecha parte)
+    const fechaSolicitudDatePart = String(data.fechaHoraSolicitudComida).slice(0, 10);
+    if (fechaAtencionDatePart < fechaSolicitudDatePart) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['fechaHoraAtencion'],
@@ -87,7 +87,7 @@ export const ActualizarAtencionPayloadSchema = z
     id: FirestoreIdSchema,
     nombre: NombreAtencionSchema,
     comentarios: ComentariosAtencionSchema,
-    fechaSolicitudComida: FechaIsoSchema,
+    fechaHoraSolicitudComida: FechaHoraIsoSchema,
     fechaHoraAtencion: FechaHoraIsoSchema,
     centroCostoId: OptionalSlugIdSchema,
     estado: AtencionEstadoSchema.optional(),
@@ -100,16 +100,17 @@ export const ActualizarAtencionPayloadSchema = z
         .toISOString()
         .slice(0, 10);
 
-      if (data.fechaSolicitudComida < localToday) {
+      const fechaAtencionDatePart = String(data.fechaHoraAtencion).slice(0, 10);
+      if (fechaAtencionDatePart < localToday) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['fechaSolicitudComida'],
-          message: 'La fecha de solicitud debe ser hoy o una fecha futura.',
+          path: ['fechaHoraAtencion'],
+          message: 'La fecha/hora de la atencion debe ser hoy o una fecha futura.',
         });
       }
 
-      const fechaHoraDatePart = String(data.fechaHoraAtencion).slice(0, 10);
-      if (fechaHoraDatePart < data.fechaSolicitudComida) {
+      const fechaSolicitudDatePart = String(data.fechaHoraSolicitudComida).slice(0, 10);
+      if (fechaAtencionDatePart < fechaSolicitudDatePart) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['fechaHoraAtencion'],

@@ -6,12 +6,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   ActualizarAtencionPayload,
-  ActualizarAtencionPayloadSchema,
   Atencion,
   CrearAtencionPayload,
   AtencionEstadoSchema,
 } from 'shared/schemas/atenciones';
-import { FechaHoraIsoSchema, FechaIsoSchema } from 'shared/schemas/fechas';
+import { FechaHoraIsoSchema } from 'shared/schemas/fechas';
 import {
   Form,
   FormControl,
@@ -44,6 +43,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import { useCentrosDeCosto } from '../../../contabilidad/centros-de-costo/hooks/useCentrosDeCosto';
+import { useOpcionesFechaHoraSolicitudComida } from '../lib/consultas';
 
 interface AtencionDetailFormProps {
   atencion: Atencion | null;
@@ -59,7 +59,7 @@ interface AtencionDetailFormProps {
 type AtencionFormValues = {
   nombre: string;
   comentarios?: string;
-  fechaSolicitudComida: string;
+  fechaHoraSolicitudComida: string;
   fechaHoraAtencion: string;
   centroCostoId?: string;
   estado: Atencion['estado'];
@@ -70,23 +70,6 @@ const avisoLabel: Record<Atencion['avisoAdministracion'], string> = {
   comunicado: 'Comunicado',
   cancelado: 'Cancelado',
 };
-
-function toDateInput(value?: string): string {
-  if (!value) {
-    return '';
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return value;
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value.slice(0, 10);
-  }
-
-  return parsed.toISOString().slice(0, 10);
-}
 
 function toDateTimeInput(value?: string): string {
   if (!value) {
@@ -122,6 +105,18 @@ function roundDateTimeTo15(value?: string): string {
   return local.toISOString().slice(0, 16);
 }
 
+function toDateTimeLabel(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('es-ES', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(parsed);
+}
+
 function defaultValues(atencion: Atencion | null): AtencionFormValues {
   const now = new Date();
   const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
@@ -132,7 +127,7 @@ function defaultValues(atencion: Atencion | null): AtencionFormValues {
     return {
       nombre: '',
       comentarios: '',
-      fechaSolicitudComida: now.toISOString().slice(0, 10),
+      fechaHoraSolicitudComida: '',
       fechaHoraAtencion: localNow,
       centroCostoId: '',
       estado: 'pendiente',
@@ -142,7 +137,7 @@ function defaultValues(atencion: Atencion | null): AtencionFormValues {
   return {
     nombre: atencion.nombre,
     comentarios: atencion.comentarios || '',
-    fechaSolicitudComida: toDateInput(atencion.fechaSolicitudComida),
+    fechaHoraSolicitudComida: atencion.fechaHoraSolicitudComida,
     fechaHoraAtencion: toDateTimeInput(atencion.fechaHoraAtencion),
     centroCostoId: atencion.centroCostoId || '',
     estado: atencion.estado,
@@ -188,7 +183,7 @@ export function AtencionDetailForm({
       nombre: z.string().trim().min(1).max(120),
       comentarios: z
         .preprocess((val) => (val === '' || val === null ? undefined : val), z.string().trim().min(1).max(500).optional()),
-      fechaSolicitudComida: FechaIsoSchema,
+      fechaHoraSolicitudComida: FechaHoraIsoSchema,
       fechaHoraAtencion: FechaHoraIsoSchema,
       centroCostoId: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(1).optional()),
       estado: AtencionEstadoSchema.optional().default('pendiente'),
@@ -201,16 +196,17 @@ export function AtencionDetailForm({
           .toISOString()
           .slice(0, 10);
 
-        if (data.fechaSolicitudComida < localToday) {
+        const fechaAtencionDatePart = String(data.fechaHoraAtencion).slice(0, 10);
+        if (fechaAtencionDatePart < localToday) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            path: ['fechaSolicitudComida'],
-            message: 'La fecha de solicitud debe ser hoy o una fecha futura.',
+            path: ['fechaHoraAtencion'],
+            message: 'La fecha/hora de la atencion debe ser hoy o una fecha futura.',
           });
         }
 
-        const fechaHoraDatePart = String(data.fechaHoraAtencion).slice(0, 10);
-        if (fechaHoraDatePart < data.fechaSolicitudComida) {
+        const fechaSolicitudDatePart = String(data.fechaHoraSolicitudComida).slice(0, 10);
+        if (fechaAtencionDatePart < fechaSolicitudDatePart) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['fechaHoraAtencion'],
@@ -239,16 +235,101 @@ export function AtencionDetailForm({
     defaultValues: initialValues,
   });
 
+  const fechaHoraAtencionSeleccionada = form.watch('fechaHoraAtencion');
+  const fechaHoraSolicitudSeleccionada = form.watch('fechaHoraSolicitudComida');
+
+  const {
+    data: opcionesSolicitud = [],
+    isLoading: isLoadingOpcionesSolicitud,
+    error: errorOpcionesSolicitud,
+  } = useOpcionesFechaHoraSolicitudComida(
+    residenciaId,
+    fechaHoraAtencionSeleccionada,
+  );
+
+  const opcionesSolicitudConActual = useMemo(() => {
+    if (!fechaHoraSolicitudSeleccionada) {
+      return opcionesSolicitud;
+    }
+
+    const existeActual = opcionesSolicitud.some(
+      (opcion) => opcion.value === fechaHoraSolicitudSeleccionada,
+    );
+
+    if (existeActual) {
+      return opcionesSolicitud;
+    }
+
+    if (!atencion) {
+      return opcionesSolicitud;
+    }
+
+    return [
+      ...opcionesSolicitud,
+      {
+        horarioSolicitudId: 'valor-actual',
+        value: fechaHoraSolicitudSeleccionada,
+        label: `Valor actual (${toDateTimeLabel(fechaHoraSolicitudSeleccionada)})`,
+      },
+    ];
+  }, [atencion, fechaHoraSolicitudSeleccionada, opcionesSolicitud]);
+
+  const noHayCoincidencias =
+    !!fechaHoraAtencionSeleccionada &&
+    !isLoadingOpcionesSolicitud &&
+    !errorOpcionesSolicitud &&
+    opcionesSolicitud.length === 0;
+
   useEffect(() => {
     form.reset(initialValues);
   }, [form, initialValues]);
 
+  useEffect(() => {
+    if (!fechaHoraAtencionSeleccionada || isLoadingOpcionesSolicitud) {
+      return;
+    }
+
+    const currentValue = form.getValues('fechaHoraSolicitudComida');
+    const existeActual = opcionesSolicitud.some((opcion) => opcion.value === currentValue);
+
+    if (existeActual) {
+      return;
+    }
+
+    if (opcionesSolicitud.length > 0) {
+      form.setValue('fechaHoraSolicitudComida', opcionesSolicitud[0].value, {
+        shouldValidate: true,
+      });
+      return;
+    }
+
+    if (!atencion) {
+      form.setValue('fechaHoraSolicitudComida', '', {
+        shouldValidate: true,
+      });
+    }
+  }, [
+    atencion,
+    fechaHoraAtencionSeleccionada,
+    form,
+    isLoadingOpcionesSolicitud,
+    opcionesSolicitud,
+  ]);
+
   const onSubmit = async (values: AtencionFormValues) => {
+    if (!atencion && opcionesSolicitud.length === 0) {
+      form.setError('fechaHoraSolicitudComida', {
+        type: 'manual',
+        message: 'No hay horarios de solicitud disponibles para la fecha/hora de atencion seleccionada.',
+      });
+      return;
+    }
+
     if (!atencion) {
       await onCreate({
         nombre: values.nombre,
         comentarios: values.comentarios,
-        fechaSolicitudComida: values.fechaSolicitudComida,
+        fechaHoraSolicitudComida: values.fechaHoraSolicitudComida,
         fechaHoraAtencion: values.fechaHoraAtencion,
         centroCostoId: values.centroCostoId,
       });
@@ -259,7 +340,7 @@ export function AtencionDetailForm({
       id: atencion.id,
       nombre: values.nombre,
       comentarios: values.comentarios,
-      fechaSolicitudComida: values.fechaSolicitudComida,
+      fechaHoraSolicitudComida: values.fechaHoraSolicitudComida,
       fechaHoraAtencion: values.fechaHoraAtencion,
       centroCostoId: values.centroCostoId,
       estado: values.estado,
@@ -307,20 +388,6 @@ export function AtencionDetailForm({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
-              name="fechaSolicitudComida"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Fecha solicitud comida</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
               name="fechaHoraAtencion"
               render={({ field }) => (
                 <FormItem>
@@ -333,6 +400,55 @@ export function AtencionDetailForm({
                       onChange={(e) => field.onChange(roundDateTimeTo15((e as any).target.value))}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="fechaHoraSolicitudComida"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha/hora solicitud comida</FormLabel>
+                  <Select
+                    value={field.value || ''}
+                    onValueChange={field.onChange}
+                    disabled={!fechaHoraAtencionSeleccionada || isLoadingOpcionesSolicitud}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={
+                            !fechaHoraAtencionSeleccionada
+                              ? 'Seleccione primero fecha/hora de atencion'
+                              : isLoadingOpcionesSolicitud
+                                ? 'Buscando horarios de solicitud...'
+                                : opcionesSolicitudConActual.length > 0
+                                  ? 'Seleccione un horario de solicitud'
+                                  : 'Sin horarios disponibles'
+                          }
+                        />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {opcionesSolicitudConActual.map((opcion) => (
+                        <SelectItem key={`${opcion.horarioSolicitudId}-${opcion.value}`} value={opcion.value}>
+                          {opcion.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errorOpcionesSolicitud && (
+                    <p className="text-xs text-destructive">
+                      No se pudieron cargar los horarios de solicitud.
+                    </p>
+                  )}
+                  {noHayCoincidencias && !atencion && (
+                    <p className="text-xs text-destructive">
+                      No hay coincidencias de horario de solicitud para la fecha/hora de atencion seleccionada.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -424,7 +540,7 @@ export function AtencionDetailForm({
                   Cancelar
                 </Button>
               )}
-              <Button type="submit" disabled={saving || deleting}>
+              <Button type="submit" disabled={saving || deleting || (!atencion && noHayCoincidencias)}>
                 {saving ? 'Guardando...' : atencion ? 'Guardar cambios' : 'Crear atencion'}
               </Button>
             </div>

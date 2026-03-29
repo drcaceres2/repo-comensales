@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/useToast";
-import { NovedadOperativa, NovedadEstado } from "shared/schemas/novedades";
+import type { NovedadOperativa, NovedadFormValues, NovedadOperativaUpdate, NovedadEstado } from "shared/schemas/novedades";
 import {
     crearNovedadAction,
     actualizarNovedadAction,
@@ -12,11 +12,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, collection, query, where, orderBy, limit, getDocs, Timestamp, DocumentSnapshot } from '@/lib/firebase'; // Client-side firebase
 import {useInfoUsuario} from "@/components/layout/AppProviders";
 
-// Definimos el tipo para el payload de creación, omitiendo los campos que genera el servidor.
-type NovedadCreatePayload = Omit<NovedadOperativa, "id" | "timestampCreacion" | "timestampActualizacion" | "autorId" | "residenciaId" | "estado" | "fechaProgramada">;
+type NovedadCreatePayload = NovedadFormValues;
+type NovedadOperativaInterna = Extract<NovedadOperativa, { origen: 'interno' }>;
 
 // Helper to serialize data with Timestamps or legacy ISO strings, mirroring server logic
-function serializeNovedad(doc: DocumentSnapshot): NovedadOperativa {
+function serializeNovedad(doc: DocumentSnapshot): NovedadOperativaInterna {
     const data = doc.data()!;
     const serializedData: { [key: string]: any } = { id: doc.id };
 
@@ -30,20 +30,20 @@ function serializeNovedad(doc: DocumentSnapshot): NovedadOperativa {
             serializedData[key] = value;
         }
     }
-    return serializedData as NovedadOperativa;
+    return serializedData as NovedadOperativaInterna;
 }
 
 // fetchNovedades is implemented inside the hook so it can read
 // `usuarioId` and `residenciaId` from the `useInfoUsuario` hook safely.
 
 
-export function useNovedades(initialData: NovedadOperativa[]) {
+export function useNovedades(initialData: NovedadOperativaInterna[]) {
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const { usuarioId, residenciaId } = useInfoUsuario();
 
     // Local query function uses the hook-provided usuarioId/residenciaId
-    async function fetchNovedadesLocal(): Promise<NovedadOperativa[]> {
+    async function fetchNovedadesLocal(): Promise<NovedadOperativaInterna[]> {
         if (!usuarioId || !residenciaId) {
             console.warn('[fetchNovedadesLocal] usuarioId or residenciaId missing', { usuarioId, residenciaId });
             return [];
@@ -55,6 +55,7 @@ export function useNovedades(initialData: NovedadOperativa[]) {
         const novedadesQuery = query(
             collection(db, collectionPath),
             where('autorId', '==', usuarioId),
+            where('origen', '==', 'interno'),
             orderBy('timestampCreacion', 'desc'),
             limit(50)
         );
@@ -105,20 +106,20 @@ export function useNovedades(initialData: NovedadOperativa[]) {
         onMutate: async (newNovedadPayload) => {
             console.log('[createMutation] onMutate start', { newNovedadPayload, usuarioId, residenciaId, queryKey });
             await queryClient.cancelQueries({ queryKey });
-            const previousNovedades = queryClient.getQueryData<NovedadOperativa[]>(queryKey);
+            const previousNovedades = queryClient.getQueryData<NovedadOperativaInterna[]>(queryKey);
 
-            const optimisticNovedad: NovedadOperativa = {
+            const optimisticNovedad: NovedadOperativaInterna = {
                 ...newNovedadPayload,
                 id: uuidv4(),
+                origen: 'interno',
                 estado: 'pendiente' as NovedadEstado,
                 timestampCreacion: new Date().toISOString(),
-                timestampActualizacion: new Date().toISOString(),
                 autorId: usuarioId!, // Assert usuarioId is present
                 residenciaId: residenciaId!, // Assert residenciaId is present
                 fechaProgramada: new Date().toISOString().split('T')[0],
             };
 
-            queryClient.setQueryData(queryKey, (old: NovedadOperativa[] = []) => [optimisticNovedad, ...old]);
+            queryClient.setQueryData(queryKey, (old: NovedadOperativaInterna[] = []) => [optimisticNovedad, ...old]);
             console.log('[createMutation] onMutate optimistic update applied', { optimisticNovedad });
             return { previousNovedades };
         },
@@ -135,18 +136,18 @@ export function useNovedades(initialData: NovedadOperativa[]) {
     });
 
     const updateMutation = useMutation({
-        mutationFn: ({ id, payload }: { id: string; payload: Partial<NovedadOperativa> }) =>
+        mutationFn: ({ id, payload }: { id: string; payload: NovedadOperativaUpdate }) =>
             actualizarNovedadAction(residenciaId!, id, payload), // Assert residenciaId is present
         onMutate: async ({ id, payload }) => {
             console.log('[updateMutation] onMutate', { id, payload, usuarioId, residenciaId, queryKey });
             await queryClient.cancelQueries({ queryKey });
-            const previousNovedades = queryClient.getQueryData<NovedadOperativa[]>(queryKey);
+            const previousNovedades = queryClient.getQueryData<NovedadOperativaInterna[]>(queryKey);
 
             // Optimistically update the cache
             if (previousNovedades) {
-                queryClient.setQueryData<NovedadOperativa[]>(
+                queryClient.setQueryData<NovedadOperativaInterna[]>(
                     queryKey,
-                    previousNovedades.map(n => n.id === id ? { ...n, ...payload, timestampActualizacion: new Date().toISOString() } : n)
+                    previousNovedades.map(n => n.id === id ? { ...n, ...payload } : n)
                 );
                 console.log('[updateMutation] optimistic update applied', { id, payload });
             }
@@ -170,8 +171,8 @@ export function useNovedades(initialData: NovedadOperativa[]) {
         onMutate: async (novedadId) => {
             console.log('[deleteMutation] onMutate', { novedadId, usuarioId, residenciaId, queryKey });
             await queryClient.cancelQueries({ queryKey });
-            const previousNovedades = queryClient.getQueryData<NovedadOperativa[]>(queryKey);
-            queryClient.setQueryData(queryKey, (old: NovedadOperativa[] = []) => old.filter((n) => n.id !== novedadId));
+            const previousNovedades = queryClient.getQueryData<NovedadOperativaInterna[]>(queryKey);
+            queryClient.setQueryData(queryKey, (old: NovedadOperativaInterna[] = []) => old.filter((n) => n.id !== novedadId));
             console.log('[deleteMutation] optimistic delete applied', { novedadId });
             return { previousNovedades };
         },
@@ -191,8 +192,7 @@ export function useNovedades(initialData: NovedadOperativa[]) {
         console.log('[handleCreate] called', { payload, usuarioId, residenciaId });
         return createMutation.mutate(payload);
     };
-    const handleEdit = (id: string, payload: Partial<NovedadOperativa>) => updateMutation.mutateAsync({ id, payload });
-    const handleArchive = (id: string) => updateMutation.mutate({ id, payload: { estado: 'archivado' } });
+    const handleEdit = (id: string, payload: NovedadOperativaUpdate) => updateMutation.mutateAsync({ id, payload });
     const handleDelete = (novedadId: string) => {
         console.log('[handleDelete] called', { novedadId, usuarioId, residenciaId });
         return deleteMutation.mutate(novedadId);
@@ -203,7 +203,6 @@ export function useNovedades(initialData: NovedadOperativa[]) {
         handleCreate,
         handleEdit,
         handleDelete,
-        handleArchive,
         isCreating: createMutation.isPending,
         isUpdating: updateMutation.isPending,
         isDeleting: deleteMutation.isPending,

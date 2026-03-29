@@ -95,6 +95,7 @@ export const UpdateResidenciaSchema = ResidenciaSchema.omit({
         .transform(v => (v === "" || v === null) ? "es-HN" : v)
         .optional(),
 }).strict();
+// TODO: Corregir campo "locale" en esquema UpdateResidencia que pertenece a esquema viejo
 
 export const ResidenciaConVersion = ResidenciaSchema.extend(
     { version: z.number().int().nonnegative().default(1) }

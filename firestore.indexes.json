@@ -15,6 +15,24 @@
       ]
     },
     {
+      "collectionGroup": "novedadesOperativas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "autorId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "origen",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestampCreacion",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "inscripciones",
       "queryScope": "COLLECTION",
       "fields": [
@@ -29,6 +47,76 @@
         {
           "fieldPath": "actividadId",
           "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "usuarios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "residenciaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "roles",
+          "arrayConfig": "CONTAINS"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "excepciones",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "residenciaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "estadoAprobacion",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "novedadesOperativas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "origen",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "recordatorios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "fechaInicioValidez",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fechaFinValidez",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "solicitudesConsolidadas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "estadoDocumento",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fechaOperativa",
+          "order": "DESCENDING"
         }
       ]
     }

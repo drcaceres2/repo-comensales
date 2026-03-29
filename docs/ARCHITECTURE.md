@@ -1,7 +1,7 @@
 # ARCHITECTURE.md
 
 **Proyecto:** comensales.app (Web App)
-**Versión del Documento:** 9.0 (Actualizado con módulos de Alteraciones, Grupos y Horarios)
+**Versión del Documento:** 10.0 (Actualizado con módulos de Alteraciones, Grupos y Horarios)
 **Rol:** Arquitectura de Software & Estrategia
 
 ---
@@ -18,10 +18,76 @@ A diferencia de aplicaciones comerciales de *delivery* (donde el objetivo es la 
 2.  **Agnosticismo Cultural:** Soporte total para esquemas de comida no tradicionales (Brunch, Asados, Meriendas) mediante configuración dinámica, desacoplada de horarios fijos occidentales. Todas las páginas manejan plantilla de idioma y estilo (i18n).
 3.  **Segregación de Negocio:** Estricta separación entre **Residencia** (Usuarios, Roles, Reglas) y **Administración** (Proveedor de alimentos).
 
-## 2. Persistencia y Topología de Configuración (El Singleton)
+## 2. Estrartegia de Persistencia
+
+### 2.1 Topología de Configuración (El Singleton)
+
 Gran parte de la configuración de la residencia (Taxonomía de grupos, reglas de horarios y alternativas) persiste acoplada en un documento "Singleton" (diccionarios dentro de un único documento maestro de configuración general por residencia). Esto optimiza las lecturas repetitivas pero exige estrategias estrictas para la escritura.
 
 Para lidiar con la complejidad de cruzar mapas de configuración cacheados, la preparación de los datos para la visualización del usuario (ej. la grilla de selección de horarios) depende estrictamente de **funciones puras de hidratación** (como `construirMatrizVistaHorarios`).
+
+### 2.2 Topología de Datos (Jerarquía Multi-Tenant)
+
+La base de datos sigue una estructura de árbol estricta para aislar contextos y simplificar las Reglas de Seguridad:
+
+1.  **Colecciones Raíz (Globales):**
+    * `clientes`: Entidades comerciales/fiscales.
+    * `residencias`: Los "Tenants" operativos.
+    * `usuarios`: Identidades vinculadas a Auth.
+    * `logs`: Auditoría del sistema.
+
+2.  **Subcolecciones (Contextuales):**
+    * Los datos operativos **SIEMPRE** viven dentro de su contexto.
+    * *Ejemplo:* No existe una colección `actividades` suelta. Existe `residencias/{slug}/actividades`.
+    * *Beneficio:* Las Security Rules se simplifican drásticamente (`allow read if user.residenciaId == residenciaId`).
+
+> (RAÍZ COMERCIAL)  
+> ├── clientes/ {pais-codigo_fiscal}  
+> │   ├── facturas/ {numero_fiscal}  
+> │   ├── pedidos/ {fecha-hora}  
+> │   └── contratosResidencia/ {auto-id}  
+> │  
+> (RAÍZ OPERATIVA - SAAS)  
+> ├── residencias/ {residenciaId}  - slug del nombre  
+> │   │  
+> │   ├── configuracion/ {general}  - Singleton  
+> │   │   ├── (campo) horariosSolicitud: Map<ID, HorarioSolicitudData>  
+> │   │   ├── (campo) comedores: Map<ID, ComedorData>  
+> │   │   ├── (campo) gruposUsuarios: Map<ID, GrupoUsuariosData>  
+> │   │   ├── (campo) dietas: Map<ID, DietaData>  
+> │   │   ├── (campo) gruposComidas: Map<ID, GrupoComida>  
+> │   │   ├── (campo) esquemaSemanal: Map<ID, TiempoComida>  
+> │   │   ├── (campo) catalogoAlternativas: Map<ID, DefinicionAlternativa>  
+> │   │   └── (campo) configuracionesAlternativas: Map<ID, ConfiguracionAlternativa>  
+> │   │  
+> │   ├── configContabilidad/ {general}  - Singleton  
+> │   ├── centrosDeCosto/ {centroDeCostoId}  - slug del nombre  
+> │   │  
+> │   ├── atenciones/ {atencionId}  - Auto-generado por Firestore  
+> │   │  
+> │   ├── alteracionesHorario/ {alteracionDiariaId}  - fecha de la alteracion YYYY-MM-DD  
+> │   │  
+> │   ├── actividades/ {actividadId}  - Auto-generado por Firestore    
+> │   │   └── inscripciones/ {inscripcionId}  - usuarioId de la inscripción  
+> │   │  
+> │   ├── solicitudesConsolidadas/ {solicitudConsolidadaId}  - ID compuesto: fecha YYYY-MM-DD más "__" más slugHorarioSolicitudComida  
+> │   │   └── comensales/ {comensalId}  - uid-slugtiempocomida
+> │   │  
+> │   ├── solicitudesInvitados/ {solicitudInvitadoId}  - auto-generado por Firestore  
+> │   ├── recordatorios/ {recordatorioId}  - Auto-generado por Firestore  
+> │   ├── mensajes/ {mensajeId}  - Auto-generado por Firestore  
+> │   └── novedadesOperativas/ {novedadesId}  - Auto-generado por Firestore  
+> │  
+> ├── usuarios/ {usuarioId}  - Auto-generado por Firebase Auth  
+> │   ├── semanarios/ {semanarioId}  - fecha de inicio de vigencia del semanario YYYY-MM-DD  
+> │   ├── excepciones/ {excepcionId}  - compuesto por la fecha en formato YYYY-MM-DD más "__" más tiempoComidaID  
+> │   ├── ausencias/ {ausenciaId}  - la fecha de inicio de la ausencia  
+> │   └── faltas/ {faltaId}  - auto-generado por Firestore  
+> │  
+> (RAÍZ DE SISTEMA)  
+> ├── feedback/ {feedbackId}  - auto-generado por Firestore  
+> └── logs/ {logId}  - auto-generado por Firestore  
+
 
 ## 3. Algoritmo de Cascada (Resolución de Intenciones)
 El proceso central resuelve conflictos evaluando prioridades en el navegador del cliente (previsualización) y en el servidor (durante el Snapshot final). La jerarquía de resolución es la siguiente:
@@ -47,3 +113,4 @@ Debido a la naturaleza asíncrona de las Server Actions:
 1.  **Inputs:** El usuario gestiona su **Intención** (Semanario, Excepciones) de forma flexible antes del cierre.
 2.  **Proceso:** El algoritmo de **Cascada** evalúa la intención del usuario filtrándola primero por la Capa 0 (Alteraciones del entorno).
 3.  **Outputs:** Al momento del corte, el servidor genera **Hechos Inmutables** (`Comensales solicitados`) mediante un Snapshot.
+

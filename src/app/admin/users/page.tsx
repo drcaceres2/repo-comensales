@@ -152,6 +152,8 @@ function UserManagementPage(): JSX.Element | null {
         password: '',
         confirmPassword: '',
         identificacion: '',
+        referidoPorNombre: '',
+        referidoFecha: '',
         telefonoMovil: '',
         fechaDeNacimiento: '',
         universidad: '',
@@ -570,6 +572,11 @@ function UserManagementPage(): JSX.Element | null {
             if (dataForValidation.centroCostoPorDefectoId === '') dataForValidation.centroCostoPorDefectoId = undefined;
             if (dataForValidation.grupoContableId === '') dataForValidation.grupoContableId = undefined;
             if (dataForValidation.grupoRestrictivoId === '') dataForValidation.grupoRestrictivoId = undefined;
+            if (typeof dataForValidation.referidoPorNombre === 'string') {
+                const referidoPorNombre = dataForValidation.referidoPorNombre.trim();
+                dataForValidation.referidoPorNombre = referidoPorNombre.length > 0 ? referidoPorNombre : undefined;
+            }
+            if (dataForValidation.referidoFecha === '') dataForValidation.referidoFecha = undefined;
             if (!dataForValidation.roles?.includes('residente')) delete dataForValidation.residente;
             if (!dataForValidation.roles?.includes('asistente')) delete dataForValidation.asistente;
             if (dataForValidation.residente?.dietaId === '') delete (dataForValidation.residente as any).dietaId;
@@ -669,6 +676,9 @@ function UserManagementPage(): JSX.Element | null {
             estaActivo: userToEdit.estaActivo,
             roles: userToEdit.roles || [],
             residenciaId: userToEdit.residenciaId || '',
+            identificacion: userToEdit.identificacion || '',
+            referidoPorNombre: userToEdit.referidoPorNombre || '',
+            referidoFecha: userToEdit.referidoFecha || '',
             telefonoMovil: userToEdit.telefonoMovil || '',
             fechaDeNacimiento: userToEdit.fechaDeNacimiento ? format(userToEdit.fechaDeNacimiento, 'yyyy-MM-dd') : '',
             centroCostoPorDefectoId: userToEdit.centroCostoPorDefectoId || '',
@@ -699,6 +709,9 @@ function UserManagementPage(): JSX.Element | null {
             residenciaId: adminUserProfile?.roles.includes('master') ? '' : adminUserProfile?.residenciaId || '',
             password: '',
             confirmPassword: '',
+            identificacion: '',
+            referidoPorNombre: '',
+            referidoFecha: '',
             telefonoMovil: '',
             fechaDeNacimiento: '',
             centroCostoPorDefectoId: '',
@@ -832,6 +845,14 @@ function UserManagementPage(): JSX.Element | null {
                             <div className="space-y-1.5">
                                 <Label htmlFor="identificacion">Identificación (DNI/ID)</Label>
                                 <Input id="identificacion" value={formData.identificacion || ''} onChange={(e) => handleFormChange('identificacion', e.target.value)} disabled={isSaving} />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="referidoPorNombre">Referido por</Label>
+                                <Input id="referidoPorNombre" value={formData.referidoPorNombre || ''} onChange={(e) => handleFormChange('referidoPorNombre', e.target.value)} disabled={isSaving} />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="referidoFecha">Fecha de referido</Label>
+                                <Input id="referidoFecha" value={formData.referidoFecha || ''} onChange={(e) => handleFormChange('referidoFecha', e.target.value)} disabled={isSaving} />
                             </div>
                             <div className="space-y-1.5">
                                 <Label htmlFor="telefonoMovil">Teléfono Móvil</Label>

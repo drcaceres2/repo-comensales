@@ -84,6 +84,8 @@ export function MiPerfilClient() {
       apellido: "",
       nombreCorto: "",
       identificacion: "",
+      referidoPorNombre: "",
+      referidoFecha: undefined,
       telefonoMovil: "",
       fechaDeNacimiento: undefined,
       universidad: "",
@@ -134,6 +136,8 @@ export function MiPerfilClient() {
       apellido: dto.apellido,
       nombreCorto: dto.nombreCorto || "",
       identificacion: dto.identificacion || "",
+      referidoPorNombre: dto.referidoPorNombre || "",
+      referidoFecha: dto.referidoFecha,
       telefonoMovil: dto.telefonoMovil || "",
       fechaDeNacimiento: dto.fechaDeNacimiento,
       universidad: dto.universidad || "",
@@ -177,6 +181,8 @@ export function MiPerfilClient() {
         apellido: values.apellido,
         nombreCorto: normalizeOptional(values.nombreCorto),
         identificacion: normalizeOptional(values.identificacion),
+        referidoPorNombre: normalizeOptional(values.referidoPorNombre),
+        referidoFecha: values.referidoFecha || undefined,
         telefonoMovil: normalizeOptional(values.telefonoMovil),
         fechaDeNacimiento: values.fechaDeNacimiento || undefined,
         universidad: normalizeOptional(values.universidad),
@@ -312,6 +318,14 @@ export function MiPerfilClient() {
               <div className="space-y-2">
                 <Label htmlFor="identificacion">Identificación</Label>
                 <Input id="identificacion" {...register("identificacion")} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="referidoPorNombre">Referido por</Label>
+                <Input id="referidoPorNombre" {...register("referidoPorNombre")} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="referidoFecha">Fecha de referido</Label>
+                <Input id="referidoFecha" type="date" {...register("referidoFecha")} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="telefonoMovil">Teléfono móvil</Label>

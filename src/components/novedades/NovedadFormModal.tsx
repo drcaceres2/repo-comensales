@@ -31,16 +31,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { 
-  NovedadFormSchema,
-  NovedadFormValues,
+  NovedadInternaFormSchema,
+  NovedadInternaFormValues,
   CategoriaNovedadEnum,
 } from "shared/schemas/novedades";
 
 interface NovedadFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: NovedadFormValues) => void | Promise<void>;
-  defaultValues?: Partial<NovedadFormValues>;
+  onSubmit: (data: NovedadInternaFormValues) => void | Promise<void>;
+  defaultValues?: Partial<NovedadInternaFormValues>;
   serverErrors?: ZodIssue[] | null;
 }
 
@@ -59,8 +59,8 @@ export default function NovedadFormModal({
     categoria: defaultValues?.categoria || 'otros',
   }), [defaultValues]);
 
-  const form = useForm<NovedadFormValues>({
-    resolver: zodResolver(NovedadFormSchema),
+  const form = useForm<NovedadInternaFormValues>({
+    resolver: zodResolver(NovedadInternaFormSchema),
     defaultValues: sanitizedDefaultValues,
   });
 

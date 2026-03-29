@@ -370,6 +370,7 @@ async function purgarInscripcionesYAuditar(
         timestampModificacion: FieldValue.serverTimestamp(),
         fechaHoraModificacion: FieldValue.serverTimestamp(),
     });
+    // TODO: Verificar fechaHoraModificacion, ha de pertenecer a esquema viejo
 
     await db.collection('auditoria').add({
         tipo: 'ACTIVIDAD_RESETEO_DESTRUCTIVO',
@@ -787,7 +788,7 @@ export async function updateActividadEstado(
             timestampModificacion: FieldValue.serverTimestamp(),
             fechaHoraModificacion: FieldValue.serverTimestamp(),
         });
-
+        // TODO: Verificar fechaHoraModificacion, ha de pertenecer a esquema viejo
         await batch.commit();
 
         const logAction = httpsCallable<LogPayload, { success: boolean }>(functions, 'logActionCallable');

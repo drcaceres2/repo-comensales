@@ -7,8 +7,10 @@ import NovedadesHeaderActions from './components/NovedadesHeaderActions';
 import { Timestamp } from 'firebase-admin/firestore'
 import {obtenerInfoUsuarioServer} from "@/lib/obtenerInfoUsuarioServer";
 
+type NovedadOperativaInterna = Extract<NovedadOperativa, { origen: 'interno' }>;
+
 // Helper to serialize data with Timestamps or legacy ISO strings
-function serializeNovedad(doc: FirebaseFirestore.QueryDocumentSnapshot): NovedadOperativa {
+function serializeNovedad(doc: FirebaseFirestore.QueryDocumentSnapshot): NovedadOperativaInterna {
     const data = doc.data();
     const serializedData: { [key: string]: any } = { id: doc.id };
 
@@ -25,7 +27,7 @@ function serializeNovedad(doc: FirebaseFirestore.QueryDocumentSnapshot): Novedad
         }
     }
 
-    return serializedData as NovedadOperativa;
+    return serializedData as NovedadOperativaInterna;
 }
 
 export default async function MisNovedadesPage() {
@@ -37,6 +39,7 @@ export default async function MisNovedadesPage() {
     const novedadesRef = db.collection(`residencias/${residenciaId}/novedadesOperativas`);
     const novedadesQuery = novedadesRef
         .where('autorId', '==', uid)
+        .where('origen', '==', 'interno')
         .orderBy('timestampCreacion', 'desc')
         .limit(50);
 

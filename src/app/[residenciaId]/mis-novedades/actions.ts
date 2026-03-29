@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { db, FieldValue } from "@/lib/firebaseAdmin";
 import {
-  type NovedadOperativa,
-  NovedadFormSchema,
-  NovedadOperativaUpdateSchema
+  type NovedadInternaFormValues,
+  type NovedadInternaUpdate,
+  NovedadInternaFormSchema,
+  NovedadInternaUpdateSchema
 } from "shared/schemas/novedades";
 import {obtenerInfoUsuarioServer} from "@/lib/obtenerInfoUsuarioServer";
 
-type NovedadCreatePayload = Omit<NovedadOperativa, "id" | "timestampCreacion" | "timestampActualizacion" | "autorId" | "residenciaId" | "estado" | "fechaProgramada">;
+type NovedadCreatePayload = NovedadInternaFormValues;
 
 const getCollectionPath = (residenciaId: string) => `residencias/${residenciaId}/novedadesOperativas`;
 
@@ -26,7 +27,7 @@ export async function crearNovedadAction(
       return { success: false, error: "Acceso no autorizado." };
     }
 
-    const validatedData = NovedadFormSchema.safeParse(payload);
+    const validatedData = NovedadInternaFormSchema.safeParse(payload);
 
     if (!validatedData.success) {
       console.warn("[crearNovedadAction] validación fallida", validatedData.error);
@@ -35,12 +36,13 @@ export async function crearNovedadAction(
 
     const nuevaNovedad = {
       ...validatedData.data,
+      origen: "interno" as const,
       residenciaId,
       autorId,
       estado: "pendiente" as const,
+      fechaProgramada: new Date().toISOString().split("T")[0],
       // use server-side timestamps to keep clock consistent and sortable
       timestampCreacion: FieldValue.serverTimestamp(),
-      timestampActualizacion: FieldValue.serverTimestamp(),
     };
 
     const docRef = await db.collection(getCollectionPath(residenciaId)).add(nuevaNovedad);
@@ -58,7 +60,7 @@ export async function crearNovedadAction(
 export async function actualizarNovedadAction(
   residenciaId: string,
   novedadId: string,
-  payload: Partial<NovedadOperativa>
+  payload: NovedadInternaUpdate
 ) {
   console.log(`[actualizarNovedadAction] Iniciando. Novedad ID: ${novedadId}`);
   try {
@@ -67,7 +69,7 @@ export async function actualizarNovedadAction(
     console.log(`[actualizarNovedadAction] 2. Usuario autenticado: ${autorId}`);
 
     console.log("[actualizarNovedadAction] 3. Validando payload...", payload);
-    const validatedData = NovedadOperativaUpdateSchema.safeParse(payload);
+    const validatedData = NovedadInternaUpdateSchema.safeParse(payload);
     if (!validatedData.success) {
         console.error("[actualizarNovedadAction] Error de validación:", validatedData.error);
         return { success: false, error: "Datos inválidos.", details: validatedData.error.issues };
@@ -91,6 +93,10 @@ export async function actualizarNovedadAction(
       console.error("[actualizarNovedadAction] Error: Permiso denegado (autorId no coincide).");
       throw new Error("No tiene permiso para editar esta novedad.");
     }
+    if (novedadData?.origen !== "interno") {
+      console.error("[actualizarNovedadAction] Error: El origen no es interno.");
+      throw new Error("Solo se pueden editar novedades internas.");
+    }
     if (novedadData?.estado !== "pendiente") {
       console.error("[actualizarNovedadAction] Error: La novedad no está pendiente.");
       throw new Error("No se puede modificar una novedad ya procesada.");
@@ -100,7 +106,6 @@ export async function actualizarNovedadAction(
     console.log("[actualizarNovedadAction] 9. Actualizando documento...");
     await novedadRef.update({ 
         ...validatedData.data,
-        timestampActualizacion: FieldValue.serverTimestamp(),
     });
     console.log("[actualizarNovedadAction] 10. Documento actualizado.");
     
@@ -127,6 +132,7 @@ export async function eliminarNovedadAction(novedadId: string, residenciaId: str
 
         const novedadData = novedadDoc.data();
         if (novedadData?.autorId !== autorId) throw new Error("No tiene permiso para eliminar esta novedad.");
+        if (novedadData?.origen !== "interno") throw new Error("Solo se pueden eliminar novedades internas.");
         if (novedadData?.estado !== "pendiente") throw new Error("No se puede eliminar una novedad ya procesada.");
 
         transaction.delete(novedadRef);

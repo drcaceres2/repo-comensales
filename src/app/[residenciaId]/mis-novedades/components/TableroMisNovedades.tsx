@@ -3,8 +3,7 @@
 import { useState } from "react";
 import type {
   NovedadOperativa,
-  NovedadOperativaUpdate,
-  NovedadFormValues
+  NovedadFormValues,
 } from "../../../../../shared/schemas/novedades";
 import { NovedadCard } from "@/components/novedades/NovedadCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,12 +13,14 @@ import { useToast } from "@/hooks/useToast";
 import { type ZodIssue } from "zod";
 
 interface TableroMisNovedadesProps {
-  initialData: NovedadOperativa[];
+  initialData: NovedadOperativaInterna[];
 }
+
+type NovedadOperativaInterna = Extract<NovedadOperativa, { origen: 'interno' }>;
 
 export default function TableroMisNovedades({ initialData }: TableroMisNovedadesProps) {
   const [activeTab, setActiveTab] = useState("pendientes");
-  const [editingNovedad, setEditingNovedad] = useState<NovedadOperativa | null>(null);
+  const [editingNovedad, setEditingNovedad] = useState<NovedadOperativaInterna | null>(null);
   const [serverErrors, setServerErrors] = useState<ZodIssue[] | null>(null);
   const { toast } = useToast();
 
@@ -27,13 +28,12 @@ export default function TableroMisNovedades({ initialData }: TableroMisNovedades
     novedades, 
     handleEdit, 
     handleDelete,
-    handleArchive 
   } = useNovedades(initialData);
 
   const novedadesPendientes = novedades?.filter((n) => n.estado === "pendiente") ?? [];
   const historialNovedades = novedades?.filter((n) => n.estado !== "pendiente") ?? [];
 
-  const onCardEdit = (novedad: NovedadOperativa) => {
+  const onCardEdit = (novedad: NovedadOperativaInterna) => {
     if (novedad.estado !== 'pendiente') {
       toast({
         title: "Acción no permitida",
@@ -84,9 +84,8 @@ export default function TableroMisNovedades({ initialData }: TableroMisNovedades
                 key={novedad.id}
                 novedad={novedad}
                 rolContext="residente"
-                onEdit={() => onCardEdit(novedad)}
+                onEdit={onCardEdit}
                 onDelete={() => handleDelete(novedad.id)}
-                onArchive={() => handleArchive(novedad.id)}
               />
             ))}
           </div>
@@ -98,7 +97,6 @@ export default function TableroMisNovedades({ initialData }: TableroMisNovedades
                 key={novedad.id}
                 novedad={novedad}
                 rolContext="residente"
-                onArchive={() => handleArchive(novedad.id)}
               />
             ))}
           </div>

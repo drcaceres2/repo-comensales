@@ -29,7 +29,7 @@ const redirectToDashboard = (residenciaId: ResidenciaId, roles: RolUsuario[], ro
       router.push('/restringido-master/crear-residencia');
     } else if (residenciaId) {
         if (roles.includes('admin' as RolUsuario)) router.push(`/admin/users`);
-        else if (roles.includes('director' as RolUsuario)) router.push(`/${residenciaId}/solicitar-comensales`);
+        else if (roles.includes('director' as RolUsuario)) router.push(`/${residenciaId}/gerencia/solicitud-consolidada`);
         else if (roles.includes('residente' as RolUsuario)) router.push(`/${residenciaId}/elegir-horarios-comida`);
         else if (roles.includes('invitado' as RolUsuario)) router.push(`/${residenciaId}/elegir-horarios-comida`);
         else if (roles.includes('asistente' as RolUsuario)) router.push(`/${residenciaId}/elegir-horarios-comida`);

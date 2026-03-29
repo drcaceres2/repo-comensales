@@ -1,4 +1,4 @@
-import {z } from 'zod';
+import { z } from 'zod';
 import { SlugIdSchema, CadenaOpcionalLimitada } from "./common";
 
 // Centro de Costo - Entidad principal de la contabilidad

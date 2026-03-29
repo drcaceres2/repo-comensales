@@ -9,12 +9,13 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 interface NovedadCardProps {
-  novedad: NovedadOperativa;
-  rolContext: 'residente' | 'gerencia';
-  onEdit?: (novedad: NovedadOperativa) => void;
+  novedad: NovedadOperativaInterna;
+  rolContext?: 'residente';
+  onEdit?: (novedad: NovedadOperativaInterna) => void;
   onDelete?: (novedadId: string) => void;
-  onArchive?: (novedadId: string) => void;
 }
+
+type NovedadOperativaInterna = Extract<NovedadOperativa, { origen: 'interno' }>;
 
 const estadoColors: { [key: string]: string } = {
   pendiente: 'bg-yellow-500 hover:bg-yellow-600',
@@ -29,17 +30,11 @@ export function NovedadCard({
   rolContext,
   onEdit,
   onDelete,
-  onArchive,
 }: NovedadCardProps) {
   const { id, texto, categoria, estado, timestampCreacion } = novedad;
 
-  const isResidente = rolContext === 'residente';
-  const isGerencia = rolContext === 'gerencia';
   const isPendiente = estado === 'pendiente';
-  const isAprobado = estado === 'aprobado';
-
-  const canEditOrDelete = isPendiente || (isGerencia && isAprobado);
-  const showEstadoBadge = (isResidente && !isPendiente) || isGerencia;
+  const showEstadoBadge = !isPendiente;
 
   const relativeDate = formatDistanceToNow(new Date(timestampCreacion), {
     addSuffix: true,
@@ -63,56 +58,24 @@ export function NovedadCard({
         <p className="text-gray-700">{texto}</p>
       </CardContent>
       <CardFooter className="flex justify-end gap-2">
-        {isResidente && (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!isPendiente}
-              onClick={() => onEdit?.(novedad)}
-            >
-              Editar
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={!isPendiente}
-              onClick={() => onDelete?.(id)}
-            >
-              Eliminar
-            </Button>
-          </>
-        )}
-        {isGerencia && (
-          <>
-            {(isPendiente || isAprobado) && (
-              <>
-                 <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onEdit?.(novedad)}
-                >
-                    Editar
-                </Button>
-                <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => onDelete?.(id)}
-                >
-                    Eliminar
-                </Button>
-              </>
-            )}
-             <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => onArchive?.(id)}
-             >
-                Archivar
-            </Button>
-          </>
-        )}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!isPendiente}
+          onClick={() => onEdit?.(novedad)}
+        >
+          Editar
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          disabled={!isPendiente}
+          onClick={() => onDelete?.(id)}
+        >
+          Eliminar
+        </Button>
       </CardFooter>
     </Card>
   );
 }
+

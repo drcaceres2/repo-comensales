@@ -20,6 +20,10 @@ import {
 } from "./asistentes";
 import { upsertSemanario } from "./semanarios";
 import { createHardcodedMasterUser, seedDatabase } from "./PRUEBAS";
+import {
+  sellarSolicitudConsolidada,
+  onSolicitudConsolidadaSealed,
+} from "./solicitud-consolidada/onSolicitudSealed";
 
 import { logActionCallable } from "./common/logging";
 
@@ -45,4 +49,6 @@ export {
   createHardcodedMasterUser,
   seedDatabase,
   logActionCallable,
+  sellarSolicitudConsolidada,
+  onSolicitudConsolidadaSealed,
 };

@@ -518,6 +518,12 @@ export const updateMiPerfil = onCall(
     if (validatedData.identificacion !== undefined) {
       firestoreUpdateData.identificacion = validatedData.identificacion;
     }
+    if (validatedData.referidoPorNombre !== undefined) {
+      firestoreUpdateData.referidoPorNombre = validatedData.referidoPorNombre;
+    }
+    if (validatedData.referidoFecha !== undefined) {
+      firestoreUpdateData.referidoFecha = validatedData.referidoFecha;
+    }
     if (validatedData.telefonoMovil !== undefined) {
       firestoreUpdateData.telefonoMovil = validatedData.telefonoMovil;
     }

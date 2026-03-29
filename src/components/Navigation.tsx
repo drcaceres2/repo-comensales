@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import React, { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import {
   Sidebar, SidebarTrigger, SidebarContent,
@@ -25,7 +25,7 @@ import {
   ShieldCheck, Apple, CalendarCog, GraduationCap,
   Pizza, Bike, CalendarPlus, Settings, Table2,
   LifeBuoy, KeyRound, UserPen, MessageCircle, 
-  MessageCirclePlus, MessageCircleReply,
+  MessageCirclePlus, PhoneOutgoing,
   LucideIcon, Info, Clock,
   ConciergeBell, Briefcase, ClipboardEdit, 
   BookCopy, UserCircle2, UserPlus,
@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/sheet';
 
 import { useInfoUsuario } from '@/components/layout/AppProviders';
+import type { Usuario } from 'shared/schemas/usuarios';
 import { RolUsuario, InfoUsuario } from 'shared/models/types';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -59,7 +60,7 @@ interface NavItem {
 
 const ALL_AUTHENTICATED_ROLES: RolUsuario[] = ['master', 'admin', 'director', 'residente', 'invitado', 'asistente', 'contador'];
 
-const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
+const getNavConfig = (profile: InfoUsuario | null, usuarioDocSesion?: Usuario | null): NavItem[] => {
   const userRoles = profile?.roles || [];
   const residenciaId = profile?.residenciaId;
 
@@ -67,6 +68,21 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
     if (!residenciaId) return '#';
     return `/${residenciaId}${path}`;
   };
+
+  // Helper: crea un checkVisibility reutilizable para permisos de asistente.
+  // `permissionKey` debe coincidir con la llave dentro de `usuario.asistente`,
+  // `allowedAlways` son roles que siempre ven el ítem (ej: ['director'] o ['admin','director']).
+  const makeAsistenteVisibility = (permissionKey: string, allowedAlways: RolUsuario[] = ['director']) =>
+    (profileArg: InfoUsuario | null) => {
+      const roles = profileArg?.roles || [];
+      if (allowedAlways.some(r => roles.includes(r))) return true;
+      if (roles.includes('asistente')) {
+        const nivel = (usuarioDocSesion as any)?.asistente?.[permissionKey]?.nivelAcceso;
+        // Si no hay permiso registrado, lo tratamos como 'Ninguna' (no visible).
+        return typeof nivel === 'string' && nivel !== 'Ninguna';
+      }
+      return false;
+    };
 
   return [
     // --- Items without group (Top Level) ---
@@ -136,6 +152,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           pathTemplate: '/gerencia/dietas',
           roles: ['director', 'asistente'],
           requiresResidenciaIdForHref: true,
+          checkVisibility: makeAsistenteVisibility('gestionDietas', ['director']),
         },
         {
           id: 'adminRecordatorios',
@@ -145,6 +162,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           pathTemplate: '/gerencia/recordatorios',
           roles: ['director', 'admin', 'asistente'],
           requiresResidenciaIdForHref: true,
+          checkVisibility: makeAsistenteVisibility('gestionRecordatorios', ['director', 'admin']),
         },
         {
           id: 'adminAtenciones',
@@ -154,6 +172,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           pathTemplate: '/gerencia/atenciones',
           roles: ['director', 'admin', 'asistente'],
           requiresResidenciaIdForHref: true,
+          checkVisibility: makeAsistenteVisibility('gestionAtenciones', ['director', 'admin']),
         },
         {
           id: 'adminAlteracionesHorarios',
@@ -163,6 +182,17 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           pathTemplate: '/gerencia/alteraciones',
           roles: ['director', 'admin', 'asistente'],
           requiresResidenciaIdForHref: true,
+          checkVisibility: makeAsistenteVisibility('gestionHorariosYAlteraciones', ['director', 'admin']),
+        },
+        {
+          id: 'adminSolicitarComensales',
+          label: 'Solicitar comensales',
+          icon: PhoneOutgoing,
+          href: rLink,
+          pathTemplate: '/gerencia/solicitud-consolidada',
+          roles: ['director', 'asistente'],
+          requiresResidenciaIdForHref: true,
+          checkVisibility: makeAsistenteVisibility('solicitarComensales', ['director']),
         },
       ],
     },
@@ -230,13 +260,17 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
       icon: Settings,
       isAccordion: true,
       roles: ['director', 'admin', 'master', 'asistente'],
+      checkVisibility: makeAsistenteVisibility('gestionGrupos', ['director', 'admin'])
+            || makeAsistenteVisibility('gestionHorariosYAlteraciones', ['director', 'admin'])
+            || makeAsistenteVisibility('gestionComedores', ['director', 'admin']),
+      requiresResidenciaIdForHref: true,
       children: [
         {
           id: 'adminGlobalUsers',
           label: 'Administrar Usuarios',
           icon: Users,
           href: '/admin/users',
-          roles: ['admin', 'master', 'asistente'],
+          roles: ['admin', 'master'],
         },
         {
           id: 'adminInvitacionesUsuarios',
@@ -244,7 +278,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           icon: UserPlus,
           href: rLink,
           pathTemplate: '/admin/invitacionesUsuarios',
-          roles: ['admin', 'asistente'],
+          roles: ['admin'],
           requiresResidenciaIdForHref: true,
         },
         {
@@ -254,6 +288,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           href: rLink,
           pathTemplate: '/gerencia/grupos-usuarios',
           roles: ['admin', 'director', 'asistente'],
+          checkVisibility: makeAsistenteVisibility('gestionGrupos', ['director', 'admin']),
           requiresResidenciaIdForHref: true,
         },
         {
@@ -263,6 +298,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           href: rLink,
           pathTemplate: '/gerencia/asignar-grupos-usuarios-matriz',
           roles: ['admin', 'director', 'asistente'],
+          checkVisibility: makeAsistenteVisibility('gestionGrupos', ['director', 'admin']),
           requiresResidenciaIdForHref: true,
         },
         {
@@ -273,6 +309,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           pathTemplate: '/admin/horarios',
           roles: ['admin', 'asistente'],
           requiresResidenciaIdForHref: true,
+          checkVisibility: makeAsistenteVisibility('gestionHorariosYAlteraciones', ['admin']),
         },
         {
           id: 'adminComedores',
@@ -281,6 +318,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           href: rLink,
           pathTemplate: '/admin/comedores',
           roles: ['director', 'admin', 'asistente'],
+          checkVisibility: makeAsistenteVisibility('gestionComedores', ['director', 'admin']),
           requiresResidenciaIdForHref: true,
         },
       ],
@@ -293,6 +331,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
       icon: LifeBuoy,
       isAccordion: true,
       roles: ['admin', 'director', 'asistente'],
+      checkVisibility: makeAsistenteVisibility('gestionAsistentes', ['director', 'admin']),
       requiresResidenciaIdForHref: true,
       children: [
         {
@@ -302,6 +341,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           href: rLink,
           pathTemplate: '/gerencia/accesos-especiales',
           roles: ['admin', 'director', 'asistente'],
+          checkVisibility: makeAsistenteVisibility('gestionAsistentes', ['director', 'admin']),
           requiresResidenciaIdForHref: true,
         },
         {
@@ -311,6 +351,7 @@ const getNavConfig = (profile: InfoUsuario | null): NavItem[] => {
           href: rLink,
           pathTemplate: '/gerencia/usuarios-asistidos',
           roles: ['admin', 'director', 'asistente'],
+          checkVisibility: makeAsistenteVisibility('gestionAsistentes', ['director', 'admin']),
           requiresResidenciaIdForHref: true,
         },
       ],
@@ -406,11 +447,11 @@ const isItemVisible = (item: NavItem, profile: InfoUsuario | null): boolean => {
   return true;
 };
 
-export function Navigation() {
-  const userInfo = useInfoUsuario();
+export function Navigation({ usuarioDocSesion }: { usuarioDocSesion?: Usuario | null }) {
   const { isMobile, setOpenMobile } = useSidebar(); 
   const { theme, setTheme } = useTheme();
   const router = useRouter();
+  const userInfo = useInfoUsuario();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -428,7 +469,7 @@ export function Navigation() {
     }
   };
 
-  const navConfig = getNavConfig(userInfo);
+  const navConfig = getNavConfig(userInfo, usuarioDocSesion);
   const feedbackLink = navConfig.find(item => item.isFeedbackLink);
   const menuItems = navConfig.filter(item => !item.isFeedbackLink);
 
@@ -493,38 +534,38 @@ export function Navigation() {
 
   let triggerContent: ReactNode = null;
   if (!userInfo.usuarioId) {
-    const unauthNavConfig = getNavConfig(null);
+    const unauthNavConfig = getNavConfig(null, undefined);
     const unauthVisibleItems = unauthNavConfig.filter(item => isItemVisible(item, null) && !item.isFeedbackLink);
     if (unauthVisibleItems.length > 0) {
         triggerContent = (
-<SidebarTrigger asChild>
-  <button 
-    className="fixed top-[1px] left-1 z-[45] !h-9 !w-9 p-2 bg-transparent text-gray-800 rounded-md hover:bg-gray-800 hover:text-white transition-all duration-300 flex items-center justify-center" 
-    title="Abrir menú"
-  >
-    <Menu 
-      className="!w-7 !h-7" 
-      strokeWidth={1.5} 
-      color="white"
-    />
-  </button>
-</SidebarTrigger>
+          <SidebarTrigger asChild>
+            <button 
+              className="fixed top-[1px] left-1 z-[45] !h-9 !w-9 p-2 bg-transparent text-gray-800 rounded-md hover:bg-gray-800 hover:text-white transition-all duration-300 flex items-center justify-center" 
+              title="Abrir menú"
+            >
+              <Menu 
+                className="!w-7 !h-7" 
+                strokeWidth={1.5} 
+                color="white"
+              />
+            </button>
+          </SidebarTrigger>
         );
     }
   } else {
     triggerContent = (
-<SidebarTrigger asChild>
-  <button 
-    className="fixed top-[1px] left-1 z-[45] !h-9 !w-9 p-2 bg-transparent text-gray-800 rounded-md hover:bg-gray-800 hover:text-white transition-all duration-300 flex items-center justify-center" 
-    title="Abrir menú"
-  >
-    <Menu 
-      className="!w-7 !h-7" 
-      strokeWidth={1.5} 
-      color="white"
-    />
-  </button>
-</SidebarTrigger>
+      <SidebarTrigger asChild>
+        <button 
+          className="fixed top-[1px] left-1 z-[45] !h-9 !w-9 p-2 bg-transparent text-gray-800 rounded-md hover:bg-gray-800 hover:text-white transition-all duration-300 flex items-center justify-center" 
+          title="Abrir menú"
+        >
+          <Menu 
+            className="!w-7 !h-7" 
+            strokeWidth={1.5} 
+            color="white"
+          />
+        </button>
+      </SidebarTrigger>
     );
   }
 

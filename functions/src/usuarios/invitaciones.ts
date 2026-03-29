@@ -68,6 +68,8 @@ function summarizeCreateInvitePayload(payload: unknown): Record<string, unknown>
     rolesType: describeValueType(profile?.roles),
     rolesCount: Array.isArray(profile?.roles) ? profile.roles.length : null,
     residenciaIdType: describeValueType(profile?.residenciaId),
+    referidoPorNombreType: describeValueType(profile?.referidoPorNombre),
+    referidoFechaType: describeValueType(profile?.referidoFecha),
     emailType: describeValueType(profile?.email),
     tieneAutenticacionType: describeValueType(profile?.tieneAutenticacion),
     asistenteType: describeValueType(profile?.asistente),

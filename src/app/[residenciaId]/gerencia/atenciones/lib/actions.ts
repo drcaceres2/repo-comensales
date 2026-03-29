@@ -12,10 +12,13 @@ import {
   CrearAtencionPayload,
   CrearAtencionPayloadSchema,
 } from 'shared/schemas/atenciones';
+import { FechaHoraIsoSchema } from 'shared/schemas/fechas';
 import { FirestoreIdSchema } from 'shared/schemas/common';
+import { ConfiguracionResidencia } from 'shared/schemas/residencia';
 import { db, FieldValue } from '@/lib/firebaseAdmin';
 import { obtenerInfoUsuarioServer } from '@/lib/obtenerInfoUsuarioServer';
 import { verificarPermisoGestionWrapper } from '@/lib/acceso-privilegiado';
+import { calcularHorarioReferenciaSolicitud } from '../../../elegir-horarios-comida/_lib/calcularHorarioReferenciaSolicitud';
 
 type ActionResponse<T> =
   | {
@@ -39,6 +42,12 @@ type ContextoPermisos = {
 type ResultadoContexto =
   | { ok: true; contexto: ContextoPermisos }
   | { ok: false; error: ActionResponse<never> };
+
+export type OpcionFechaHoraSolicitudComida = {
+  horarioSolicitudId: string;
+  value: string;
+  label: string;
+};
 
 function normalizarAtencion(docId: string, raw: any): Atencion {
   const data = { ...raw };
@@ -146,6 +155,65 @@ function aplicarReglasEstado(
   return { estado };
 }
 
+function calcularOpcionesFechaHoraSolicitudComida(
+  fechaHoraAtencion: string,
+  horariosSolicitud: ConfiguracionResidencia['horariosSolicitud'] = {},
+): OpcionFechaHoraSolicitudComida[] {
+  const fechaAtencion = fechaHoraAtencion.slice(0, 10);
+  if (!fechaAtencion) {
+    return [];
+  }
+
+  return Object.entries(horariosSolicitud)
+    .filter(([, horario]) => horario?.estaActivo)
+    .map(([horarioSolicitudId, horario]) => {
+      const value = calcularHorarioReferenciaSolicitud(
+        fechaAtencion,
+        horarioSolicitudId,
+        horariosSolicitud,
+      );
+
+      return {
+        horarioSolicitudId,
+        value,
+        label: `${horario.nombre} (${horario.dia} ${horario.horaSolicitud}) - ${value}`,
+      };
+    })
+    .sort((a, b) => a.value.localeCompare(b.value));
+}
+
+async function obtenerOpcionesFechaHoraSolicitudComidaInterno(
+  residenciaId: string,
+  fechaHoraAtencion: string,
+): Promise<ActionResponse<OpcionFechaHoraSolicitudComida[]>> {
+  const parsedFecha = FechaHoraIsoSchema.safeParse(fechaHoraAtencion);
+  if (!parsedFecha.success) {
+    return {
+      success: false,
+      message: 'Fecha/hora de atencion invalida.',
+    };
+  }
+
+  const singletonSnap = await db.doc(`residencias/${residenciaId}/configuracion/general`).get();
+  if (!singletonSnap.exists) {
+    return {
+      success: false,
+      message: 'No existe la configuracion general de la residencia.',
+    };
+  }
+
+  const singleton = singletonSnap.data() as ConfiguracionResidencia;
+  const opciones = calcularOpcionesFechaHoraSolicitudComida(
+    parsedFecha.data,
+    singleton.horariosSolicitud,
+  );
+
+  return {
+    success: true,
+    data: opciones,
+  };
+}
+
 export async function obtenerAtenciones(residenciaId: string): Promise<Atencion[]> {
   const resultadoContexto = await validarContextoAtenciones(residenciaId);
   if (!resultadoContexto.ok) {
@@ -171,6 +239,18 @@ export async function obtenerAtenciones(residenciaId: string): Promise<Atencion[
   return atenciones;
 }
 
+export async function obtenerOpcionesFechaHoraSolicitudComida(
+  residenciaId: string,
+  fechaHoraAtencion: string,
+): Promise<ActionResponse<OpcionFechaHoraSolicitudComida[]>> {
+  const resultadoContexto = await validarContextoAtenciones(residenciaId);
+  if (!resultadoContexto.ok) {
+    return resultadoContexto.error as ActionResponse<OpcionFechaHoraSolicitudComida[]>;
+  }
+
+  return obtenerOpcionesFechaHoraSolicitudComidaInterno(residenciaId, fechaHoraAtencion);
+}
+
 export async function crearAtencion(
   residenciaId: string,
   payload: CrearAtencionPayload,
@@ -191,6 +271,37 @@ export async function crearAtencion(
     };
   }
 
+  const opcionesResult = await obtenerOpcionesFechaHoraSolicitudComidaInterno(
+    residenciaId,
+    parsed.data.fechaHoraAtencion,
+  );
+
+  if (!opcionesResult.success) {
+    return {
+      success: false,
+      message: opcionesResult.message,
+    };
+  }
+
+  const opciones = opcionesResult.data;
+  if (opciones.length === 0) {
+    return {
+      success: false,
+      message: 'No hay horarios de solicitud disponibles para la fecha/hora de atencion seleccionada.',
+    };
+  }
+
+  const coincideSolicitud = opciones.some(
+    (opcion) => opcion.value === parsed.data.fechaHoraSolicitudComida,
+  );
+
+  if (!coincideSolicitud) {
+    return {
+      success: false,
+      message: 'La fecha/hora de solicitud no coincide con las opciones permitidas para la fecha/hora de atencion.',
+    };
+  }
+
   const docRef = atencionesColeccion(residenciaId).doc();
 
   const nuevaAtencion: Atencion = {
@@ -199,7 +310,7 @@ export async function crearAtencion(
     autorId: contexto.usuarioId,
     nombre: parsed.data.nombre,
     comentarios: parsed.data.comentarios,
-    fechaSolicitudComida: parsed.data.fechaSolicitudComida,
+    fechaHoraSolicitudComida: parsed.data.fechaHoraSolicitudComida,
     fechaHoraAtencion: parsed.data.fechaHoraAtencion,
     estado: 'pendiente',
     avisoAdministracion: 'no_comunicado',
@@ -253,7 +364,7 @@ export async function actualizarAtencion(
 
   const patch: Record<string, any> = {
     nombre: parsed.data.nombre,
-    fechaSolicitudComida: parsed.data.fechaSolicitudComida,
+    fechaHoraSolicitudComida: parsed.data.fechaHoraSolicitudComida,
     fechaHoraAtencion: parsed.data.fechaHoraAtencion,
     ...aplicarReglasEstado(parsed.data.estado),
   };
