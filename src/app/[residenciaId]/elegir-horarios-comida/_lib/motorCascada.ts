@@ -3,7 +3,7 @@ import { Ausencia, Excepcion, EleccionSemanario,SlotEfectivo } from "shared/sche
 import { GrupoComida, TipoVentanaConfigAlternativa } from "shared/schemas/horarios";
 import { estaMuroMovilCerrado } from "./muroMovil";
 
-const EHC_DEBUG = process.env.NODE_ENV !== 'production' || process.env.EHC_DEBUG === '1';
+const EHC_DEBUG = process.env.EHC_DEBUG === '1';
 
 type OpcionResuelta = {
   configuracionAlternativaId: string;

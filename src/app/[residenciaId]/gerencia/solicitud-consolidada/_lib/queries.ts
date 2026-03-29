@@ -47,7 +47,12 @@ export function useFase3SolicitudConsolidada(residenciaId: string | null) {
         calendario: data.encabezado.calendario,
         colapsado: false,
       });
-      setPestana1(data.pestana1);
+      setPestana1({
+        ...data.pestana1,
+        selectedHorarioSolicitudId: data.selectedHorarioSolicitudId ?? null,
+        tiempoComidaNombres: data.pestana1?.tiempoComidaNombres ?? {},
+        alternativaNombres: data.pestana1?.alternativaNombres ?? {},
+      });
       setPestana2(data.pestana2);
       setPestana3(data.pestana3);
     }

@@ -52,10 +52,11 @@ export default function SolicitudConsolidadaPage() {
 
   // Inicializar contexto en el store
   useEffect(() => {
-    if (residenciaId) {
-      setContexto(residenciaId, `${new Date().toISOString().split('T')[0]}__placeholder`);
+    if (residenciaId && fase3Data) {
+      const horarioId = String(fase3Data.selectedHorarioSolicitudId ?? 'placeholder');
+      setContexto(residenciaId, `${new Date().toISOString().split('T')[0]}__${horarioId}`);
     }
-  }, [residenciaId, setContexto]);
+  }, [residenciaId, fase3Data, setContexto]);
 
   // Limpiar store al desmontar el componente para evitar fugas de memoria
   useEffect(() => {

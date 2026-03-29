@@ -22,10 +22,14 @@ export interface OverrideComensal {
 }
 
 export interface CalendarioState {
+  fechaInicio?: string;
+  fechaFin?: string;
   recordatorios: Array<{
     id: string;
     nombre?: string;
     fechaInicio?: string;
+    fechaInicioValidez?: string;
+    fechaFinValidez?: string;
   }>;
   cumpleanios: Array<{
     id: string;
@@ -38,6 +42,9 @@ export interface CalendarioState {
 export interface ComensalesState {
   arbolComensales: Record<string, Record<string, Record<string, string[]>>>;
   usuariosDiccionario: Record<string, any>;
+  selectedHorarioSolicitudId: string | null;
+  tiempoComidaNombres: Record<string, string>;
+  alternativaNombres: Record<string, string>;
 }
 
 export interface NovedadesState {
@@ -156,6 +163,9 @@ const initialState = {
   pestana1: {
     arbolComensales: {},
     usuariosDiccionario: {},
+    selectedHorarioSolicitudId: null,
+    tiempoComidaNombres: {},
+    alternativaNombres: {},
   },
   pestana2: {
     novedades: [],

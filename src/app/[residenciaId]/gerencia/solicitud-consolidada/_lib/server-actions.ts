@@ -1221,6 +1221,7 @@ export async function consultarEstadoPdfSolicitud(
 
 export async function fase3SolicitudConsolidadaUI(input: { residenciaId: string }): Promise<
   ActionResult<{
+    selectedHorarioSolicitudId: string | null;
     encabezado: {
       calendario: {
         fechaInicio: string;
@@ -1232,6 +1233,8 @@ export async function fase3SolicitudConsolidadaUI(input: { residenciaId: string 
     pestana1: {
       arbolComensales: Record<string, Record<string, Record<string, string[]>>>;
       usuariosDiccionario: Record<string, PlainDoc>;
+      tiempoComidaNombres: Record<string, string>;
+      alternativaNombres: Record<string, string>;
     };
     pestana2: {
       novedades: PlainDoc[];
@@ -1289,6 +1292,35 @@ export async function fase3SolicitudConsolidadaUI(input: { residenciaId: string 
     .filter((item): item is PlainDoc => item !== null);
 
   const singletonResidencia = config;
+  const horariosSolicitud = (singletonResidencia.horariosSolicitud ?? {}) as Record<string, any>;
+  const selectedHorarioSolicitudId = (() => {
+    const fromConfig = String(singletonResidencia.horarioSolicitudSeleccionadoId ?? '');
+    if (fromConfig && horariosSolicitud[fromConfig]) {
+      return fromConfig;
+    }
+
+    for (const [horarioId, horario] of Object.entries(horariosSolicitud)) {
+      if ((horario as Record<string, unknown>)?.esPrimario === true) {
+        return horarioId;
+      }
+    }
+
+    const ids = Object.keys(horariosSolicitud).sort();
+    return ids[0] ?? null;
+  })();
+
+  const tiempoComidaNombres: Record<string, string> = {};
+  for (const [tiempoComidaId, tiempoData] of Object.entries((singletonResidencia.esquemaSemanal ?? {}) as Record<string, any>)) {
+    tiempoComidaNombres[tiempoComidaId] = String((tiempoData as Record<string, unknown>)?.nombre ?? tiempoComidaId);
+  }
+
+  const alternativaNombres: Record<string, string> = {};
+  for (const [configAlternativaId, configAlt] of Object.entries((singletonResidencia.configuracionesAlternativas ?? {}) as Record<string, any>)) {
+    const definicionId = String((configAlt as Record<string, any>)?.definicionAlternativaId ?? '');
+    const definicion = (singletonResidencia.catalogoAlternativas ?? {})[definicionId] as Record<string, unknown> | undefined;
+    alternativaNombres[configAlternativaId] = String(definicion?.nombre ?? (configAlt as Record<string, unknown>)?.nombre ?? configAlternativaId);
+  }
+
   const alteracionesCapa0 = (fase3.data.alteraciones as unknown as AlteracionDiariaInput[]) ?? [];
   const diasDensos = densificarCapa0(fechasRango, singletonResidencia as any, alteracionesCapa0);
 
@@ -1456,6 +1488,25 @@ export async function fase3SolicitudConsolidadaUI(input: { residenciaId: string 
         arbolBuilder[fecha][tiempoComidaId][dietaKey] = arbolBuilder[fecha][tiempoComidaId][dietaKey] ?? new Set<string>();
 
         if (tarjeta.resultadoEfectivo.configuracionAlternativaId) {
+          const configAltId = String(tarjeta.resultadoEfectivo.configuracionAlternativaId);
+          const configAlt = singletonResidencia.configuracionesAlternativas?.[configAltId] as Record<string, any> | undefined;
+          const horarioConfigId = String(configAlt?.horarioSolicitudComidaId ?? '');
+
+          if (selectedHorarioSolicitudId && horarioConfigId !== selectedHorarioSolicitudId) {
+            continue;
+          }
+
+          usuariosDiccionario[usuarioId] = {
+            ...usuariosDiccionario[usuarioId],
+            alternativasPorFecha: {
+              ...((usuariosDiccionario[usuarioId]?.alternativasPorFecha as Record<string, Record<string, string>> | undefined) ?? {}),
+              [fecha]: {
+                ...(((usuariosDiccionario[usuarioId]?.alternativasPorFecha as Record<string, Record<string, string>> | undefined)?.[fecha] ?? {})),
+                [tiempoComidaId]: configAltId,
+              },
+            },
+          };
+
           arbolBuilder[fecha][tiempoComidaId][dietaKey].add(usuarioId);
         }
       }
@@ -1474,6 +1525,7 @@ export async function fase3SolicitudConsolidadaUI(input: { residenciaId: string 
   }
 
   return ok({
+    selectedHorarioSolicitudId,
     encabezado: {
       calendario: {
         fechaInicio: hoy,
@@ -1485,6 +1537,8 @@ export async function fase3SolicitudConsolidadaUI(input: { residenciaId: string 
     pestana1: {
       arbolComensales,
       usuariosDiccionario,
+      tiempoComidaNombres,
+      alternativaNombres,
     },
     pestana2: {
       novedades: fase2.data.tarjetas.novedades,

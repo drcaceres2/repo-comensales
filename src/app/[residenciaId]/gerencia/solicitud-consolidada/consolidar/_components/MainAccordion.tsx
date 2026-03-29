@@ -9,6 +9,29 @@ import { useSolicitudConsolidadaStore } from '../../_lib/store';
 type DietMap = Record<string, string[]>;
 type AltMap = Record<string, DietMap>;
 
+function capitalizar(texto: string): string {
+  return texto ? `${texto[0].toUpperCase()}${texto.slice(1)}` : texto;
+}
+
+function formatearFecha(fechaIso: string): string {
+  const fecha = new Date(`${fechaIso}T00:00:00`);
+  if (Number.isNaN(fecha.getTime())) {
+    return fechaIso;
+  }
+
+  const partes = new Intl.DateTimeFormat('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).formatToParts(fecha);
+
+  const weekday = partes.find((p) => p.type === 'weekday')?.value ?? '';
+  const day = partes.find((p) => p.type === 'day')?.value ?? '';
+  const month = partes.find((p) => p.type === 'month')?.value ?? '';
+
+  return capitalizar(`${weekday} ${day} ${month}`.trim());
+}
+
 function resolveAlternativaId(usuario: any, fecha: string, tiempoComidaId: string): string {
   const byFechaTiempo = usuario?.alternativasPorFecha?.[fecha]?.[tiempoComidaId];
   if (typeof byFechaTiempo === 'string' && byFechaTiempo) {
@@ -27,6 +50,15 @@ export default function MainAccordion() {
   const store = useSolicitudConsolidadaStore();
   const arbol = store.pestana1.arbolComensales;
   const usuarios = store.pestana1.usuariosDiccionario;
+  const tiempoComidaNombres = store.pestana1.tiempoComidaNombres;
+  const alternativaNombres = store.pestana1.alternativaNombres;
+
+  // Debug: mostrar mapas disponibles
+  React.useEffect(() => {
+    console.log('[MainAccordion] tiempoComidaNombres:', tiempoComidaNombres);
+    console.log('[MainAccordion] alternativaNombres:', alternativaNombres);
+    console.log('[MainAccordion] usuariosDiccionario keys:', Object.keys(usuarios));
+  }, [tiempoComidaNombres, alternativaNombres, usuarios]);
 
   const fechas = useMemo(() => Object.keys(arbol).sort(), [arbol]);
 
@@ -46,7 +78,7 @@ export default function MainAccordion() {
 
         return (
           <section key={fecha} className="rounded-xl border bg-white p-3">
-            <h3 className="mb-3 text-sm font-semibold text-gray-700">{fecha}</h3>
+            <h3 className="mb-3 text-sm font-semibold text-gray-700">{formatearFecha(fecha)}</h3>
 
             <div className="space-y-2">
               {tiempoIds.map((tiempoComidaId) => {
@@ -62,6 +94,7 @@ export default function MainAccordion() {
                   for (const uid of userIds) {
                     const usuario = usuarios[uid];
                     const altId = resolveAlternativaId(usuario, fecha, tiempoComidaId);
+                    console.log(`[MainAccordion] Usuario ${uid} (${usuario?.nombre}), Fecha: ${fecha}, Tiempo: ${tiempoComidaId}, Dieta: ${dietaId}, AltId: ${altId}`);
                     alternativas[altId] = alternativas[altId] ?? {};
                     alternativas[altId][dietaId] = alternativas[altId][dietaId] ?? [];
                     alternativas[altId][dietaId].push(uid);
@@ -75,7 +108,7 @@ export default function MainAccordion() {
                       onClick={() => store.toggleComensalExpandido(tiempoKey)}
                     >
                       <div>
-                        <p className="text-sm font-medium">{tiempoComidaId}</p>
+                        <p className="text-sm font-medium">{tiempoComidaNombres[tiempoComidaId] ?? tiempoComidaId}</p>
                         <p className="text-xs text-gray-500">Nivel 1: tiempo de comida</p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -98,7 +131,7 @@ export default function MainAccordion() {
                                 onClick={() => store.toggleComensalExpandido(altKey)}
                               >
                                 <div>
-                                  <p className="text-sm">{altId}</p>
+                                  <p className="text-sm">{alternativaNombres[altId] ?? altId}</p>
                                   <p className="text-xs text-gray-500">Nivel 2: alternativa</p>
                                 </div>
                                 <div className="flex items-center gap-2">
